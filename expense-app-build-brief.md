@@ -100,18 +100,24 @@ onto a CRUD schema later is a data-layer rewrite plus a migration for every exis
 - Zero-decimal currencies (JPY, KRW, VND, and the rest of the ISO 4217 zero-exponent set) are
   handled explicitly, not by assuming two decimal places.
 - Every event stores the original currency and amount **plus the FX rate frozen at event creation**.
-  A later rate change must never move a historical balance. Write a test that proves this.
+  Represent the rate as an integer ratio or explicitly scaled integer, never floating point, and
+  define one deterministic rounding rule. A later rate change must never move a historical balance.
+  Write a test that proves this.
 
 ### 2.3 Ordering
 
-Hybrid logical clocks, with a stable tiebreak on actor ID. Wall clocks alone are not sufficient and
-will produce divergent folds across devices with skewed clocks.
+Hybrid logical clocks. The complete total-order key is `(physical time, logical counter, actor ID,
+event ID)`, with every event ID globally unique and used for idempotency. Wall clocks alone are not
+sufficient and will produce divergent folds across devices with skewed clocks.
 
 ### 2.4 Compaction
 
-Explicit snapshot and compaction from the start. A snapshot is a fold result plus the event ID it
-was taken at. Without this the log becomes the operational problem in year two, and bolting it on
-afterwards means writing it against live user data.
+Explicit snapshot and compaction from the start. A snapshot is a fold result plus a per-actor causal
+frontier/high-water mark describing every event included in it. A single event ID is insufficient:
+a late event from another actor can sort before that ID after the snapshot exists. Define how late
+events invalidate or extend a snapshot, and do not discard compacted events until the relevant peers
+have acknowledged the frontier. Without this the log becomes the operational problem in year two,
+and bolting it on afterwards means writing it against live user data.
 
 ### 2.5 Soft state may be a CRDT
 
