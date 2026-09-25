@@ -78,3 +78,12 @@ This satisfies the build brief's three-platform Phase 0 pass condition, so
 Phase 1 may begin. The Swift Package Manager and Rust `atomics` warnings remain
 recorded compatibility risks; they do not invalidate the pinned, passing
 toolchain.
+
+## 2026-09-25 — Build the deterministic ledger before the Flutter screens
+
+Phase 1 starts with a dependency-free Rust core and executable acceptance
+tests for ordering, frozen FX, zero-decimal currencies, idempotency, and
+snapshots. Building screens against temporary Dart models was rejected because
+those models would either duplicate the money rules or become an accidental
+CRUD source of truth. The first Flutter vertical slice will consume this core
+through a thin bridge.

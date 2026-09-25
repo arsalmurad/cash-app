@@ -3,3 +3,4 @@
 /mls_spike/build/
 /mls_spike/rust/target/
 /mls_spike/.flutter-plugins-dependencies
+/rust/target/
