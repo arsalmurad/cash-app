@@ -1,16 +1,11 @@
 # Phase 0: OpenMLS through flutter_rust_bridge v2
 
-Started: 2026-09-24. Reported: 2026-09-25. Status: **partial finding;
-Phase 0 pass condition not met**.
+Started: 2026-09-24. Reported: 2026-09-25. Status: **pass; Phase 0 pass
+condition met**.
 
-An iOS simulator workflow is prepared at
-`.github/workflows/phase0-ios.yml`. It is manual-only and has not run yet; this
-does not change the status above.
-
-OpenMLS works through `flutter_rust_bridge` v2 on Android and Flutter web/WASM
-in this spike. The iOS target is untested because the available host is Windows
-and no Mac or iOS CI runner is available. The brief requires all three targets,
-so Phase 1 remains blocked.
+OpenMLS works through `flutter_rust_bridge` v2 on iOS, Android, and Flutter
+web/WASM in this spike. The required runtime flow passed on all three targets,
+so Phase 1 is unblocked.
 
 ## Tested flow
 
@@ -27,6 +22,8 @@ The bridge exposes these calls:
 ## Host and toolchain
 
 - Host: Windows 10 Pro 22H2, x64.
+- iOS CI host: GitHub-hosted macOS 15.7.9 (`macos-15`), build `24G830`, with
+  Xcode 16.4 build `16F6`.
 - Flutter: 3.47.5 stable, framework revision `6a19cca564`; Dart 3.13.4.
 - Rustup: 1.29.1; stable Rust 1.98.1.
 - WASM toolchain: nightly Rust 1.100.0-nightly (2026-09-23),
@@ -38,6 +35,8 @@ The bridge exposes these calls:
   feature, enabled only for `wasm32`.
 - Android: Temurin JDK 17.0.20.1, Android SDK 36, Build Tools 36.0.0,
   NDK 28.2.13676358, Emulator 37.1.11, Android 16/API 36 AOSP ATD x86_64.
+- iOS runtime: iPhone 16 Pro simulator, UDID
+  `DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9`.
 - Web runtime: Chrome 152.0.7977.83.
 
 The Cargo lockfile records all transitive crate versions.
@@ -46,7 +45,7 @@ The Cargo lockfile records all transitive crate versions.
 
 | Target | Build | Run operations | Binary size delta | Notes |
 | --- | --- | --- | --- | --- |
-| iOS device/simulator | Not attempted | Not attempted | Not measured | Requires macOS and Xcode. No Mac or iOS runner is available. |
+| iOS simulator | **Pass** | **Pass** | `+7,841,719` bytes (`+7.48 MiB`) | Unsigned release `Runner.app`: `22,284,911` bytes; matched minimal Flutter `Runner.app`: `14,443,192` bytes. |
 | Android emulator | **Pass** | **Pass** | `+3,654,629` bytes (`+3.49 MiB`) | Release x86_64 APK: `20,577,009` bytes; matched minimal Flutter APK: `16,922,380` bytes. |
 | Flutter web/WASM | **Pass** | **Pass** | `+17,114,954` bytes (`+16.32 MiB`) | Release deployment: `59,800,328` bytes; matched minimal Flutter deployment: `42,685,374` bytes. |
 
@@ -55,8 +54,9 @@ The Android MLS APK contains a 3,647,344-byte uncompressed
 `rust_lib_mls_spike_bg.wasm`; its Flutter `main.dart.wasm` is 1,523,295 bytes,
 compared with 1,511,217 bytes in the baseline.
 
-Both baselines were generated with Flutter 3.47.5, the same release mode, and
-the same target settings. The Android comparison uses release x86_64 APKs. The
+All baselines were generated with Flutter 3.47.5, the same release mode, and
+the same target settings. The iOS comparison sums every file in each unsigned
+release `Runner.app`, the Android comparison uses release x86_64 APKs, and the
 web comparison sums every file in each `build/web` deployment.
 
 ## Verification output
@@ -68,6 +68,29 @@ cargo test --manifest-path mls_spike/rust/Cargo.toml --locked
 running 1 test
 test crypto::tests::removed_member_cannot_decrypt_next_epoch ... ok
 ```
+
+### iOS simulator
+
+The manual [GitHub Actions run](https://github.com/arsalmurad/cash-app/actions/runs/36151334244)
+completed successfully on the standard `macos-15` runner.
+
+Command:
+
+```text
+flutter test integration_test/mls_test.dart -d DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9
+```
+
+Result:
+
+```text
+✅ Passing tests
+✅ removed member cannot decrypt next epoch
+🎉 1 test passed.
+```
+
+The same run completed `flutter build ios --release --no-codesign` and built
+`build/ios/iphoneos/Runner.app` at `22,284,911` bytes. Its matched minimal
+Flutter baseline was `14,443,192` bytes.
 
 ### Android emulator
 
@@ -134,16 +157,22 @@ See [the captured browser result](phase0-web-pass.png).
 - The current Android command-line tools emit a nonfatal warning because one
   Flutter SDK processor understands SDK XML through version 3 while the SDK
   metadata uses version 4. The APK still built, installed, and passed.
-- This Windows host cannot perform the required iOS build and runtime test.
-  Flutter's [iOS setup guide](https://docs.flutter.dev/get-started/install/macos/mobile-ios)
-  requires Xcode on macOS. An untested iOS target cannot be counted as a pass.
+- During the iOS integration run, Flutter warned that `rust_lib_mls_spike` does
+  not support Swift Package Manager. CocoaPods integration completed and the
+  runtime test passed, but a future Flutter version may make this an error. Keep
+  the toolchain pinned until the generated plugin supports Swift Package
+  Manager or the integration is deliberately migrated.
+- The current Web/WASM build warns that Rust's `atomics` target feature is
+  unstable and may become a hard error in a future compiler. Keep the
+  known-working Rust/FRB toolchain pinned and recheck this warning before a
+  toolchain upgrade.
 
 ## Conclusion
 
-The unverified OpenMLS bridge assumption is proven for Android and web/WASM.
-The Phase 0 gate is still incomplete because iOS cannot be tested in the
-available environment. Do not start Phase 1 until an iOS run is available or
-the architecture decision is explicitly revised in response to this finding.
+The OpenMLS bridge assumption is proven at runtime on iOS, Android, and
+web/WASM. The Phase 0 pass condition is met and Phase 1 is unblocked. The two
+forward-compatibility warnings above are maintenance risks, not failures of the
+pinned implementation.
 
 ## References
 

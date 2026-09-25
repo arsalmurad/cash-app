@@ -16,11 +16,10 @@ and the relay must never receive readable financial data.
 
 ## Current gate
 
-- Android and Web/WASM pass the Phase 0 OpenMLS bridge flow.
-- iOS is untested. Phase 0 is not complete until the iOS simulator workflow
-  runs successfully and the result is recorded.
-- Do not begin Phase 1 or claim iOS compatibility before that result unless the
-  user explicitly accepts a provisional architecture decision.
+- iOS, Android, and Web/WASM pass the Phase 0 OpenMLS bridge flow.
+- Phase 0 is complete and Phase 1 work is allowed.
+- Preserve the pinned, known-working toolchains and monitor the compatibility
+  warnings recorded in `docs/PHASE0-RESULT.md`.
 
 ## Efficient execution
 

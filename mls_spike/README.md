@@ -44,5 +44,7 @@ flutter test integration_test/mls_test.dart -d <device-id>
 
 ## Current gate
 
-Android and web/WASM pass. iOS has not been tested because no Mac/Xcode runner
-is available, so the Phase 0 pass condition is not met.
+iOS, Android, and web/WASM pass the complete bridge flow. The Phase 0 pass
+condition is met and Phase 1 is unblocked. See the
+[successful macOS/iOS run](https://github.com/arsalmurad/cash-app/actions/runs/36151334244)
+and the full [Phase 0 result](../docs/PHASE0-RESULT.md).

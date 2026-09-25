@@ -68,3 +68,13 @@ untested or starting Phase 1 provisionally was rejected because iOS is the
 primary commercial platform and the Phase 0 brief makes it an explicit gate.
 The workflow has a 45-minute timeout and no push trigger so it cannot consume
 the private repository's included runner allowance repeatedly.
+
+## 2026-09-25 — Complete Phase 0 and unblock Phase 1
+
+The complete OpenMLS bridge flow passed at runtime on an iPhone 16 Pro
+simulator, an Android 16 emulator, and Chrome with the generated WebAssembly
+artifact. Matching release baselines were also measured on all three targets.
+This satisfies the build brief's three-platform Phase 0 pass condition, so
+Phase 1 may begin. The Swift Package Manager and Rust `atomics` warnings remain
+recorded compatibility risks; they do not invalidate the pinned, passing
+toolchain.
