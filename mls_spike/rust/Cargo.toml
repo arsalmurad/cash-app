@@ -1,0 +1,19 @@
+[package]
+name = "rust_lib_mls_spike"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+flutter_rust_bridge = "=2.13.0"
+openmls = { version = "=0.9.0", features = ["js"] }
+openmls_basic_credential = "=0.6.0"
+openmls_rust_crypto = "=0.6.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "=0.2.17", features = ["js"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
