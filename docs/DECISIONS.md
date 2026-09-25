@@ -59,3 +59,12 @@ The system drive did not have enough room for the Android SDK, NDK, emulator,
 Gradle cache, and Cargokit objects. Those generated and external files live on
 `D:`. The repository's ignored `mls_spike/build` path is a local junction to the
 generated build directory on `D:`; no source path depends on that drive.
+
+## 2026-09-25 — Close the iOS gate on a standard GitHub-hosted runner
+
+Use a manual-only `macos-15` GitHub Actions workflow to run the existing bridge
+test in an iOS simulator and measure an unsigned release bundle. Leaving iOS
+untested or starting Phase 1 provisionally was rejected because iOS is the
+primary commercial platform and the Phase 0 brief makes it an explicit gate.
+The workflow has a 45-minute timeout and no push trigger so it cannot consume
+the private repository's included runner allowance repeatedly.

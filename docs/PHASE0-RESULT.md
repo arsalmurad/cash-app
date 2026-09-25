@@ -3,6 +3,10 @@
 Started: 2026-09-24. Reported: 2026-09-25. Status: **partial finding;
 Phase 0 pass condition not met**.
 
+An iOS simulator workflow is prepared at
+`.github/workflows/phase0-ios.yml`. It is manual-only and has not run yet; this
+does not change the status above.
+
 OpenMLS works through `flutter_rust_bridge` v2 on Android and Flutter web/WASM
 in this spike. The iOS target is untested because the available host is Windows
 and no Mac or iOS CI runner is available. The brief requires all three targets,
