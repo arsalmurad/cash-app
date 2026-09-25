@@ -93,7 +93,7 @@ jobs:
           }
 
           spike_app="$GITHUB_WORKSPACE/mls_spike/build/ios/iphoneos/Runner.app"
-          baseline="$RUNNER_TEMP/flutter-ios-baseline"
+          baseline="$RUNNER_TEMP/flutter_ios_baseline"
           flutter create --platforms=ios --org com.example "$baseline"
           (
             cd "$baseline"
