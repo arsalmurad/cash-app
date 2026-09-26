@@ -54,9 +54,12 @@ Dart 3.13.4):
   ("Savings") and transfer 100.00 from the existing account into it,
   asserting the net balance stays the same total while each account's own
   balance changes correctly, then confirming a further simulated restart
-  still shows it. iOS result: not yet run against this specific change as
-  of writing this section — see below once the manual `phase1-ios` workflow
-  completes.
+  still shows it. Ran the manual `phase1-ios` GitHub Actions workflow on an
+  iPhone 16 Pro simulator against this change —
+  [passing run](https://github.com/arsalmurad/cash-app/actions/runs/36267872047),
+  first attempt: `flutter analyze`, `flutter test test` (13/13), the full
+  integration test including the new account-creation and transfer steps,
+  and `flutter build ios --release --no-codesign` all passed.
 - Not verified this session (no Android emulator or browser available in
   this container, same limitation as every slice above): the Android
   integration test and the web runtime check.
@@ -253,9 +256,8 @@ tooling from application analysis resolved it; native builds still execute it.
 Ledger events now persist locally and survive a restart, each device keeps a
 stable actor ID, categories (with icons, and titles that auto-assign on
 repeat) are built, and multiple accounts plus transfers between them are
-built (see above; iOS confirmed for persistence and categories, pending for
-transfers as of this writing). Still open before Phase 1's exit test can be
-called complete:
+built and confirmed on real iOS hardware for all three (see above). Still
+open before Phase 1's exit test can be called complete:
 
 - Run the Android integration test and the web runtime check against every
   change above (see each section's "Not verified this session").
