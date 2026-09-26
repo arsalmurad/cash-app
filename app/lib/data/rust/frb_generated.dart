@@ -70,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -268369972;
+  int get rustContentHash => -380217383;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -128,6 +128,23 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 fxDenominator,
     required String title,
     String? categoryId,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  Future<LedgerMutation> crateApiLedgerRecordTransfer({
+    required PersonalLedger ledger,
+    required String transferId,
+    required String fromAccountId,
+    required String toAccountId,
+    required String sentAmount,
+    required String sentCurrencyCode,
+    required PlatformInt64 sentFxNumerator,
+    required PlatformInt64 sentFxDenominator,
+    required String receivedAmount,
+    required String receivedCurrencyCode,
+    required PlatformInt64 receivedFxNumerator,
+    required PlatformInt64 receivedFxDenominator,
+    required String title,
     required PlatformInt64 wallClockMillis,
   });
 
@@ -536,6 +553,98 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<LedgerMutation> crateApiLedgerRecordTransfer({
+    required PersonalLedger ledger,
+    required String transferId,
+    required String fromAccountId,
+    required String toAccountId,
+    required String sentAmount,
+    required String sentCurrencyCode,
+    required PlatformInt64 sentFxNumerator,
+    required PlatformInt64 sentFxDenominator,
+    required String receivedAmount,
+    required String receivedCurrencyCode,
+    required PlatformInt64 receivedFxNumerator,
+    required PlatformInt64 receivedFxDenominator,
+    required String title,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_String(transferId, serializer);
+          sse_encode_String(fromAccountId, serializer);
+          sse_encode_String(toAccountId, serializer);
+          sse_encode_String(sentAmount, serializer);
+          sse_encode_String(sentCurrencyCode, serializer);
+          sse_encode_i_64(sentFxNumerator, serializer);
+          sse_encode_i_64(sentFxDenominator, serializer);
+          sse_encode_String(receivedAmount, serializer);
+          sse_encode_String(receivedCurrencyCode, serializer);
+          sse_encode_i_64(receivedFxNumerator, serializer);
+          sse_encode_i_64(receivedFxDenominator, serializer);
+          sse_encode_String(title, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_ledger_mutation,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerRecordTransferConstMeta,
+        argValues: [
+          ledger,
+          transferId,
+          fromAccountId,
+          toAccountId,
+          sentAmount,
+          sentCurrencyCode,
+          sentFxNumerator,
+          sentFxDenominator,
+          receivedAmount,
+          receivedCurrencyCode,
+          receivedFxNumerator,
+          receivedFxDenominator,
+          title,
+          wallClockMillis,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerRecordTransferConstMeta =>
+      const TaskConstMeta(
+        debugName: "record_transfer",
+        argNames: [
+          "ledger",
+          "transferId",
+          "fromAccountId",
+          "toAccountId",
+          "sentAmount",
+          "sentCurrencyCode",
+          "sentFxNumerator",
+          "sentFxDenominator",
+          "receivedAmount",
+          "receivedCurrencyCode",
+          "receivedFxNumerator",
+          "receivedFxDenominator",
+          "title",
+          "wallClockMillis",
+        ],
+      );
+
+  @override
   Future<String?> crateApiLedgerSuggestCategoryForTitle({
     required PersonalLedger ledger,
     required String title,
@@ -552,7 +661,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },
@@ -596,7 +705,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 12,
             port: port_,
           );
         },
@@ -697,12 +806,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AccountView dco_decode_account_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return AccountView(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
-      balanceLabel: dco_decode_String(arr[2]),
+      currencyCode: dco_decode_String(arr[2]),
+      balanceLabel: dco_decode_String(arr[3]),
     );
   }
 
@@ -784,12 +894,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   LedgerOverview dco_decode_ledger_overview(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return LedgerOverview(
       balanceLabel: dco_decode_String(arr[0]),
       accounts: dco_decode_list_account_view(arr[1]),
       transactions: dco_decode_list_transaction_view(arr[2]),
+      transfers: dco_decode_list_transfer_view(arr[3]),
     );
   }
 
@@ -824,6 +935,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TransferView> dco_decode_list_transfer_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_transfer_view).toList();
+  }
+
+  @protected
   LoadReport dco_decode_load_report(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -854,6 +971,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       amountLabel: dco_decode_String(arr[2]),
       isExpense: dco_decode_bool(arr[3]),
       categoryId: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
+  TransferView dco_decode_transfer_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return TransferView(
+      id: dco_decode_String(arr[0]),
+      title: dco_decode_String(arr[1]),
+      fromAccountId: dco_decode_String(arr[2]),
+      toAccountId: dco_decode_String(arr[3]),
+      sentLabel: dco_decode_String(arr[4]),
+      receivedLabel: dco_decode_String(arr[5]),
     );
   }
 
@@ -965,10 +1098,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
+    var var_currencyCode = sse_decode_String(deserializer);
     var var_balanceLabel = sse_decode_String(deserializer);
     return AccountView(
       id: var_id,
       name: var_name,
+      currencyCode: var_currencyCode,
       balanceLabel: var_balanceLabel,
     );
   }
@@ -1050,10 +1185,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_balanceLabel = sse_decode_String(deserializer);
     var var_accounts = sse_decode_list_account_view(deserializer);
     var var_transactions = sse_decode_list_transaction_view(deserializer);
+    var var_transfers = sse_decode_list_transfer_view(deserializer);
     return LedgerOverview(
       balanceLabel: var_balanceLabel,
       accounts: var_accounts,
       transactions: var_transactions,
+      transfers: var_transfers,
     );
   }
 
@@ -1112,6 +1249,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TransferView> sse_decode_list_transfer_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TransferView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_transfer_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   LoadReport sse_decode_load_report(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_overview = sse_decode_ledger_overview(deserializer);
@@ -1149,6 +1300,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       amountLabel: var_amountLabel,
       isExpense: var_isExpense,
       categoryId: var_categoryId,
+    );
+  }
+
+  @protected
+  TransferView sse_decode_transfer_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_fromAccountId = sse_decode_String(deserializer);
+    var var_toAccountId = sse_decode_String(deserializer);
+    var var_sentLabel = sse_decode_String(deserializer);
+    var var_receivedLabel = sse_decode_String(deserializer);
+    return TransferView(
+      id: var_id,
+      title: var_title,
+      fromAccountId: var_fromAccountId,
+      toAccountId: var_toAccountId,
+      sentLabel: var_sentLabel,
+      receivedLabel: var_receivedLabel,
     );
   }
 
@@ -1264,6 +1434,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.name, serializer);
+    sse_encode_String(self.currencyCode, serializer);
     sse_encode_String(self.balanceLabel, serializer);
   }
 
@@ -1339,6 +1510,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.balanceLabel, serializer);
     sse_encode_list_account_view(self.accounts, serializer);
     sse_encode_list_transaction_view(self.transactions, serializer);
+    sse_encode_list_transfer_view(self.transfers, serializer);
   }
 
   @protected
@@ -1400,6 +1572,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_transfer_view(
+    List<TransferView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_transfer_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_load_report(LoadReport self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ledger_overview(self.overview, serializer);
@@ -1428,6 +1612,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.amountLabel, serializer);
     sse_encode_bool(self.isExpense, serializer);
     sse_encode_opt_String(self.categoryId, serializer);
+  }
+
+  @protected
+  void sse_encode_transfer_view(TransferView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_String(self.fromAccountId, serializer);
+    sse_encode_String(self.toAccountId, serializer);
+    sse_encode_String(self.sentLabel, serializer);
+    sse_encode_String(self.receivedLabel, serializer);
   }
 
   @protected

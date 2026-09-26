@@ -102,6 +102,24 @@ no new state at all: it looks up the most recent past transaction whose
 title matches and reuses its category, reading the ledger's existing
 `TransactionRecorded` events directly.
 
+## Transfers
+
+A transfer moves money between two of the ledger's own accounts and is one
+more `EventKind` variant (`TransferRecorded`), folded with the same
+strict, error-on-conflict rules as `TransactionRecorded` — unlike categories,
+a transfer is genuinely financial state, not soft state, so it belongs in
+the same mechanism, not a separate one. It carries two independent amounts,
+`sent` (leaving the source account, in that account's currency) and
+`received` (arriving in the destination account, in its currency), each
+with its own frozen reporting-currency rate. A same-currency transfer
+normally has `sent == received`, but the fold never assumes that: a
+cross-currency transfer may legitimately receive less than it sent (a
+conversion spread or fee), and that difference shows up as a real, visible
+change to the reporting balance rather than being silently normalized away.
+`LedgerState` keeps transfers in their own map (`transfers`), separate from
+`transactions`, since a transfer touches two accounts and has no single
+`category_id` or expense/income `kind` the way a transaction does.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot

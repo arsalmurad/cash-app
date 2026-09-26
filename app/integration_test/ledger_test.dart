@@ -32,7 +32,7 @@ void main() {
     // Exercise the categories bridge (a second opaque Rust type with its own
     // durable log) on real hardware: pick a non-default category from the
     // seeded list.
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byKey(const Key('categoryDropdown')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Food').last);
     await tester.pumpAndSettle();
@@ -82,5 +82,46 @@ void main() {
     expect(find.text('Rent'), findsOneWidget);
     expect(find.text('Groceries'), findsOneWidget);
     expect(find.text('Food'), findsOneWidget);
+
+    // Exercise a second account and a transfer between accounts (a second
+    // financial event kind, folded through the same ledger) on real
+    // hardware.
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.add_rounded));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Savings');
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pumpAndSettle();
+    expect(find.text('Savings'), findsOneWidget);
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Transfer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('toAccountDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Savings').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first, '100.00');
+    await tester.tap(find.widgetWithText(FilledButton, 'Add transfer'));
+    await tester.pumpAndSettle();
+
+    // The transfer moves money between accounts without changing the total:
+    // the net balance card still reads -512.34, but it's now only Everyday's
+    // -612.34 and Savings' +100.00 that sum to it, not any single account.
+    expect(find.text('USD -512.34'), findsOneWidget);
+    expect(find.text('USD -612.34'), findsOneWidget);
+    expect(find.text('USD 100.00'), findsOneWidget);
+
+    restartedController = LedgerController();
+    await restartedController.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: restartedController)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Savings'), findsOneWidget);
+    expect(find.text('USD -512.34'), findsOneWidget);
+    expect(find.text('USD -612.34'), findsOneWidget);
+    expect(find.text('USD 100.00'), findsOneWidget);
   });
 }

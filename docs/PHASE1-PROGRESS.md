@@ -2,6 +2,65 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## Multiple accounts and transfers between them
+
+Implementation: this change, on top of the categories slice below. A
+transfer is a new `EventKind::TransferRecorded` variant folded by the
+ledger's existing strict fold (unlike categories, a transfer is genuinely
+financial state — see `docs/DECISIONS.md`), carrying two independent
+amounts (`sent`/`received`, each with its own frozen reporting-fx rate) so a
+cross-currency transfer's conversion spread stays visible rather than
+assumed to be zero. `LedgerState` gained a `transfers` map alongside
+`transactions`; `canonical_bytes()` includes it so the byte-identical-state
+exit-test property still holds with transfers present. The bridge exposes
+`record_transfer` and a `transfers: Vec<TransferView>` field on
+`LedgerOverview`. `AccountView` gained a `currency_code` field (previously
+only encoded inside the formatted balance label), needed so the UI can tell
+whether a transfer crosses currencies.
+
+On the Flutter side, `AddTransactionSheet` is now a 3-mode entry sheet
+(Expense / Income / Transfer) via a `sealed class EntryDraft` result
+(`TransactionDraft` and `TransferDraft`), and expense/income entries now
+pick which account they apply to instead of a hardcoded `'everyday'`. The
+Overview pane's accounts card gained a "+" button to create additional
+accounts (name and a currency picked from a short preset list: USD, EUR,
+GBP, JPY), and the Activity pane shows transfers alongside transactions via
+a new `TransferTile`.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- Rust: `cargo test --manifest-path rust/Cargo.toml --locked --all-targets`
+  passed all 45 tests (up from 35): 7 new core-level transfer tests (a
+  same-currency transfer moves balance without changing the reporting total;
+  a cross-currency transfer keeps its conversion spread visible in the
+  reporting balance; a transfer to the same account, from an unknown
+  account, or with a currency that doesn't match either account is
+  rejected; a duplicate transfer ID with different content is rejected;
+  transfers fold identically regardless of arrival order, matching
+  `canonical_bytes()`) plus 3 new bridge-level tests (a transfer moves
+  balance between two accounts and appears in the overview; a
+  same-account transfer is rejected by the bridge too; a transfer survives
+  restart from its persisted frame).
+- Flutter: `flutter analyze` reported no issues. `flutter test test` passed
+  all 13 tests across 5 files: the prior 12, plus a new
+  `AddTransactionSheet` test that switching to transfer mode returns a
+  `TransferDraft` between two accounts with the right default "from"/"to"
+  selection. Two prior tests needed a small fix once the sheet grew a second
+  dropdown (account, alongside category): they now target
+  `find.byKey(const Key('categoryDropdown'))` instead of the now-ambiguous
+  `find.byType(DropdownButtonFormField<String>)`.
+- Extended `integration_test/ledger_test.dart` to create a second account
+  ("Savings") and transfer 100.00 from the existing account into it,
+  asserting the net balance stays the same total while each account's own
+  balance changes correctly, then confirming a further simulated restart
+  still shows it. iOS result: not yet run against this specific change as
+  of writing this section — see below once the manual `phase1-ios` workflow
+  completes.
+- Not verified this session (no Android emulator or browser available in
+  this container, same limitation as every slice above): the Android
+  integration test and the web runtime check.
+
 ## Categories with icons, and titles that auto-assign on repeat
 
 Implementation: this change, on top of the persistence slice below.
@@ -192,13 +251,14 @@ tooling from application analysis resolved it; native builds still execute it.
 ## Remaining work
 
 Ledger events now persist locally and survive a restart, each device keeps a
-stable actor ID, and categories (with icons, and titles that auto-assign on
-repeat) are built and passing on real iOS hardware (see above). Still open
-before Phase 1's exit test can be called complete:
+stable actor ID, categories (with icons, and titles that auto-assign on
+repeat) are built, and multiple accounts plus transfers between them are
+built (see above; iOS confirmed for persistence and categories, pending for
+transfers as of this writing). Still open before Phase 1's exit test can be
+called complete:
 
-- Run the Android integration test and the web runtime check against both
-  changes above (see "Not verified this session" in each section) — iOS is
-  now covered for both.
+- Run the Android integration test and the web runtime check against every
+  change above (see each section's "Not verified this session").
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
@@ -206,9 +266,12 @@ before Phase 1's exit test can be called complete:
 - Categories can be created and assigned but not renamed, re-iconed, or
   deleted from the UI yet (the Rust/bridge upsert already supports rename;
   only the "new category" entry point exists in `AddTransactionSheet`).
-- Multi-currency UI, transfers, recurring/upcoming transactions, budgets,
-  goals, search and filter, CSV import/export, and biometric lock remain
-  unbuilt.
+- Account currency is fixed at creation (no display-currency conversion
+  toggle yet); the net balance card sums accounts' reporting-currency
+  equivalents but never shows the same amount converted between two
+  currencies side by side.
+- Recurring/upcoming transactions, budgets, goals, search and filter, CSV
+  import/export, and biometric lock remain unbuilt.
 - Snapshot/compaction (`cash_core::Snapshot`) exists and is tested at the
   core level but is not yet wired into the persisted log or the bridge; the
   log currently replays from event zero on every load.

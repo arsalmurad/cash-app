@@ -26,12 +26,31 @@ pub struct TransactionState {
     pub voided: bool,
 }
 
+/// A movement of money between two of this ledger's own accounts. `sent` and
+/// `received` are independent amounts (see `EventKind::TransferRecorded`):
+/// for a same-currency transfer they're normally equal, but nothing in the
+/// fold assumes that, so a conversion spread or fee stays visible in the
+/// numbers rather than being silently normalized away.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TransferState {
+    pub from_account_id: AccountId,
+    pub to_account_id: AccountId,
+    pub sent: Money,
+    pub sent_reporting_fx: FxRate,
+    pub sent_reporting_minor: i64,
+    pub received: Money,
+    pub received_reporting_fx: FxRate,
+    pub received_reporting_minor: i64,
+    pub title: String,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LedgerState {
     pub reporting_currency: Currency,
     pub reporting_balance_minor: i64,
     pub accounts: BTreeMap<AccountId, AccountState>,
     pub transactions: BTreeMap<TransactionId, TransactionState>,
+    pub transfers: BTreeMap<TransactionId, TransferState>,
 }
 
 impl LedgerState {
@@ -41,6 +60,7 @@ impl LedgerState {
             reporting_balance_minor: 0,
             accounts: BTreeMap::new(),
             transactions: BTreeMap::new(),
+            transfers: BTreeMap::new(),
         }
     }
 
@@ -78,6 +98,23 @@ impl LedgerState {
                 None => bytes.push(0),
             }
             bytes.push(u8::from(transaction.voided));
+        }
+        write_u64(&mut bytes, self.transfers.len() as u64);
+        for (id, transfer) in &self.transfers {
+            write_string(&mut bytes, id.as_str());
+            write_string(&mut bytes, transfer.from_account_id.as_str());
+            write_string(&mut bytes, transfer.to_account_id.as_str());
+            write_i64(&mut bytes, transfer.sent.minor_units);
+            write_string(&mut bytes, transfer.sent.currency.code());
+            write_i64(&mut bytes, transfer.sent_reporting_fx.numerator);
+            write_i64(&mut bytes, transfer.sent_reporting_fx.denominator);
+            write_i64(&mut bytes, transfer.sent_reporting_minor);
+            write_i64(&mut bytes, transfer.received.minor_units);
+            write_string(&mut bytes, transfer.received.currency.code());
+            write_i64(&mut bytes, transfer.received_reporting_fx.numerator);
+            write_i64(&mut bytes, transfer.received_reporting_fx.denominator);
+            write_i64(&mut bytes, transfer.received_reporting_minor);
+            write_string(&mut bytes, &transfer.title);
         }
         bytes
     }
@@ -214,6 +251,83 @@ impl LedgerState {
                     transaction.voided = true;
                 }
             }
+            EventKind::TransferRecorded {
+                transfer_id,
+                from_account_id,
+                to_account_id,
+                sent,
+                sent_reporting_fx,
+                received,
+                received_reporting_fx,
+                title,
+            } => {
+                if from_account_id == to_account_id {
+                    return Err(FoldError::TransferToSameAccount(from_account_id.clone()));
+                }
+                if sent_reporting_fx.target_currency != self.reporting_currency
+                    || received_reporting_fx.target_currency != self.reporting_currency
+                {
+                    return Err(FoldError::ReportingCurrencyMismatch);
+                }
+                if self.transfers.contains_key(transfer_id) {
+                    return Err(FoldError::TransferAlreadyExists(transfer_id.clone()));
+                }
+                {
+                    let from_account = self
+                        .accounts
+                        .get(from_account_id)
+                        .ok_or_else(|| FoldError::UnknownAccount(from_account_id.clone()))?;
+                    if from_account.currency != sent.currency {
+                        return Err(FoldError::AccountCurrencyMismatch(from_account_id.clone()));
+                    }
+                }
+                {
+                    let to_account = self
+                        .accounts
+                        .get(to_account_id)
+                        .ok_or_else(|| FoldError::UnknownAccount(to_account_id.clone()))?;
+                    if to_account.currency != received.currency {
+                        return Err(FoldError::AccountCurrencyMismatch(to_account_id.clone()));
+                    }
+                }
+
+                let sent_reporting_minor =
+                    sent_reporting_fx.convert_minor_units(sent.minor_units)?;
+                let received_reporting_minor =
+                    received_reporting_fx.convert_minor_units(received.minor_units)?;
+                let new_from_balance = checked_sub(
+                    self.accounts[from_account_id].native_balance_minor,
+                    sent.minor_units,
+                )?;
+                let new_to_balance = checked_add(
+                    self.accounts[to_account_id].native_balance_minor,
+                    received.minor_units,
+                )?;
+
+                self.accounts.get_mut(from_account_id).unwrap().native_balance_minor =
+                    new_from_balance;
+                self.accounts.get_mut(to_account_id).unwrap().native_balance_minor =
+                    new_to_balance;
+                self.reporting_balance_minor = checked_add(
+                    checked_sub(self.reporting_balance_minor, sent_reporting_minor)?,
+                    received_reporting_minor,
+                )?;
+
+                self.transfers.insert(
+                    transfer_id.clone(),
+                    TransferState {
+                        from_account_id: from_account_id.clone(),
+                        to_account_id: to_account_id.clone(),
+                        sent: sent.clone(),
+                        sent_reporting_fx: sent_reporting_fx.clone(),
+                        sent_reporting_minor,
+                        received: received.clone(),
+                        received_reporting_fx: received_reporting_fx.clone(),
+                        received_reporting_minor,
+                        title: title.clone(),
+                    },
+                );
+            }
         }
         Ok(())
     }
@@ -273,6 +387,8 @@ pub enum FoldError {
     ReportingCurrencyMismatch,
     TransactionAlreadyExists(TransactionId),
     TransactionIsVoided(TransactionId),
+    TransferAlreadyExists(TransactionId),
+    TransferToSameAccount(AccountId),
     UnknownAccount(AccountId),
     UnknownTransaction(TransactionId),
 }

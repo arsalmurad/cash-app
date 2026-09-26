@@ -117,6 +117,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TransactionView> dco_decode_list_transaction_view(dynamic raw);
 
   @protected
+  List<TransferView> dco_decode_list_transfer_view(dynamic raw);
+
+  @protected
   LoadReport dco_decode_load_report(dynamic raw);
 
   @protected
@@ -124,6 +127,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TransactionView dco_decode_transaction_view(dynamic raw);
+
+  @protected
+  TransferView dco_decode_transfer_view(dynamic raw);
 
   @protected
   BigInt dco_decode_u_64(dynamic raw);
@@ -228,6 +234,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TransferView> sse_decode_list_transfer_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LoadReport sse_decode_load_report(SseDeserializer deserializer);
 
   @protected
@@ -235,6 +246,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TransactionView sse_decode_transaction_view(SseDeserializer deserializer);
+
+  @protected
+  TransferView sse_decode_transfer_view(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_u_64(SseDeserializer deserializer);
@@ -363,6 +377,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_transfer_view(
+    List<TransferView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_load_report(LoadReport self, SseSerializer serializer);
 
   @protected
@@ -373,6 +393,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     TransactionView self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_transfer_view(TransferView self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_64(BigInt self, SseSerializer serializer);

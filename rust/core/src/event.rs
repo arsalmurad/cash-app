@@ -60,6 +60,24 @@ pub enum EventKind {
     TransactionVoided {
         transaction_id: TransactionId,
     },
+    /// Moves money between two of this ledger's own accounts. `sent` leaves
+    /// `from_account_id` in its currency; `received` arrives in
+    /// `to_account_id` in its currency — independent amounts, not one amount
+    /// converted, because a transfer that crosses currencies may legitimately
+    /// receive less than it sent (a conversion spread or fee), and that
+    /// difference must be visible rather than assumed away. Each leg carries
+    /// its own frozen reporting-currency rate, exactly like
+    /// `TransactionRecorded`.
+    TransferRecorded {
+        transfer_id: TransactionId,
+        from_account_id: AccountId,
+        to_account_id: AccountId,
+        sent: Money,
+        sent_reporting_fx: FxRate,
+        received: Money,
+        received_reporting_fx: FxRate,
+        title: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

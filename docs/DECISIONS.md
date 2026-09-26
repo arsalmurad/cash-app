@@ -160,3 +160,25 @@ each log manage its own actor ID independently was rejected: two IDs for one
 device would let the ledger and the category book each think they were a
 different actor, which breaks the total order's assumption that an actor ID
 identifies one physical writer.
+
+## 2026-09-26 — A transfer's two legs are independent amounts, not one conversion
+
+`EventKind::TransferRecorded` stores `sent` and `received` as two separate
+`Money` + frozen-`FxRate` pairs rather than one amount plus a transfer rate
+applied to derive the other. Deriving `received` from `sent` at a fixed rate
+was rejected because a real transfer can lose value in transit (a bank fee,
+a conversion spread) that the user needs to see and that later balances must
+reflect; assuming `received = convert(sent)` would silently hide that loss
+inside the transfer rate rather than recording what actually happened, which
+is the same silent-overwrite failure mode event sourcing exists to avoid
+elsewhere in this ledger.
+
+## 2026-09-26 — Transfers stay in the ledger's own fold, not alongside categories
+
+Unlike categories, a transfer is genuinely financial state — it changes
+account balances and the reporting total — so it is a new `EventKind`
+variant folded by the ledger's existing strict, error-on-conflict `fold`,
+not a second last-writer-wins mechanism. Treating "a second account is
+involved" as a reason to split it out the way categories were was rejected:
+the deciding question is which consistency guarantee the state needs, not
+how many entities it touches, and a transfer needs the ledger's guarantee.

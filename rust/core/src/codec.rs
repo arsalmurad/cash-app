@@ -27,6 +27,7 @@ const KIND_TRANSACTION_RECORDED: u8 = 1;
 const KIND_AMOUNT_ADJUSTED: u8 = 2;
 const KIND_CATEGORY_ASSIGNED: u8 = 3;
 const KIND_TRANSACTION_VOIDED: u8 = 4;
+const KIND_TRANSFER_RECORDED: u8 = 5;
 
 /// The result of decoding a durable log's bytes back into events.
 pub struct DecodedLog {
@@ -133,6 +134,26 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: &EventKind) {
             bytes.push(KIND_TRANSACTION_VOIDED);
             write_string(bytes, transaction_id.as_str());
         }
+        EventKind::TransferRecorded {
+            transfer_id,
+            from_account_id,
+            to_account_id,
+            sent,
+            sent_reporting_fx,
+            received,
+            received_reporting_fx,
+            title,
+        } => {
+            bytes.push(KIND_TRANSFER_RECORDED);
+            write_string(bytes, transfer_id.as_str());
+            write_string(bytes, from_account_id.as_str());
+            write_string(bytes, to_account_id.as_str());
+            write_money(bytes, sent);
+            write_fx_rate(bytes, sent_reporting_fx);
+            write_money(bytes, received);
+            write_fx_rate(bytes, received_reporting_fx);
+            write_string(bytes, title);
+        }
     }
 }
 
@@ -172,6 +193,16 @@ fn decode_kind(reader: &mut Reader<'_>) -> Option<EventKind> {
         }),
         KIND_TRANSACTION_VOIDED => Some(EventKind::TransactionVoided {
             transaction_id: TransactionId::new(reader.read_string()?),
+        }),
+        KIND_TRANSFER_RECORDED => Some(EventKind::TransferRecorded {
+            transfer_id: TransactionId::new(reader.read_string()?),
+            from_account_id: AccountId::new(reader.read_string()?),
+            to_account_id: AccountId::new(reader.read_string()?),
+            sent: read_money(reader)?,
+            sent_reporting_fx: read_fx_rate(reader)?,
+            received: read_money(reader)?,
+            received_reporting_fx: read_fx_rate(reader)?,
+            title: reader.read_string()?,
         }),
         _ => None,
     }
@@ -301,6 +332,22 @@ mod tests {
                 0,
                 EventKind::TransactionVoided {
                     transaction_id: TransactionId::new("groceries-1"),
+                },
+            ),
+            Event::new(
+                "event-transfer",
+                "device-a",
+                1_005,
+                0,
+                EventKind::TransferRecorded {
+                    transfer_id: TransactionId::new("transfer-1"),
+                    from_account_id: AccountId::new("checking"),
+                    to_account_id: AccountId::new("savings"),
+                    sent: Money::new(1000, usd()),
+                    sent_reporting_fx: FxRate::identity(usd()),
+                    received: Money::new(1000, usd()),
+                    received_reporting_fx: FxRate::identity(usd()),
+                    title: "Move to savings".to_owned(),
                 },
             ),
         ]

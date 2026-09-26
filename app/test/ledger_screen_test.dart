@@ -9,16 +9,19 @@ void main() {
     'overview presents Rust ledger values and an actionable empty state',
     (tester) async {
       var addCount = 0;
+      var addAccountCount = 0;
       const overview = LedgerOverview(
         balanceLabel: 'USD 0.00',
         accounts: [
           AccountView(
             id: 'everyday',
             name: 'Everyday',
+            currencyCode: 'USD',
             balanceLabel: 'USD 0.00',
           ),
         ],
         transactions: [],
+        transfers: [],
       );
 
       await tester.pumpWidget(
@@ -28,6 +31,7 @@ void main() {
               overview: overview,
               categories: const [],
               onAdd: () => addCount += 1,
+              onAddAccount: () => addAccountCount += 1,
             ),
           ),
         ),

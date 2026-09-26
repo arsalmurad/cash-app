@@ -116,10 +116,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
               overview: controller.overview!,
               categories: controller.categories,
               onAdd: _add,
+              onAddAccount: _addAccount,
             ),
             ActivityPane(
               transactions: controller.overview!.transactions,
+              transfers: controller.overview!.transfers,
               categories: controller.categories,
+              accounts: controller.overview!.accounts,
             ),
           ],
         ),
@@ -136,11 +139,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
   Future<void> _add() async {
     final controller = widget.controller;
-    final draft = await showModalBottomSheet<TransactionDraft>(
+    final draft = await showModalBottomSheet<EntryDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: false,
       builder: (context) => AddTransactionSheet(
+        accounts: controller.overview?.accounts ?? const [],
         categories: controller.categories,
         onSuggestCategory: controller.suggestCategoryFor,
         onAddCategory: (name, iconKey) =>
@@ -150,11 +154,45 @@ class _LedgerScreenState extends State<LedgerScreen> {
     if (draft == null || !mounted) {
       return;
     }
-    final saved = await widget.controller.record(
-      title: draft.title,
-      amount: draft.amount,
-      kind: draft.kind,
-      categoryId: draft.categoryId,
+    final saved = switch (draft) {
+      TransactionDraft() => await controller.record(
+        title: draft.title,
+        amount: draft.amount,
+        kind: draft.kind,
+        accountId: draft.accountId,
+        categoryId: draft.categoryId,
+      ),
+      TransferDraft() => await controller.transfer(
+        fromAccountId: draft.fromAccountId,
+        toAccountId: draft.toAccountId,
+        sentAmount: draft.sentAmount,
+        receivedAmount: draft.receivedAmount,
+        title: draft.title,
+      ),
+    };
+    if (!mounted) {
+      return;
+    }
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.controller.errorMessage ?? 'Could not save'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _addAccount() async {
+    final draft = await showDialog<_AccountDraft>(
+      context: context,
+      builder: (context) => const _NewAccountDialog(),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+    final saved = await widget.controller.createAccount(
+      name: draft.name,
+      currencyCode: draft.currencyCode,
     );
     if (!mounted) {
       return;
@@ -163,7 +201,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            widget.controller.errorMessage ?? 'Could not add transaction',
+            widget.controller.errorMessage ?? 'Could not add account',
           ),
         ),
       );
@@ -176,12 +214,14 @@ class OverviewPane extends StatelessWidget {
     required this.overview,
     required this.categories,
     required this.onAdd,
+    required this.onAddAccount,
     super.key,
   });
 
   final LedgerOverview overview;
   final List<CategoryView> categories;
   final VoidCallback onAdd;
+  final VoidCallback onAddAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -208,7 +248,10 @@ class OverviewPane extends StatelessWidget {
               LayoutBuilder(
                 builder: (context, constraints) {
                   final balance = _BalanceCard(label: overview.balanceLabel);
-                  final accounts = _AccountsCard(accounts: overview.accounts);
+                  final accounts = _AccountsCard(
+                    accounts: overview.accounts,
+                    onAddAccount: onAddAccount,
+                  );
                   if (constraints.maxWidth < 680) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -261,12 +304,16 @@ class OverviewPane extends StatelessWidget {
 class ActivityPane extends StatelessWidget {
   const ActivityPane({
     required this.transactions,
+    required this.transfers,
     required this.categories,
+    required this.accounts,
     super.key,
   });
 
   final List<TransactionView> transactions;
+  final List<TransferView> transfers;
   final List<CategoryView> categories;
+  final List<AccountView> accounts;
 
   @override
   Widget build(BuildContext context) {
@@ -284,13 +331,17 @@ class ActivityPane extends StatelessWidget {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 16),
-                if (transactions.isEmpty)
+                if (transactions.isEmpty && transfers.isEmpty)
                   const _ActivityEmpty()
-                else
+                else ...[
                   ...transactions.map(
                     (transaction) =>
                         TransactionTile(transaction, categories: categories),
                   ),
+                  ...transfers.map(
+                    (transfer) => TransferTile(transfer, accounts: accounts),
+                  ),
+                ],
               ],
             ),
           ),
@@ -341,9 +392,10 @@ class _BalanceCard extends StatelessWidget {
 }
 
 class _AccountsCard extends StatelessWidget {
-  const _AccountsCard({required this.accounts});
+  const _AccountsCard({required this.accounts, required this.onAddAccount});
 
   final List<AccountView> accounts;
+  final VoidCallback onAddAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -353,14 +405,27 @@ class _AccountsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Accounts', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Accounts',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  onPressed: onAddAccount,
+                  icon: const Icon(Icons.add_rounded),
+                  tooltip: 'Add account',
+                ),
+              ],
+            ),
             for (final account in accounts)
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const CircleAvatar(child: Icon(Icons.wallet_outlined)),
                 title: Text(account.name),
-                subtitle: const Text('Cash account'),
+                subtitle: Text(account.currencyCode),
                 trailing: Text(
                   account.balanceLabel,
                   style: Theme.of(context).textTheme.labelLarge,
@@ -369,6 +434,82 @@ class _AccountsCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AccountDraft {
+  const _AccountDraft({required this.name, required this.currencyCode});
+
+  final String name;
+  final String currencyCode;
+}
+
+class _NewAccountDialog extends StatefulWidget {
+  const _NewAccountDialog();
+
+  @override
+  State<_NewAccountDialog> createState() => _NewAccountDialogState();
+}
+
+class _NewAccountDialogState extends State<_NewAccountDialog> {
+  static const _currencyCodes = ['USD', 'EUR', 'GBP', 'JPY'];
+
+  final nameController = TextEditingController();
+  String currencyCode = _currencyCodes.first;
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New account'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: nameController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: currencyCode,
+            decoration: const InputDecoration(labelText: 'Currency'),
+            items: [
+              for (final code in _currencyCodes)
+                DropdownMenuItem(value: code, child: Text(code)),
+            ],
+            onChanged: (value) =>
+                setState(() => currencyCode = value ?? currencyCode),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final name = nameController.text.trim();
+            if (name.isEmpty) {
+              return;
+            }
+            Navigator.pop(
+              context,
+              _AccountDraft(name: name, currencyCode: currencyCode),
+            );
+          },
+          child: const Text('Create'),
+        ),
+      ],
     );
   }
 }
@@ -412,6 +553,50 @@ class TransactionTile extends StatelessWidget {
             color: transaction.isExpense ? scheme.error : scheme.tertiary,
             fontWeight: FontWeight.w700,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class TransferTile extends StatelessWidget {
+  const TransferTile(this.transfer, {this.accounts = const [], super.key});
+
+  final TransferView transfer;
+  final List<AccountView> accounts;
+
+  String _accountName(String id) {
+    for (final account in accounts) {
+      if (account.id == id) {
+        return account.name;
+      }
+    }
+    return id;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: scheme.secondaryContainer,
+          child: Icon(
+            Icons.swap_horiz_rounded,
+            color: scheme.onSecondaryContainer,
+          ),
+        ),
+        title: Text(transfer.title),
+        subtitle: Text(
+          '${_accountName(transfer.fromAccountId)} → '
+          '${_accountName(transfer.toAccountId)}',
+        ),
+        trailing: Text(
+          transfer.sentLabel == transfer.receivedLabel
+              ? transfer.sentLabel
+              : '${transfer.sentLabel} → ${transfer.receivedLabel}',
+          style: Theme.of(context).textTheme.titleSmall,
         ),
       ),
     );

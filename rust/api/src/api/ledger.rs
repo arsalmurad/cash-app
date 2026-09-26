@@ -30,6 +30,7 @@ pub struct LedgerOverview {
     pub balance_label: String,
     pub accounts: Vec<AccountView>,
     pub transactions: Vec<TransactionView>,
+    pub transfers: Vec<TransferView>,
 }
 
 /// The result of a mutation that appended one event. `appended_frame` is the
@@ -57,6 +58,7 @@ pub struct LoadReport {
 pub struct AccountView {
     pub id: String,
     pub name: String,
+    pub currency_code: String,
     pub balance_label: String,
 }
 
@@ -67,6 +69,16 @@ pub struct TransactionView {
     pub amount_label: String,
     pub is_expense: bool,
     pub category_id: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct TransferView {
+    pub id: String,
+    pub title: String,
+    pub from_account_id: String,
+    pub to_account_id: String,
+    pub sent_label: String,
+    pub received_label: String,
 }
 
 pub enum EntryKind {
@@ -202,6 +214,78 @@ pub fn record_transaction(
     data.append_and_mutation(event)
 }
 
+/// Records a transfer between two of this ledger's own accounts.
+/// `sent_amount`/`sent_currency_code` must match `from_account_id`'s
+/// currency, and `received_amount`/`received_currency_code` must match
+/// `to_account_id`'s; for a same-currency transfer these are normally equal,
+/// but nothing here requires it (see `cash_core::EventKind::TransferRecorded`
+/// for why a cross-currency spread stays visible rather than assumed away).
+#[allow(clippy::too_many_arguments)]
+pub fn record_transfer(
+    ledger: &PersonalLedger,
+    transfer_id: String,
+    from_account_id: String,
+    to_account_id: String,
+    sent_amount: String,
+    sent_currency_code: String,
+    sent_fx_numerator: i64,
+    sent_fx_denominator: i64,
+    received_amount: String,
+    received_currency_code: String,
+    received_fx_numerator: i64,
+    received_fx_denominator: i64,
+    title: String,
+    wall_clock_millis: i64,
+) -> Result<LedgerMutation, String> {
+    if from_account_id == to_account_id {
+        return Err("cannot transfer an account to itself".to_owned());
+    }
+    let sent_currency =
+        Currency::from_code(&sent_currency_code).map_err(|error| error.to_string())?;
+    let sent_minor_units = sent_currency
+        .parse_major_units(&sent_amount)
+        .map_err(|error| error.to_string())?;
+    if sent_minor_units <= 0 {
+        return Err("sent amount must be greater than zero".to_owned());
+    }
+    let received_currency =
+        Currency::from_code(&received_currency_code).map_err(|error| error.to_string())?;
+    let received_minor_units = received_currency
+        .parse_major_units(&received_amount)
+        .map_err(|error| error.to_string())?;
+    if received_minor_units <= 0 {
+        return Err("received amount must be greater than zero".to_owned());
+    }
+
+    let mut data = lock(ledger)?;
+    let sent_fx = FxRate::new(
+        sent_fx_numerator,
+        sent_fx_denominator,
+        data.reporting_currency.clone(),
+    )
+    .map_err(|error| error.to_string())?;
+    let received_fx = FxRate::new(
+        received_fx_numerator,
+        received_fx_denominator,
+        data.reporting_currency.clone(),
+    )
+    .map_err(|error| error.to_string())?;
+    let event = data.next_event(
+        wall_clock_millis,
+        EventKind::TransferRecorded {
+            transfer_id: TransactionId::new(transfer_id),
+            from_account_id: AccountId::new(from_account_id),
+            to_account_id: AccountId::new(to_account_id),
+            sent: Money::new(sent_minor_units, sent_currency),
+            sent_reporting_fx: sent_fx,
+            received: Money::new(received_minor_units, received_currency),
+            received_reporting_fx: received_fx,
+            title,
+        },
+    );
+    data.append_and_mutation(event)
+}
+
 pub fn get_overview(ledger: &PersonalLedger) -> Result<LedgerOverview, String> {
     lock(ledger)?.overview()
 }
@@ -296,6 +380,7 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
         .map(|(id, account)| AccountView {
             id: id.as_str().to_owned(),
             name: account.name.clone(),
+            currency_code: account.currency.code().to_owned(),
             balance_label: account
                 .currency
                 .format_minor_units(account.native_balance_minor),
@@ -316,12 +401,32 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
             category_id: transaction.category_id.clone(),
         })
         .collect();
+    let transfers = state
+        .transfers
+        .iter()
+        .rev()
+        .map(|(id, transfer)| TransferView {
+            id: id.as_str().to_owned(),
+            title: transfer.title.clone(),
+            from_account_id: transfer.from_account_id.as_str().to_owned(),
+            to_account_id: transfer.to_account_id.as_str().to_owned(),
+            sent_label: transfer
+                .sent
+                .currency
+                .format_minor_units(transfer.sent.minor_units),
+            received_label: transfer
+                .received
+                .currency
+                .format_minor_units(transfer.received.minor_units),
+        })
+        .collect();
     LedgerOverview {
         balance_label: state
             .reporting_currency
             .format_minor_units(state.reporting_balance_minor),
         accounts,
         transactions,
+        transfers,
     }
 }
 
@@ -634,5 +739,151 @@ mod tests {
             suggest_category_for_title(&ledger, "Coffee".to_owned()).unwrap(),
             Some("drinks".to_owned())
         );
+    }
+
+    #[test]
+    fn a_transfer_moves_balance_between_two_accounts() {
+        let ledger = new_ledger("device-a");
+        add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Checking".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+        add_account(
+            &ledger,
+            "savings".to_owned(),
+            "Savings".to_owned(),
+            "USD".to_owned(),
+            2,
+        )
+        .unwrap();
+
+        let mutation = record_transfer(
+            &ledger,
+            "t1".to_owned(),
+            "checking".to_owned(),
+            "savings".to_owned(),
+            "50.00".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "50.00".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "Move to savings".to_owned(),
+            3,
+        )
+        .unwrap();
+
+        let checking = mutation
+            .overview
+            .accounts
+            .iter()
+            .find(|account| account.id == "checking")
+            .unwrap();
+        let savings = mutation
+            .overview
+            .accounts
+            .iter()
+            .find(|account| account.id == "savings")
+            .unwrap();
+        assert_eq!(checking.balance_label, "USD -50.00");
+        assert_eq!(savings.balance_label, "USD 50.00");
+        assert_eq!(mutation.overview.balance_label, "USD 0.00");
+        assert_eq!(mutation.overview.transfers.len(), 1);
+        assert_eq!(mutation.overview.transfers[0].sent_label, "USD 50.00");
+        assert_eq!(mutation.overview.transfers[0].received_label, "USD 50.00");
+    }
+
+    #[test]
+    fn a_transfer_to_the_same_account_is_rejected_by_the_bridge() {
+        let ledger = new_ledger("device-a");
+        add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Checking".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+
+        assert!(
+            record_transfer(
+                &ledger,
+                "t1".to_owned(),
+                "checking".to_owned(),
+                "checking".to_owned(),
+                "10.00".to_owned(),
+                "USD".to_owned(),
+                1,
+                1,
+                "10.00".to_owned(),
+                "USD".to_owned(),
+                1,
+                1,
+                "Oops".to_owned(),
+                2,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn restart_recovers_a_transfer_from_its_persisted_frame() {
+        let ledger = new_ledger("device-a");
+        let mut log = Vec::new();
+        log.extend(
+            add_account(
+                &ledger,
+                "checking".to_owned(),
+                "Checking".to_owned(),
+                "USD".to_owned(),
+                1,
+            )
+            .unwrap()
+            .appended_frame,
+        );
+        log.extend(
+            add_account(
+                &ledger,
+                "savings".to_owned(),
+                "Savings".to_owned(),
+                "USD".to_owned(),
+                2,
+            )
+            .unwrap()
+            .appended_frame,
+        );
+        log.extend(
+            record_transfer(
+                &ledger,
+                "t1".to_owned(),
+                "checking".to_owned(),
+                "savings".to_owned(),
+                "25.00".to_owned(),
+                "USD".to_owned(),
+                1,
+                1,
+                "25.00".to_owned(),
+                "USD".to_owned(),
+                1,
+                1,
+                "Move to savings".to_owned(),
+                3,
+            )
+            .unwrap()
+            .appended_frame,
+        );
+
+        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log)
+            .unwrap();
+        let report = load_report(&restarted).unwrap();
+        assert_eq!(report.recovered_event_count, 3);
+        assert_eq!(report.truncated_bytes, 0);
+        assert_eq!(report.overview.transfers.len(), 1);
     }
 }

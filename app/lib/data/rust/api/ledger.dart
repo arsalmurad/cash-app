@@ -9,7 +9,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `append_and_mutation`, `lock`, `next_event`, `overview_from_state`, `overview`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LedgerData`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 
 /// Opens a personal ledger by replaying a durable log's bytes. Pass an empty
 /// `log_bytes` for a brand-new installation; this is the only ledger
@@ -74,6 +74,44 @@ Future<LedgerMutation> recordTransaction({
   wallClockMillis: wallClockMillis,
 );
 
+/// Records a transfer between two of this ledger's own accounts.
+/// `sent_amount`/`sent_currency_code` must match `from_account_id`'s
+/// currency, and `received_amount`/`received_currency_code` must match
+/// `to_account_id`'s; for a same-currency transfer these are normally equal,
+/// but nothing here requires it (see `cash_core::EventKind::TransferRecorded`
+/// for why a cross-currency spread stays visible rather than assumed away).
+Future<LedgerMutation> recordTransfer({
+  required PersonalLedger ledger,
+  required String transferId,
+  required String fromAccountId,
+  required String toAccountId,
+  required String sentAmount,
+  required String sentCurrencyCode,
+  required PlatformInt64 sentFxNumerator,
+  required PlatformInt64 sentFxDenominator,
+  required String receivedAmount,
+  required String receivedCurrencyCode,
+  required PlatformInt64 receivedFxNumerator,
+  required PlatformInt64 receivedFxDenominator,
+  required String title,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiLedgerRecordTransfer(
+  ledger: ledger,
+  transferId: transferId,
+  fromAccountId: fromAccountId,
+  toAccountId: toAccountId,
+  sentAmount: sentAmount,
+  sentCurrencyCode: sentCurrencyCode,
+  sentFxNumerator: sentFxNumerator,
+  sentFxDenominator: sentFxDenominator,
+  receivedAmount: receivedAmount,
+  receivedCurrencyCode: receivedCurrencyCode,
+  receivedFxNumerator: receivedFxNumerator,
+  receivedFxDenominator: receivedFxDenominator,
+  title: title,
+  wallClockMillis: wallClockMillis,
+);
+
 Future<LedgerOverview> getOverview({required PersonalLedger ledger}) =>
     RustLib.instance.api.crateApiLedgerGetOverview(ledger: ledger);
 
@@ -96,16 +134,22 @@ abstract class PersonalLedger implements RustOpaqueInterface {}
 class AccountView {
   final String id;
   final String name;
+  final String currencyCode;
   final String balanceLabel;
 
   const AccountView({
     required this.id,
     required this.name,
+    required this.currencyCode,
     required this.balanceLabel,
   });
 
   @override
-  int get hashCode => id.hashCode ^ name.hashCode ^ balanceLabel.hashCode;
+  int get hashCode =>
+      id.hashCode ^
+      name.hashCode ^
+      currencyCode.hashCode ^
+      balanceLabel.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -114,6 +158,7 @@ class AccountView {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name &&
+          currencyCode == other.currencyCode &&
           balanceLabel == other.balanceLabel;
 }
 
@@ -146,16 +191,21 @@ class LedgerOverview {
   final String balanceLabel;
   final List<AccountView> accounts;
   final List<TransactionView> transactions;
+  final List<TransferView> transfers;
 
   const LedgerOverview({
     required this.balanceLabel,
     required this.accounts,
     required this.transactions,
+    required this.transfers,
   });
 
   @override
   int get hashCode =>
-      balanceLabel.hashCode ^ accounts.hashCode ^ transactions.hashCode;
+      balanceLabel.hashCode ^
+      accounts.hashCode ^
+      transactions.hashCode ^
+      transfers.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -164,7 +214,8 @@ class LedgerOverview {
           runtimeType == other.runtimeType &&
           balanceLabel == other.balanceLabel &&
           accounts == other.accounts &&
-          transactions == other.transactions;
+          transactions == other.transactions &&
+          transfers == other.transfers;
 }
 
 /// Diagnostics from the load that produced a ledger's current in-memory
@@ -231,4 +282,43 @@ class TransactionView {
           amountLabel == other.amountLabel &&
           isExpense == other.isExpense &&
           categoryId == other.categoryId;
+}
+
+class TransferView {
+  final String id;
+  final String title;
+  final String fromAccountId;
+  final String toAccountId;
+  final String sentLabel;
+  final String receivedLabel;
+
+  const TransferView({
+    required this.id,
+    required this.title,
+    required this.fromAccountId,
+    required this.toAccountId,
+    required this.sentLabel,
+    required this.receivedLabel,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      title.hashCode ^
+      fromAccountId.hashCode ^
+      toAccountId.hashCode ^
+      sentLabel.hashCode ^
+      receivedLabel.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TransferView &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          fromAccountId == other.fromAccountId &&
+          toAccountId == other.toAccountId &&
+          sentLabel == other.sentLabel &&
+          receivedLabel == other.receivedLabel;
 }

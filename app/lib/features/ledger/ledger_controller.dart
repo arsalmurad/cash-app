@@ -144,10 +144,12 @@ class LedgerController extends ChangeNotifier {
     required String title,
     required String amount,
     required EntryKind kind,
+    required String accountId,
     String? categoryId,
   }) async {
     final ledger = _ledger;
-    if (ledger == null || overview == null) {
+    final account = _findAccount(accountId);
+    if (ledger == null || account == null) {
       return false;
     }
     isLoading = true;
@@ -160,10 +162,10 @@ class LedgerController extends ChangeNotifier {
         () => recordTransaction(
           ledger: ledger,
           transactionId: 'local-${now.microsecondsSinceEpoch}-$_sequence',
-          accountId: 'everyday',
+          accountId: accountId,
           kind: kind,
           amount: amount,
-          currencyCode: 'USD',
+          currencyCode: account.currencyCode,
           fxNumerator: PlatformInt64Util.from(1),
           fxDenominator: PlatformInt64Util.from(1),
           title: title.trim(),
@@ -181,8 +183,107 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// Creates a new account. `currencyCode` is a 3-letter ISO 4217 code (e.g.
+  /// `USD`, `EUR`, `JPY`); the Rust core validates it and rejects anything
+  /// else.
+  Future<bool> createAccount({
+    required String name,
+    required String currencyCode,
+  }) async {
+    final ledger = _ledger;
+    if (ledger == null) {
+      return false;
+    }
+    try {
+      await _mutateLedger(
+        () => addAccount(
+          ledger: ledger,
+          accountId: _slugify(name),
+          name: name.trim(),
+          currencyCode: currencyCode,
+          wallClockMillis: _nowMillis(),
+        ),
+      );
+      notifyListeners();
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Moves money from one account to another. `receivedAmount` may be
+  /// omitted only when both accounts share a currency, in which case it
+  /// defaults to `sentAmount`; a cross-currency transfer must state what
+  /// actually arrived; see `EventKind::TransferRecorded` for why that isn't
+  /// assumed to equal the sent amount converted at some rate.
+  Future<bool> transfer({
+    required String fromAccountId,
+    required String toAccountId,
+    required String sentAmount,
+    String? receivedAmount,
+    String title = 'Transfer',
+  }) async {
+    final ledger = _ledger;
+    final fromAccount = _findAccount(fromAccountId);
+    final toAccount = _findAccount(toAccountId);
+    if (ledger == null || fromAccount == null || toAccount == null) {
+      return false;
+    }
+    final resolvedReceivedAmount = receivedAmount ?? sentAmount;
+    if (receivedAmount == null &&
+        fromAccount.currencyCode != toAccount.currencyCode) {
+      errorMessage = 'Enter the amount received in ${toAccount.currencyCode}';
+      notifyListeners();
+      return false;
+    }
+
+    isLoading = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      final now = DateTime.now();
+      _sequence += 1;
+      await _mutateLedger(
+        () => recordTransfer(
+          ledger: ledger,
+          transferId: 'local-${now.microsecondsSinceEpoch}-$_sequence',
+          fromAccountId: fromAccountId,
+          toAccountId: toAccountId,
+          sentAmount: sentAmount,
+          sentCurrencyCode: fromAccount.currencyCode,
+          sentFxNumerator: PlatformInt64Util.from(1),
+          sentFxDenominator: PlatformInt64Util.from(1),
+          receivedAmount: resolvedReceivedAmount,
+          receivedCurrencyCode: toAccount.currencyCode,
+          receivedFxNumerator: PlatformInt64Util.from(1),
+          receivedFxDenominator: PlatformInt64Util.from(1),
+          title: title.trim(),
+          wallClockMillis: PlatformInt64Util.from(now.millisecondsSinceEpoch),
+        ),
+      );
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
   PlatformInt64 _nowMillis() =>
       PlatformInt64Util.from(DateTime.now().millisecondsSinceEpoch);
+
+  AccountView? _findAccount(String id) {
+    for (final account in overview?.accounts ?? const <AccountView>[]) {
+      if (account.id == id) {
+        return account;
+      }
+    }
+    return null;
+  }
 
   String _slugify(String name) {
     final slug = name

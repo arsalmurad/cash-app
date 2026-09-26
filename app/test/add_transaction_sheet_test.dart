@@ -9,6 +9,21 @@ const _categories = [
   CategoryView(id: 'transport', name: 'Transport', iconKey: 'directions_car'),
 ];
 
+const _accounts = [
+  AccountView(
+    id: 'everyday',
+    name: 'Everyday',
+    currencyCode: 'USD',
+    balanceLabel: 'USD 0.00',
+  ),
+  AccountView(
+    id: 'savings',
+    name: 'Savings',
+    currencyCode: 'USD',
+    balanceLabel: 'USD 0.00',
+  ),
+];
+
 /// Opens the sheet in an on-screen modal so tests can interact with it while
 /// it stays open (the returned Future from `showModalBottomSheet` only
 /// resolves once it's dismissed, which these tests don't need).
@@ -27,6 +42,7 @@ Future<void> _openSheet(
                 context: context,
                 isScrollControlled: true,
                 builder: (context) => AddTransactionSheet(
+                  accounts: _accounts,
                   categories: _categories,
                   onSuggestCategory: onSuggestCategory,
                   onAddCategory: onAddCategory ?? (_, _) async => null,
@@ -68,7 +84,7 @@ void main() {
           title == 'Coffee' ? 'transport' : null,
     );
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byKey(const Key('categoryDropdown')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Food').last);
     await tester.pumpAndSettle();
@@ -90,7 +106,7 @@ void main() {
           CategoryView(id: 'rent', name: name, iconKey: iconKey),
     );
 
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byKey(const Key('categoryDropdown')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('New category'));
     await tester.pumpAndSettle();
@@ -122,6 +138,7 @@ void main() {
                   context: context,
                   isScrollControlled: true,
                   builder: (context) => AddTransactionSheet(
+                    accounts: _accounts,
                     categories: _categories,
                     onSuggestCategory: (_) async => null,
                     onAddCategory: (_, _) async => null,
@@ -146,6 +163,61 @@ void main() {
     expect(result?.title, 'Bus fare');
     expect(result?.amount, '3.50');
     expect(result?.kind, EntryKind.expense);
+    expect(result?.accountId, 'everyday');
     expect(result?.categoryId, 'food');
+  });
+
+  testWidgets('switching to transfer mode returns a TransferDraft between two accounts', (
+    tester,
+  ) async {
+    EntryDraft? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await showModalBottomSheet<EntryDraft>(
+                  context: context,
+                  isScrollControlled: true,
+                  builder: (context) => AddTransactionSheet(
+                    accounts: _accounts,
+                    categories: _categories,
+                    onSuggestCategory: (_) async => null,
+                    onAddCategory: (_, _) async => null,
+                  ),
+                );
+              },
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Transfer'));
+    await tester.pumpAndSettle();
+
+    // Defaults to the first two distinct accounts; switch "To account" to
+    // confirm the dropdown is wired up, then fill in the amount.
+    await tester.tap(find.byKey(const Key('toAccountDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Savings').last);
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextFormField).first, '25.00');
+    await tester.tap(find.widgetWithText(FilledButton, 'Add transfer'));
+    await tester.pumpAndSettle();
+
+    final transfer = result;
+    expect(transfer, isA<TransferDraft>());
+    transfer as TransferDraft;
+    expect(transfer.fromAccountId, 'everyday');
+    expect(transfer.toAccountId, 'savings');
+    expect(transfer.sentAmount, '25.00');
+    expect(transfer.receivedAmount, isNull);
+    expect(transfer.title, 'Transfer');
   });
 }
