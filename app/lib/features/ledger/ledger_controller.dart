@@ -9,6 +9,7 @@ import '../../data/rust/api/ledger.dart';
 import '../../data/storage/actor_id.dart';
 import '../../data/storage/event_store.dart';
 import 'category_presets.dart';
+import 'csv_transactions.dart';
 
 class LedgerController extends ChangeNotifier {
   LedgerController({
@@ -380,6 +381,57 @@ class LedgerController extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Exports every non-transfer transaction as CSV text (see
+  /// `csv_transactions.dart`); `null` when there's nothing loaded yet.
+  String? exportTransactionsCsv() {
+    final currentOverview = overview;
+    if (currentOverview == null) {
+      return null;
+    }
+    return buildTransactionsCsv(
+      transactions: currentOverview.transactions,
+      accounts: currentOverview.accounts,
+      categories: categories,
+    );
+  }
+
+  /// Imports transactions from CSV text, recording each valid row through
+  /// [record] (so every imported transaction goes through the same
+  /// validation and durability path as one entered by hand). Returns how
+  /// many rows were imported and the errors for rows that weren't.
+  Future<CsvImportSummary> importTransactionsCsv(String csvText) async {
+    final currentOverview = overview;
+    if (currentOverview == null) {
+      return const CsvImportSummary(imported: 0, errors: ['ledger not loaded']);
+    }
+    final rows = parseTransactionsCsv(
+      csvText,
+      accounts: currentOverview.accounts,
+      categories: categories,
+    );
+    var imported = 0;
+    final errors = <String>[];
+    for (final row in rows) {
+      if (!row.isValid) {
+        errors.add('line ${row.lineNumber}: ${row.error}');
+        continue;
+      }
+      final saved = await record(
+        title: row.title!,
+        amount: row.amount!,
+        kind: row.isExpense! ? EntryKind.expense : EntryKind.income,
+        accountId: row.accountId!,
+        categoryId: row.categoryId,
+      );
+      if (saved) {
+        imported += 1;
+      } else {
+        errors.add('line ${row.lineNumber}: ${errorMessage ?? "could not save"}');
+      }
+    }
+    return CsvImportSummary(imported: imported, errors: errors);
   }
 
   PlatformInt64 _nowMillis() =>

@@ -183,6 +183,28 @@ a budget's period, a goal's window never rolls forward: once past, a
 spend goal's cap either holds or it doesn't, there is no "next month" to
 reset it the way a recurring budget has.
 
+## CSV import and export
+
+CSV export and import (`app/lib/features/ledger/csv_transactions.dart`) are
+pure Dart, entirely client-side, for the same reason search and filter are
+(see `docs/DECISIONS.md`): the data is already loaded in memory, and there
+is no canonical-convergence requirement a Rust-side implementation would
+protect. The CSV codec (`parseCsv`/`encodeCsvField`) is a small
+hand-written RFC 4180 parser rather than a dependency, since this app only
+ever needs to round-trip its own export format. Export covers non-transfer
+transactions only — a transfer describes money moving between two of this
+ledger's own accounts, not income or an expense, so it has no natural fit
+in a `title,amount,kind,account,category` row. Import replays each valid
+row through the controller's existing `record` method, so an imported
+transaction goes through the exact same validation and durable-persistence
+path as one entered by hand; a row that fails to parse or fails the
+ledger's own validation is skipped and reported, never silently dropped.
+
+There is no native file picker or file-save integration: export copies CSV
+text to the clipboard and shows it for review, and import reads pasted CSV
+text, both through `Clipboard`/`TextField` from the Flutter SDK alone. See
+`docs/DECISIONS.md` for why.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot

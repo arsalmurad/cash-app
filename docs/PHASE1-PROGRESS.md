@@ -2,6 +2,44 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## CSV import and export
+
+Implementation: this change. Entirely client-side, like search/filter: a
+hand-written RFC 4180 CSV codec (`app/lib/features/ledger/csv_transactions.dart`)
+with `buildTransactionsCsv` (export) and `parseTransactionsCsv` (import),
+covering non-transfer transactions only (see `docs/DECISIONS.md` for why
+transfers are excluded). `LedgerController.exportTransactionsCsv()` and
+`importTransactionsCsv(csvText)` wire this to the loaded overview; import
+replays each valid row through the existing `record` method, so an
+imported transaction is validated and persisted exactly the way a
+hand-entered one is, and a row that fails is reported rather than silently
+dropped. The UI adds an overflow menu to `LedgerScreen`'s app bar with
+"Export CSV" (shows the CSV text with a copy-to-clipboard button,
+`ExportCsvDialog`) and "Import CSV" (a paste-CSV text field,
+`ImportCsvDialog`) — the clipboard stands in for a native file
+picker/file-save integration this session can't verify on Android or web
+(see `docs/DECISIONS.md`).
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- No Rust changes were needed — this feature is entirely Dart, reusing the
+  existing `record` bridge call. `cargo test --workspace` still passes all
+  64 tests, unchanged from the goals milestone above.
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  46 tests across 10 files: the prior 31, plus 13 new `csv_transactions.dart`
+  unit tests (CSV parsing handles plain rows, quoted fields with embedded
+  commas and doubled quotes, and a final row with no trailing newline;
+  field encoding quotes only when needed; export produces the expected
+  header and rows; import matches accounts/categories by name, accepts a
+  header-less CSV, treats a blank category as valid, rejects an unknown
+  account or invalid kind, rejects a missing title or amount, and ignores
+  blank lines) and 2 new `csv_import_export.dart` widget tests (the export
+  dialog shows the CSV text; the import dialog's Import button stays
+  disabled until text is entered, then returns that text).
+- iOS/Android/web runtime verification for this change is not yet run this
+  session — see "Remaining work" below.
+
 ## Goals for saving and spending
 
 Implementation: this change. A third independent LWW mechanism, `goals.rs`
@@ -410,14 +448,16 @@ Ledger events now persist locally and survive a restart, each device keeps a
 stable actor ID, categories (with icons, and titles that auto-assign on
 repeat) are built, multiple accounts plus transfers between them are built
 and confirmed on real iOS hardware for all three, search/filter is built,
-and budgets and goals (saving and spending) are built (see above). Still
-open before Phase 1's exit test can be called complete:
+budgets and goals (saving and spending) are built, and CSV import/export is
+built (see above). Still open before Phase 1's exit test can be called
+complete:
 
 - Run the Android integration test and the web runtime check against every
   change above (see each section's "Not verified this session"), including
-  budgets and goals, neither of which has real-device verification yet
-  this session — and re-run iOS CI for budgets specifically, since its
-  triggered run stalled rather than reporting a clean pass or fail.
+  budgets, goals, and CSV import/export, none of which has real-device
+  verification yet this session — and re-run iOS CI for budgets
+  specifically, since its triggered run stalled rather than reporting a
+  clean pass or fail.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
@@ -429,12 +469,14 @@ open before Phase 1's exit test can be called complete:
   toggle yet); the net balance card sums accounts' reporting-currency
   equivalents but never shows the same amount converted between two
   currencies side by side.
-- Recurring/upcoming transactions, CSV import/export, and biometric lock
-  remain unbuilt.
+- Recurring/upcoming transactions and biometric lock remain unbuilt.
 - Budgets and goals can be created and their progress tracked, but not
   renamed or deleted from the UI yet (the Rust/bridge upsert already
   supports rename via re-using the same ID; only the "new" entry point
   exists for each).
+- CSV export/import uses the clipboard rather than a native file
+  picker/file-save integration (see `docs/DECISIONS.md`); import also only
+  recognizes expense/income rows, not transfers.
 - Snapshot/compaction (`cash_core::Snapshot`) exists and is tested at the
   core level but is not yet wired into the persisted log or the bridge; the
   log currently replays from event zero on every load.

@@ -6,6 +6,7 @@ import 'activity_filter.dart';
 import 'add_transaction_sheet.dart';
 import 'budgets_pane.dart';
 import 'category_presets.dart';
+import 'csv_import_export.dart';
 import 'goals_pane.dart';
 import 'ledger_controller.dart';
 
@@ -33,8 +34,24 @@ class _LedgerScreenState extends State<LedgerScreen> {
             return Scaffold(
               appBar: AppBar(
                 title: const Text('Private Ledger'),
-                actions: const [
-                  Padding(
+                actions: [
+                  if (widget.controller.overview != null)
+                    PopupMenuButton<_DataMenuAction>(
+                      tooltip: 'Import or export',
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: _onDataMenuSelected,
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: _DataMenuAction.exportCsv,
+                          child: Text('Export CSV'),
+                        ),
+                        PopupMenuItem(
+                          value: _DataMenuAction.importCsv,
+                          child: Text('Import CSV'),
+                        ),
+                      ],
+                    ),
+                  const Padding(
                     padding: EdgeInsets.only(right: 16),
                     child: Tooltip(
                       message: 'Local prototype session',
@@ -248,6 +265,49 @@ class _LedgerScreenState extends State<LedgerScreen> {
         ),
       );
     }
+  }
+
+  void _onDataMenuSelected(_DataMenuAction action) {
+    switch (action) {
+      case _DataMenuAction.exportCsv:
+        _exportCsv();
+      case _DataMenuAction.importCsv:
+        _importCsv();
+    }
+  }
+
+  Future<void> _exportCsv() async {
+    final csv = widget.controller.exportTransactionsCsv();
+    if (csv == null || !mounted) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ExportCsvDialog(csv: csv),
+    );
+  }
+
+  Future<void> _importCsv() async {
+    final csvText = await showDialog<String>(
+      context: context,
+      builder: (context) => const ImportCsvDialog(),
+    );
+    if (csvText == null || !mounted) {
+      return;
+    }
+    final summary = await widget.controller.importTransactionsCsv(csvText);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          summary.errors.isEmpty
+              ? 'Imported ${summary.imported} transaction(s)'
+              : 'Imported ${summary.imported}, ${summary.errors.length} skipped: ${summary.errors.first}',
+        ),
+      ),
+    );
   }
 
   Future<void> _addGoal() async {
@@ -907,3 +967,5 @@ class _ErrorState extends StatelessWidget {
     );
   }
 }
+
+enum _DataMenuAction { exportCsv, importCsv }

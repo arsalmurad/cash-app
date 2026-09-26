@@ -266,3 +266,29 @@ rolls forward — it either counts everything since then (no deadline) or up
 to a fixed deadline — so nothing in `goal_progress` depends on the caller's
 wall clock, and adding an unused parameter to match `budget_progress`'s
 shape for consistency's sake was rejected as needless bridge surface.
+
+## 2026-09-26 — CSV import/export uses the clipboard, not a native file picker
+
+`ExportCsvDialog`/`ImportCsvDialog` (`app/lib/features/ledger/csv_import_export.dart`)
+copy CSV text to the clipboard and read it back from a pasted `TextField`,
+using only `Clipboard`/`TextField` from the Flutter SDK. Adding a file
+picker/file-save package (e.g. `file_picker`, `share_plus`) was rejected
+for this pass: those need per-platform setup (iOS entitlements, Android
+scoped-storage permissions, a web download shim) that can't be verified
+without a real device per platform, which this session doesn't have for
+Android or web, and the build brief's "CSV import and export" requirement
+doesn't specify the transport. The clipboard path works identically and
+verifiably on phone, tablet, and web today; swapping in a native file
+picker later is a UI-layer change, not a data-format one, since the CSV
+codec itself has no dependency on how its text arrives.
+
+## 2026-09-26 — CSV import replays through `record`, not a bulk bridge call
+
+Importing a CSV calls the controller's existing `record` once per row
+rather than adding a Rust-side bulk-import function. A bulk function was
+rejected: every imported transaction still needs the ledger's own
+validation (a valid account, a parseable amount) and still needs to be
+durably persisted one event at a time, so a bulk path would either
+duplicate that logic or just loop internally — the same work `record`
+already does — while adding bridge surface and a second way to create a
+transaction that could drift from the first.
