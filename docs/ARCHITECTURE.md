@@ -205,6 +205,31 @@ text to the clipboard and shows it for review, and import reads pasted CSV
 text, both through `Clipboard`/`TextField` from the Flutter SDK alone. See
 `docs/DECISIONS.md` for why.
 
+## Recurring transactions and upcoming occurrences
+
+Recurring rules are a fourth independent LWW mechanism (`rust/core/src/recurring.rs`),
+alongside categories, budgets, and goals: a rule's title, amount, account,
+category, and frequency (`Daily`/`Weekly`/`Monthly`/`Yearly`) settle by
+last-writer-wins. The calendar math it shares with budgets
+(`civil_from_days`/`days_from_civil`, plus a new `add_months` that clamps to
+a shorter target month) was factored out into `rust/core/src/calendar.rs` so
+neither module duplicates Howard Hinnant's algorithm (see `docs/BORROWED.md`).
+
+Which occurrences are "upcoming" is never stored, following the same
+principle as a budget's spend or a goal's progress: `upcoming_occurrences`
+(`rust/api/src/api/recurring.rs`) computes each rule's next due date fresh,
+by finding the latest ledger transaction tagged with that rule's ID and
+calling `next_occurrence_millis` to step forward from there (or from the
+rule's own `start_millis`, if nothing has been recorded yet). This requires
+`EventKind::TransactionRecorded` and `TransactionState` to carry an optional
+`recurring_id`, set when a transaction is created by recording a due
+occurrence — the only new field this feature adds to the ledger's own event
+shape, and it participates in `canonical_bytes()` like every other field.
+"Recording" a due occurrence is not a special operation: the UI calls the
+same `record`/`record_transaction` path as a hand-entered transaction,
+simply passing the rule's ID along, so there is exactly one way a
+transaction ever gets created.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot

@@ -2,6 +2,62 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## Recurring transactions and upcoming occurrences
+
+Implementation: this change. A fourth independent LWW mechanism,
+`recurring.rs` in `rust/core`, alongside `categories.rs`, `budgets.rs`, and
+`goals.rs`. Extracted the Hinnant calendar conversions shared with budgets
+into a new `calendar.rs` module (adding `add_months`, which clamps to a
+shorter target month) so the two features can't silently drift apart under
+a future edit — see `docs/DECISIONS.md`. `EventKind::TransactionRecorded`
+and `TransactionState` gained an optional `recurring_id` (a real, if small,
+change to the ledger's own event shape, folded into `canonical_bytes()`),
+tagging a transaction with the rule that generated it rather than adding a
+second event type for "a recurring transaction happened." The bridge
+(`rust/api/src/api/recurring.rs`) adds `RecurringBook`, `upsert_recurring`,
+and `upcoming_occurrences`, which computes each rule's next due date fresh
+by finding the latest matching transaction in the ledger and stepping
+forward — no separate "last generated" pointer that could drift from what
+was actually recorded (see `docs/DECISIONS.md`).
+
+On the Flutter side, `LedgerController` gained a fifth durable log
+(`EventStore('recurring')`), a `RecurringBook`, and an `upcoming` list
+(14-day horizon) refreshed after every ledger mutation (recording an
+occurrence advances its own rule) and every recurring mutation.
+`recordUpcoming` records a due occurrence through the same `record` method
+as a hand-entered transaction, just passing the rule's ID along.
+`RecurringPane` (`app/lib/features/ledger/recurring_pane.dart`) is a fifth
+destination in `LedgerScreen`'s navigation, listing occurrences soonest
+first with a "Record" button per row (overdue ones highlighted); a
+`NewRecurringDialog` collects a title, kind, amount, account, frequency,
+and start date.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- Rust: `cargo test --workspace` passed all 84 tests (37 core + 1
+  money_lint + 3 persistence_acceptance + 6 phase1_acceptance + 7
+  transfer_acceptance + 30 api — up from 64 before this change), including
+  3 new `calendar.rs` tests (leap-year round trip, `add_months` clamps to
+  a shorter month, `add_months` handles a full year rollover), 10 new
+  `recurring.rs` unit tests (last-writer-wins ordering; a rule round-trips
+  through the frame codec for every frequency; a rule with no category
+  round-trips; the first occurrence is the start date itself; daily/
+  weekly/monthly/yearly steps advance correctly, with monthly clamping at
+  a shorter month's end; a start date in the past resumes after the last
+  recorded occurrence; an `after` before the start date still returns the
+  start date), and 4 new bridge-level tests in `api::recurring` (a new
+  rule is upcoming at its start date; a rule outside the horizon is not
+  returned; recording the current occurrence advances the next one; a
+  restart recovers a rule from its persisted frame).
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  49 tests across 11 files: the prior 46, plus 3 new `RecurringPane`/
+  `NewRecurringDialog` widget tests (the empty state prompts to add a
+  recurring rule; an upcoming occurrence shows its title, amount, and due
+  date, and records on tap; the dialog returns a `RecurringDraft`).
+- iOS/Android/web runtime verification for this change is not yet run this
+  session — see "Remaining work" below.
+
 ## CSV import and export
 
 Implementation: this change. Entirely client-side, like search/filter: a
@@ -456,13 +512,14 @@ repeat) are built, multiple accounts plus transfers between them are built
 and confirmed on real iOS hardware for all three, search/filter is built,
 budgets and goals are built and confirmed on real iOS hardware (run
 36271793365, after an earlier stalled run on the same budgets commit was
-superseded), and CSV import/export is built (see above). Still open before
-Phase 1's exit test can be called complete:
+superseded), CSV import/export is built, and recurring transactions with
+upcoming occurrences are built (see above). Still open before Phase 1's
+exit test can be called complete:
 
 - Run the Android integration test and the web runtime check against every
   change above (see each section's "Not verified this session"), including
-  budgets, goals, and CSV import/export, none of which has Android/web
-  verification yet this session.
+  budgets, goals, CSV import/export, and recurring transactions, none of
+  which has Android/web verification yet this session.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
@@ -474,11 +531,13 @@ Phase 1's exit test can be called complete:
   toggle yet); the net balance card sums accounts' reporting-currency
   equivalents but never shows the same amount converted between two
   currencies side by side.
-- Recurring/upcoming transactions and biometric lock remain unbuilt.
-- Budgets and goals can be created and their progress tracked, but not
-  renamed or deleted from the UI yet (the Rust/bridge upsert already
-  supports rename via re-using the same ID; only the "new" entry point
-  exists for each).
+- Biometric lock remains unbuilt.
+- Budgets, goals, and recurring rules can be created and their
+  progress/occurrences tracked, but not renamed or deleted from the UI yet
+  (the Rust/bridge upsert already supports rename via re-using the same
+  ID; only the "new" entry point exists for each).
+- Recurring rules have no "skip this occurrence" action; the only way past
+  a due occurrence is to record it (or edit the rule's start date).
 - CSV export/import uses the clipboard rather than a native file
   picker/file-save integration (see `docs/DECISIONS.md`); import also only
   recognizes expense/income rows, not transfers.

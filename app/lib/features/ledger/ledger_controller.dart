@@ -6,6 +6,7 @@ import '../../data/rust/api/budgets.dart';
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/goals.dart';
 import '../../data/rust/api/ledger.dart';
+import '../../data/rust/api/recurring.dart';
 import '../../data/storage/actor_id.dart';
 import '../../data/storage/event_store.dart';
 import 'category_presets.dart';
@@ -18,30 +19,36 @@ class LedgerController extends ChangeNotifier {
     EventStore? categoryStore,
     EventStore? budgetStore,
     EventStore? goalStore,
+    EventStore? recurringStore,
   }) : _identity = identity ?? DeviceIdentity(),
        _ledgerStore = ledgerStore ?? EventStore('ledger'),
        _categoryStore = categoryStore ?? EventStore('categories'),
        _budgetStore = budgetStore ?? EventStore('budgets'),
-       _goalStore = goalStore ?? EventStore('goals');
+       _goalStore = goalStore ?? EventStore('goals'),
+       _recurringStore = recurringStore ?? EventStore('recurring');
 
   final DeviceIdentity _identity;
   final EventStore _ledgerStore;
   final EventStore _categoryStore;
   final EventStore _budgetStore;
   final EventStore _goalStore;
+  final EventStore _recurringStore;
 
   PersonalLedger? _ledger;
   CategoryBook? _categoryBook;
   BudgetBook? _budgetBook;
   GoalBook? _goalBook;
+  RecurringBook? _recurringBook;
   LedgerOverview? overview;
   List<CategoryView> categories = [];
   List<BudgetView> budgets = [];
   List<GoalView> goals = [];
+  List<UpcomingView> upcoming = [];
   bool isLoading = true;
   String? errorMessage;
   int _sequence = 0;
   static const String _reportingCurrencyCode = 'USD';
+  static const int _upcomingHorizonDays = 14;
 
   /// Diagnostics from the most recent [initialize] load, mainly for tests:
   /// how many persisted events were recovered and whether the tail of the
@@ -120,8 +127,17 @@ class LedgerController extends ChangeNotifier {
       await goalLoadReport(book: goalBook);
       _goalBook = goalBook;
 
+      final recurringLogBytes = await _recurringStore.readLog();
+      final recurringBook = await loadRecurringBook(
+        actorId: actorId,
+        logBytes: recurringLogBytes,
+      );
+      await recurringLoadReport(book: recurringBook);
+      _recurringBook = recurringBook;
+
       await _refreshBudgetProgress();
       await _refreshGoalProgress();
+      await _refreshUpcoming();
     } catch (error) {
       errorMessage = error.toString();
     } finally {
@@ -179,6 +195,7 @@ class LedgerController extends ChangeNotifier {
     required EntryKind kind,
     required String accountId,
     String? categoryId,
+    String? recurringId,
   }) async {
     final ledger = _ledger;
     final account = _findAccount(accountId);
@@ -203,6 +220,7 @@ class LedgerController extends ChangeNotifier {
           fxDenominator: PlatformInt64Util.from(1),
           title: title.trim(),
           categoryId: categoryId,
+          recurringId: recurringId,
           wallClockMillis: PlatformInt64Util.from(now.millisecondsSinceEpoch),
         ),
       );
@@ -383,6 +401,67 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// Creates or updates a recurring rule and refreshes the upcoming list.
+  Future<bool> addOrUpdateRecurring({
+    String? recurringId,
+    required String title,
+    required RecurringKind kind,
+    required String amount,
+    required String accountId,
+    String? categoryId,
+    required RecurringFrequency frequency,
+    required PlatformInt64 startMillis,
+  }) async {
+    final book = _recurringBook;
+    final account = _findAccount(accountId);
+    if (book == null || account == null) {
+      return false;
+    }
+    try {
+      await _mutateRecurring(
+        () => upsertRecurring(
+          book: book,
+          recurringId: recurringId ?? _slugify(title),
+          title: title.trim(),
+          kind: kind,
+          amount: amount,
+          currencyCode: account.currencyCode,
+          accountId: accountId,
+          categoryId: categoryId,
+          frequency: frequency,
+          startMillis: startMillis,
+          wallClockMillis: _nowMillis(),
+        ),
+      );
+      notifyListeners();
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Records an upcoming occurrence as a real transaction, tagged with its
+  /// recurring rule so [_refreshUpcoming] advances past it next time.
+  Future<bool> recordUpcoming(UpcomingView occurrence) async {
+    return record(
+      title: occurrence.title,
+      amount: _amountFromLabel(occurrence.amountLabel),
+      kind: occurrence.isExpense ? EntryKind.expense : EntryKind.income,
+      accountId: occurrence.accountId,
+      categoryId: occurrence.categoryId,
+      recurringId: occurrence.recurringId,
+    );
+  }
+
+  /// An amount label is always `"<CODE> <amount>"`; the amount alone is what
+  /// `record` accepts back (mirrors `csv_transactions._amountFromLabel`).
+  String _amountFromLabel(String amountLabel) {
+    final spaceIndex = amountLabel.indexOf(' ');
+    return spaceIndex < 0 ? amountLabel : amountLabel.substring(spaceIndex + 1);
+  }
+
   /// Exports every non-transfer transaction as CSV text (see
   /// `csv_transactions.dart`); `null` when there's nothing loaded yet.
   String? exportTransactionsCsv() {
@@ -466,6 +545,7 @@ class LedgerController extends ChangeNotifier {
     overview = result.overview;
     await _refreshBudgetProgress();
     await _refreshGoalProgress();
+    await _refreshUpcoming();
   }
 
   /// Same durability protocol as [_mutateLedger], for the categories log.
@@ -519,5 +599,31 @@ class LedgerController extends ChangeNotifier {
       return;
     }
     goals = await goalProgress(ledger: ledger, book: book);
+  }
+
+  /// Same durability protocol as [_mutateLedger], for the recurring-rule log.
+  Future<void> _mutateRecurring(
+    Future<RecurringMutation> Function() mutation,
+  ) async {
+    final result = await mutation();
+    await _recurringStore.appendFrame(result.appendedFrame);
+    await _refreshUpcoming();
+  }
+
+  /// Recomputes every recurring rule's next occurrence. Called after any
+  /// ledger mutation (recording an occurrence advances its rule) and after
+  /// any recurring mutation (a new/edited rule needs its own occurrence).
+  Future<void> _refreshUpcoming() async {
+    final ledger = _ledger;
+    final book = _recurringBook;
+    if (ledger == null || book == null) {
+      return;
+    }
+    upcoming = await upcomingOccurrences(
+      ledger: ledger,
+      book: book,
+      nowMillis: _nowMillis(),
+      horizonDays: _upcomingHorizonDays,
+    );
   }
 }

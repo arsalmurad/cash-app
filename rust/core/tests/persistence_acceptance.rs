@@ -54,6 +54,7 @@ fn transaction_event(
             reporting_fx: rate,
             title: format!("Entry {index}"),
             category_id: Some(format!("category-{}", index % 7)),
+            recurring_id: None,
         },
     )
 }

@@ -183,6 +183,7 @@ pub fn record_transaction(
     fx_denominator: i64,
     title: String,
     category_id: Option<String>,
+    recurring_id: Option<String>,
     wall_clock_millis: i64,
 ) -> Result<LedgerMutation, String> {
     let currency = Currency::from_code(&currency_code).map_err(|error| error.to_string())?;
@@ -210,6 +211,7 @@ pub fn record_transaction(
             reporting_fx: rate,
             title,
             category_id,
+            recurring_id,
         },
     );
     data.append_and_mutation(event)
@@ -474,6 +476,7 @@ mod tests {
             1,
             "Groceries".to_owned(),
             Some("food".to_owned()),
+            None,
             2,
         )
         .unwrap()
@@ -573,6 +576,7 @@ mod tests {
             1,
             "Groceries".to_owned(),
             Some("food".to_owned()),
+            None,
             2,
         )
         .unwrap();
@@ -609,6 +613,7 @@ mod tests {
             1,
             "Groceries".to_owned(),
             Some("food".to_owned()),
+            None,
             2,
         )
         .unwrap()
@@ -688,6 +693,7 @@ mod tests {
             1,
             "  Groceries  ".to_owned(),
             Some("food".to_owned()),
+            None,
             2,
         )
         .unwrap();
@@ -728,6 +734,7 @@ mod tests {
             1,
             "Coffee".to_owned(),
             Some("food".to_owned()),
+            None,
             2,
         )
         .unwrap();
@@ -742,6 +749,7 @@ mod tests {
             1,
             "Coffee".to_owned(),
             Some("drinks".to_owned()),
+            None,
             3,
         )
         .unwrap();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
+import '../../data/rust/api/recurring.dart' show UpcomingView;
 import 'activity_filter.dart';
 import 'add_transaction_sheet.dart';
 import 'budgets_pane.dart';
@@ -9,6 +10,7 @@ import 'category_presets.dart';
 import 'csv_import_export.dart';
 import 'goals_pane.dart';
 import 'ledger_controller.dart';
+import 'recurring_pane.dart';
 
 class LedgerScreen extends StatefulWidget {
   const LedgerScreen({required this.controller, super.key});
@@ -88,6 +90,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
                               selectedIcon: Icon(Icons.flag_rounded),
                               label: Text('Goals'),
                             ),
+                            NavigationRailDestination(
+                              icon: Icon(Icons.event_repeat_outlined),
+                              selectedIcon: Icon(Icons.event_repeat_rounded),
+                              label: Text('Recurring'),
+                            ),
                           ],
                         ),
                         const VerticalDivider(width: 1),
@@ -121,6 +128,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           selectedIcon: Icon(Icons.flag_rounded),
                           label: 'Goals',
                         ),
+                        NavigationDestination(
+                          icon: Icon(Icons.event_repeat_outlined),
+                          selectedIcon: Icon(Icons.event_repeat_rounded),
+                          label: 'Recurring',
+                        ),
                       ],
                     ),
               floatingActionButton: widget.controller.overview == null
@@ -131,6 +143,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           : switch (selectedIndex) {
                               2 => _addBudget,
                               3 => _addGoal,
+                              4 => _addRecurring,
                               _ => _add,
                             },
                       icon: const Icon(Icons.add_rounded),
@@ -138,6 +151,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                         switch (selectedIndex) {
                           2 => 'Add budget',
                           3 => 'Add goal',
+                          4 => 'Add recurring',
                           _ => 'Add',
                         },
                       ),
@@ -181,6 +195,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
               categories: controller.categories,
             ),
             GoalsPane(goals: controller.goals),
+            RecurringPane(
+              upcoming: controller.upcoming,
+              onRecord: _recordUpcoming,
+            ),
           ],
         ),
         if (controller.isLoading)
@@ -334,6 +352,54 @@ class _LedgerScreenState extends State<LedgerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.controller.errorMessage ?? 'Could not save goal'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _addRecurring() async {
+    final controller = widget.controller;
+    final draft = await showDialog<RecurringDraft>(
+      context: context,
+      builder: (context) => NewRecurringDialog(
+        accounts: controller.overview?.accounts ?? const [],
+      ),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+    final saved = await controller.addOrUpdateRecurring(
+      title: draft.title,
+      kind: draft.kind,
+      amount: draft.amount,
+      accountId: draft.accountId,
+      categoryId: draft.categoryId,
+      frequency: draft.frequency,
+      startMillis: draft.startMillis,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.controller.errorMessage ?? 'Could not save recurring rule',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _recordUpcoming(UpcomingView occurrence) async {
+    final saved = await widget.controller.recordUpcoming(occurrence);
+    if (!mounted) {
+      return;
+    }
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.controller.errorMessage ?? 'Could not record'),
         ),
       );
     }

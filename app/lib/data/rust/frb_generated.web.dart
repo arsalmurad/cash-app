@@ -10,6 +10,7 @@ import 'api/budgets.dart';
 import 'api/categories.dart';
 import 'api/goals.dart';
 import 'api/ledger.dart';
+import 'api/recurring.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -42,6 +43,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   get rust_arc_decrement_strong_count_PersonalLedgerPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger;
 
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_RecurringBookPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook;
+
   @protected
   BudgetBook
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
@@ -63,6 +68,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PersonalLedger
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+    dynamic raw,
+  );
+
+  @protected
+  RecurringBook
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
     dynamic raw,
   );
 
@@ -91,6 +102,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RecurringBook
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    dynamic raw,
+  );
+
+  @protected
   BudgetBook
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     dynamic raw,
@@ -111,6 +128,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PersonalLedger
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+    dynamic raw,
+  );
+
+  @protected
+  RecurringBook
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
     dynamic raw,
   );
 
@@ -202,6 +225,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<TransferView> dco_decode_list_transfer_view(dynamic raw);
 
   @protected
+  List<UpcomingView> dco_decode_list_upcoming_view(dynamic raw);
+
+  @protected
   LoadReport dco_decode_load_report(dynamic raw);
 
   @protected
@@ -212,6 +238,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  RecurringFrequency dco_decode_recurring_frequency(dynamic raw);
+
+  @protected
+  RecurringKind dco_decode_recurring_kind(dynamic raw);
+
+  @protected
+  RecurringLoadReport dco_decode_recurring_load_report(dynamic raw);
+
+  @protected
+  RecurringMutation dco_decode_recurring_mutation(dynamic raw);
 
   @protected
   TransactionView dco_decode_transaction_view(dynamic raw);
@@ -230,6 +268,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void dco_decode_unit(dynamic raw);
+
+  @protected
+  UpcomingView dco_decode_upcoming_view(dynamic raw);
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
@@ -259,6 +300,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RecurringBook
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BudgetBook
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     SseDeserializer deserializer,
@@ -283,6 +330,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RecurringBook
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   BudgetBook
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     SseDeserializer deserializer,
@@ -303,6 +356,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PersonalLedger
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RecurringBook
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
     SseDeserializer deserializer,
   );
 
@@ -402,6 +461,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<UpcomingView> sse_decode_list_upcoming_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LoadReport sse_decode_load_report(SseDeserializer deserializer);
 
   @protected
@@ -412,6 +476,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  RecurringFrequency sse_decode_recurring_frequency(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RecurringKind sse_decode_recurring_kind(SseDeserializer deserializer);
+
+  @protected
+  RecurringLoadReport sse_decode_recurring_load_report(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RecurringMutation sse_decode_recurring_mutation(SseDeserializer deserializer);
 
   @protected
   TransactionView sse_decode_transaction_view(SseDeserializer deserializer);
@@ -430,6 +510,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_decode_unit(SseDeserializer deserializer);
+
+  @protected
+  UpcomingView sse_decode_upcoming_view(SseDeserializer deserializer);
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
@@ -464,6 +547,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    RecurringBook self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     BudgetBook self,
     SseSerializer serializer,
@@ -492,6 +582,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    RecurringBook self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     BudgetBook self,
     SseSerializer serializer,
@@ -515,6 +612,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    RecurringBook self,
     SseSerializer serializer,
   );
 
@@ -651,6 +755,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_upcoming_view(
+    List<UpcomingView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_load_report(LoadReport self, SseSerializer serializer);
 
   @protected
@@ -664,6 +774,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_recurring_frequency(
+    RecurringFrequency self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_recurring_kind(RecurringKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_recurring_load_report(
+    RecurringLoadReport self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_recurring_mutation(
+    RecurringMutation self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_transaction_view(
@@ -685,6 +816,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_upcoming_view(UpcomingView self, SseSerializer serializer);
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
@@ -758,6 +892,22 @@ class RustLibWire implements BaseWire {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
         ptr,
       );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+        ptr,
+      );
 }
 
 @JS('wasm_bindgen')
@@ -803,6 +953,16 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
     int ptr,
   );
 }

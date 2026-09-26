@@ -292,3 +292,56 @@ durably persisted one event at a time, so a bulk path would either
 duplicate that logic or just loop internally — the same work `record`
 already does — while adding bridge surface and a second way to create a
 transaction that could drift from the first.
+
+## 2026-09-26 — A recurring transaction is tagged, not a separate event type
+
+`EventKind::TransactionRecorded` gained an optional `recurring_id` field
+rather than introducing a new `RecurringTransactionRecorded` event variant.
+A due occurrence is, financially, exactly a normal expense or income
+transaction; the only difference is that the UI populated it from a rule
+instead of a blank form. Making it a distinct event type was rejected: it
+would duplicate the fold logic `TransactionRecorded` already has (balance
+update, reporting conversion, duplicate-ID rejection) for no behavioral
+difference, and would need its own case everywhere `TransactionRecorded`
+is already handled (budgets' spend sum, goals' spend sum, search/filter,
+CSV export). Tagging keeps "how a transaction was created" as metadata on
+one event shape rather than a second financial event to keep in sync with
+the first.
+
+## 2026-09-26 — An occurrence's "next due date" is derived, not a stored pointer
+
+`upcoming_occurrences` finds each rule's most recently recorded occurrence
+by scanning the ledger's own transactions for a matching `recurring_id`,
+rather than the recurring book maintaining a `last_recorded_millis` field
+that advances when an occurrence is recorded. A stored pointer was
+rejected for the same reason a goal's `created_at` isn't stored (see the
+2026-09-26 goals entries above): it would be a second thing that could
+drift from what the ledger actually recorded — for instance if recording a
+transaction succeeded but updating the pointer failed, or if an occurrence
+was recorded through some future path that forgot to advance it. Deriving
+the anchor from the ledger's own data means there is only ever one source
+of truth for "was this occurrence recorded," and it can never disagree
+with itself.
+
+## 2026-09-26 — Recurring frequency has no `Custom { days }` variant
+
+Unlike `budgets::BudgetPeriod`, `RecurringFrequency` is only
+`Daily`/`Weekly`/`Monthly`/`Yearly`. A rolling custom-day-count period was
+rejected here: a budget's `Custom` period always measures a window ending
+"now," which is unambiguous, but a recurring rule's occurrences must be
+independently addressable events (each one gets recorded or not), and a
+rolling window has no natural anchor to step from once an occurrence is
+skipped or recorded late. The four fixed frequencies all have an
+unambiguous "next occurrence after this one," which `next_occurrence_millis`
+depends on.
+
+## 2026-09-26 — Calendar math is shared, not duplicated, between budgets and recurring rules
+
+`civil_from_days`/`days_from_civil` moved from `budgets.rs` into a new
+`calendar.rs` module when `recurring.rs` needed the same conversions plus a
+new `add_months` helper. Leaving a second copy in `recurring.rs` (as
+`goals.rs` does for its own small amount of logic that doesn't overlap with
+budgets) was rejected specifically here because the risk is different: two
+independent implementations of the same date algorithm can silently drift
+apart under a future edit (an off-by-one fixed in one copy but not the
+other), which a shared module makes structurally impossible.

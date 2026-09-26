@@ -298,6 +298,7 @@ mod tests {
             1,
             "Spend".to_owned(),
             category_id.map(str::to_owned),
+            None,
             wall_clock_millis,
         )
         .unwrap()

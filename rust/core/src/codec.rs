@@ -102,6 +102,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: &EventKind) {
             reporting_fx,
             title,
             category_id,
+            recurring_id,
         } => {
             bytes.push(KIND_TRANSACTION_RECORDED);
             write_string(bytes, transaction_id.as_str());
@@ -111,6 +112,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: &EventKind) {
             write_fx_rate(bytes, reporting_fx);
             write_string(bytes, title);
             write_option_string(bytes, category_id.as_deref());
+            write_option_string(bytes, recurring_id.as_deref());
         }
         EventKind::AmountAdjusted {
             transaction_id,
@@ -172,6 +174,7 @@ fn decode_kind(reader: &mut Reader<'_>) -> Option<EventKind> {
             let reporting_fx = read_fx_rate(reader)?;
             let title = reader.read_string()?;
             let category_id = read_option_string(reader)?;
+            let recurring_id = read_option_string(reader)?;
             Some(EventKind::TransactionRecorded {
                 transaction_id,
                 account_id,
@@ -180,6 +183,7 @@ fn decode_kind(reader: &mut Reader<'_>) -> Option<EventKind> {
                 reporting_fx,
                 title,
                 category_id,
+                recurring_id,
             })
         }
         KIND_AMOUNT_ADJUSTED => Some(EventKind::AmountAdjusted {
@@ -302,6 +306,23 @@ mod tests {
                     reporting_fx: FxRate::new(11, 10, usd()).unwrap(),
                     title: "Groceries".to_owned(),
                     category_id: Some("food".to_owned()),
+                    recurring_id: None,
+                },
+            ),
+            Event::new(
+                "event-transaction-recurring",
+                "device-a",
+                1_001,
+                1,
+                EventKind::TransactionRecorded {
+                    transaction_id: TransactionId::new("rent-1"),
+                    account_id: AccountId::new("checking"),
+                    kind: TransactionKind::Expense,
+                    original: Money::new(150_000, usd()),
+                    reporting_fx: FxRate::identity(usd()),
+                    title: "Rent".to_owned(),
+                    category_id: None,
+                    recurring_id: Some("monthly-rent".to_owned()),
                 },
             ),
             Event::new(

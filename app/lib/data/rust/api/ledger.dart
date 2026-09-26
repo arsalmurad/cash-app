@@ -59,6 +59,7 @@ Future<LedgerMutation> recordTransaction({
   required PlatformInt64 fxDenominator,
   required String title,
   String? categoryId,
+  String? recurringId,
   required PlatformInt64 wallClockMillis,
 }) => RustLib.instance.api.crateApiLedgerRecordTransaction(
   ledger: ledger,
@@ -71,6 +72,7 @@ Future<LedgerMutation> recordTransaction({
   fxDenominator: fxDenominator,
   title: title,
   categoryId: categoryId,
+  recurringId: recurringId,
   wallClockMillis: wallClockMillis,
 );
 

@@ -31,6 +31,9 @@ pub struct TransactionState {
     /// the first consumer, but this is generally the transaction's date for
     /// any future purpose.
     pub recorded_at_millis: i64,
+    /// Set when this transaction was created from a recurring rule. See
+    /// `EventKind::TransactionRecorded`.
+    pub recurring_id: Option<String>,
 }
 
 /// A movement of money between two of this ledger's own accounts. `sent` and
@@ -106,6 +109,13 @@ impl LedgerState {
             }
             bytes.push(u8::from(transaction.voided));
             write_i64(&mut bytes, transaction.recorded_at_millis);
+            match &transaction.recurring_id {
+                Some(recurring_id) => {
+                    bytes.push(1);
+                    write_string(&mut bytes, recurring_id);
+                }
+                None => bytes.push(0),
+            }
         }
         write_u64(&mut bytes, self.transfers.len() as u64);
         for (id, transfer) in &self.transfers {
@@ -153,6 +163,7 @@ impl LedgerState {
                 reporting_fx,
                 title,
                 category_id,
+                recurring_id,
             } => {
                 if reporting_fx.target_currency != self.reporting_currency {
                     return Err(FoldError::ReportingCurrencyMismatch);
@@ -186,6 +197,7 @@ impl LedgerState {
                         category_id: category_id.clone(),
                         voided: false,
                         recorded_at_millis: event.timestamp.physical_millis,
+                        recurring_id: recurring_id.clone(),
                     },
                 );
             }

@@ -6,6 +6,7 @@
 
 mod budgets;
 mod bytes_io;
+mod calendar;
 mod categories;
 mod clock;
 mod codec;
@@ -14,6 +15,7 @@ mod frame;
 mod goals;
 mod ledger;
 mod money;
+mod recurring;
 mod snapshot;
 
 pub use budgets::{
@@ -33,4 +35,9 @@ pub use goals::{
 };
 pub use ledger::{AccountState, FoldError, LedgerState, TransactionState, fold};
 pub use money::{Currency, FxRate, Money, MoneyError, RoundingRule};
+pub use recurring::{
+    DecodedRecurringLog, RecurringBookState, RecurringFrequency, RecurringId, RecurringKind,
+    RecurringRecord, RecurringUpsert, decode_recurring_log, encode_recurring_frame, fold_recurring,
+    next_occurrence_millis,
+};
 pub use snapshot::{Snapshot, SnapshotError};

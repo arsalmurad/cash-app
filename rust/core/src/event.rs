@@ -47,6 +47,12 @@ pub enum EventKind {
         reporting_fx: FxRate,
         title: String,
         category_id: Option<String>,
+        /// Set when this transaction was created from a recurring rule
+        /// (`RecurringId`, kept as a plain string here so `rust/core`'s event
+        /// module never depends on the separate `recurring` module). Lets
+        /// `upcoming_occurrences` find a rule's most recently recorded
+        /// occurrence without a second, separately-maintained pointer.
+        recurring_id: Option<String>,
     },
     AmountAdjusted {
         transaction_id: TransactionId,
