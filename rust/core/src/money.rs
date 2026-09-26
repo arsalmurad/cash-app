@@ -36,6 +36,62 @@ impl Currency {
         self.exponent
     }
 
+    pub fn parse_major_units(&self, value: &str) -> Result<i64, MoneyError> {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(MoneyError::InvalidAmount(value.to_owned()));
+        }
+
+        let (negative, unsigned) = match value.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, value),
+        };
+        let mut parts = unsigned.split('.');
+        let major = parts.next().unwrap_or_default();
+        let fraction = parts.next();
+        if parts.next().is_some()
+            || major.is_empty()
+            || !major.bytes().all(|byte| byte.is_ascii_digit())
+            || fraction.is_some_and(|digits| !digits.bytes().all(|byte| byte.is_ascii_digit()))
+        {
+            return Err(MoneyError::InvalidAmount(value.to_owned()));
+        }
+
+        let fraction = fraction.unwrap_or_default();
+        if fraction.len() > usize::from(self.exponent)
+            || (self.exponent == 0 && !fraction.is_empty())
+        {
+            return Err(MoneyError::InvalidAmount(value.to_owned()));
+        }
+
+        let scale = 10_i128.pow(u32::from(self.exponent));
+        let major: i128 = major
+            .parse()
+            .map_err(|_| MoneyError::InvalidAmount(value.to_owned()))?;
+        let mut fractional_minor: i128 = if fraction.is_empty() {
+            0
+        } else {
+            fraction
+                .parse()
+                .map_err(|_| MoneyError::InvalidAmount(value.to_owned()))?
+        };
+        for _ in fraction.len()..usize::from(self.exponent) {
+            fractional_minor = fractional_minor
+                .checked_mul(10)
+                .ok_or(MoneyError::Overflow)?;
+        }
+        let unsigned_minor = major
+            .checked_mul(scale)
+            .and_then(|scaled| scaled.checked_add(fractional_minor))
+            .ok_or(MoneyError::Overflow)?;
+        let signed_minor = if negative {
+            unsigned_minor.checked_neg().ok_or(MoneyError::Overflow)?
+        } else {
+            unsigned_minor
+        };
+        i64::try_from(signed_minor).map_err(|_| MoneyError::Overflow)
+    }
+
     pub fn format_minor_units(&self, minor_units: i64) -> String {
         if self.exponent == 0 {
             return format!("{} {minor_units}", self.code());
@@ -133,6 +189,7 @@ impl FxRate {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MoneyError {
+    InvalidAmount(String),
     InvalidCurrencyCode(String),
     InvalidRate,
     Overflow,
@@ -141,6 +198,7 @@ pub enum MoneyError {
 impl fmt::Display for MoneyError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidAmount(value) => write!(formatter, "invalid money amount: {value}"),
             Self::InvalidCurrencyCode(code) => {
                 write!(formatter, "invalid ISO currency code: {code}")
             }

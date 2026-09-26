@@ -293,7 +293,9 @@ impl From<MoneyError> for FoldError {
     fn from(error: MoneyError) -> Self {
         match error {
             MoneyError::Overflow => Self::MoneyOverflow,
-            MoneyError::InvalidCurrencyCode(_) | MoneyError::InvalidRate => {
+            MoneyError::InvalidAmount(_)
+            | MoneyError::InvalidCurrencyCode(_)
+            | MoneyError::InvalidRate => {
                 unreachable!("invalid currencies and rates cannot be constructed")
             }
         }

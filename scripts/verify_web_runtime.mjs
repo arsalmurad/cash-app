@@ -1,0 +1,319 @@
+import { spawn } from 'node:child_process';
+import {
+  createReadStream,
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+} from 'node:fs';
+import { createServer } from 'node:http';
+import { dirname, extname, join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const webRoot = join(repoRoot, 'app', 'build', 'web');
+const chromeBinary =
+  process.env.CHROME_BINARY ??
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+
+if (!existsSync(join(webRoot, 'index.html'))) {
+  throw new Error('Build app/build/web before running the browser verification.');
+}
+if (!existsSync(chromeBinary)) {
+  throw new Error(`Chrome not found at ${chromeBinary}`);
+}
+
+const server = createServer((request, response) => {
+  const requestPath = decodeURIComponent(new URL(request.url, 'http://local').pathname);
+  const relative = requestPath === '/' ? 'index.html' : requestPath.slice(1);
+  const filePath = normalize(join(webRoot, relative));
+  if (!filePath.startsWith(normalize(webRoot)) || !existsSync(filePath)) {
+    response.writeHead(404).end('Not found');
+    return;
+  }
+  response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  response.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  response.setHeader('Cache-Control', 'no-store');
+  response.setHeader('Content-Type', contentType(extname(filePath)));
+  createReadStream(filePath).pipe(response);
+});
+
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+const appPort = server.address().port;
+const debugPort = await reservePort();
+const profileRoot = join(repoRoot, 'app', '.dart_tool');
+for (const entry of readdirSync(profileRoot)) {
+  if (!entry.startsWith('private-ledger-chrome-')) continue;
+  try {
+    rmSync(join(profileRoot, entry), { recursive: true, force: true });
+  } catch (_) {
+    // A just-exited Chrome process can briefly retain a Windows file lock.
+  }
+}
+const profile = mkdtempSync(join(profileRoot, 'private-ledger-chrome-'));
+const chrome = spawn(
+  chromeBinary,
+  [
+    '--headless=new',
+    '--disable-gpu',
+    '--disable-extensions',
+    '--disable-background-networking',
+    '--no-first-run',
+    '--no-default-browser-check',
+    `--remote-debugging-port=${debugPort}`,
+    `--user-data-dir=${profile}`,
+    `http://127.0.0.1:${appPort}`,
+  ],
+  { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true },
+);
+let chromeErrors = '';
+chrome.stderr.on('data', (chunk) => (chromeErrors += chunk.toString()));
+let cdp;
+
+try {
+  const appUrl = `http://127.0.0.1:${appPort}`;
+  const page = await waitForPage(debugPort, appUrl);
+  cdp = await connectCdp(page.webSocketDebuggerUrl);
+  await cdp.send('Runtime.enable');
+  await cdp.send('Page.enable');
+  await waitFor(
+    cdp,
+    `document.querySelector('flt-semantics-placeholder, flt-semantics-host') !== null`,
+  );
+  await evaluate(
+    cdp,
+    `document.querySelector('flt-semantics-placeholder')?.click(); true`,
+  );
+  await waitForLabel(cdp, 'Private Ledger');
+  await waitForLabel(cdp, 'USD 0.00');
+
+  await clickLabel(cdp, 'Add first transaction', 'button');
+  await waitForLabel(cdp, 'Add transaction');
+  await focusLabel(cdp, 'Title');
+  await cdp.send('Input.insertText', { text: 'Groceries' });
+  await focusLabel(cdp, 'Amount');
+  await cdp.send('Input.insertText', { text: '12.34' });
+  await clickLabel(cdp, 'Add transaction', 'button');
+
+  await waitForLabel(cdp, 'USD -12.34');
+  await waitForLabel(cdp, 'Groceries');
+  console.log('Web runtime verification passed.');
+  console.log('Verified: Private Ledger | Groceries | USD -12.34');
+} catch (error) {
+  if (cdp) {
+    const diagnostics = await evaluate(
+      cdp,
+      `({
+        url: location.href,
+        isolated: crossOriginIsolated,
+        title: document.title,
+        body: document.body?.innerHTML.slice(0, 3000),
+      })`,
+    ).catch((diagnosticError) => ({ diagnosticError: diagnosticError.message }));
+    console.error('Page diagnostics:', diagnostics);
+    const relevantEvents = cdp.events
+      .filter((event) =>
+        ['Runtime.exceptionThrown', 'Runtime.consoleAPICalled', 'Log.entryAdded'].includes(
+          event.method,
+        ),
+      )
+      .slice(-20);
+    console.error('Browser events:', JSON.stringify(relevantEvents, null, 2));
+  }
+  if (chromeErrors) {
+    console.error(chromeErrors);
+  }
+  throw error;
+} finally {
+  if (cdp) {
+    await Promise.race([cdp.send('Browser.close').catch(() => {}), delay(1_000)]);
+    cdp.close();
+  }
+  await stopChrome(chrome.pid);
+  await new Promise((resolve) => server.close(resolve));
+  await delay(500);
+  try {
+    rmSync(profile, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    });
+  } catch (error) {
+    // The next run removes a profile if Windows retained a short-lived lock.
+  }
+}
+
+function contentType(extension) {
+  return (
+    {
+      '.css': 'text/css',
+      '.html': 'text/html; charset=utf-8',
+      '.ico': 'image/x-icon',
+      '.js': 'text/javascript',
+      '.mjs': 'text/javascript',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.wasm': 'application/wasm',
+    }[extension] ?? 'application/octet-stream'
+  );
+}
+
+async function reservePort() {
+  const probe = createServer();
+  await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const port = probe.address().port;
+  await new Promise((resolve) => probe.close(resolve));
+  return port;
+}
+
+async function waitForPage(port, expectedUrl) {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+      const pages = await response.json();
+      const page = pages.find(
+        (entry) => entry.type === 'page' && entry.url.startsWith(expectedUrl),
+      );
+      if (page) return page;
+    } catch (_) {
+      // Chrome is still starting.
+    }
+    await delay(200);
+  }
+  throw new Error('Chrome DevTools endpoint did not become ready.');
+}
+
+async function stopChrome(processId) {
+  if (!processId) return;
+  await new Promise((resolve) => {
+    const taskkill = spawn(
+      'C:\\Windows\\System32\\taskkill.exe',
+      ['/PID', String(processId), '/T', '/F'],
+      { stdio: 'ignore', windowsHide: true },
+    );
+    taskkill.once('exit', resolve);
+    taskkill.once('error', resolve);
+  });
+}
+
+async function connectCdp(url) {
+  const socket = new WebSocket(url);
+  await new Promise((resolve, reject) => {
+    socket.addEventListener('open', resolve, { once: true });
+    socket.addEventListener('error', reject, { once: true });
+  });
+  let nextId = 0;
+  const pending = new Map();
+  const events = [];
+  socket.addEventListener('message', (event) => {
+    const message = JSON.parse(event.data);
+    if (!message.id) {
+      events.push(message);
+      return;
+    }
+    if (!pending.has(message.id)) return;
+    const { resolve, reject } = pending.get(message.id);
+    pending.delete(message.id);
+    if (message.error) reject(new Error(JSON.stringify(message.error)));
+    else resolve(message.result);
+  });
+  return {
+    events,
+    send(method, params = {}) {
+      const id = ++nextId;
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        socket.send(JSON.stringify({ id, method, params }));
+      });
+    },
+    close() {
+      socket.close();
+    },
+  };
+}
+
+async function evaluate(cdp, expression) {
+  const response = await cdp.send('Runtime.evaluate', {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (response.exceptionDetails) {
+    throw new Error(response.exceptionDetails.text);
+  }
+  return response.result.value;
+}
+
+async function semanticLabels(cdp) {
+  return evaluate(
+    cdp,
+    `[...document.querySelectorAll('flt-semantics-host *')]
+      .map((element) => element.getAttribute('aria-label') ?? element.textContent?.trim())
+      .filter(Boolean)`,
+  );
+}
+
+async function waitForLabel(cdp, label) {
+  await waitFor(
+    cdp,
+    `[...document.querySelectorAll('flt-semantics-host *')]
+      .some((element) =>
+        (element.getAttribute('aria-label') ?? element.textContent?.trim())?.includes(${JSON.stringify(label)})
+      )`,
+  );
+}
+
+async function clickLabel(cdp, label, role) {
+  const clicked = await evaluate(
+    cdp,
+    `(() => {
+      const element = [...document.querySelectorAll('flt-semantics-host *')].find(
+        (candidate) =>
+          (candidate.getAttribute('aria-label') ?? candidate.textContent?.trim()) === ${JSON.stringify(label)} &&
+          (!${JSON.stringify(role)} || candidate.getAttribute('role') === ${JSON.stringify(role)})
+      );
+      if (!element) return false;
+      element.click();
+      return true;
+    })()`,
+  );
+  if (!clicked) throw new Error(`Could not click ${label}`);
+}
+
+async function focusLabel(cdp, label) {
+  const focused = await evaluate(
+    cdp,
+    `(() => {
+      const element = [...document.querySelectorAll('flt-semantics-host *')].find(
+        (candidate) =>
+          (candidate.getAttribute('aria-label') ?? candidate.textContent?.trim()) === ${JSON.stringify(label)}
+      );
+      if (!element) return false;
+      element.click();
+      element.focus();
+      return true;
+    })()`,
+  );
+  if (!focused) throw new Error(`Could not focus ${label}`);
+  await delay(150);
+}
+
+async function waitFor(cdp, expression) {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
+    try {
+      if (await evaluate(cdp, expression)) return;
+    } catch (_) {
+      // The page can replace its execution context during Flutter bootstrap.
+    }
+    await delay(200);
+  }
+  const labels = await semanticLabels(cdp);
+  throw new Error(`Timed out waiting for ${expression}. Labels: ${labels.join(' | ')}`);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}

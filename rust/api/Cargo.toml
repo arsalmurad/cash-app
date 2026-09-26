@@ -1,0 +1,16 @@
+[package]
+name = "rust_lib_cash_app"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+cash_core = { path = "../core" }
+flutter_rust_bridge = "=2.13.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

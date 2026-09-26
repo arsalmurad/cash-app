@@ -143,13 +143,14 @@ fn frozen_fx_keeps_historical_balances_stable_after_rate_changes() {
 #[test]
 fn zero_decimal_currency_round_trips_without_drift() {
     let jpy = Currency::from_code("JPY").unwrap();
+    let entered_minor_units = jpy.parse_major_units("12345").unwrap();
     let events = vec![
         account_event("account", "alice", 0, "cash", jpy.clone()),
         transaction_event(
             1,
             "alice",
             "cash",
-            12_345,
+            entered_minor_units,
             jpy.clone(),
             FxRate::identity(jpy.clone()),
         ),

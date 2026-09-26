@@ -1,0 +1,104 @@
+name: Phase 1 iOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase1-ios
+  cancel-in-progress: true
+
+jobs:
+  ios-simulator:
+    name: Personal ledger on iOS simulator
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Record runner environment
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          pod --version
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+          rustc --version
+          cargo --version
+
+      - name: Install pinned Flutter SDK
+        run: |
+          git clone --branch 3.47.5 --depth 1 \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare and test Flutter project
+        working-directory: app
+        run: |
+          flutter config --no-analytics
+          flutter --version
+          flutter precache --ios
+          flutter pub get
+          flutter analyze
+          flutter test test
+
+      - name: Boot an available iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          device_id="$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime_devices in devices.values():
+              for device in runtime_devices:
+                  if device.get("isAvailable") and device["name"].startswith("iPhone"):
+                      print(device["udid"])
+                      raise SystemExit(0)
+          raise SystemExit("No available iPhone simulator was found")
+          ')"
+          echo "udid=$device_id" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$device_id" || true
+          xcrun simctl bootstatus "$device_id" -b
+
+      - name: Run personal ledger integration test
+        working-directory: app
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+        run: >-
+          flutter test integration_test/ledger_test.dart
+          -d "${{ steps.simulator.outputs.udid }}"
+
+      - name: Build unsigned iOS release
+        working-directory: app
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+        run: flutter build ios --release --no-codesign
+
+      - name: Record Phase 1 iOS result
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$GITHUB_WORKSPACE/app/build/ios/iphoneos/Runner.app"
+          app_bytes="$(find "$app_path" -type f -exec stat -f '%z' {} + |
+            awk '{ total += $1 } END { print total + 0 }')"
+          {
+            echo "## Phase 1 iOS result"
+            echo
+            echo "- Personal ledger integration test: passed"
+            echo "- Unsigned release build: passed"
+            echo "- Runner.app bytes: $app_bytes"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Shut down simulator
+        if: always() && steps.simulator.outputs.udid != ''
+        run: xcrun simctl shutdown "${{ steps.simulator.outputs.udid }}" || true
