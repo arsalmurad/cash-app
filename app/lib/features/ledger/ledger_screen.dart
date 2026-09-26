@@ -4,6 +4,7 @@ import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
 import 'activity_filter.dart';
 import 'add_transaction_sheet.dart';
+import 'budgets_pane.dart';
 import 'category_presets.dart';
 import 'ledger_controller.dart';
 
@@ -59,6 +60,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
                               selectedIcon: Icon(Icons.receipt_long_rounded),
                               label: Text('Activity'),
                             ),
+                            NavigationRailDestination(
+                              icon: Icon(Icons.pie_chart_outline_rounded),
+                              selectedIcon: Icon(Icons.pie_chart_rounded),
+                              label: Text('Budgets'),
+                            ),
                           ],
                         ),
                         const VerticalDivider(width: 1),
@@ -82,14 +88,21 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           selectedIcon: Icon(Icons.receipt_long_rounded),
                           label: 'Activity',
                         ),
+                        NavigationDestination(
+                          icon: Icon(Icons.pie_chart_outline_rounded),
+                          selectedIcon: Icon(Icons.pie_chart_rounded),
+                          label: 'Budgets',
+                        ),
                       ],
                     ),
               floatingActionButton: widget.controller.overview == null
                   ? null
                   : FloatingActionButton.extended(
-                      onPressed: widget.controller.isLoading ? null : _add,
+                      onPressed: widget.controller.isLoading
+                          ? null
+                          : (selectedIndex == 2 ? _addBudget : _add),
                       icon: const Icon(Icons.add_rounded),
-                      label: const Text('Add'),
+                      label: Text(selectedIndex == 2 ? 'Add budget' : 'Add'),
                     ),
             );
           },
@@ -124,6 +137,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
               transfers: controller.overview!.transfers,
               categories: controller.categories,
               accounts: controller.overview!.accounts,
+            ),
+            BudgetsPane(
+              budgets: controller.budgets,
+              categories: controller.categories,
             ),
           ],
         ),
@@ -178,6 +195,34 @@ class _LedgerScreenState extends State<LedgerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.controller.errorMessage ?? 'Could not save'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _addBudget() async {
+    final controller = widget.controller;
+    final draft = await showDialog<BudgetDraft>(
+      context: context,
+      builder: (context) => NewBudgetDialog(categories: controller.categories),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+    final saved = await controller.addOrUpdateBudget(
+      name: draft.name,
+      categoryId: draft.categoryId,
+      limitAmount: draft.limitAmount,
+      period: draft.period,
+      customPeriodDays: draft.customPeriodDays,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.controller.errorMessage ?? 'Could not save budget'),
         ),
       );
     }

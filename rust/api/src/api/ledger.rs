@@ -291,6 +291,15 @@ pub fn get_overview(ledger: &PersonalLedger) -> Result<LedgerOverview, String> {
     lock(ledger)?.overview()
 }
 
+/// Exposes the ledger's raw folded state to sibling bridge modules that need
+/// more than `LedgerOverview` gives (e.g. `api::budgets`, which sums raw
+/// `reporting_minor` amounts by category and date rather than displaying
+/// formatted transaction labels).
+pub(crate) fn folded_state(ledger: &PersonalLedger) -> Result<LedgerState, String> {
+    let data = lock(ledger)?;
+    fold(data.reporting_currency.clone(), data.events.clone()).map_err(|error| error.to_string())
+}
+
 /// "Custom titles that auto-assign on repeat" (build brief §5): the category
 /// of the most recent past transaction whose title matches, trimmed and
 /// case-insensitive, or `None` if nothing matches (or that transaction had

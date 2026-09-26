@@ -24,6 +24,13 @@ pub struct TransactionState {
     pub title: String,
     pub category_id: Option<String>,
     pub voided: bool,
+    /// The physical-clock millisecond of the `TransactionRecorded` event that
+    /// created this transaction. Fixed at creation and never touched by a
+    /// later `AmountAdjusted`: a correction changes the amount, not when the
+    /// transaction happened. Budgets (a period-bounded sum of expenses) are
+    /// the first consumer, but this is generally the transaction's date for
+    /// any future purpose.
+    pub recorded_at_millis: i64,
 }
 
 /// A movement of money between two of this ledger's own accounts. `sent` and
@@ -98,6 +105,7 @@ impl LedgerState {
                 None => bytes.push(0),
             }
             bytes.push(u8::from(transaction.voided));
+            write_i64(&mut bytes, transaction.recorded_at_millis);
         }
         write_u64(&mut bytes, self.transfers.len() as u64);
         for (id, transfer) in &self.transfers {
@@ -177,6 +185,7 @@ impl LedgerState {
                         title: title.clone(),
                         category_id: category_id.clone(),
                         voided: false,
+                        recorded_at_millis: event.timestamp.physical_millis,
                     },
                 );
             }

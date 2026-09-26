@@ -193,3 +193,43 @@ for display, so filtering client-side costs nothing extra and avoids growing
 the bridge's surface for a feature with no correctness or determinism
 requirement — unlike the ledger's fold or the category upserts, there is no
 canonical answer a search result needs to converge to across devices.
+
+## 2026-09-26 — Budgets are LWW soft state, like categories, not a ledger event
+
+A budget's name, limit, category, and period are definitions, not facts
+about what happened financially — two conflicting edits should settle by
+last-writer-wins, the same as a category's name or icon, rather than stay
+visible in history the way a transaction conflict must. `rust/core` gives
+budgets their own module (`budgets.rs`), upsert type, and durable log,
+independent of both `ledger.rs` and `categories.rs`. Folding budgets into
+the categories module instead (since both are LWW) was rejected: a budget
+and a category answer unrelated questions and evolve independently, and
+merging them would make a future change to one module's shape (e.g. a
+category gaining a color) risk an unrelated migration for the other.
+
+## 2026-09-26 — Budget progress is computed, never stored
+
+`budget_progress` recomputes a budget's spend from the ledger's expense
+transactions on every call rather than maintaining a running total inside
+`BudgetBookState`. Storing a running total was rejected: it would become a
+second source of truth for "how much was spent," one that could drift from
+the ledger's own fold after a late-arriving or voided transaction, and
+budgets already need the ledger's transactions to enforce category matching
+and period boundaries, so recomputing costs nothing a stored total would
+have saved. This is also why `TransactionState` gained a fixed
+`recorded_at_millis` field (the `TransactionRecorded` event's own
+timestamp): using "now" or a mutable last-modified time to decide a
+transaction's period would let a later `AmountAdjusted` correction move a
+transaction into a different budget period than the one it was actually
+spent in.
+
+## 2026-09-26 — `BudgetPeriodKind` is a field-less bridge enum
+
+`cash_core::BudgetPeriod::Custom` carries a `days: u32` field, but the
+bridge-visible `BudgetPeriodKind` does not — `Custom`'s day count is passed
+as a separate `custom_period_days: Option<u32>` parameter to `upsert_budget`
+instead. A data-carrying Dart-side enum was rejected: `flutter_rust_bridge`
+2.13.0 requires the `freezed` package to generate a union type for an enum
+with fields, and pulling in a code-generation dependency for one field was
+not worth it. This mirrors the existing `EntryKind`/`TransactionKind`
+pattern already used for the ledger's own bridge surface.

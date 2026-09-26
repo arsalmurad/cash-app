@@ -120,6 +120,43 @@ change to the reporting balance rather than being silently normalized away.
 `transactions`, since a transfer touches two accounts and has no single
 `category_id` or expense/income `kind` the way a transaction does.
 
+## Budgets
+
+Budgets are also last-writer-wins soft state, following the same rationale
+as categories: a budget's name, limit, or period is a definition to settle
+by LWW, not a fact whose conflicting history must stay visible. `rust/core`
+implements this as its own module (`budgets.rs`), independent of both
+`ledger.rs` and `categories.rs`, with its own upsert type (`BudgetUpsert`),
+never-rejecting fold (`fold_budgets`), and durable log — again sharing only
+the frame codec. A `BudgetPeriod` is one of `Weekly`, `Monthly`, `Yearly`, or
+`Custom { days }`; `period_start_millis` finds a period's calendar-aligned
+start using Howard Hinnant's integer `civil_from_days`/`days_from_civil`
+algorithm (see `docs/BORROWED.md`) rather than a date/chrono dependency, so
+"this month" always means the 1st of the current calendar month, not a
+rolling 30-day window (`Custom` is the only rolling-window period, by
+design, for budgets like "$50 every 2 weeks" that don't align to a
+calendar boundary).
+
+A budget's progress is never stored — it's computed fresh each time from
+the ledger's own expense transactions (`budget_progress`, in
+`rust/api/src/api/budgets.rs`), summing non-voided expenses whose
+`recorded_at_millis` falls within the current period and whose category
+matches the budget's (or all categories, when the budget has none). This
+keeps budgets from becoming a second source of truth for spending: the
+ledger's fold remains the only place "how much was spent" is decided.
+`recorded_at_millis` is fixed on a `TransactionState` at the moment its
+`TransactionRecorded` event is folded and untouched by later
+`AmountAdjusted` events, so a transaction never jumps between budget
+periods just because its amount was later corrected.
+
+The bridge's `BudgetPeriodKind` enum is deliberately kept field-less
+(`Weekly`, `Monthly`, `Yearly`, `Custom`), with the day count for `Custom`
+passed as a separate `custom_period_days` parameter to `upsert_budget`: a
+data-carrying enum variant here would require `flutter_rust_bridge` to
+generate a Dart `freezed` union type, pulling in a code-generation
+dependency the project has no other use for, for one field. This mirrors
+the existing `EntryKind`/`TransactionKind` bridge pattern.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot

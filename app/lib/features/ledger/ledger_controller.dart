@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64, PlatformInt64Util;
 
+import '../../data/rust/api/budgets.dart';
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
 import '../../data/storage/actor_id.dart';
@@ -13,21 +14,27 @@ class LedgerController extends ChangeNotifier {
     DeviceIdentity? identity,
     EventStore? ledgerStore,
     EventStore? categoryStore,
+    EventStore? budgetStore,
   }) : _identity = identity ?? DeviceIdentity(),
        _ledgerStore = ledgerStore ?? EventStore('ledger'),
-       _categoryStore = categoryStore ?? EventStore('categories');
+       _categoryStore = categoryStore ?? EventStore('categories'),
+       _budgetStore = budgetStore ?? EventStore('budgets');
 
   final DeviceIdentity _identity;
   final EventStore _ledgerStore;
   final EventStore _categoryStore;
+  final EventStore _budgetStore;
 
   PersonalLedger? _ledger;
   CategoryBook? _categoryBook;
+  BudgetBook? _budgetBook;
   LedgerOverview? overview;
   List<CategoryView> categories = [];
+  List<BudgetView> budgets = [];
   bool isLoading = true;
   String? errorMessage;
   int _sequence = 0;
+  static const String _reportingCurrencyCode = 'USD';
 
   /// Diagnostics from the most recent [initialize] load, mainly for tests:
   /// how many persisted events were recovered and whether the tail of the
@@ -89,6 +96,15 @@ class LedgerController extends ChangeNotifier {
           );
         }
       }
+
+      final budgetLogBytes = await _budgetStore.readLog();
+      final budgetBook = await loadBudgetBook(
+        actorId: actorId,
+        logBytes: budgetLogBytes,
+      );
+      await budgetLoadReport(book: budgetBook);
+      _budgetBook = budgetBook;
+      await _refreshBudgetProgress();
     } catch (error) {
       errorMessage = error.toString();
     } finally {
@@ -273,6 +289,43 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// Creates or updates a budget and refreshes progress. `customPeriodDays`
+  /// is required only when `period` is [BudgetPeriodKind.custom].
+  Future<bool> addOrUpdateBudget({
+    String? budgetId,
+    required String name,
+    String? categoryId,
+    required String limitAmount,
+    required BudgetPeriodKind period,
+    int? customPeriodDays,
+  }) async {
+    final book = _budgetBook;
+    if (book == null) {
+      return false;
+    }
+    try {
+      await _mutateBudgets(
+        () => upsertBudget(
+          book: book,
+          budgetId: budgetId ?? _slugify(name),
+          name: name.trim(),
+          categoryId: categoryId,
+          limitAmount: limitAmount,
+          limitCurrencyCode: _reportingCurrencyCode,
+          period: period,
+          customPeriodDays: customPeriodDays,
+          wallClockMillis: _nowMillis(),
+        ),
+      );
+      notifyListeners();
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   PlatformInt64 _nowMillis() =>
       PlatformInt64Util.from(DateTime.now().millisecondsSinceEpoch);
 
@@ -303,6 +356,7 @@ class LedgerController extends ChangeNotifier {
     final result = await mutation();
     await _ledgerStore.appendFrame(result.appendedFrame);
     overview = result.overview;
+    await _refreshBudgetProgress();
   }
 
   /// Same durability protocol as [_mutateLedger], for the categories log.
@@ -312,5 +366,30 @@ class LedgerController extends ChangeNotifier {
     final result = await mutation();
     await _categoryStore.appendFrame(result.appendedFrame);
     categories = result.categories;
+  }
+
+  /// Same durability protocol as [_mutateLedger], for the budgets log.
+  Future<void> _mutateBudgets(
+    Future<BudgetMutation> Function() mutation,
+  ) async {
+    final result = await mutation();
+    await _budgetStore.appendFrame(result.appendedFrame);
+    await _refreshBudgetProgress();
+  }
+
+  /// Recomputes every budget's progress against the ledger's current state.
+  /// Called after any ledger mutation (an expense changes spend totals) and
+  /// after any budget mutation (a new/edited budget needs its own progress).
+  Future<void> _refreshBudgetProgress() async {
+    final ledger = _ledger;
+    final book = _budgetBook;
+    if (ledger == null || book == null) {
+      return;
+    }
+    budgets = await budgetProgress(
+      ledger: ledger,
+      book: book,
+      nowMillis: _nowMillis(),
+    );
   }
 }

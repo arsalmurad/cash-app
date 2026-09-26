@@ -4,6 +4,7 @@
 //! dependencies. Callers provide immutable events; the core validates,
 //! orders, deduplicates, and folds them into canonical state.
 
+mod budgets;
 mod bytes_io;
 mod categories;
 mod clock;
@@ -14,6 +15,10 @@ mod ledger;
 mod money;
 mod snapshot;
 
+pub use budgets::{
+    BudgetBookState, BudgetId, BudgetPeriod, BudgetRecord, BudgetUpsert, DecodedBudgetLog,
+    decode_budget_log, encode_budget_frame, fold_budgets, period_start_millis,
+};
 pub use categories::{
     CategoryBookState, CategoryId, CategoryRecord, CategoryUpsert, DecodedCategoryLog,
     decode_category_log, encode_category_frame, fold_categories,

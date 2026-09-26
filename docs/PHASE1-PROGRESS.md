@@ -2,6 +2,62 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## Budgets with custom time periods and per-category limits
+
+Implementation: this change. A new independent LWW mechanism, `budgets.rs`
+in `rust/core`, mirroring `categories.rs`'s pattern (own upsert type, own
+never-rejecting fold, own durable log). A `BudgetPeriod` is `Weekly`,
+`Monthly`, `Yearly`, or a rolling `Custom { days }`; calendar-aligned
+periods use Howard Hinnant's integer civil-calendar algorithm (see
+`docs/BORROWED.md`) rather than a date/chrono dependency. `TransactionState`
+gained a fixed `recorded_at_millis` field (the creating event's own
+timestamp, never touched by later amount adjustments) so a budget's period
+filtering has a stable answer to "when did this happen." The bridge module
+`rust/api/src/api/budgets.rs` adds `BudgetBook`, `upsert_budget`, and
+`budget_progress` (which recomputes spend fresh from the ledger's expenses
+on every call rather than storing a running total — see `docs/DECISIONS.md`
+for why). `BudgetPeriodKind` is a field-less bridge enum, with `Custom`'s
+day count passed as a separate parameter, avoiding a `freezed` Dart
+dependency for one field.
+
+On the Flutter side, `LedgerController` gained a third durable log
+(`EventStore('budgets')`), a `BudgetBook`, and a `budgets` list refreshed
+via `_refreshBudgetProgress()` after *every* ledger mutation (not just
+budget mutations, since recording an expense changes every matching
+budget's progress) and after every budget mutation. `BudgetsPane`
+(`app/lib/features/ledger/budgets_pane.dart`) is a new third destination in
+`LedgerScreen`'s navigation (rail on wide layouts, bottom nav otherwise),
+showing each budget as a card with its period label, a progress bar
+(colored to indicate overspend), and "spent of limit"/percent-used text.
+`NewBudgetDialog` collects a name, an optional category (or "All
+categories"), a limit amount, and a period, including a day count when
+`Custom` is chosen. The floating action button switches from "Add"
+(transaction) to "Add budget" when the Budgets tab is selected.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- Rust: `cargo test --workspace` passed all 58 tests (21 core + 1
+  money_lint + 3 persistence_acceptance + 6 phase1_acceptance + 7
+  transfer_acceptance + 20 api), including 8 new `budgets.rs` unit tests
+  (calendar round-trips across a leap-year boundary; weekly periods start
+  on Monday; monthly periods start on the 1st; yearly periods start on
+  January 1st; a custom period is a rolling window including today; upsert
+  round-trips through the frame codec; last-writer-wins ordering) and 5 new
+  bridge-level tests in `api::budgets` (upserting a budget lists it with
+  zero progress; spending in a budget's category advances its progress;
+  a budget with no category covers every expense; spending before the
+  period start does not count; a restart recovers a budget from its
+  persisted frame).
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  26 tests across 6 files: the prior 22, plus 4 new `BudgetsPane`/
+  `NewBudgetDialog` widget tests (the empty state prompts to add a budget;
+  a budget card shows its name, period, resolved category name, spend, and
+  percent; a budget with no category shows "All categories"; the dialog
+  returns a `BudgetDraft` with a custom period and day count).
+- iOS/Android/web runtime verification for this change is not yet run this
+  session — see "Remaining work" below.
+
 ## Search and filter
 
 Implementation: this change. `ActivityFilter`
@@ -296,12 +352,14 @@ tooling from application analysis resolved it; native builds still execute it.
 
 Ledger events now persist locally and survive a restart, each device keeps a
 stable actor ID, categories (with icons, and titles that auto-assign on
-repeat) are built, and multiple accounts plus transfers between them are
-built and confirmed on real iOS hardware for all three (see above). Still
-open before Phase 1's exit test can be called complete:
+repeat) are built, multiple accounts plus transfers between them are built
+and confirmed on real iOS hardware for all three, search/filter is built,
+and budgets with custom time periods and per-category limits are built
+(see above). Still open before Phase 1's exit test can be called complete:
 
 - Run the Android integration test and the web runtime check against every
-  change above (see each section's "Not verified this session").
+  change above (see each section's "Not verified this session"), including
+  budgets, which has no real-device verification yet this session.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
@@ -313,8 +371,12 @@ open before Phase 1's exit test can be called complete:
   toggle yet); the net balance card sums accounts' reporting-currency
   equivalents but never shows the same amount converted between two
   currencies side by side.
-- Recurring/upcoming transactions, budgets, goals, search and filter, CSV
-  import/export, and biometric lock remain unbuilt.
+- Recurring/upcoming transactions, goals, CSV import/export, and biometric
+  lock remain unbuilt.
+- Budgets can be created and their progress tracked, but not renamed or
+  deleted from the UI yet (the Rust/bridge upsert already supports rename
+  via re-using the same `budget_id`; only the "new budget" entry point
+  exists).
 - Snapshot/compaction (`cash_core::Snapshot`) exists and is tested at the
   core level but is not yet wired into the persisted log or the bridge; the
   log currently replays from event zero on every load.

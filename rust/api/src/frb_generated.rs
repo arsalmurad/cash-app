@@ -27,6 +27,7 @@
 
 // Section: imports
 
+use crate::api::budgets::*;
 use crate::api::categories::*;
 use crate::api::ledger::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
@@ -41,7 +42,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -380217383;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1319760764;
 
 // Section: executor
 
@@ -103,6 +104,120 @@ fn wire__crate__api__ledger__add_account_impl(
                         api_name,
                         api_currency_code,
                         api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__budgets__budget_load_report_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "budget_load_report",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::budgets::budget_load_report(&*api_book_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__budgets__budget_progress_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "budget_progress",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>,
+            >>::sse_decode(&mut deserializer);
+            let api_now_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 1, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::budgets::budget_progress(
+                        &*api_ledger_guard,
+                        &*api_book_guard,
+                        api_now_millis,
                     )?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -287,6 +402,41 @@ fn wire__crate__api__categories__list_categories_impl(
                     }
                     let api_book_guard = api_book_guard.unwrap();
                     let output_ok = crate::api::categories::list_categories(&*api_book_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__budgets__load_budget_book_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "load_budget_book",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_actor_id = <String>::sse_decode(&mut deserializer);
+            let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok =
+                        crate::api::budgets::load_budget_book(api_actor_id, api_log_bytes)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -625,6 +775,73 @@ fn wire__crate__api__ledger__suggest_category_for_title_impl(
         },
     )
 }
+fn wire__crate__api__budgets__upsert_budget_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "upsert_budget",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>,
+            >>::sse_decode(&mut deserializer);
+            let api_budget_id = <String>::sse_decode(&mut deserializer);
+            let api_name = <String>::sse_decode(&mut deserializer);
+            let api_category_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_limit_amount = <String>::sse_decode(&mut deserializer);
+            let api_limit_currency_code = <String>::sse_decode(&mut deserializer);
+            let api_period = <crate::api::budgets::BudgetPeriodKind>::sse_decode(&mut deserializer);
+            let api_custom_period_days = <Option<u32>>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::budgets::upsert_budget(
+                        &*api_book_guard,
+                        api_budget_id,
+                        api_name,
+                        api_category_id,
+                        api_limit_amount,
+                        api_limit_currency_code,
+                        api_period,
+                        api_custom_period_days,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__categories__upsert_category_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -688,6 +905,9 @@ fn wire__crate__api__categories__upsert_category_impl(
 // Section: related_funcs
 
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>
+);
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
@@ -695,6 +915,16 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
 );
 
 // Section: dart2rust
+
+impl SseDecode for BudgetBook {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
 
 impl SseDecode for CategoryBook {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -713,6 +943,16 @@ impl SseDecode for PersonalLedger {
             flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
         >>::sse_decode(deserializer);
         return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
+impl SseDecode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
     }
 }
 
@@ -764,6 +1004,64 @@ impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u8().unwrap() != 0
+    }
+}
+
+impl SseDecode for crate::api::budgets::BudgetLoadReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_recoveredUpsertCount = <u64>::sse_decode(deserializer);
+        let mut var_truncatedBytes = <u64>::sse_decode(deserializer);
+        return crate::api::budgets::BudgetLoadReport {
+            recovered_upsert_count: var_recoveredUpsertCount,
+            truncated_bytes: var_truncatedBytes,
+        };
+    }
+}
+
+impl SseDecode for crate::api::budgets::BudgetMutation {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_appendedFrame = <Vec<u8>>::sse_decode(deserializer);
+        return crate::api::budgets::BudgetMutation {
+            appended_frame: var_appendedFrame,
+        };
+    }
+}
+
+impl SseDecode for crate::api::budgets::BudgetPeriodKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::budgets::BudgetPeriodKind::Weekly,
+            1 => crate::api::budgets::BudgetPeriodKind::Monthly,
+            2 => crate::api::budgets::BudgetPeriodKind::Yearly,
+            3 => crate::api::budgets::BudgetPeriodKind::Custom,
+            _ => unreachable!("Invalid variant for BudgetPeriodKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::budgets::BudgetView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_categoryId = <Option<String>>::sse_decode(deserializer);
+        let mut var_periodLabel = <String>::sse_decode(deserializer);
+        let mut var_limitLabel = <String>::sse_decode(deserializer);
+        let mut var_spentLabel = <String>::sse_decode(deserializer);
+        let mut var_percentUsed = <i64>::sse_decode(deserializer);
+        return crate::api::budgets::BudgetView {
+            id: var_id,
+            name: var_name,
+            category_id: var_categoryId,
+            period_label: var_periodLabel,
+            limit_label: var_limitLabel,
+            spent_label: var_spentLabel,
+            percent_used: var_percentUsed,
+        };
     }
 }
 
@@ -876,6 +1174,18 @@ impl SseDecode for Vec<crate::api::ledger::AccountView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::budgets::BudgetView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::budgets::BudgetView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::categories::CategoryView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -953,6 +1263,17 @@ impl SseDecode for Option<String> {
     }
 }
 
+impl SseDecode for Option<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<u32>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for crate::api::ledger::TransactionView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -993,6 +1314,13 @@ impl SseDecode for crate::api::ledger::TransferView {
     }
 }
 
+impl SseDecode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u32::<NativeEndian>().unwrap()
+    }
+}
+
 impl SseDecode for u64 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1029,29 +1357,35 @@ fn pde_ffi_dispatcher_primary_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__ledger__add_account_impl(port, ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__categories__category_load_report_impl(
+        2 => wire__crate__api__budgets__budget_load_report_impl(port, ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__budgets__budget_progress_impl(port, ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__categories__category_load_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        3 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
-        6 => {
+        5 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
+        9 => {
             wire__crate__api__categories__load_category_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        7 => wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
-        11 => wire__crate__api__ledger__suggest_category_for_title_impl(
+        10 => {
+            wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
+        }
+        11 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__ledger__suggest_category_for_title_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1069,6 +1403,21 @@ fn pde_ffi_dispatcher_sync_impl(
 }
 
 // Section: rust2dart
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<BudgetBook> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<BudgetBook> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<BudgetBook>> for BudgetBook {
+    fn into_into_dart(self) -> FrbWrapper<BudgetBook> {
+        self.into()
+    }
+}
 
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<CategoryBook> {
@@ -1120,6 +1469,93 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::AccountView>
     for crate::api::ledger::AccountView
 {
     fn into_into_dart(self) -> crate::api::ledger::AccountView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::budgets::BudgetLoadReport {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.recovered_upsert_count.into_into_dart().into_dart(),
+            self.truncated_bytes.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::budgets::BudgetLoadReport
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::budgets::BudgetLoadReport>
+    for crate::api::budgets::BudgetLoadReport
+{
+    fn into_into_dart(self) -> crate::api::budgets::BudgetLoadReport {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::budgets::BudgetMutation {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.appended_frame.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::budgets::BudgetMutation
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::budgets::BudgetMutation>
+    for crate::api::budgets::BudgetMutation
+{
+    fn into_into_dart(self) -> crate::api::budgets::BudgetMutation {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::budgets::BudgetPeriodKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Weekly => 0.into_dart(),
+            Self::Monthly => 1.into_dart(),
+            Self::Yearly => 2.into_dart(),
+            Self::Custom => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::budgets::BudgetPeriodKind
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::budgets::BudgetPeriodKind>
+    for crate::api::budgets::BudgetPeriodKind
+{
+    fn into_into_dart(self) -> crate::api::budgets::BudgetPeriodKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::budgets::BudgetView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.category_id.into_into_dart().into_dart(),
+            self.period_label.into_into_dart().into_dart(),
+            self.limit_label.into_into_dart().into_dart(),
+            self.spent_label.into_into_dart().into_dart(),
+            self.percent_used.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::budgets::BudgetView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::budgets::BudgetView>
+    for crate::api::budgets::BudgetView
+{
+    fn into_into_dart(self) -> crate::api::budgets::BudgetView {
         self
     }
 }
@@ -1323,6 +1759,13 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::TransferView>
     }
 }
 
+impl SseEncode for BudgetBook {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
 impl SseEncode for CategoryBook {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1334,6 +1777,17 @@ impl SseEncode for PersonalLedger {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
+impl SseEncode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
     }
 }
 
@@ -1380,6 +1834,52 @@ impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         serializer.cursor.write_u8(self as _).unwrap();
+    }
+}
+
+impl SseEncode for crate::api::budgets::BudgetLoadReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u64>::sse_encode(self.recovered_upsert_count, serializer);
+        <u64>::sse_encode(self.truncated_bytes, serializer);
+    }
+}
+
+impl SseEncode for crate::api::budgets::BudgetMutation {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<u8>>::sse_encode(self.appended_frame, serializer);
+    }
+}
+
+impl SseEncode for crate::api::budgets::BudgetPeriodKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::budgets::BudgetPeriodKind::Weekly => 0,
+                crate::api::budgets::BudgetPeriodKind::Monthly => 1,
+                crate::api::budgets::BudgetPeriodKind::Yearly => 2,
+                crate::api::budgets::BudgetPeriodKind::Custom => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::budgets::BudgetView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <Option<String>>::sse_encode(self.category_id, serializer);
+        <String>::sse_encode(self.period_label, serializer);
+        <String>::sse_encode(self.limit_label, serializer);
+        <String>::sse_encode(self.spent_label, serializer);
+        <i64>::sse_encode(self.percent_used, serializer);
     }
 }
 
@@ -1467,6 +1967,16 @@ impl SseEncode for Vec<crate::api::ledger::AccountView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::budgets::BudgetView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::budgets::BudgetView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::categories::CategoryView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1526,6 +2036,16 @@ impl SseEncode for Option<String> {
     }
 }
 
+impl SseEncode for Option<u32> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <u32>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::ledger::TransactionView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1547,6 +2067,13 @@ impl SseEncode for crate::api::ledger::TransferView {
         <String>::sse_encode(self.to_account_id, serializer);
         <String>::sse_encode(self.sent_label, serializer);
         <String>::sse_encode(self.received_label, serializer);
+    }
+}
+
+impl SseEncode for u32 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u32::<NativeEndian>(self).unwrap();
     }
 }
 
@@ -1587,6 +2114,7 @@ mod io {
     // Section: imports
 
     use super::*;
+    use crate::api::budgets::*;
     use crate::api::categories::*;
     use crate::api::ledger::*;
     use flutter_rust_bridge::for_generated::byteorder::{
@@ -1598,6 +2126,20 @@ mod io {
     // Section: boilerplate
 
     flutter_rust_bridge::frb_generated_boilerplate_io!();
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_private_ledger_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_private_ledger_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>::decrement_strong_count(ptr as _);
+    }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_private_ledger_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
@@ -1639,6 +2181,7 @@ mod web {
     // Section: imports
 
     use super::*;
+    use crate::api::budgets::*;
     use crate::api::categories::*;
     use crate::api::ledger::*;
     use flutter_rust_bridge::for_generated::byteorder::{
@@ -1652,6 +2195,20 @@ mod web {
     // Section: boilerplate
 
     flutter_rust_bridge::frb_generated_boilerplate_web!();
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>::decrement_strong_count(ptr as _);
+    }
 
     #[wasm_bindgen]
     pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
