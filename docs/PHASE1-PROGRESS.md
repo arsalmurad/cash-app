@@ -2,6 +2,47 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## Search and filter
+
+Implementation: this change. `ActivityFilter`
+(`app/lib/features/ledger/activity_filter.dart`) is a pure Dart function
+over the already-loaded `LedgerOverview` — text search (title or resolved
+category name, case-insensitive), a kind filter (All/Expense/Income/
+Transfer), and an account filter, composed together. No Rust or bridge
+change was needed except adding `account_id` to `TransactionView` (a real
+gap: transactions were tied to an account in the core all along, but the
+bridge never surfaced it, so per-account filtering had nothing to filter
+on). Rationale for keeping this entirely client-side is in
+`docs/DECISIONS.md`.
+
+`ActivityPane` gained a search box and filter chips above the activity
+list; both `TransactionTile`/`TransferTile` lists narrow live as the query
+or filters change, with a distinct empty state ("Nothing matches this
+search or filter") from the true first-run empty state.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- Rust: `cargo test --manifest-path rust/Cargo.toml --locked --all-targets`
+  passed all 45 tests (the `TransactionView.account_id` addition is a bridge
+  field, not new core logic, so no new Rust test was needed beyond
+  confirming the existing suite still passes with the field threaded
+  through).
+- Flutter: `flutter analyze` reported no issues. `flutter test test` passed
+  all 22 tests across 6 files: the prior 13, plus 7 new `ActivityFilter`
+  unit tests (inactive filter is a no-op; query matches title
+  case-insensitively; query matches the *resolved category name*, not just
+  the title; kind filter narrows correctly for transactions and transfers;
+  account filter matches a transaction's own account and either leg of a
+  transfer; `copyWith` composes correctly) and 2 new `ActivityPane` widget
+  tests (typing in the search box narrows the shown entries; choosing the
+  Income chip filters to income only).
+- iOS/Android/web runtime verification for this change specifically is
+  batched with the next feature below rather than run separately — see its
+  section for the combined result, to avoid a CI round trip for a
+  low-bridge-risk, UI-only feature that `flutter analyze`/`flutter test`
+  already covers thoroughly.
+
 ## Multiple accounts and transfers between them
 
 Implementation: this change, on top of the categories slice below. A

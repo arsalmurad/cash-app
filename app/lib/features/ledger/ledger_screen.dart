@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
+import 'activity_filter.dart';
 import 'add_transaction_sheet.dart';
 import 'category_presets.dart';
 import 'ledger_controller.dart';
@@ -301,7 +302,7 @@ class OverviewPane extends StatelessWidget {
   }
 }
 
-class ActivityPane extends StatelessWidget {
+class ActivityPane extends StatefulWidget {
   const ActivityPane({
     required this.transactions,
     required this.transfers,
@@ -316,7 +317,22 @@ class ActivityPane extends StatelessWidget {
   final List<AccountView> accounts;
 
   @override
+  State<ActivityPane> createState() => _ActivityPaneState();
+}
+
+class _ActivityPaneState extends State<ActivityPane> {
+  ActivityFilter filter = const ActivityFilter();
+
+  @override
   Widget build(BuildContext context) {
+    final filteredTransactions = filter.applyToTransactions(
+      widget.transactions,
+      widget.categories,
+    );
+    final filteredTransfers = filter.applyToTransfers(widget.transfers);
+    final somethingToShow =
+        widget.transactions.isNotEmpty || widget.transfers.isNotEmpty;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 112),
       children: [
@@ -331,15 +347,28 @@ class ActivityPane extends StatelessWidget {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 16),
-                if (transactions.isEmpty && transfers.isEmpty)
-                  const _ActivityEmpty()
-                else ...[
-                  ...transactions.map(
-                    (transaction) =>
-                        TransactionTile(transaction, categories: categories),
+                if (somethingToShow) ...[
+                  _ActivitySearchAndFilters(
+                    filter: filter,
+                    accounts: widget.accounts,
+                    onChanged: (updated) => setState(() => filter = updated),
                   ),
-                  ...transfers.map(
-                    (transfer) => TransferTile(transfer, accounts: accounts),
+                  const SizedBox(height: 12),
+                ],
+                if (!somethingToShow)
+                  const _ActivityEmpty()
+                else if (filteredTransactions.isEmpty && filteredTransfers.isEmpty)
+                  const _NoMatchingActivity()
+                else ...[
+                  ...filteredTransactions.map(
+                    (transaction) => TransactionTile(
+                      transaction,
+                      categories: widget.categories,
+                    ),
+                  ),
+                  ...filteredTransfers.map(
+                    (transfer) =>
+                        TransferTile(transfer, accounts: widget.accounts),
                   ),
                 ],
               ],
@@ -349,6 +378,97 @@ class ActivityPane extends StatelessWidget {
       ],
     );
   }
+}
+
+class _ActivitySearchAndFilters extends StatefulWidget {
+  const _ActivitySearchAndFilters({
+    required this.filter,
+    required this.accounts,
+    required this.onChanged,
+  });
+
+  final ActivityFilter filter;
+  final List<AccountView> accounts;
+  final ValueChanged<ActivityFilter> onChanged;
+
+  @override
+  State<_ActivitySearchAndFilters> createState() =>
+      _ActivitySearchAndFiltersState();
+}
+
+class _ActivitySearchAndFiltersState extends State<_ActivitySearchAndFilters> {
+  late final queryController = TextEditingController(text: widget.filter.query);
+
+  @override
+  void dispose() {
+    queryController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filter = widget.filter;
+    final accounts = widget.accounts;
+    final onChanged = widget.onChanged;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: queryController,
+          decoration: InputDecoration(
+            hintText: 'Search title or category',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: filter.query.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.clear_rounded),
+                    onPressed: () {
+                      queryController.clear();
+                      onChanged(filter.copyWith(query: ''));
+                    },
+                  ),
+          ),
+          onChanged: (value) => onChanged(filter.copyWith(query: value)),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final kind in ActivityKindFilter.values)
+              ChoiceChip(
+                label: Text(_kindLabel(kind)),
+                selected: filter.kind == kind,
+                onSelected: (_) => onChanged(filter.copyWith(kind: kind)),
+              ),
+            if (accounts.length > 1)
+              DropdownButton<String?>(
+                value: filter.accountId,
+                hint: const Text('All accounts'),
+                underline: const SizedBox.shrink(),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('All accounts')),
+                  for (final account in accounts)
+                    DropdownMenuItem(
+                      value: account.id,
+                      child: Text(account.name),
+                    ),
+                ],
+                onChanged: (value) =>
+                    onChanged(filter.copyWith(accountId: () => value)),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _kindLabel(ActivityKindFilter kind) => switch (kind) {
+    ActivityKindFilter.all => 'All',
+    ActivityKindFilter.expense => 'Expense',
+    ActivityKindFilter.income => 'Income',
+    ActivityKindFilter.transfer => 'Transfer',
+  };
 }
 
 class _BalanceCard extends StatelessWidget {
@@ -645,6 +765,20 @@ class _ActivityEmpty extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(28),
         child: Text('Your immutable transaction history will appear here.'),
+      ),
+    );
+  }
+}
+
+class _NoMatchingActivity extends StatelessWidget {
+  const _NoMatchingActivity();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(28),
+        child: Text('Nothing matches this search or filter.'),
       ),
     );
   }

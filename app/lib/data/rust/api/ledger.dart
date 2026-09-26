@@ -251,6 +251,7 @@ class LoadReport {
 
 class TransactionView {
   final String id;
+  final String accountId;
   final String title;
   final String amountLabel;
   final bool isExpense;
@@ -258,6 +259,7 @@ class TransactionView {
 
   const TransactionView({
     required this.id,
+    required this.accountId,
     required this.title,
     required this.amountLabel,
     required this.isExpense,
@@ -267,6 +269,7 @@ class TransactionView {
   @override
   int get hashCode =>
       id.hashCode ^
+      accountId.hashCode ^
       title.hashCode ^
       amountLabel.hashCode ^
       isExpense.hashCode ^
@@ -278,6 +281,7 @@ class TransactionView {
       other is TransactionView &&
           runtimeType == other.runtimeType &&
           id == other.id &&
+          accountId == other.accountId &&
           title == other.title &&
           amountLabel == other.amountLabel &&
           isExpense == other.isExpense &&

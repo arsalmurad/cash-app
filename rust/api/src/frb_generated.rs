@@ -957,12 +957,14 @@ impl SseDecode for crate::api::ledger::TransactionView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_accountId = <String>::sse_decode(deserializer);
         let mut var_title = <String>::sse_decode(deserializer);
         let mut var_amountLabel = <String>::sse_decode(deserializer);
         let mut var_isExpense = <bool>::sse_decode(deserializer);
         let mut var_categoryId = <Option<String>>::sse_decode(deserializer);
         return crate::api::ledger::TransactionView {
             id: var_id,
+            account_id: var_accountId,
             title: var_title,
             amount_label: var_amountLabel,
             is_expense: var_isExpense,
@@ -1275,6 +1277,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::ledger::TransactionView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
             self.id.into_into_dart().into_dart(),
+            self.account_id.into_into_dart().into_dart(),
             self.title.into_into_dart().into_dart(),
             self.amount_label.into_into_dart().into_dart(),
             self.is_expense.into_into_dart().into_dart(),
@@ -1527,6 +1530,7 @@ impl SseEncode for crate::api::ledger::TransactionView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.account_id, serializer);
         <String>::sse_encode(self.title, serializer);
         <String>::sse_encode(self.amount_label, serializer);
         <bool>::sse_encode(self.is_expense, serializer);

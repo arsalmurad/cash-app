@@ -182,3 +182,14 @@ not a second last-writer-wins mechanism. Treating "a second account is
 involved" as a reason to split it out the way categories were was rejected:
 the deciding question is which consistency guarantee the state needs, not
 how many entities it touches, and a transfer needs the ledger's guarantee.
+
+## 2026-09-26 — Search and filter run in Dart over the loaded overview, not in Rust
+
+`ActivityFilter` (`app/lib/features/ledger/activity_filter.dart`) is a pure
+Dart function over the `LedgerOverview` already loaded in memory. Adding a
+Rust-side query API (e.g. `search_transactions(ledger, query)`) was rejected:
+a personal ledger's entire history already crosses the bridge on every load
+for display, so filtering client-side costs nothing extra and avoids growing
+the bridge's surface for a feature with no correctness or determinism
+requirement — unlike the ledger's fold or the category upserts, there is no
+canonical answer a search result needs to converge to across devices.

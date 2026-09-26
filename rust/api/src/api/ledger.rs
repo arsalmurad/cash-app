@@ -65,6 +65,7 @@ pub struct AccountView {
 #[derive(Debug, PartialEq)]
 pub struct TransactionView {
     pub id: String,
+    pub account_id: String,
     pub title: String,
     pub amount_label: String,
     pub is_expense: bool,
@@ -392,6 +393,7 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
         .rev()
         .map(|(id, transaction)| TransactionView {
             id: id.as_str().to_owned(),
+            account_id: transaction.account_id.as_str().to_owned(),
             title: transaction.title.clone(),
             amount_label: transaction
                 .original

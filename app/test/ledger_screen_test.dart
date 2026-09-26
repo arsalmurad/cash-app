@@ -51,6 +51,7 @@ void main() {
   ) async {
     const transaction = TransactionView(
       id: 'one',
+      accountId: 'everyday',
       title: 'Groceries',
       amountLabel: 'USD 12.34',
       isExpense: true,
@@ -79,6 +80,7 @@ void main() {
   ) async {
     const transaction = TransactionView(
       id: 'two',
+      accountId: 'everyday',
       title: 'Mystery',
       amountLabel: 'USD 5.00',
       isExpense: false,
@@ -91,5 +93,108 @@ void main() {
 
     expect(find.text('Uncategorized'), findsOneWidget);
     expect(find.byIcon(Icons.arrow_downward_rounded), findsOneWidget);
+  });
+
+  testWidgets('typing in the activity search box narrows the shown entries', (
+    tester,
+  ) async {
+    const transactions = [
+      TransactionView(
+        id: 'one',
+        accountId: 'everyday',
+        title: 'Groceries',
+        amountLabel: 'USD 12.34',
+        isExpense: true,
+        categoryId: null,
+      ),
+      TransactionView(
+        id: 'two',
+        accountId: 'everyday',
+        title: 'Paycheck',
+        amountLabel: 'USD 2000.00',
+        isExpense: false,
+        categoryId: null,
+      ),
+    ];
+    const accounts = [
+      AccountView(
+        id: 'everyday',
+        name: 'Everyday',
+        currencyCode: 'USD',
+        balanceLabel: 'USD 1987.66',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ActivityPane(
+            transactions: transactions,
+            transfers: [],
+            categories: [],
+            accounts: accounts,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Groceries'), findsOneWidget);
+    expect(find.text('Paycheck'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'pay');
+    await tester.pump();
+
+    expect(find.text('Groceries'), findsNothing);
+    expect(find.text('Paycheck'), findsOneWidget);
+  });
+
+  testWidgets('choosing the Income chip filters to income only', (
+    tester,
+  ) async {
+    const transactions = [
+      TransactionView(
+        id: 'one',
+        accountId: 'everyday',
+        title: 'Groceries',
+        amountLabel: 'USD 12.34',
+        isExpense: true,
+        categoryId: null,
+      ),
+      TransactionView(
+        id: 'two',
+        accountId: 'everyday',
+        title: 'Paycheck',
+        amountLabel: 'USD 2000.00',
+        isExpense: false,
+        categoryId: null,
+      ),
+    ];
+    const accounts = [
+      AccountView(
+        id: 'everyday',
+        name: 'Everyday',
+        currencyCode: 'USD',
+        balanceLabel: 'USD 1987.66',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ActivityPane(
+            transactions: transactions,
+            transfers: [],
+            categories: [],
+            accounts: accounts,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Income'));
+    await tester.pump();
+
+    expect(find.text('Groceries'), findsNothing);
+    expect(find.text('Paycheck'), findsOneWidget);
   });
 }

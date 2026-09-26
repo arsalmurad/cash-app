@@ -963,14 +963,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TransactionView dco_decode_transaction_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return TransactionView(
       id: dco_decode_String(arr[0]),
-      title: dco_decode_String(arr[1]),
-      amountLabel: dco_decode_String(arr[2]),
-      isExpense: dco_decode_bool(arr[3]),
-      categoryId: dco_decode_opt_String(arr[4]),
+      accountId: dco_decode_String(arr[1]),
+      title: dco_decode_String(arr[2]),
+      amountLabel: dco_decode_String(arr[3]),
+      isExpense: dco_decode_bool(arr[4]),
+      categoryId: dco_decode_opt_String(arr[5]),
     );
   }
 
@@ -1290,12 +1291,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TransactionView sse_decode_transaction_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
+    var var_accountId = sse_decode_String(deserializer);
     var var_title = sse_decode_String(deserializer);
     var var_amountLabel = sse_decode_String(deserializer);
     var var_isExpense = sse_decode_bool(deserializer);
     var var_categoryId = sse_decode_opt_String(deserializer);
     return TransactionView(
       id: var_id,
+      accountId: var_accountId,
       title: var_title,
       amountLabel: var_amountLabel,
       isExpense: var_isExpense,
@@ -1608,6 +1611,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.id, serializer);
+    sse_encode_String(self.accountId, serializer);
     sse_encode_String(self.title, serializer);
     sse_encode_String(self.amountLabel, serializer);
     sse_encode_bool(self.isExpense, serializer);
