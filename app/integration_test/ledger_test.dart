@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:private_ledger/features/ledger/ledger_controller.dart';
+import 'package:private_ledger/features/ledger/ledger_screen.dart';
 import 'package:private_ledger/main.dart' as app;
 
 void main() {
@@ -48,10 +50,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('USD -512.34'), findsNWidgets(2));
 
-    // Simulate an app restart by rebuilding the widget tree from scratch.
-    // The new controller re-reads the same durable event log and actor ID
-    // from disk, so both transactions recorded so far must still be there.
-    await app.main();
+    // Simulate an app restart with a fresh `LedgerController` rather than
+    // calling `app.main()` again: a real restart is a new process, but
+    // `flutter_rust_bridge` refuses to initialize twice in one process, and
+    // the behavior actually under test — a new controller re-reading the
+    // durable event log and actor ID from disk — doesn't depend on re-running
+    // `RustLib.init()` anyway.
+    final restartedController = LedgerController();
+    await restartedController.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: restartedController)),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('USD -512.34'), findsNWidgets(2));

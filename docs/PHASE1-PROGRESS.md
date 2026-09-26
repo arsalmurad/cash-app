@@ -64,15 +64,31 @@ session" below):
   `PathProviderPlatform` pointed at a temp directory), and a new test that
   generated actor IDs are 128-bit hex and unique across 100 draws.
 - Added `integration_test/ledger_test.dart` coverage for a real restart:
-  after recording a transaction, the test calls `app.main()` a second time
-  (rebuilding the widget tree, and with it a fresh `LedgerController`) and
-  asserts both transactions and the correct balance are still shown. This
-  exercises the full on-device stack (Rust ledger + `IoEventStore` +
-  controller), but needs a device/emulator to run — see below.
+  after recording a transaction, the test builds a *new* `LedgerController`
+  (re-reading the same on-device `IoEventStore` file and actor ID) into a
+  fresh widget tree, and asserts both transactions and the correct balance
+  are still shown. This exercises the full on-device stack (Rust ledger +
+  `IoEventStore` + controller) without depending on a device/emulator to
+  author, but did need one to actually run — see below.
 
-Not verified this session (no Android emulator, iOS simulator, or browser
-available in this container): the Android integration test, the manual
-`phase1-ios` GitHub Actions workflow, and the web runtime check
+iOS: ran the manual `phase1-ios` GitHub Actions workflow on an iPhone 16 Pro
+simulator (macOS 15 runner) against this branch —
+[first run](https://github.com/arsalmurad/cash-app/actions/runs/36248319551).
+`flutter analyze` and `flutter test test` passed (6/6, matching the local
+result above). The pre-existing "records an expense" integration test passed
+unchanged on real hardware. The new restart test **failed**: it originally
+simulated "restart" by calling `app.main()` a second time, and
+`flutter_rust_bridge` refuses to call `RustLib.init()` twice in one process
+(`Bad state: Should not initialize flutter_rust_bridge twice`) — a bug in the
+test's restart simulation, not in `EventStore`/`LedgerController` (nothing
+Rust- or storage-related had run yet when it threw). Fixed by simulating the
+restart with a fresh `LedgerController` in a new widget tree instead of
+re-running `main()`/`RustLib.init()`, which is what "a real restart re-reads
+storage" actually needs to exercise. Re-run pending — this file will be
+updated with the result once it completes.
+
+Not verified this session (no Android emulator or browser available in this
+container): the Android integration test and the web runtime check
 (`scripts/verify_web_runtime.mjs`). These are the same manual paths the prior
 milestone used and should be run before treating this slice as fully proven
 end to end; results will be appended here once run.
