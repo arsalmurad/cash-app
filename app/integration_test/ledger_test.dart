@@ -8,7 +8,13 @@ import 'package:private_ledger/main.dart' as app;
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('records an expense through the Rust ledger', (tester) async {
+  // `RustLib.init()` (called from `app.main()`) refuses to run twice in one
+  // process, and every `testWidgets` block in this file shares one process,
+  // so `app.main()` can only be called once across the whole file. That
+  // makes the restart check part of this same test rather than a second one:
+  // a "restart" is simulated afterwards with a fresh `LedgerController` in a
+  // new widget tree, which re-reads storage without touching `RustLib` again.
+  testWidgets('an expense survives a simulated app restart', (tester) async {
     await app.main();
     await tester.pumpAndSettle();
 
@@ -27,36 +33,34 @@ void main() {
 
     expect(find.text('Groceries'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
-    expect(find.text('\u2212USD 12.34'), findsOneWidget);
-  });
+    expect(find.text('−USD 12.34'), findsOneWidget);
 
-  testWidgets('a transaction survives a simulated app restart', (
-    tester,
-  ) async {
-    // Continues from the previous test's on-device state (the Groceries
-    // expense above): this device's event log and actor ID are real files
-    // that persist for the life of the app install, not reset between
-    // `testWidgets` blocks.
-    await app.main();
+    // Simulate an app restart with a fresh `LedgerController` in a new
+    // widget tree, rather than calling `app.main()` again (see above). It
+    // must re-read the same durable event log and actor ID from disk and
+    // show the same state.
+    var restartedController = LedgerController();
+    await restartedController.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: restartedController)),
+    );
     await tester.pumpAndSettle();
+
+    expect(find.text('Groceries'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
 
+    // Record a second transaction against the restarted controller, then
+    // simulate a further restart to confirm both survive.
     await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), 'Rent');
-    await tester.enterText(fields.at(1), '500.00');
+    final moreFields = find.byType(TextFormField);
+    await tester.enterText(moreFields.at(0), 'Rent');
+    await tester.enterText(moreFields.at(1), '500.00');
     await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
     await tester.pumpAndSettle();
     expect(find.text('USD -512.34'), findsNWidgets(2));
 
-    // Simulate an app restart with a fresh `LedgerController` rather than
-    // calling `app.main()` again: a real restart is a new process, but
-    // `flutter_rust_bridge` refuses to initialize twice in one process, and
-    // the behavior actually under test — a new controller re-reading the
-    // durable event log and actor ID from disk — doesn't depend on re-running
-    // `RustLib.init()` anyway.
-    final restartedController = LedgerController();
+    restartedController = LedgerController();
     await restartedController.initialize();
     await tester.pumpWidget(
       MaterialApp(home: LedgerScreen(controller: restartedController)),

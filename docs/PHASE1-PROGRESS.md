@@ -66,26 +66,33 @@ session" below):
 - Added `integration_test/ledger_test.dart` coverage for a real restart:
   after recording a transaction, the test builds a *new* `LedgerController`
   (re-reading the same on-device `IoEventStore` file and actor ID) into a
-  fresh widget tree, and asserts both transactions and the correct balance
-  are still shown. This exercises the full on-device stack (Rust ledger +
+  fresh widget tree, and asserts the same and then a second transaction are
+  still shown. This exercises the full on-device stack (Rust ledger +
   `IoEventStore` + controller) without depending on a device/emulator to
   author, but did need one to actually run — see below.
 
 iOS: ran the manual `phase1-ios` GitHub Actions workflow on an iPhone 16 Pro
-simulator (macOS 15 runner) against this branch —
-[first run](https://github.com/arsalmurad/cash-app/actions/runs/36248319551).
-`flutter analyze` and `flutter test test` passed (6/6, matching the local
-result above). The pre-existing "records an expense" integration test passed
-unchanged on real hardware. The new restart test **failed**: it originally
-simulated "restart" by calling `app.main()` a second time, and
-`flutter_rust_bridge` refuses to call `RustLib.init()` twice in one process
-(`Bad state: Should not initialize flutter_rust_bridge twice`) — a bug in the
-test's restart simulation, not in `EventStore`/`LedgerController` (nothing
-Rust- or storage-related had run yet when it threw). Fixed by simulating the
-restart with a fresh `LedgerController` in a new widget tree instead of
-re-running `main()`/`RustLib.init()`, which is what "a real restart re-reads
-storage" actually needs to exercise. Re-run pending — this file will be
-updated with the result once it completes.
+simulator (macOS 15 runner) against this branch. It took two fixes to get a
+clean run, both real bugs the real-hardware run caught that local analysis
+and host-only `flutter test` could not:
+
+- [Run 1](https://github.com/arsalmurad/cash-app/actions/runs/36248319551)
+  failed: the restart test called `app.main()` a second time, and
+  `flutter_rust_bridge` refuses `RustLib.init()` twice in one process. `flutter
+  analyze` and `flutter test test` (6/6) passed, and the pre-existing "records
+  an expense" test passed unchanged on real hardware — the failure was in the
+  new test's restart simulation, not in `EventStore`/`LedgerController`.
+- [Run 2](https://github.com/arsalmurad/cash-app/actions/runs/36249302115)
+  still failed the same way: fixing only the explicit second `app.main()` call
+  wasn't enough, because every `testWidgets` block in the file runs in the
+  same process, so the *second test's own opening* `app.main()` call was
+  itself the second `RustLib.init()`. The real fix was structural: one
+  `app.main()` call per file, with the restart(s) simulated afterwards by
+  building a fresh `LedgerController` into a new widget tree — folded into a
+  single test rather than two.
+- Run 3, with that structural fix, is queued/in progress as of this writing;
+  this section will be updated with its actual result once it completes —
+  do not treat this slice's iOS evidence as green until that happens.
 
 Not verified this session (no Android emulator or browser available in this
 container): the Android integration test and the web runtime check
