@@ -4,6 +4,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
 
 import '../../data/rust/api/budgets.dart';
 import '../../data/rust/api/categories.dart';
+import '../../data/rust/api/goals.dart';
 import '../../data/rust/api/ledger.dart';
 import '../../data/storage/actor_id.dart';
 import '../../data/storage/event_store.dart';
@@ -15,22 +16,27 @@ class LedgerController extends ChangeNotifier {
     EventStore? ledgerStore,
     EventStore? categoryStore,
     EventStore? budgetStore,
+    EventStore? goalStore,
   }) : _identity = identity ?? DeviceIdentity(),
        _ledgerStore = ledgerStore ?? EventStore('ledger'),
        _categoryStore = categoryStore ?? EventStore('categories'),
-       _budgetStore = budgetStore ?? EventStore('budgets');
+       _budgetStore = budgetStore ?? EventStore('budgets'),
+       _goalStore = goalStore ?? EventStore('goals');
 
   final DeviceIdentity _identity;
   final EventStore _ledgerStore;
   final EventStore _categoryStore;
   final EventStore _budgetStore;
+  final EventStore _goalStore;
 
   PersonalLedger? _ledger;
   CategoryBook? _categoryBook;
   BudgetBook? _budgetBook;
+  GoalBook? _goalBook;
   LedgerOverview? overview;
   List<CategoryView> categories = [];
   List<BudgetView> budgets = [];
+  List<GoalView> goals = [];
   bool isLoading = true;
   String? errorMessage;
   int _sequence = 0;
@@ -104,7 +110,17 @@ class LedgerController extends ChangeNotifier {
       );
       await budgetLoadReport(book: budgetBook);
       _budgetBook = budgetBook;
+
+      final goalLogBytes = await _goalStore.readLog();
+      final goalBook = await loadGoalBook(
+        actorId: actorId,
+        logBytes: goalLogBytes,
+      );
+      await goalLoadReport(book: goalBook);
+      _goalBook = goalBook;
+
       await _refreshBudgetProgress();
+      await _refreshGoalProgress();
     } catch (error) {
       errorMessage = error.toString();
     } finally {
@@ -326,6 +342,46 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// Creates or updates a goal and refreshes progress. A save goal must set
+  /// `linkedAccountId` and leave `categoryId` unset; a spend goal must leave
+  /// `linkedAccountId` unset (see [GoalKind]).
+  Future<bool> addOrUpdateGoal({
+    String? goalId,
+    required String name,
+    required GoalKind kind,
+    required String targetAmount,
+    String? linkedAccountId,
+    String? categoryId,
+    PlatformInt64? deadlineMillis,
+  }) async {
+    final book = _goalBook;
+    if (book == null) {
+      return false;
+    }
+    try {
+      await _mutateGoals(
+        () => upsertGoal(
+          book: book,
+          goalId: goalId ?? _slugify(name),
+          name: name.trim(),
+          kind: kind,
+          targetAmount: targetAmount,
+          targetCurrencyCode: _reportingCurrencyCode,
+          linkedAccountId: linkedAccountId,
+          categoryId: categoryId,
+          deadlineMillis: deadlineMillis,
+          wallClockMillis: _nowMillis(),
+        ),
+      );
+      notifyListeners();
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   PlatformInt64 _nowMillis() =>
       PlatformInt64Util.from(DateTime.now().millisecondsSinceEpoch);
 
@@ -357,6 +413,7 @@ class LedgerController extends ChangeNotifier {
     await _ledgerStore.appendFrame(result.appendedFrame);
     overview = result.overview;
     await _refreshBudgetProgress();
+    await _refreshGoalProgress();
   }
 
   /// Same durability protocol as [_mutateLedger], for the categories log.
@@ -391,5 +448,24 @@ class LedgerController extends ChangeNotifier {
       book: book,
       nowMillis: _nowMillis(),
     );
+  }
+
+  /// Same durability protocol as [_mutateLedger], for the goals log.
+  Future<void> _mutateGoals(Future<GoalMutation> Function() mutation) async {
+    final result = await mutation();
+    await _goalStore.appendFrame(result.appendedFrame);
+    await _refreshGoalProgress();
+  }
+
+  /// Recomputes every goal's progress against the ledger's current state.
+  /// Called after any ledger mutation (an expense or a linked account's
+  /// balance change moves a goal's progress) and after any goal mutation.
+  Future<void> _refreshGoalProgress() async {
+    final ledger = _ledger;
+    final book = _goalBook;
+    if (ledger == null || book == null) {
+      return;
+    }
+    goals = await goalProgress(ledger: ledger, book: book);
   }
 }

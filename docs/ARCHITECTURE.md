@@ -157,6 +157,32 @@ generate a Dart `freezed` union type, pulling in a code-generation
 dependency the project has no other use for, for one field. This mirrors
 the existing `EntryKind`/`TransactionKind` bridge pattern.
 
+## Goals
+
+Goals are also last-writer-wins soft state, same as categories and budgets:
+a goal's name, kind, target, linked account, category, and deadline are
+definitions to settle by LWW. `rust/core` implements this as its own module
+(`goals.rs`), independent of `budgets.rs`, `categories.rs`, and `ledger.rs`.
+A goal is one of two kinds: `Save` (accumulate a linked account's balance
+toward a target) or `Spend` (cap total matching expenses against a target,
+optionally scoped to one category). The bridge validates the pairing —
+`Save` requires `linked_account_id` and forbids `category_id`; `Spend`
+forbids `linked_account_id` — since the two kinds measure fundamentally
+different things and mixing their fields would produce a goal whose
+progress has no defined meaning.
+
+A goal's progress, like a budget's, is never stored: `goal_progress`
+(`rust/api/src/api/goals.rs`) computes it fresh on every call. A save
+goal's progress is simply its linked account's current
+`native_balance_minor` (accounts already exist as ledger state; no new
+tracking is needed). A spend goal's progress sums matching non-voided
+expenses from the goal's own creation — the earliest upsert recorded for
+that `goal_id`, found by scanning the goal book's full upsert history, not
+a separately stored "created at" field — up to its deadline, if any. Unlike
+a budget's period, a goal's window never rolls forward: once past, a
+spend goal's cap either holds or it doesn't, there is no "next month" to
+reset it the way a recurring budget has.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot

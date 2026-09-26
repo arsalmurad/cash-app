@@ -233,3 +233,36 @@ instead. A data-carrying Dart-side enum was rejected: `flutter_rust_bridge`
 with fields, and pulling in a code-generation dependency for one field was
 not worth it. This mirrors the existing `EntryKind`/`TransactionKind`
 pattern already used for the ledger's own bridge surface.
+
+## 2026-09-26 — A goal's kind determines which fields are legal, enforced at the bridge
+
+`upsert_goal` rejects a `Save` goal missing `linked_account_id` or carrying
+a `category_id`, and rejects a `Spend` goal carrying `linked_account_id`.
+Letting `rust/core`'s `GoalUpsert` accept any combination and leaving the
+UI to only ever send valid ones was rejected: a stored goal with a nonsense
+combination (e.g. `Save` with no account) would have no defined progress,
+and by the time `goal_progress` discovered that, the failure would surface
+far from its cause. Validating at the one function that creates a goal
+catches the mistake at its source instead.
+
+## 2026-09-26 — A spend goal's window starts at its own creation, found from history
+
+A spend goal's progress counts expenses from the earliest upsert ever
+recorded for its `goal_id` — computed by scanning the goal book's full
+upsert history in `goal_progress`, not read from a dedicated `created_at`
+field on `GoalUpsert`/`GoalRecord`. Adding such a field was rejected: the
+upsert log already answers "when was this goal first written" without it,
+and a stored field would need its own rule for what an edit does to it
+(carry it forward? let the last writer overwrite it?) that scanning avoids
+by construction — the earliest timestamp for a `goal_id` is unambiguous and
+never a last-writer-wins question in the first place.
+
+## 2026-09-26 — `goal_progress` has no `now_millis` parameter, unlike `budget_progress`
+
+A budget's period rolls forward with the wall clock (this month, this
+week), so `budget_progress` must be told "now" to find the current
+window's start. A goal's window is fixed at its own creation and never
+rolls forward — it either counts everything since then (no deadline) or up
+to a fixed deadline — so nothing in `goal_progress` depends on the caller's
+wall clock, and adding an unused parameter to match `budget_progress`'s
+shape for consistency's sake was rejected as needless bridge surface.

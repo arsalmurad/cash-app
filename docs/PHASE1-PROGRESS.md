@@ -2,6 +2,62 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## Goals for saving and spending
+
+Implementation: this change. A third independent LWW mechanism, `goals.rs`
+in `rust/core`, alongside `categories.rs` and `budgets.rs`. A goal is
+`Save` (progress is a linked account's current balance) or `Spend`
+(progress is the total of matching expenses since the goal's own creation,
+optionally scoped to a category, up to an optional deadline). The bridge
+(`rust/api/src/api/goals.rs`) validates the kind/field pairing at
+`upsert_goal` — a save goal must link an account and must not set a
+category; a spend goal must not link an account — and `goal_progress`
+computes each goal's progress fresh: a save goal's from `AccountState`'s
+existing `native_balance_minor` (no new ledger state needed), a spend
+goal's by scanning the ledger's expenses and the goal book's own upsert
+history to find when the goal was first created (see `docs/DECISIONS.md`
+for why that isn't a stored field).
+
+On the Flutter side, `LedgerController` gained a fourth durable log
+(`EventStore('goals')`), a `GoalBook`, and a `goals` list refreshed via
+`_refreshGoalProgress()` after every ledger mutation (an expense or a
+linked account's balance change moves a goal's progress) and every goal
+mutation, mirroring the budgets wiring exactly. `GoalsPane`
+(`app/lib/features/ledger/goals_pane.dart`) is a fourth destination in
+`LedgerScreen`'s navigation, showing each goal as a card with a progress
+bar and "progress of target"/percent text; a save goal's bar fills toward
+completion, a spend goal's bar turns red past 100%. `NewGoalDialog` picks a
+name, kind (Save toward a target / Spend under a cap), target amount, and
+— for a save goal — which account to link.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- Rust: `cargo test --workspace` passed all 64 tests (25 core + 1
+  money_lint + 3 persistence_acceptance + 6 phase1_acceptance + 7
+  transfer_acceptance + 26 api — up from 58 before budgets), including 4
+  new `goals.rs` unit tests (a later write wins regardless of arrival
+  order; a save goal round-trips through the frame codec; a spend goal
+  with no category or deadline round-trips; a spend goal with a category
+  round-trips) and 6 new bridge-level tests in `api::goals` (a save goal
+  tracks its linked account's balance; a spend goal sums matching expenses
+  since its own creation; a spend goal ignores expenses recorded before it
+  was created; a save goal must link an account; a spend goal cannot link
+  an account; a restart recovers a goal from its persisted frame).
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  31 tests across 8 files: the prior 26, plus 5 new `GoalsPane`/
+  `NewGoalDialog` widget tests (the empty state prompts to add a goal; a
+  save goal card shows its progress toward the target; a spend goal past
+  its cap is shown as over; the dialog returns a save `GoalDraft` with a
+  linked account; the dialog returns a spend `GoalDraft` with no account).
+- iOS/Android/web runtime verification for this change is not yet run this
+  session — see "Remaining work" below. The iOS CI run triggered for the
+  budgets feature (commit bd482c2, run 36271282667) also stalled at the
+  "Prepare and test Flutter project" step for well over an hour with no
+  step progress, unlike the 6-10 minute runs typical on this branch; that
+  looks like a hung runner rather than a real test failure, and needs a
+  fresh run to confirm either way before it can be reported as verified.
+
 ## Budgets with custom time periods and per-category limits
 
 Implementation: this change. A new independent LWW mechanism, `budgets.rs`
@@ -354,12 +410,14 @@ Ledger events now persist locally and survive a restart, each device keeps a
 stable actor ID, categories (with icons, and titles that auto-assign on
 repeat) are built, multiple accounts plus transfers between them are built
 and confirmed on real iOS hardware for all three, search/filter is built,
-and budgets with custom time periods and per-category limits are built
-(see above). Still open before Phase 1's exit test can be called complete:
+and budgets and goals (saving and spending) are built (see above). Still
+open before Phase 1's exit test can be called complete:
 
 - Run the Android integration test and the web runtime check against every
   change above (see each section's "Not verified this session"), including
-  budgets, which has no real-device verification yet this session.
+  budgets and goals, neither of which has real-device verification yet
+  this session — and re-run iOS CI for budgets specifically, since its
+  triggered run stalled rather than reporting a clean pass or fail.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
@@ -371,12 +429,12 @@ and budgets with custom time periods and per-category limits are built
   toggle yet); the net balance card sums accounts' reporting-currency
   equivalents but never shows the same amount converted between two
   currencies side by side.
-- Recurring/upcoming transactions, goals, CSV import/export, and biometric
-  lock remain unbuilt.
-- Budgets can be created and their progress tracked, but not renamed or
-  deleted from the UI yet (the Rust/bridge upsert already supports rename
-  via re-using the same `budget_id`; only the "new budget" entry point
-  exists).
+- Recurring/upcoming transactions, CSV import/export, and biometric lock
+  remain unbuilt.
+- Budgets and goals can be created and their progress tracked, but not
+  renamed or deleted from the UI yet (the Rust/bridge upsert already
+  supports rename via re-using the same ID; only the "new" entry point
+  exists for each).
 - Snapshot/compaction (`cash_core::Snapshot`) exists and is tested at the
   core level but is not yet wired into the persisted log or the bridge; the
   log currently replays from event zero on every load.

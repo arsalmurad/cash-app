@@ -5,6 +5,7 @@
 
 import 'api/budgets.dart';
 import 'api/categories.dart';
+import 'api/goals.dart';
 import 'api/ledger.dart';
 
 import 'dart:async';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1319760764;
+  int get rustContentHash => 1876417928;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -109,6 +110,13 @@ abstract class RustLibApi extends BaseApi {
     required PersonalLedger ledger,
   });
 
+  Future<GoalLoadReport> crateApiGoalsGoalLoadReport({required GoalBook book});
+
+  Future<List<GoalView>> crateApiGoalsGoalProgress({
+    required PersonalLedger ledger,
+    required GoalBook book,
+  });
+
   Future<void> crateApiLedgerInitApp();
 
   Future<List<CategoryView>> crateApiCategoriesListCategories({
@@ -121,6 +129,11 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<CategoryBook> crateApiCategoriesLoadCategoryBook({
+    required String actorId,
+    required List<int> logBytes,
+  });
+
+  Future<GoalBook> crateApiGoalsLoadGoalBook({
     required String actorId,
     required List<int> logBytes,
   });
@@ -189,6 +202,19 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
+  Future<GoalMutation> crateApiGoalsUpsertGoal({
+    required GoalBook book,
+    required String goalId,
+    required String name,
+    required GoalKind kind,
+    required String targetAmount,
+    required String targetCurrencyCode,
+    String? linkedAccountId,
+    String? categoryId,
+    PlatformInt64? deadlineMillis,
+    required PlatformInt64 wallClockMillis,
+  });
+
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_BudgetBook;
 
@@ -204,6 +230,14 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_CategoryBook;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_CategoryBookPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_GoalBook;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_GoalBook;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_GoalBookPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_PersonalLedger;
@@ -418,6 +452,77 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_overview", argNames: ["ledger"]);
 
   @override
+  Future<GoalLoadReport> crateApiGoalsGoalLoadReport({required GoalBook book}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+            book,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_goal_load_report,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGoalsGoalLoadReportConstMeta,
+        argValues: [book],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGoalsGoalLoadReportConstMeta =>
+      const TaskConstMeta(debugName: "goal_load_report", argNames: ["book"]);
+
+  @override
+  Future<List<GoalView>> crateApiGoalsGoalProgress({
+    required PersonalLedger ledger,
+    required GoalBook book,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+            book,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_goal_view,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGoalsGoalProgressConstMeta,
+        argValues: [ledger, book],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGoalsGoalProgressConstMeta => const TaskConstMeta(
+    debugName: "goal_progress",
+    argNames: ["ledger", "book"],
+  );
+
+  @override
   Future<void> crateApiLedgerInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -426,7 +531,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 8,
             port: port_,
           );
         },
@@ -459,7 +564,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 9,
             port: port_,
           );
         },
@@ -491,7 +596,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -527,7 +632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -550,6 +655,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<GoalBook> crateApiGoalsLoadGoalBook({
+    required String actorId,
+    required List<int> logBytes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(actorId, serializer);
+          sse_encode_list_prim_u_8_loose(logBytes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGoalsLoadGoalBookConstMeta,
+        argValues: [actorId, logBytes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGoalsLoadGoalBookConstMeta => const TaskConstMeta(
+    debugName: "load_goal_book",
+    argNames: ["actorId", "logBytes"],
+  );
+
+  @override
   Future<PersonalLedger> crateApiLedgerLoadPersonalLedger({
     required String actorId,
     required String reportingCurrencyCode,
@@ -565,7 +705,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 13,
             port: port_,
           );
         },
@@ -602,7 +742,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 14,
             port: port_,
           );
         },
@@ -655,7 +795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 15,
             port: port_,
           );
         },
@@ -741,7 +881,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 16,
             port: port_,
           );
         },
@@ -809,7 +949,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 17,
             port: port_,
           );
         },
@@ -861,7 +1001,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 18,
             port: port_,
           );
         },
@@ -925,7 +1065,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 19,
             port: port_,
           );
         },
@@ -946,6 +1086,81 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argNames: ["book", "categoryId", "name", "iconKey", "wallClockMillis"],
       );
 
+  @override
+  Future<GoalMutation> crateApiGoalsUpsertGoal({
+    required GoalBook book,
+    required String goalId,
+    required String name,
+    required GoalKind kind,
+    required String targetAmount,
+    required String targetCurrencyCode,
+    String? linkedAccountId,
+    String? categoryId,
+    PlatformInt64? deadlineMillis,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+            book,
+            serializer,
+          );
+          sse_encode_String(goalId, serializer);
+          sse_encode_String(name, serializer);
+          sse_encode_goal_kind(kind, serializer);
+          sse_encode_String(targetAmount, serializer);
+          sse_encode_String(targetCurrencyCode, serializer);
+          sse_encode_opt_String(linkedAccountId, serializer);
+          sse_encode_opt_String(categoryId, serializer);
+          sse_encode_opt_box_autoadd_i_64(deadlineMillis, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_goal_mutation,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiGoalsUpsertGoalConstMeta,
+        argValues: [
+          book,
+          goalId,
+          name,
+          kind,
+          targetAmount,
+          targetCurrencyCode,
+          linkedAccountId,
+          categoryId,
+          deadlineMillis,
+          wallClockMillis,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiGoalsUpsertGoalConstMeta => const TaskConstMeta(
+    debugName: "upsert_goal",
+    argNames: [
+      "book",
+      "goalId",
+      "name",
+      "kind",
+      "targetAmount",
+      "targetCurrencyCode",
+      "linkedAccountId",
+      "categoryId",
+      "deadlineMillis",
+      "wallClockMillis",
+    ],
+  );
+
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_BudgetBook => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook;
@@ -961,6 +1176,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_CategoryBook => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_GoalBook => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_GoalBook => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_PersonalLedger => wire
@@ -986,6 +1209,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return CategoryBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  GoalBook
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GoalBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1016,6 +1248,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GoalBook
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GoalBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   PersonalLedger
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     dynamic raw,
@@ -1040,6 +1281,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return CategoryBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  GoalBook
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GoalBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1075,6 +1325,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_i_64(raw);
   }
 
   @protected
@@ -1174,6 +1430,52 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GoalKind dco_decode_goal_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GoalKind.values[raw as int];
+  }
+
+  @protected
+  GoalLoadReport dco_decode_goal_load_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return GoalLoadReport(
+      recoveredUpsertCount: dco_decode_u_64(arr[0]),
+      truncatedBytes: dco_decode_u_64(arr[1]),
+    );
+  }
+
+  @protected
+  GoalMutation dco_decode_goal_mutation(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return GoalMutation(appendedFrame: dco_decode_list_prim_u_8_strict(arr[0]));
+  }
+
+  @protected
+  GoalView dco_decode_goal_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return GoalView(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      isSave: dco_decode_bool(arr[2]),
+      linkedAccountId: dco_decode_opt_String(arr[3]),
+      categoryId: dco_decode_opt_String(arr[4]),
+      targetLabel: dco_decode_String(arr[5]),
+      progressLabel: dco_decode_String(arr[6]),
+      percentComplete: dco_decode_i_64(arr[7]),
+      deadlineMillis: dco_decode_opt_box_autoadd_i_64(arr[8]),
+    );
+  }
+
+  @protected
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -1230,6 +1532,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<GoalView> dco_decode_list_goal_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_goal_view).toList();
+  }
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as List<int>;
@@ -1270,6 +1578,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_i_64(raw);
   }
 
   @protected
@@ -1365,6 +1679,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GoalBook
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GoalBookImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
@@ -1401,6 +1727,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GoalBook
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GoalBookImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
@@ -1431,6 +1769,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return CategoryBookImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  GoalBook
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return GoalBookImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -1474,6 +1824,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_i_64(deserializer));
   }
 
   @protected
@@ -1571,6 +1927,56 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GoalKind sse_decode_goal_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return GoalKind.values[inner];
+  }
+
+  @protected
+  GoalLoadReport sse_decode_goal_load_report(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_recoveredUpsertCount = sse_decode_u_64(deserializer);
+    var var_truncatedBytes = sse_decode_u_64(deserializer);
+    return GoalLoadReport(
+      recoveredUpsertCount: var_recoveredUpsertCount,
+      truncatedBytes: var_truncatedBytes,
+    );
+  }
+
+  @protected
+  GoalMutation sse_decode_goal_mutation(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_appendedFrame = sse_decode_list_prim_u_8_strict(deserializer);
+    return GoalMutation(appendedFrame: var_appendedFrame);
+  }
+
+  @protected
+  GoalView sse_decode_goal_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_isSave = sse_decode_bool(deserializer);
+    var var_linkedAccountId = sse_decode_opt_String(deserializer);
+    var var_categoryId = sse_decode_opt_String(deserializer);
+    var var_targetLabel = sse_decode_String(deserializer);
+    var var_progressLabel = sse_decode_String(deserializer);
+    var var_percentComplete = sse_decode_i_64(deserializer);
+    var var_deadlineMillis = sse_decode_opt_box_autoadd_i_64(deserializer);
+    return GoalView(
+      id: var_id,
+      name: var_name,
+      isSave: var_isSave,
+      linkedAccountId: var_linkedAccountId,
+      categoryId: var_categoryId,
+      targetLabel: var_targetLabel,
+      progressLabel: var_progressLabel,
+      percentComplete: var_percentComplete,
+      deadlineMillis: var_deadlineMillis,
+    );
+  }
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
@@ -1647,6 +2053,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<GoalView> sse_decode_list_goal_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <GoalView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_goal_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -1707,6 +2125,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_i_64(deserializer));
     } else {
       return null;
     }
@@ -1818,6 +2247,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    GoalBook self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GoalBookImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -1851,6 +2293,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as CategoryBookImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    GoalBook self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GoalBookImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -1896,6 +2351,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    GoalBook self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as GoalBookImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -1926,6 +2394,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_i_64(
+    PlatformInt64 self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self, serializer);
   }
 
   @protected
@@ -2010,6 +2487,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_goal_kind(GoalKind self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_goal_load_report(
+    GoalLoadReport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.recoveredUpsertCount, serializer);
+    sse_encode_u_64(self.truncatedBytes, serializer);
+  }
+
+  @protected
+  void sse_encode_goal_mutation(GoalMutation self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_prim_u_8_strict(self.appendedFrame, serializer);
+  }
+
+  @protected
+  void sse_encode_goal_view(GoalView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_bool(self.isSave, serializer);
+    sse_encode_opt_String(self.linkedAccountId, serializer);
+    sse_encode_opt_String(self.categoryId, serializer);
+    sse_encode_String(self.targetLabel, serializer);
+    sse_encode_String(self.progressLabel, serializer);
+    sse_encode_i_64(self.percentComplete, serializer);
+    sse_encode_opt_box_autoadd_i_64(self.deadlineMillis, serializer);
+  }
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
@@ -2080,6 +2593,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_goal_view(
+    List<GoalView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_goal_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_loose(
     List<int> self,
     SseSerializer serializer,
@@ -2140,6 +2665,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_i_64(
+    PlatformInt64? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_i_64(self, serializer);
     }
   }
 
@@ -2245,6 +2783,26 @@ class CategoryBookImpl extends RustOpaque implements CategoryBook {
         RustLib.instance.api.rust_arc_decrement_strong_count_CategoryBook,
     rustArcDecrementStrongCountPtr:
         RustLib.instance.api.rust_arc_decrement_strong_count_CategoryBookPtr,
+  );
+}
+
+@sealed
+class GoalBookImpl extends RustOpaque implements GoalBook {
+  // Not to be used by end users
+  GoalBookImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  GoalBookImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_GoalBook,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_GoalBook,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_GoalBookPtr,
   );
 }
 

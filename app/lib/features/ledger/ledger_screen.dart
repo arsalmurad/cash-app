@@ -6,6 +6,7 @@ import 'activity_filter.dart';
 import 'add_transaction_sheet.dart';
 import 'budgets_pane.dart';
 import 'category_presets.dart';
+import 'goals_pane.dart';
 import 'ledger_controller.dart';
 
 class LedgerScreen extends StatefulWidget {
@@ -65,6 +66,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
                               selectedIcon: Icon(Icons.pie_chart_rounded),
                               label: Text('Budgets'),
                             ),
+                            NavigationRailDestination(
+                              icon: Icon(Icons.flag_outlined),
+                              selectedIcon: Icon(Icons.flag_rounded),
+                              label: Text('Goals'),
+                            ),
                           ],
                         ),
                         const VerticalDivider(width: 1),
@@ -93,6 +99,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           selectedIcon: Icon(Icons.pie_chart_rounded),
                           label: 'Budgets',
                         ),
+                        NavigationDestination(
+                          icon: Icon(Icons.flag_outlined),
+                          selectedIcon: Icon(Icons.flag_rounded),
+                          label: 'Goals',
+                        ),
                       ],
                     ),
               floatingActionButton: widget.controller.overview == null
@@ -100,9 +111,19 @@ class _LedgerScreenState extends State<LedgerScreen> {
                   : FloatingActionButton.extended(
                       onPressed: widget.controller.isLoading
                           ? null
-                          : (selectedIndex == 2 ? _addBudget : _add),
+                          : switch (selectedIndex) {
+                              2 => _addBudget,
+                              3 => _addGoal,
+                              _ => _add,
+                            },
                       icon: const Icon(Icons.add_rounded),
-                      label: Text(selectedIndex == 2 ? 'Add budget' : 'Add'),
+                      label: Text(
+                        switch (selectedIndex) {
+                          2 => 'Add budget',
+                          3 => 'Add goal',
+                          _ => 'Add',
+                        },
+                      ),
                     ),
             );
           },
@@ -142,6 +163,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
               budgets: controller.budgets,
               categories: controller.categories,
             ),
+            GoalsPane(goals: controller.goals),
           ],
         ),
         if (controller.isLoading)
@@ -223,6 +245,35 @@ class _LedgerScreenState extends State<LedgerScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.controller.errorMessage ?? 'Could not save budget'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _addGoal() async {
+    final controller = widget.controller;
+    final draft = await showDialog<GoalDraft>(
+      context: context,
+      builder: (context) => NewGoalDialog(
+        accounts: controller.overview?.accounts ?? const [],
+      ),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+    final saved = await controller.addOrUpdateGoal(
+      name: draft.name,
+      kind: draft.kind,
+      targetAmount: draft.targetAmount,
+      linkedAccountId: draft.linkedAccountId,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(widget.controller.errorMessage ?? 'Could not save goal'),
         ),
       );
     }

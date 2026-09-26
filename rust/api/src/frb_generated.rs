@@ -29,6 +29,7 @@
 
 use crate::api::budgets::*;
 use crate::api::categories::*;
+use crate::api::goals::*;
 use crate::api::ledger::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
@@ -42,7 +43,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1319760764;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1876417928;
 
 // Section: executor
 
@@ -325,6 +326,116 @@ fn wire__crate__api__ledger__get_overview_impl(
         },
     )
 }
+fn wire__crate__api__goals__goal_load_report_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "goal_load_report",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::goals::goal_load_report(&*api_book_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__goals__goal_progress_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "goal_progress",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 1, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok =
+                        crate::api::goals::goal_progress(&*api_ledger_guard, &*api_book_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__ledger__init_app_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -472,6 +583,40 @@ fn wire__crate__api__categories__load_category_book_impl(
                 transform_result_sse::<_, String>((move || {
                     let output_ok =
                         crate::api::categories::load_category_book(api_actor_id, api_log_bytes)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__goals__load_goal_book_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "load_goal_book",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_actor_id = <String>::sse_decode(&mut deserializer);
+            let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::goals::load_goal_book(api_actor_id, api_log_bytes)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -901,6 +1046,75 @@ fn wire__crate__api__categories__upsert_category_impl(
         },
     )
 }
+fn wire__crate__api__goals__upsert_goal_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "upsert_goal",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>,
+            >>::sse_decode(&mut deserializer);
+            let api_goal_id = <String>::sse_decode(&mut deserializer);
+            let api_name = <String>::sse_decode(&mut deserializer);
+            let api_kind = <crate::api::goals::GoalKind>::sse_decode(&mut deserializer);
+            let api_target_amount = <String>::sse_decode(&mut deserializer);
+            let api_target_currency_code = <String>::sse_decode(&mut deserializer);
+            let api_linked_account_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_category_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_deadline_millis = <Option<i64>>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::goals::upsert_goal(
+                        &*api_book_guard,
+                        api_goal_id,
+                        api_name,
+                        api_kind,
+                        api_target_amount,
+                        api_target_currency_code,
+                        api_linked_account_id,
+                        api_category_id,
+                        api_deadline_millis,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 
 // Section: related_funcs
 
@@ -909,6 +1123,9 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>
+);
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>
 );
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>
@@ -936,6 +1153,16 @@ impl SseDecode for CategoryBook {
     }
 }
 
+impl SseDecode for GoalBook {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
 impl SseDecode for PersonalLedger {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -958,6 +1185,16 @@ impl SseDecode
 
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
+    }
+}
+
+impl SseDecode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1119,6 +1356,66 @@ impl SseDecode for crate::api::ledger::EntryKind {
     }
 }
 
+impl SseDecode for crate::api::goals::GoalKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::goals::GoalKind::Save,
+            1 => crate::api::goals::GoalKind::Spend,
+            _ => unreachable!("Invalid variant for GoalKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::goals::GoalLoadReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_recoveredUpsertCount = <u64>::sse_decode(deserializer);
+        let mut var_truncatedBytes = <u64>::sse_decode(deserializer);
+        return crate::api::goals::GoalLoadReport {
+            recovered_upsert_count: var_recoveredUpsertCount,
+            truncated_bytes: var_truncatedBytes,
+        };
+    }
+}
+
+impl SseDecode for crate::api::goals::GoalMutation {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_appendedFrame = <Vec<u8>>::sse_decode(deserializer);
+        return crate::api::goals::GoalMutation {
+            appended_frame: var_appendedFrame,
+        };
+    }
+}
+
+impl SseDecode for crate::api::goals::GoalView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_id = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        let mut var_isSave = <bool>::sse_decode(deserializer);
+        let mut var_linkedAccountId = <Option<String>>::sse_decode(deserializer);
+        let mut var_categoryId = <Option<String>>::sse_decode(deserializer);
+        let mut var_targetLabel = <String>::sse_decode(deserializer);
+        let mut var_progressLabel = <String>::sse_decode(deserializer);
+        let mut var_percentComplete = <i64>::sse_decode(deserializer);
+        let mut var_deadlineMillis = <Option<i64>>::sse_decode(deserializer);
+        return crate::api::goals::GoalView {
+            id: var_id,
+            name: var_name,
+            is_save: var_isSave,
+            linked_account_id: var_linkedAccountId,
+            category_id: var_categoryId,
+            target_label: var_targetLabel,
+            progress_label: var_progressLabel,
+            percent_complete: var_percentComplete,
+            deadline_millis: var_deadlineMillis,
+        };
+    }
+}
+
 impl SseDecode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1200,6 +1497,18 @@ impl SseDecode for Vec<crate::api::categories::CategoryView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::goals::GoalView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::goals::GoalView>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1257,6 +1566,17 @@ impl SseDecode for Option<String> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<String>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<i64>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -1366,26 +1686,30 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         5 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
-        9 => {
+        6 => wire__crate__api__goals__goal_load_report_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__goals__goal_progress_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
+        11 => {
             wire__crate__api__categories__load_category_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        10 => {
+        12 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
+        13 => {
             wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
         }
-        11 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
-        12 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__ledger__suggest_category_for_title_impl(
+        14 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__ledger__suggest_category_for_title_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        15 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1430,6 +1754,21 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<CategoryBook>> for CategoryBook {
     fn into_into_dart(self) -> FrbWrapper<CategoryBook> {
+        self.into()
+    }
+}
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<GoalBook> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<GoalBook> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<GoalBook>> for GoalBook {
+    fn into_into_dart(self) -> FrbWrapper<GoalBook> {
         self.into()
     }
 }
@@ -1643,6 +1982,87 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::EntryKind>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::goals::GoalKind {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Save => 0.into_dart(),
+            Self::Spend => 1.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::goals::GoalKind {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::goals::GoalKind>
+    for crate::api::goals::GoalKind
+{
+    fn into_into_dart(self) -> crate::api::goals::GoalKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::goals::GoalLoadReport {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.recovered_upsert_count.into_into_dart().into_dart(),
+            self.truncated_bytes.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::goals::GoalLoadReport
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::goals::GoalLoadReport>
+    for crate::api::goals::GoalLoadReport
+{
+    fn into_into_dart(self) -> crate::api::goals::GoalLoadReport {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::goals::GoalMutation {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.appended_frame.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::goals::GoalMutation
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::goals::GoalMutation>
+    for crate::api::goals::GoalMutation
+{
+    fn into_into_dart(self) -> crate::api::goals::GoalMutation {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::goals::GoalView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.id.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+            self.is_save.into_into_dart().into_dart(),
+            self.linked_account_id.into_into_dart().into_dart(),
+            self.category_id.into_into_dart().into_dart(),
+            self.target_label.into_into_dart().into_dart(),
+            self.progress_label.into_into_dart().into_dart(),
+            self.percent_complete.into_into_dart().into_dart(),
+            self.deadline_millis.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::goals::GoalView {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::goals::GoalView>
+    for crate::api::goals::GoalView
+{
+    fn into_into_dart(self) -> crate::api::goals::GoalView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ledger::LedgerMutation {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -1773,6 +2193,13 @@ impl SseEncode for CategoryBook {
     }
 }
 
+impl SseEncode for GoalBook {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
 impl SseEncode for PersonalLedger {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1793,6 +2220,17 @@ impl SseEncode
 
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
+    }
+}
+
+impl SseEncode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1925,6 +2363,52 @@ impl SseEncode for crate::api::ledger::EntryKind {
     }
 }
 
+impl SseEncode for crate::api::goals::GoalKind {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::goals::GoalKind::Save => 0,
+                crate::api::goals::GoalKind::Spend => 1,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::goals::GoalLoadReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u64>::sse_encode(self.recovered_upsert_count, serializer);
+        <u64>::sse_encode(self.truncated_bytes, serializer);
+    }
+}
+
+impl SseEncode for crate::api::goals::GoalMutation {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<u8>>::sse_encode(self.appended_frame, serializer);
+    }
+}
+
+impl SseEncode for crate::api::goals::GoalView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.id, serializer);
+        <String>::sse_encode(self.name, serializer);
+        <bool>::sse_encode(self.is_save, serializer);
+        <Option<String>>::sse_encode(self.linked_account_id, serializer);
+        <Option<String>>::sse_encode(self.category_id, serializer);
+        <String>::sse_encode(self.target_label, serializer);
+        <String>::sse_encode(self.progress_label, serializer);
+        <i64>::sse_encode(self.percent_complete, serializer);
+        <Option<i64>>::sse_encode(self.deadline_millis, serializer);
+    }
+}
+
 impl SseEncode for i32 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1987,6 +2471,16 @@ impl SseEncode for Vec<crate::api::categories::CategoryView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::goals::GoalView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::goals::GoalView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<u8> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2032,6 +2526,16 @@ impl SseEncode for Option<String> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <String>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<i64> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <i64>::sse_encode(value, serializer);
         }
     }
 }
@@ -2116,6 +2620,7 @@ mod io {
     use super::*;
     use crate::api::budgets::*;
     use crate::api::categories::*;
+    use crate::api::goals::*;
     use crate::api::ledger::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
@@ -2156,6 +2661,20 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_private_ledger_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_private_ledger_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>::decrement_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_private_ledger_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
         ptr: *const std::ffi::c_void,
     ) {
@@ -2183,6 +2702,7 @@ mod web {
     use super::*;
     use crate::api::budgets::*;
     use crate::api::categories::*;
+    use crate::api::goals::*;
     use crate::api::ledger::*;
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
@@ -2222,6 +2742,20 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>>::decrement_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>::decrement_strong_count(ptr as _);
     }
 
     #[wasm_bindgen]

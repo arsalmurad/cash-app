@@ -11,6 +11,7 @@ mod clock;
 mod codec;
 mod event;
 mod frame;
+mod goals;
 mod ledger;
 mod money;
 mod snapshot;
@@ -26,6 +27,10 @@ pub use categories::{
 pub use clock::{ActorId, EventId, HybridTimestamp, OrderKey};
 pub use codec::{DecodedLog, decode_event_log, encode_event_frame};
 pub use event::{AccountId, Event, EventKind, TransactionId, TransactionKind};
+pub use goals::{
+    DecodedGoalLog, GoalBookState, GoalId, GoalKind, GoalRecord, GoalUpsert, decode_goal_log,
+    encode_goal_frame, fold_goals,
+};
 pub use ledger::{AccountState, FoldError, LedgerState, TransactionState, fold};
 pub use money::{Currency, FxRate, Money, MoneyError, RoundingRule};
 pub use snapshot::{Snapshot, SnapshotError};
