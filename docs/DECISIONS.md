@@ -87,3 +87,50 @@ snapshots. Building screens against temporary Dart models was rejected because
 those models would either duplicate the money rules or become an accidental
 CRUD source of truth. The first Flutter vertical slice will consume this core
 through a thin bridge.
+
+## 2026-09-26 — Durable storage lives in Dart, not Rust
+
+Rust running as WASM in a browser has no filesystem, so `rust/core` cannot own
+*where* the event log's bytes are kept without a WASM-only code path
+contradicting its "no storage dependency" boundary. Instead `rust/core` only
+defines the durable frame codec (encode/decode, checksum, corruption
+recovery), and Dart owns the actual store: a plain file on iOS/Android/desktop,
+`window.localStorage` on web, selected at compile time the same way the
+generated `frb_generated.io.dart`/`.web.dart` bridge files already are. Putting
+file I/O in Rust via `std::fs` and passing it a path from Dart was rejected
+because it would still need a completely different, WASM-incompatible code
+path for web, duplicating the platform split one layer down instead of
+avoiding it.
+
+## 2026-09-26 — One ledger constructor, not create-vs-load
+
+`load_personal_ledger` replaces the old `create_personal_ledger`: a brand-new
+install passes an empty byte log and gets the same code path a restart does.
+Keeping a separate `create_personal_ledger` for first launch was rejected
+because two constructors are two chances for "new" and "restored" ledgers to
+compute HLC continuity or validation differently, exactly the kind of drift
+this milestone is trying to close off in the first change that touches
+startup.
+
+## 2026-09-26 — A rejected write is unrepresentable in the persisted log
+
+`add_account`/`record_transaction` return the newly appended event's durable
+frame only on `Ok`; a duplicate or otherwise-rejected write is an `Err` with
+no frame attached, so there is no value the caller could accidentally persist.
+Returning a frame alongside an error result (or persisting speculatively
+before validating) was rejected because it would let a caller bug — not a
+Rust bug — put a rejected write into durable history, which is exactly the
+silent-corruption failure mode event sourcing exists to prevent.
+
+## 2026-09-26 — Frame checksums, not file-format assumptions, define recovery
+
+The durable log's corruption test is "does this frame's checksum verify",
+not "did this file end where a normal write would end". A length-prefixed,
+FNV-1a-checksummed frame lets `decode_event_log` tell a torn write (checksum
+or length fails) apart from a genuine version mismatch without inspecting the
+storage backend at all, so the same recovery logic runs unchanged whether the
+bytes came from a native file or a browser's `localStorage`. Trusting the
+storage layer to report a clean vs. truncated read (e.g. comparing byte
+counts) was rejected because `localStorage`'s read/write API gives no such
+signal, and the codec would otherwise need a different corruption story per
+platform.

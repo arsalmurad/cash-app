@@ -2,7 +2,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use cash_core::{
     AccountId, Currency, Event, EventKind, FxRate, HybridTimestamp, LedgerState, Money,
-    TransactionId, TransactionKind, fold,
+    TransactionId, TransactionKind, decode_event_log, encode_event_frame, fold,
 };
 use flutter_rust_bridge::frb;
 
@@ -21,20 +21,46 @@ struct LedgerData {
     reporting_currency: Currency,
     events: Vec<Event>,
     last_timestamp: HybridTimestamp,
+    recovered_event_count: u64,
+    truncated_bytes: u64,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct LedgerOverview {
     pub balance_label: String,
     pub accounts: Vec<AccountView>,
     pub transactions: Vec<TransactionView>,
 }
 
+/// The result of a mutation that appended one event. `appended_frame` is the
+/// durable-log frame for that event and only exists when the mutation
+/// succeeded: a rejected write never reaches this struct, so it can never be
+/// persisted. The caller (Dart) must append these bytes to its durable store
+/// before treating the mutation as committed.
+pub struct LedgerMutation {
+    pub overview: LedgerOverview,
+    pub appended_frame: Vec<u8>,
+}
+
+/// Diagnostics from the load that produced a ledger's current in-memory
+/// state. `recovered_event_count` and `truncated_bytes` let the caller
+/// distinguish a clean load from one that dropped a torn write at the tail,
+/// per [`cash_core::decode_event_log`].
+#[derive(Debug, PartialEq)]
+pub struct LoadReport {
+    pub overview: LedgerOverview,
+    pub recovered_event_count: u64,
+    pub truncated_bytes: u64,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct AccountView {
     pub id: String,
     pub name: String,
     pub balance_label: String,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct TransactionView {
     pub id: String,
     pub title: String,
@@ -57,22 +83,58 @@ impl From<EntryKind> for TransactionKind {
     }
 }
 
-pub fn create_personal_ledger(
+/// Opens a personal ledger by replaying a durable log's bytes. Pass an empty
+/// `log_bytes` for a brand-new installation; this is the only ledger
+/// constructor, so first launch and every later restart share one code path.
+/// Call [`load_report`] on the result to see what was recovered.
+///
+/// `actor_id` must be the same stable identifier persisted alongside the log
+/// on a previous launch: it anchors this device's place in the total order,
+/// and changing it after events exist would let two different actors claim
+/// the same event IDs.
+pub fn load_personal_ledger(
     actor_id: String,
     reporting_currency_code: String,
+    log_bytes: Vec<u8>,
 ) -> Result<PersonalLedger, String> {
     if actor_id.trim().is_empty() {
         return Err("actor ID cannot be empty".to_owned());
     }
     let reporting_currency =
         Currency::from_code(&reporting_currency_code).map_err(|error| error.to_string())?;
+
+    let decoded = decode_event_log(&log_bytes);
+    let last_timestamp = decoded
+        .events
+        .iter()
+        .map(|event| event.timestamp)
+        .max()
+        .unwrap_or(HybridTimestamp::new(0, 0));
+    let recovered_event_count = decoded.events.len() as u64;
+    // Fold eagerly so a corrupted-but-checksum-valid log (a real conflict,
+    // not a torn write) is rejected here rather than surfacing later as a
+    // confusing failure from `get_overview`.
+    fold(reporting_currency.clone(), decoded.events.clone()).map_err(|error| error.to_string())?;
+
     Ok(PersonalLedger {
         data: Mutex::new(LedgerData {
             actor_id,
             reporting_currency,
-            events: Vec::new(),
-            last_timestamp: HybridTimestamp::new(0, 0),
+            events: decoded.events,
+            last_timestamp,
+            recovered_event_count,
+            truncated_bytes: decoded.trailing_garbage_bytes as u64,
         }),
+    })
+}
+
+/// Reports what a completed [`load_personal_ledger`] call recovered.
+pub fn load_report(ledger: &PersonalLedger) -> Result<LoadReport, String> {
+    let data = lock(ledger)?;
+    Ok(LoadReport {
+        overview: data.overview()?,
+        recovered_event_count: data.recovered_event_count,
+        truncated_bytes: data.truncated_bytes,
     })
 }
 
@@ -82,7 +144,7 @@ pub fn add_account(
     name: String,
     currency_code: String,
     wall_clock_millis: i64,
-) -> Result<LedgerOverview, String> {
+) -> Result<LedgerMutation, String> {
     let currency = Currency::from_code(&currency_code).map_err(|error| error.to_string())?;
     let mut data = lock(ledger)?;
     let event = data.next_event(
@@ -93,7 +155,7 @@ pub fn add_account(
             currency,
         },
     );
-    data.append_and_overview(event)
+    data.append_and_mutation(event)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -109,7 +171,7 @@ pub fn record_transaction(
     title: String,
     category_id: Option<String>,
     wall_clock_millis: i64,
-) -> Result<LedgerOverview, String> {
+) -> Result<LedgerMutation, String> {
     let currency = Currency::from_code(&currency_code).map_err(|error| error.to_string())?;
     let minor_units = currency
         .parse_major_units(&amount)
@@ -137,7 +199,7 @@ pub fn record_transaction(
             category_id,
         },
     );
-    data.append_and_overview(event)
+    data.append_and_mutation(event)
 }
 
 pub fn get_overview(ledger: &PersonalLedger) -> Result<LedgerOverview, String> {
@@ -181,10 +243,14 @@ impl LedgerData {
         Ok(overview_from_state(state))
     }
 
-    fn append_and_overview(&mut self, event: Event) -> Result<LedgerOverview, String> {
+    fn append_and_mutation(&mut self, event: Event) -> Result<LedgerMutation, String> {
+        let appended_frame = encode_event_frame(&event);
         self.events.push(event);
         match self.overview() {
-            Ok(overview) => Ok(overview),
+            Ok(overview) => Ok(LedgerMutation {
+                overview,
+                appended_frame,
+            }),
             Err(error) => {
                 self.events.pop();
                 Err(error)
@@ -233,9 +299,13 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
 mod tests {
     use super::*;
 
+    fn new_ledger(actor_id: &str) -> PersonalLedger {
+        load_personal_ledger(actor_id.to_owned(), "USD".to_owned(), Vec::new()).unwrap()
+    }
+
     #[test]
     fn bridge_api_records_money_in_the_rust_ledger() {
-        let ledger = create_personal_ledger("device-a".to_owned(), "USD".to_owned()).unwrap();
+        let ledger = new_ledger("device-a");
         let overview = add_account(
             &ledger,
             "checking".to_owned(),
@@ -243,7 +313,8 @@ mod tests {
             "USD".to_owned(),
             1,
         )
-        .unwrap();
+        .unwrap()
+        .overview;
         assert_eq!(overview.balance_label, "USD 0.00");
 
         let overview = record_transaction(
@@ -259,7 +330,8 @@ mod tests {
             Some("food".to_owned()),
             2,
         )
-        .unwrap();
+        .unwrap()
+        .overview;
 
         assert_eq!(overview.balance_label, "USD -12.34");
         assert_eq!(overview.transactions[0].amount_label, "USD 12.34");
@@ -268,7 +340,7 @@ mod tests {
 
     #[test]
     fn rejected_event_does_not_poison_the_in_memory_log() {
-        let ledger = create_personal_ledger("device-a".to_owned(), "USD".to_owned()).unwrap();
+        let ledger = new_ledger("device-a");
         add_account(
             &ledger,
             "checking".to_owned(),
@@ -289,5 +361,162 @@ mod tests {
         );
         let overview = get_overview(&ledger).unwrap();
         assert_eq!(overview.accounts.len(), 1);
+    }
+
+    #[test]
+    fn a_rejected_write_never_produces_a_frame_to_persist() {
+        let ledger = new_ledger("device-a");
+        let first = add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Checking".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+
+        // The caller can only ever learn about `appended_frame` for a
+        // mutation that returned `Ok`, so a rejected duplicate has no bytes
+        // that could accidentally be persisted.
+        let rejected = add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Duplicate".to_owned(),
+            "USD".to_owned(),
+            2,
+        );
+        assert!(rejected.is_err());
+
+        // Replaying only the frame from the accepted write reproduces
+        // exactly the state before the rejected attempt.
+        let reloaded = load_personal_ledger(
+            "device-a".to_owned(),
+            "USD".to_owned(),
+            first.appended_frame,
+        )
+        .unwrap();
+        let report = load_report(&reloaded).unwrap();
+        assert_eq!(report.recovered_event_count, 1);
+        assert_eq!(report.truncated_bytes, 0);
+        assert_eq!(report.overview.accounts.len(), 1);
+    }
+
+    #[test]
+    fn restart_recovers_identical_state_from_the_persisted_frames() {
+        let ledger = new_ledger("device-a");
+        let mut log = Vec::new();
+        log.extend(
+            add_account(
+                &ledger,
+                "checking".to_owned(),
+                "Checking".to_owned(),
+                "USD".to_owned(),
+                1,
+            )
+            .unwrap()
+            .appended_frame,
+        );
+        let before_restart = record_transaction(
+            &ledger,
+            "groceries-1".to_owned(),
+            "checking".to_owned(),
+            EntryKind::Expense,
+            "12.34".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "Groceries".to_owned(),
+            Some("food".to_owned()),
+            2,
+        )
+        .unwrap();
+        log.extend(before_restart.appended_frame);
+
+        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log)
+            .unwrap();
+        let report = load_report(&restarted).unwrap();
+        assert_eq!(report.recovered_event_count, 2);
+        assert_eq!(report.truncated_bytes, 0);
+        assert_eq!(report.overview, before_restart.overview);
+    }
+
+    #[test]
+    fn restart_recovers_the_prefix_before_a_log_truncated_by_a_crash() {
+        let ledger = new_ledger("device-a");
+        let account_frame = add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Checking".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap()
+        .appended_frame;
+        let transaction_frame = record_transaction(
+            &ledger,
+            "groceries-1".to_owned(),
+            "checking".to_owned(),
+            EntryKind::Expense,
+            "12.34".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "Groceries".to_owned(),
+            Some("food".to_owned()),
+            2,
+        )
+        .unwrap()
+        .appended_frame;
+
+        // Simulate the process dying mid-`flush` of the second frame: only
+        // half of it made it to durable storage.
+        let mut log = account_frame;
+        let torn_len = transaction_frame.len() / 2;
+        log.extend(&transaction_frame[..torn_len]);
+
+        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log)
+            .unwrap();
+        let report = load_report(&restarted).unwrap();
+        assert_eq!(report.recovered_event_count, 1);
+        // Trailing garbage is what was actually written for the torn frame,
+        // not what's missing from it.
+        assert_eq!(report.truncated_bytes, torn_len as u64);
+        assert_eq!(report.overview.accounts.len(), 1);
+        assert!(report.overview.transactions.is_empty());
+        assert_eq!(report.overview.balance_label, "USD 0.00");
+    }
+
+    #[test]
+    fn restart_continues_the_hybrid_clock_even_if_the_new_wall_clock_lags() {
+        let ledger = new_ledger("device-a");
+        let frame = add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Checking".to_owned(),
+            "USD".to_owned(),
+            1_000_000,
+        )
+        .unwrap()
+        .appended_frame;
+
+        let restarted =
+            load_personal_ledger("device-a".to_owned(), "USD".to_owned(), frame).unwrap();
+        let persisted_timestamp = restarted.data.lock().unwrap().last_timestamp;
+        assert_eq!(persisted_timestamp, HybridTimestamp::new(1_000_000, 0));
+
+        // The device's wall clock reads earlier after restart (skew, or a
+        // clock that resets across reboots). The next event must still sort
+        // strictly after everything already persisted.
+        let mutation = add_account(
+            &restarted,
+            "savings".to_owned(),
+            "Savings".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+        let advanced_timestamp = restarted.data.lock().unwrap().last_timestamp;
+        assert!(advanced_timestamp > persisted_timestamp);
+        assert_eq!(mutation.overview.accounts.len(), 2);
     }
 }

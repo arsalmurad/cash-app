@@ -12,6 +12,8 @@ dependencies:
   flutter_rust_bridge: 2.13.0
   rust_lib_cash_app:
     path: rust_builder
+  path_provider: ^2.1.6
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -19,6 +21,8 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  path_provider_platform_interface: ^2.1.3
+  plugin_platform_interface: ^2.1.8
 
 flutter:
   uses-material-design: true

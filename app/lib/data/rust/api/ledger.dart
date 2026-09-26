@@ -7,19 +7,34 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `append_and_overview`, `lock`, `next_event`, `overview_from_state`, `overview`
+// These functions are ignored because they are not marked as `pub`: `append_and_mutation`, `lock`, `next_event`, `overview_from_state`, `overview`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LedgerData`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 
-Future<PersonalLedger> createPersonalLedger({
+/// Opens a personal ledger by replaying a durable log's bytes. Pass an empty
+/// `log_bytes` for a brand-new installation; this is the only ledger
+/// constructor, so first launch and every later restart share one code path.
+/// Call [`load_report`] on the result to see what was recovered.
+///
+/// `actor_id` must be the same stable identifier persisted alongside the log
+/// on a previous launch: it anchors this device's place in the total order,
+/// and changing it after events exist would let two different actors claim
+/// the same event IDs.
+Future<PersonalLedger> loadPersonalLedger({
   required String actorId,
   required String reportingCurrencyCode,
-}) => RustLib.instance.api.crateApiLedgerCreatePersonalLedger(
+  required List<int> logBytes,
+}) => RustLib.instance.api.crateApiLedgerLoadPersonalLedger(
   actorId: actorId,
   reportingCurrencyCode: reportingCurrencyCode,
+  logBytes: logBytes,
 );
 
-Future<LedgerOverview> addAccount({
+/// Reports what a completed [`load_personal_ledger`] call recovered.
+Future<LoadReport> loadReport({required PersonalLedger ledger}) =>
+    RustLib.instance.api.crateApiLedgerLoadReport(ledger: ledger);
+
+Future<LedgerMutation> addAccount({
   required PersonalLedger ledger,
   required String accountId,
   required String name,
@@ -33,7 +48,7 @@ Future<LedgerOverview> addAccount({
   wallClockMillis: wallClockMillis,
 );
 
-Future<LedgerOverview> recordTransaction({
+Future<LedgerMutation> recordTransaction({
   required PersonalLedger ledger,
   required String transactionId,
   required String accountId,
@@ -91,6 +106,29 @@ class AccountView {
 
 enum EntryKind { expense, income }
 
+/// The result of a mutation that appended one event. `appended_frame` is the
+/// durable-log frame for that event and only exists when the mutation
+/// succeeded: a rejected write never reaches this struct, so it can never be
+/// persisted. The caller (Dart) must append these bytes to its durable store
+/// before treating the mutation as committed.
+class LedgerMutation {
+  final LedgerOverview overview;
+  final Uint8List appendedFrame;
+
+  const LedgerMutation({required this.overview, required this.appendedFrame});
+
+  @override
+  int get hashCode => overview.hashCode ^ appendedFrame.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LedgerMutation &&
+          runtimeType == other.runtimeType &&
+          overview == other.overview &&
+          appendedFrame == other.appendedFrame;
+}
+
 class LedgerOverview {
   final String balanceLabel;
   final List<AccountView> accounts;
@@ -114,6 +152,37 @@ class LedgerOverview {
           balanceLabel == other.balanceLabel &&
           accounts == other.accounts &&
           transactions == other.transactions;
+}
+
+/// Diagnostics from the load that produced a ledger's current in-memory
+/// state. `recovered_event_count` and `truncated_bytes` let the caller
+/// distinguish a clean load from one that dropped a torn write at the tail,
+/// per [`cash_core::decode_event_log`].
+class LoadReport {
+  final LedgerOverview overview;
+  final BigInt recoveredEventCount;
+  final BigInt truncatedBytes;
+
+  const LoadReport({
+    required this.overview,
+    required this.recoveredEventCount,
+    required this.truncatedBytes,
+  });
+
+  @override
+  int get hashCode =>
+      overview.hashCode ^
+      recoveredEventCount.hashCode ^
+      truncatedBytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoadReport &&
+          runtimeType == other.runtimeType &&
+          overview == other.overview &&
+          recoveredEventCount == other.recoveredEventCount &&
+          truncatedBytes == other.truncatedBytes;
 }
 
 class TransactionView {

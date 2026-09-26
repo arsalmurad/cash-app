@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, btree_map::Entry};
 use std::fmt;
 
+use crate::bytes_io::{write_i64, write_string, write_u64};
 use crate::{
     AccountId, Currency, Event, EventId, EventKind, FxRate, Money, MoneyError, TransactionId,
     TransactionKind,
@@ -261,19 +262,6 @@ fn checked_add(left: i64, right: i64) -> Result<i64, FoldError> {
 
 fn checked_sub(left: i64, right: i64) -> Result<i64, FoldError> {
     left.checked_sub(right).ok_or(FoldError::MoneyOverflow)
-}
-
-fn write_i64(bytes: &mut Vec<u8>, value: i64) {
-    bytes.extend_from_slice(&value.to_be_bytes());
-}
-
-fn write_u64(bytes: &mut Vec<u8>, value: u64) {
-    bytes.extend_from_slice(&value.to_be_bytes());
-}
-
-fn write_string(bytes: &mut Vec<u8>, value: &str) {
-    write_u64(bytes, value.len() as u64);
-    bytes.extend_from_slice(value.as_bytes());
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

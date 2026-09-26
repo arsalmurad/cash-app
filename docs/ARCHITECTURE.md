@@ -40,6 +40,46 @@ the event log. Events are not eligible for deletion until relevant peers have
 acknowledged the causal frontier. This favors correctness over premature
 compaction.
 
+## Persistence
+
+The ledger core has no storage or platform dependency (see Boundaries below),
+so persistence is a codec plus a place to put bytes, not a schema.
+
+- `rust/core` defines a durable log frame format: one event per frame,
+  length-prefixed and checksummed, so a frame is self-describing and a torn
+  write can only ever corrupt the last, still-in-flight frame. Decoding a log
+  stops at the first frame that fails its checksum or runs out of bytes and
+  reports how many trailing bytes were unreadable; it never discards a
+  successfully decoded prefix or panics on corrupt input. A domain-level
+  conflict between two fully valid frames (the same event ID with different
+  content) is a different problem — real corruption, not a torn write — and
+  is left to `fold` to reject.
+- `rust/api::load_personal_ledger` is the ledger's only constructor: a fresh
+  installation and a restart both replay a byte log (empty on first launch)
+  through the same path, so there is no separate "create" code that could
+  drift from "restore". `add_account`/`record_transaction` return the
+  frame for the event they just appended only when the ledger accepted it,
+  so a rejected write can never reach durable storage.
+- Native file access is not available from Rust running as WASM in a
+  browser, so the app (Dart), not the core, owns *where* the bytes live:
+  `app/lib/data/storage/event_store_io.dart` appends to a plain file in the
+  OS-sandboxed app support directory on iOS/Android/desktop, and
+  `event_store_web.dart` base64-encodes the log into `window.localStorage`
+  for Flutter web, since a page has no filesystem. Both implement the same
+  `EventStore` interface, selected at compile time the same way the
+  generated `frb_generated.io.dart`/`frb_generated.web.dart` bridge files
+  already are, so everything above the storage layer — including the Rust
+  ledger — stays platform-agnostic.
+- The actor ID is generated once on first launch, persisted next to the
+  event log, and reused on every later launch. It must never change once
+  events exist: the total order and idempotency both key on it, and the
+  Rust core has no way to detect or migrate an actor ID change.
+- A mutation only counts as durable once its frame has been appended to
+  storage; the controller does that before updating the on-screen balance.
+  If the process dies first, the event is simply not there on the next
+  launch — there is no half-applied state to reconcile, only a clean prefix
+  of history.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot
@@ -49,5 +89,8 @@ compaction.
 - `rust/crypto`: MLS wrapper promoted from the proven Phase 0 spike when Phase
   2 begins; it is not part of the Phase 1 personal app.
 - `app`: Flutter Material 3 UI organized by feature. It receives presentation
-  models through the bridge and does not implement ledger rules.
+  models through the bridge and does not implement ledger rules. `app/lib/data`
+  holds the generated bridge bindings and the `EventStore` persistence layer
+  (native file vs. browser storage) described above; both stay data plumbing,
+  never a second copy of ledger rules.
 

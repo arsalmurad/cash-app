@@ -29,7 +29,7 @@
 
 use crate::api::ledger::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
 
 // Section: boilerplate
@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 587293848;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -748327893;
 
 // Section: executor
 
@@ -102,43 +102,6 @@ fn wire__crate__api__ledger__add_account_impl(
                         api_name,
                         api_currency_code,
                         api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
-        },
-    )
-}
-fn wire__crate__api__ledger__create_personal_ledger_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
-    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
-    rust_vec_len_: i32,
-    data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
-        flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "create_personal_ledger",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
-        },
-        move || {
-            let message = unsafe {
-                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
-                    ptr_,
-                    rust_vec_len_,
-                    data_len_,
-                )
-            };
-            let mut deserializer =
-                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
-            let api_actor_id = <String>::sse_decode(&mut deserializer);
-            let api_reporting_currency_code = <String>::sse_decode(&mut deserializer);
-            deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::api::ledger::create_personal_ledger(
-                        api_actor_id,
-                        api_reporting_currency_code,
                     )?;
                     std::result::Result::Ok(output_ok)
                 })())
@@ -225,6 +188,96 @@ fn wire__crate__api__ledger__init_app_impl(
                     let output_ok = Ok::<_, ()>({
                         crate::api::ledger::init_app();
                     })?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__ledger__load_personal_ledger_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "load_personal_ledger",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_actor_id = <String>::sse_decode(&mut deserializer);
+            let api_reporting_currency_code = <String>::sse_decode(&mut deserializer);
+            let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::ledger::load_personal_ledger(
+                        api_actor_id,
+                        api_reporting_currency_code,
+                        api_log_bytes,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__ledger__load_report_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "load_report",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let output_ok = crate::api::ledger::load_report(&*api_ledger_guard)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -388,6 +441,18 @@ impl SseDecode for i64 {
     }
 }
 
+impl SseDecode for crate::api::ledger::LedgerMutation {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_overview = <crate::api::ledger::LedgerOverview>::sse_decode(deserializer);
+        let mut var_appendedFrame = <Vec<u8>>::sse_decode(deserializer);
+        return crate::api::ledger::LedgerMutation {
+            overview: var_overview,
+            appended_frame: var_appendedFrame,
+        };
+    }
+}
+
 impl SseDecode for crate::api::ledger::LedgerOverview {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -441,6 +506,20 @@ impl SseDecode for Vec<crate::api::ledger::TransactionView> {
     }
 }
 
+impl SseDecode for crate::api::ledger::LoadReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_overview = <crate::api::ledger::LedgerOverview>::sse_decode(deserializer);
+        let mut var_recoveredEventCount = <u64>::sse_decode(deserializer);
+        let mut var_truncatedBytes = <u64>::sse_decode(deserializer);
+        return crate::api::ledger::LoadReport {
+            overview: var_overview,
+            recovered_event_count: var_recoveredEventCount,
+            truncated_bytes: var_truncatedBytes,
+        };
+    }
+}
+
 impl SseDecode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -467,6 +546,13 @@ impl SseDecode for crate::api::ledger::TransactionView {
             is_expense: var_isExpense,
             category_id: var_categoryId,
         };
+    }
+}
+
+impl SseDecode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        deserializer.cursor.read_u64::<NativeEndian>().unwrap()
     }
 }
 
@@ -499,12 +585,11 @@ fn pde_ffi_dispatcher_primary_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__ledger__add_account_impl(port, ptr, rust_vec_len, data_len),
-        2 => {
-            wire__crate__api__ledger__create_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
-        }
-        3 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        5 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -579,6 +664,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::EntryKind>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ledger::LedgerMutation {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.overview.into_into_dart().into_dart(),
+            self.appended_frame.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ledger::LedgerMutation
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::LedgerMutation>
+    for crate::api::ledger::LedgerMutation
+{
+    fn into_into_dart(self) -> crate::api::ledger::LedgerMutation {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ledger::LedgerOverview {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -597,6 +703,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::LedgerOverview>
     for crate::api::ledger::LedgerOverview
 {
     fn into_into_dart(self) -> crate::api::ledger::LedgerOverview {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ledger::LoadReport {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.overview.into_into_dart().into_dart(),
+            self.recovered_event_count.into_into_dart().into_dart(),
+            self.truncated_bytes.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ledger::LoadReport
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::LoadReport>
+    for crate::api::ledger::LoadReport
+{
+    fn into_into_dart(self) -> crate::api::ledger::LoadReport {
         self
     }
 }
@@ -696,6 +824,14 @@ impl SseEncode for i64 {
     }
 }
 
+impl SseEncode for crate::api::ledger::LedgerMutation {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::ledger::LedgerOverview>::sse_encode(self.overview, serializer);
+        <Vec<u8>>::sse_encode(self.appended_frame, serializer);
+    }
+}
+
 impl SseEncode for crate::api::ledger::LedgerOverview {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -735,6 +871,15 @@ impl SseEncode for Vec<crate::api::ledger::TransactionView> {
     }
 }
 
+impl SseEncode for crate::api::ledger::LoadReport {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::ledger::LedgerOverview>::sse_encode(self.overview, serializer);
+        <u64>::sse_encode(self.recovered_event_count, serializer);
+        <u64>::sse_encode(self.truncated_bytes, serializer);
+    }
+}
+
 impl SseEncode for Option<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -753,6 +898,13 @@ impl SseEncode for crate::api::ledger::TransactionView {
         <String>::sse_encode(self.amount_label, serializer);
         <bool>::sse_encode(self.is_expense, serializer);
         <Option<String>>::sse_encode(self.category_id, serializer);
+    }
+}
+
+impl SseEncode for u64 {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        serializer.cursor.write_u64::<NativeEndian>(self).unwrap();
     }
 }
 
@@ -790,7 +942,7 @@ mod io {
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
@@ -829,7 +981,7 @@ mod web {
     };
     use flutter_rust_bridge::for_generated::wasm_bindgen;
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
-    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
+    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate

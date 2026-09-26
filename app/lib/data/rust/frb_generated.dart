@@ -69,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 587293848;
+  int get rustContentHash => -748327893;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -81,17 +81,12 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  Future<LedgerOverview> crateApiLedgerAddAccount({
+  Future<LedgerMutation> crateApiLedgerAddAccount({
     required PersonalLedger ledger,
     required String accountId,
     required String name,
     required String currencyCode,
     required PlatformInt64 wallClockMillis,
-  });
-
-  Future<PersonalLedger> crateApiLedgerCreatePersonalLedger({
-    required String actorId,
-    required String reportingCurrencyCode,
   });
 
   Future<LedgerOverview> crateApiLedgerGetOverview({
@@ -100,7 +95,15 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiLedgerInitApp();
 
-  Future<LedgerOverview> crateApiLedgerRecordTransaction({
+  Future<PersonalLedger> crateApiLedgerLoadPersonalLedger({
+    required String actorId,
+    required String reportingCurrencyCode,
+    required List<int> logBytes,
+  });
+
+  Future<LoadReport> crateApiLedgerLoadReport({required PersonalLedger ledger});
+
+  Future<LedgerMutation> crateApiLedgerRecordTransaction({
     required PersonalLedger ledger,
     required String transactionId,
     required String accountId,
@@ -133,7 +136,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  Future<LedgerOverview> crateApiLedgerAddAccount({
+  Future<LedgerMutation> crateApiLedgerAddAccount({
     required PersonalLedger ledger,
     required String accountId,
     required String name,
@@ -160,7 +163,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_ledger_overview,
+          decodeSuccessData: sse_decode_ledger_mutation,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiLedgerAddAccountConstMeta,
@@ -182,42 +185,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<PersonalLedger> crateApiLedgerCreatePersonalLedger({
-    required String actorId,
-    required String reportingCurrencyCode,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_String(actorId, serializer);
-          sse_encode_String(reportingCurrencyCode, serializer);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 2,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData:
-              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger,
-          decodeErrorData: sse_decode_String,
-        ),
-        constMeta: kCrateApiLedgerCreatePersonalLedgerConstMeta,
-        argValues: [actorId, reportingCurrencyCode],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiLedgerCreatePersonalLedgerConstMeta =>
-      const TaskConstMeta(
-        debugName: "create_personal_ledger",
-        argNames: ["actorId", "reportingCurrencyCode"],
-      );
-
-  @override
   Future<LedgerOverview> crateApiLedgerGetOverview({
     required PersonalLedger ledger,
   }) {
@@ -232,7 +199,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 2,
             port: port_,
           );
         },
@@ -259,7 +226,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 3,
             port: port_,
           );
         },
@@ -278,7 +245,78 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
-  Future<LedgerOverview> crateApiLedgerRecordTransaction({
+  Future<PersonalLedger> crateApiLedgerLoadPersonalLedger({
+    required String actorId,
+    required String reportingCurrencyCode,
+    required List<int> logBytes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(actorId, serializer);
+          sse_encode_String(reportingCurrencyCode, serializer);
+          sse_encode_list_prim_u_8_loose(logBytes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerLoadPersonalLedgerConstMeta,
+        argValues: [actorId, reportingCurrencyCode, logBytes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerLoadPersonalLedgerConstMeta =>
+      const TaskConstMeta(
+        debugName: "load_personal_ledger",
+        argNames: ["actorId", "reportingCurrencyCode", "logBytes"],
+      );
+
+  @override
+  Future<LoadReport> crateApiLedgerLoadReport({
+    required PersonalLedger ledger,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_load_report,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerLoadReportConstMeta,
+        argValues: [ledger],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerLoadReportConstMeta =>
+      const TaskConstMeta(debugName: "load_report", argNames: ["ledger"]);
+
+  @override
+  Future<LedgerMutation> crateApiLedgerRecordTransaction({
     required PersonalLedger ledger,
     required String transactionId,
     required String accountId,
@@ -312,12 +350,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_ledger_overview,
+          decodeSuccessData: sse_decode_ledger_mutation,
           decodeErrorData: sse_decode_String,
         ),
         constMeta: kCrateApiLedgerRecordTransactionConstMeta,
@@ -436,6 +474,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LedgerMutation dco_decode_ledger_mutation(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return LedgerMutation(
+      overview: dco_decode_ledger_overview(arr[0]),
+      appendedFrame: dco_decode_list_prim_u_8_strict(arr[1]),
+    );
+  }
+
+  @protected
   LedgerOverview dco_decode_ledger_overview(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -455,6 +505,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
@@ -464,6 +520,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<TransactionView> dco_decode_list_transaction_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_transaction_view).toList();
+  }
+
+  @protected
+  LoadReport dco_decode_load_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return LoadReport(
+      overview: dco_decode_ledger_overview(arr[0]),
+      recoveredEventCount: dco_decode_u_64(arr[1]),
+      truncatedBytes: dco_decode_u_64(arr[2]),
+    );
   }
 
   @protected
@@ -485,6 +554,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isExpense: dco_decode_bool(arr[3]),
       categoryId: dco_decode_opt_String(arr[4]),
     );
+  }
+
+  @protected
+  BigInt dco_decode_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dcoDecodeU64(raw);
   }
 
   @protected
@@ -587,6 +662,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LedgerMutation sse_decode_ledger_mutation(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_overview = sse_decode_ledger_overview(deserializer);
+    var var_appendedFrame = sse_decode_list_prim_u_8_strict(deserializer);
+    return LedgerMutation(
+      overview: var_overview,
+      appendedFrame: var_appendedFrame,
+    );
+  }
+
+  @protected
   LedgerOverview sse_decode_ledger_overview(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_balanceLabel = sse_decode_String(deserializer);
@@ -612,6 +698,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -630,6 +723,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ans_.add(sse_decode_transaction_view(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  LoadReport sse_decode_load_report(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_overview = sse_decode_ledger_overview(deserializer);
+    var var_recoveredEventCount = sse_decode_u_64(deserializer);
+    var var_truncatedBytes = sse_decode_u_64(deserializer);
+    return LoadReport(
+      overview: var_overview,
+      recoveredEventCount: var_recoveredEventCount,
+      truncatedBytes: var_truncatedBytes,
+    );
   }
 
   @protected
@@ -658,6 +764,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       isExpense: var_isExpense,
       categoryId: var_categoryId,
     );
+  }
+
+  @protected
+  BigInt sse_decode_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getBigUint64();
   }
 
   @protected
@@ -755,6 +867,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_ledger_mutation(
+    LedgerMutation self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ledger_overview(self.overview, serializer);
+    sse_encode_list_prim_u_8_strict(self.appendedFrame, serializer);
+  }
+
+  @protected
   void sse_encode_ledger_overview(
     LedgerOverview self,
     SseSerializer serializer,
@@ -775,6 +897,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     for (final item in self) {
       sse_encode_account_view(item, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(
+    List<int> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer.putUint8List(
+      self is Uint8List ? self : Uint8List.fromList(self),
+    );
   }
 
   @protected
@@ -800,6 +934,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_load_report(LoadReport self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ledger_overview(self.overview, serializer);
+    sse_encode_u_64(self.recoveredEventCount, serializer);
+    sse_encode_u_64(self.truncatedBytes, serializer);
+  }
+
+  @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -820,6 +962,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.amountLabel, serializer);
     sse_encode_bool(self.isExpense, serializer);
     sse_encode_opt_String(self.categoryId, serializer);
+  }
+
+  @protected
+  void sse_encode_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putBigUint64(self);
   }
 
   @protected
