@@ -2,6 +2,59 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## Biometric lock
+
+Implementation: this change. The one feature in Phase 1 so far that needs a
+native plugin (`local_auth`) rather than pure Dart: `BiometricLockGate`
+(`app/lib/features/lock/biometric_lock_gate.dart`) gates the whole app
+behind device authentication when the user turns it on, persisted via a new
+`LockPreferenceStore` (`app/lib/data/storage/lock_preference.dart`, same
+native-file/`localStorage` split as `EventStore`, but its own small store —
+see `docs/DECISIONS.md`). No Rust or bridge changes were needed: whether the
+app is locked is UI state, not ledger state. `local_auth` has no web
+implementation, so the gate always shows its content directly on web rather
+than an unpassable lock screen; it also re-locks on every app resume from
+the background, not just at cold start (see `docs/DECISIONS.md` for both).
+A new `LockSettingsDialog`, reachable from `LedgerScreen`'s overflow menu
+("Screen lock"), lets the user turn the lock on or off, showing an
+unsupported message when the platform reports no usable biometric/passcode
+setup.
+
+Native platform config changed for this feature: `ios/Runner/Info.plist`
+gained `NSFaceIDUsageDescription` (required by iOS for any Face ID prompt),
+and Android's `MainActivity.kt` now extends `FlutterFragmentActivity`
+instead of `FlutterActivity` (`local_auth`'s Android implementation requires
+a `FragmentActivity` to show its biometric prompt).
+
+While building this, found and fixed a real bug before it shipped: the
+settings dialog's initial load had no error handling, so if reading the
+lock preference or checking device support ever threw, the dialog would
+show a loading spinner forever instead of surfacing a state — caught by a
+widget test whose `pumpAndSettle` never completed. Fixed by wrapping the
+load in a `try`/`catch` that falls back to "unsupported" on failure, and by
+making `LockSettingsDialog` accept an injectable `LockPreferenceStore` (the
+same constructor-injection pattern already used throughout this app) so
+tests don't need to fake `path_provider` just to exercise the dialog.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- Rust: no changes; `cargo test --workspace` still passes all 84 tests,
+  unchanged from the recurring-transactions milestone above.
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  54 tests across 13 files: the prior 49, plus 3 new `BiometricLockGate`
+  widget tests (shows the child directly when the lock is off; shows a lock
+  screen and unlocks after successful authentication, using a fake
+  `LocalAuthPlatform`; stays locked when authentication fails) and 2 new
+  `LockSettingsDialog` widget tests (shows an unsupported message when the
+  device has no lock; toggling the switch persists the preference).
+- iOS/Android/web runtime verification for this change is not yet run this
+  session — see "Remaining work" below. This is the first feature this
+  session that changes native platform files (`Info.plist`,
+  `MainActivity.kt`) rather than only Dart/Rust, so it carries more build
+  risk than earlier milestones and is a priority to verify on real iOS
+  hardware before being called done.
+
 ## Recurring transactions and upcoming occurrences
 
 Implementation: this change. A fourth independent LWW mechanism,
@@ -512,14 +565,16 @@ repeat) are built, multiple accounts plus transfers between them are built
 and confirmed on real iOS hardware for all three, search/filter is built,
 budgets and goals are built and confirmed on real iOS hardware (run
 36271793365, after an earlier stalled run on the same budgets commit was
-superseded), CSV import/export is built, and recurring transactions with
-upcoming occurrences are built (see above). Still open before Phase 1's
-exit test can be called complete:
+superseded), CSV import/export is built, recurring transactions with
+upcoming occurrences are built, and a biometric lock is built (see above).
+Still open before Phase 1's exit test can be called complete:
 
 - Run the Android integration test and the web runtime check against every
   change above (see each section's "Not verified this session"), including
-  budgets, goals, CSV import/export, and recurring transactions, none of
-  which has Android/web verification yet this session.
+  budgets, goals, CSV import/export, recurring transactions, and the
+  biometric lock, none of which has Android/web verification yet this
+  session. iOS verification of the biometric lock specifically is a
+  priority — see its section above for why.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
@@ -531,7 +586,10 @@ exit test can be called complete:
   toggle yet); the net balance card sums accounts' reporting-currency
   equivalents but never shows the same amount converted between two
   currencies side by side.
-- Biometric lock remains unbuilt.
+- The biometric lock has no "require lock after N minutes" grace period —
+  it re-locks on every single background/resume cycle, which may be
+  stricter than some users want; also untested against a device with no
+  biometrics enrolled but a passcode set (device-credential fallback).
 - Budgets, goals, and recurring rules can be created and their
   progress/occurrences tracked, but not renamed or deleted from the UI yet
   (the Rust/bridge upsert already supports rename via re-using the same

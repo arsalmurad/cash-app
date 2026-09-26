@@ -230,6 +230,28 @@ same `record`/`record_transaction` path as a hand-entered transaction,
 simply passing the rule's ID along, so there is exactly one way a
 transaction ever gets created.
 
+## Biometric lock
+
+The biometric lock (`app/lib/features/lock/biometric_lock_gate.dart`) gates
+the whole app behind `local_auth`, a native plugin — the one departure from
+this app's otherwise pure-Dart, no-native-dependency features (categories,
+budgets, goals, recurring rules, search, CSV). It has no Rust involvement at
+all: whether the app is locked is UI state, not ledger state, so it doesn't
+belong in either the strict event-sourced fold or any of the LWW
+mechanisms. `LockPreferenceStore` (`app/lib/data/storage/lock_preference.dart`)
+persists the user's on/off choice using the same native-file/`localStorage`
+split as `EventStore`, but as its own small store (`lock_preference_io.dart`/
+`lock_preference_web.dart`) rather than folded into `EventStore`, since it
+holds a UI preference with no fold, no frame codec, and no crash-recovery
+story of its own.
+
+`local_auth` has no web implementation, so `BiometricLockGate` always shows
+its child directly on web (`kIsWeb`) rather than a lock screen nobody could
+pass — see `docs/DECISIONS.md`. The gate also re-locks whenever the app
+resumes from the background (a `WidgetsBindingObserver` on
+`AppLifecycleState.resumed`), so a device left unlocked and set down can't
+be picked up and read without unlocking again.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot

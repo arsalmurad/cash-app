@@ -345,3 +345,37 @@ budgets) was rejected specifically here because the risk is different: two
 independent implementations of the same date algorithm can silently drift
 apart under a future edit (an off-by-one fixed in one copy but not the
 other), which a shared module makes structurally impossible.
+
+## 2026-09-26 — The biometric lock is unsupported on web rather than unlockable
+
+`BiometricLockGate` always renders its child directly on web, skipping the
+lock screen entirely, rather than showing a lock screen with no way to pass
+it. `local_auth` has no web implementation at all (there is no
+`local_auth_web` package), so the only alternatives were: block web users
+out of their own ledger permanently, fabricate some other web-only
+authentication scheme not asked for in the build brief, or treat web as a
+lesser peer for this one feature the way `docs/PHASE0-RESULT.md` already
+established for the shared-layer spike. The third option was chosen: this
+is a real, documented platform gap, not silently dropped functionality —
+the lock is simply off by default and cannot be turned on in a browser.
+
+## 2026-09-26 — The lock preference is its own store, not folded into EventStore
+
+`LockPreferenceStore` is a new, small storage interface alongside
+`EventStore`/`DeviceIdentity` in `data/storage/`, not a third capability
+bolted onto `EventStore`. Reusing `EventStore` (e.g. a fake "lock" log with
+one frame) was rejected: a preference toggle has no fold, no frame codec,
+no durability requirement beyond "read the last value written," and no
+actor ID to speak of — modeling it as a durable append-only log would add
+all of that machinery for a single boolean with no history worth keeping.
+
+## 2026-09-26 — Re-locking on app resume, not just on cold start
+
+`BiometricLockGate` observes `AppLifecycleState.resumed` and re-locks
+(when the lock is enabled) every time the app returns from the background,
+not only when the process starts fresh. Locking only at cold start was
+rejected: on mobile, backgrounding and resuming an app is the common case
+(a phone call, switching apps, glancing away), and a lock that only guards
+process launch would leave the ledger visible to anyone who picks up an
+already-running, backgrounded phone — which defeats the point of a
+biometric lock for exactly the scenario it exists to cover.

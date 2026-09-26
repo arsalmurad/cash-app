@@ -10,6 +10,7 @@ import 'category_presets.dart';
 import 'csv_import_export.dart';
 import 'goals_pane.dart';
 import 'ledger_controller.dart';
+import '../lock/lock_settings_dialog.dart';
 import 'recurring_pane.dart';
 
 class LedgerScreen extends StatefulWidget {
@@ -50,6 +51,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
                         PopupMenuItem(
                           value: _DataMenuAction.importCsv,
                           child: Text('Import CSV'),
+                        ),
+                        PopupMenuItem(
+                          value: _DataMenuAction.lockSettings,
+                          child: Text('Screen lock'),
                         ),
                       ],
                     ),
@@ -291,6 +296,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
         _exportCsv();
       case _DataMenuAction.importCsv:
         _importCsv();
+      case _DataMenuAction.lockSettings:
+        showDialog<void>(
+          context: context,
+          builder: (context) => const LockSettingsDialog(),
+        );
     }
   }
 
@@ -1034,4 +1044,4 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-enum _DataMenuAction { exportCsv, importCsv }
+enum _DataMenuAction { exportCsv, importCsv, lockSettings }

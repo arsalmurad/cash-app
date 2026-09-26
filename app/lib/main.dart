@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'data/rust/frb_generated.dart';
 import 'features/ledger/ledger_controller.dart';
 import 'features/ledger/ledger_screen.dart';
+import 'features/lock/biometric_lock_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +41,7 @@ class _PrivateLedgerAppState extends State<PrivateLedgerApp> {
       themeMode: ThemeMode.system,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      home: LedgerScreen(controller: controller),
+      home: BiometricLockGate(child: LedgerScreen(controller: controller)),
     );
   }
 }
