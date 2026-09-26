@@ -45,8 +45,14 @@ Dart 3.13.4):
   the category-aware `TransactionTile` (resolves an icon and display name
   from the category list, falling back to a direction arrow and
   "Uncategorized" when a transaction's category isn't found).
-- iOS: not yet run against this specific change as of writing this section;
-  see below for the result once the manual `phase1-ios` workflow completes.
+- iOS: ran the manual `phase1-ios` GitHub Actions workflow on an iPhone 16
+  Pro simulator against this change —
+  [passing run](https://github.com/arsalmurad/cash-app/actions/runs/36266023728),
+  first attempt. `flutter analyze`, `flutter test test` (12/12), the
+  integration test (now including selecting "Food" from the seeded category
+  dropdown for the Groceries expense, and confirming that category survives
+  both simulated restarts), and `flutter build ios --release --no-codesign`
+  all passed.
 - Not verified this session (no Android emulator or browser available in
   this container, same limitation as the persistence slice): the Android
   integration test and the web runtime check.
@@ -185,19 +191,24 @@ tooling from application analysis resolved it; native builds still execute it.
 
 ## Remaining work
 
-Ledger events now persist locally and survive a restart (see above), and each
-device keeps a stable actor ID. Still open before Phase 1's exit test can be
-called complete:
+Ledger events now persist locally and survive a restart, each device keeps a
+stable actor ID, and categories (with icons, and titles that auto-assign on
+repeat) are built and passing on real iOS hardware (see above). Still open
+before Phase 1's exit test can be called complete:
 
-- Run the Android integration test, the manual `phase1-ios` workflow, and the
-  web runtime check against this change (see "Not verified this session").
+- Run the Android integration test and the web runtime check against both
+  changes above (see "Not verified this session" in each section) — iOS is
+  now covered for both.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
   with one record per frame) if local history grows large.
-- Multi-currency UI, transfers, recurring/upcoming transactions, custom
-  titles that auto-assign on repeat, budgets, goals, search and filter, CSV
-  import/export, and biometric lock remain unbuilt.
+- Categories can be created and assigned but not renamed, re-iconed, or
+  deleted from the UI yet (the Rust/bridge upsert already supports rename;
+  only the "new category" entry point exists in `AddTransactionSheet`).
+- Multi-currency UI, transfers, recurring/upcoming transactions, budgets,
+  goals, search and filter, CSV import/export, and biometric lock remain
+  unbuilt.
 - Snapshot/compaction (`cash_core::Snapshot`) exists and is tested at the
   core level but is not yet wired into the persisted log or the bridge; the
   log currently replays from event zero on every load.
