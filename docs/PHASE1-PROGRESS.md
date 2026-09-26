@@ -90,9 +90,13 @@ and host-only `flutter test` could not:
   `app.main()` call per file, with the restart(s) simulated afterwards by
   building a fresh `LedgerController` into a new widget tree — folded into a
   single test rather than two.
-- Run 3, with that structural fix, is queued/in progress as of this writing;
-  this section will be updated with its actual result once it completes —
-  do not treat this slice's iOS evidence as green until that happens.
+- [Run 3](https://github.com/arsalmurad/cash-app/actions/runs/36250177072),
+  with that structural fix, **passed** end to end: `flutter analyze`,
+  `flutter test test` (6/6), the merged `ledger_test.dart` integration test
+  (record an expense, simulated restart, record a second transaction,
+  simulated restart again — all on the iPhone 16 Pro simulator, UDID
+  `DC4CD8B3-4457-4153-9087-A0D7A2F9BFD9`), and
+  `flutter build ios --release --no-codesign` all succeeded.
 
 Not verified this session (no Android emulator or browser available in this
 container): the Android integration test and the web runtime check
