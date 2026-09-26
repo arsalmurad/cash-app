@@ -48,12 +48,17 @@ Dart 3.13.4):
   `LocalAuthPlatform`; stays locked when authentication fails) and 2 new
   `LockSettingsDialog` widget tests (shows an unsupported message when the
   device has no lock; toggling the switch persists the preference).
-- iOS/Android/web runtime verification for this change is not yet run this
-  session — see "Remaining work" below. This is the first feature this
-  session that changes native platform files (`Info.plist`,
-  `MainActivity.kt`) rather than only Dart/Rust, so it carries more build
-  risk than earlier milestones and is a priority to verify on real iOS
-  hardware before being called done.
+- iOS: verified. This is the first feature this session that changes
+  native platform files (`Info.plist`, `MainActivity.kt`) rather than only
+  Dart/Rust, so it carried more build risk than earlier milestones. Run
+  36274318774 completed and passed on real iOS hardware:
+  https://github.com/arsalmurad/cash-app/actions/runs/36274318774. (The
+  recurring-transactions run dispatched just before it, 36273467653, was
+  superseded and auto-cancelled when this one started — same pattern as
+  the earlier budgets/goals runs — but since this commit's tree includes
+  the recurring-transactions code too, this run verifies both.)
+- Android/web runtime verification is not yet run this session — see
+  "Remaining work" below.
 
 ## Recurring transactions and upcoming occurrences
 
@@ -108,8 +113,13 @@ Dart 3.13.4):
   `NewRecurringDialog` widget tests (the empty state prompts to add a
   recurring rule; an upcoming occurrence shows its title, amount, and due
   date, and records on tap; the dialog returns a `RecurringDraft`).
-- iOS/Android/web runtime verification for this change is not yet run this
-  session — see "Remaining work" below.
+- iOS: verified. The run dispatched directly on this commit (ab4147b, run
+  36273467653) was superseded and auto-cancelled by the biometric-lock
+  dispatch that followed it; that later run (36274318774, whose tree
+  includes this commit's code) completed and passed — see the
+  biometric-lock section above for the link.
+- Android/web runtime verification is not yet run this session — see
+  "Remaining work" below.
 
 ## CSV import and export
 
@@ -146,8 +156,10 @@ Dart 3.13.4):
   blank lines) and 2 new `csv_import_export.dart` widget tests (the export
   dialog shows the CSV text; the import dialog's Import button stays
   disabled until text is entered, then returns that text).
-- iOS/Android/web runtime verification for this change is not yet run this
-  session — see "Remaining work" below.
+- iOS: verified, covered by run 36274318774 (see the biometric-lock section
+  above), whose commit tree includes this feature's code.
+- Android/web runtime verification is not yet run this session — see
+  "Remaining work" below.
 
 ## Goals for saving and spending
 
@@ -561,20 +573,17 @@ tooling from application analysis resolved it; native builds still execute it.
 
 Ledger events now persist locally and survive a restart, each device keeps a
 stable actor ID, categories (with icons, and titles that auto-assign on
-repeat) are built, multiple accounts plus transfers between them are built
-and confirmed on real iOS hardware for all three, search/filter is built,
-budgets and goals are built and confirmed on real iOS hardware (run
-36271793365, after an earlier stalled run on the same budgets commit was
-superseded), CSV import/export is built, recurring transactions with
-upcoming occurrences are built, and a biometric lock is built (see above).
-Still open before Phase 1's exit test can be called complete:
+repeat) are built, multiple accounts plus transfers between them are built,
+search/filter is built, budgets and goals are built, CSV import/export is
+built, recurring transactions with upcoming occurrences are built, and a
+biometric lock is built — every one of these confirmed on real iOS hardware
+(most recently run 36274318774, whose commit tree covers everything through
+the biometric lock; see each section above for the specific run that
+verified it). Still open before Phase 1's exit test can be called complete:
 
 - Run the Android integration test and the web runtime check against every
-  change above (see each section's "Not verified this session"), including
-  budgets, goals, CSV import/export, recurring transactions, and the
-  biometric lock, none of which has Android/web verification yet this
-  session. iOS verification of the biometric lock specifically is a
-  priority — see its section above for why.
+  feature above (see each section's iOS/Android/web note) — nothing this
+  session has Android or web runtime verification yet, only iOS.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
