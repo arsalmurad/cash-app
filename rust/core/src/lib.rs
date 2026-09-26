@@ -5,13 +5,19 @@
 //! orders, deduplicates, and folds them into canonical state.
 
 mod bytes_io;
+mod categories;
 mod clock;
 mod codec;
 mod event;
+mod frame;
 mod ledger;
 mod money;
 mod snapshot;
 
+pub use categories::{
+    CategoryBookState, CategoryId, CategoryRecord, CategoryUpsert, DecodedCategoryLog,
+    decode_category_log, encode_category_frame, fold_categories,
+};
 pub use clock::{ActorId, EventId, HybridTimestamp, OrderKey};
 pub use codec::{DecodedLog, decode_event_log, encode_event_frame};
 pub use event::{AccountId, Event, EventKind, TransactionId, TransactionKind};

@@ -2,6 +2,55 @@
 
 Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
 
+## Categories with icons, and titles that auto-assign on repeat
+
+Implementation: this change, on top of the persistence slice below.
+Categories are last-writer-wins soft state (build brief §2.5), kept as a
+second, independent mechanism from the financial ledger: `rust/core`'s new
+`categories` module has its own upsert type, its own fold that never rejects
+(there is no financial invariant a category write could violate), and its
+own durable log, sharing only the low-level frame codec
+(`rust/core/src/frame.rs`, factored out of the existing event-log codec) with
+the ledger. The bridge exposes this as a separate opaque `CategoryBook` type
+alongside `PersonalLedger`; both share one `DeviceIdentity` (the actor ID is
+per-device, not per-log). "Custom titles that auto-assign on repeat" needed
+no new state: `suggest_category_for_title` looks up the most recent past
+transaction with a matching title directly from the ledger's existing
+events. The Flutter app seeds five default categories on first launch, lets
+`AddTransactionSheet` pick from them (with icons) or create a new one, and
+auto-selects a suggested category as the user types a title, backing off the
+moment they choose one themselves. Full rationale is in `docs/DECISIONS.md`
+(2026-09-26 entries) and the new Categories section of `docs/ARCHITECTURE.md`.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- Rust: `cargo test --manifest-path rust/Cargo.toml --locked --all-targets`
+  passed all 35 tests (up from 22): 13 new core tests (frame round-trip and
+  checksum-failure recovery in isolation; category LWW semantics — a later
+  write wins regardless of arrival order, replaying the same upsert is a
+  no-op, independent categories don't interfere; category frame round-trip
+  and truncation recovery), 4 new bridge tests for `CategoryBook` (upsert
+  and list, re-upserting the same ID replaces it, an empty name is rejected
+  and never persisted, restart recovers identical categories from persisted
+  frames), and 2 new bridge tests for title-based category suggestion
+  (case-insensitive/trimmed match, and following the *most recent* matching
+  transaction when titles repeat with different categories).
+- Flutter: `flutter analyze` reported no issues. `flutter test test` passed
+  all 12 tests across 5 files: the prior 8, plus 4 new `AddTransactionSheet`
+  tests (typing a title auto-selects its previous category after a debounce;
+  manually choosing a category stops later auto-suggestion from overriding
+  it; creating a new category selects it immediately; submitting returns the
+  chosen category and amount). The existing screen tests were updated for
+  the category-aware `TransactionTile` (resolves an icon and display name
+  from the category list, falling back to a direction arrow and
+  "Uncategorized" when a transaction's category isn't found).
+- iOS: not yet run against this specific change as of writing this section;
+  see below for the result once the manual `phase1-ios` workflow completes.
+- Not verified this session (no Android emulator or browser available in
+  this container, same limitation as the persistence slice): the Android
+  integration test and the web runtime check.
+
 ## Durable local persistence and actor identity
 
 Implementation: this change. Rust core gets a durable event-log codec

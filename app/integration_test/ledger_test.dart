@@ -28,10 +28,20 @@ void main() {
     expect(fields, findsNWidgets(2));
     await tester.enterText(fields.at(0), 'Groceries');
     await tester.enterText(fields.at(1), '12.34');
+
+    // Exercise the categories bridge (a second opaque Rust type with its own
+    // durable log) on real hardware: pick a non-default category from the
+    // seeded list.
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Food').last);
+    await tester.pumpAndSettle();
+
     await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
     await tester.pumpAndSettle();
 
     expect(find.text('Groceries'), findsOneWidget);
+    expect(find.text('Food'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
     expect(find.text('−USD 12.34'), findsOneWidget);
 
@@ -47,6 +57,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Groceries'), findsOneWidget);
+    expect(find.text('Food'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
 
     // Record a second transaction against the restarted controller, then
@@ -70,5 +81,6 @@ void main() {
     expect(find.text('USD -512.34'), findsNWidgets(2));
     expect(find.text('Rent'), findsOneWidget);
     expect(find.text('Groceries'), findsOneWidget);
+    expect(find.text('Food'), findsOneWidget);
   });
 }

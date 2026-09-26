@@ -77,6 +77,19 @@ Future<LedgerMutation> recordTransaction({
 Future<LedgerOverview> getOverview({required PersonalLedger ledger}) =>
     RustLib.instance.api.crateApiLedgerGetOverview(ledger: ledger);
 
+/// "Custom titles that auto-assign on repeat" (build brief §5): the category
+/// of the most recent past transaction whose title matches, trimmed and
+/// case-insensitive, or `None` if nothing matches (or that transaction had
+/// no category either). This is a UI convenience, not part of the ledger's
+/// financial state, so it never fails the way recording a transaction can.
+Future<String?> suggestCategoryForTitle({
+  required PersonalLedger ledger,
+  required String title,
+}) => RustLib.instance.api.crateApiLedgerSuggestCategoryForTitle(
+  ledger: ledger,
+  title: title,
+);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>>
 abstract class PersonalLedger implements RustOpaqueInterface {}
 

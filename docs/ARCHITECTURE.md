@@ -80,6 +80,28 @@ so persistence is a codec plus a place to put bytes, not a schema.
   launch — there is no half-applied state to reconcile, only a clean prefix
   of history.
 
+## Categories: soft state, a separate mechanism
+
+Categories are last-writer-wins state, not ledger events (build brief §2.5):
+a category's name and icon are fine to settle by picking the highest
+`(HLC timestamp, actor ID)` writer, unlike a transaction, where a conflict
+must stay visible in history rather than resolve silently. `rust/core`
+implements this as its own module (`categories.rs`) with its own upsert
+type, its own fold (`fold_categories`, which never rejects — there is no
+invariant a category write could violate), and its own durable log, sharing
+only the low-level frame codec (`frame.rs`) with the financial event log.
+The two states are never merged into one `EventKind` enum or one fold
+function, so a change to one can't accidentally weaken the other's
+guarantee. The bridge mirrors this split: `PersonalLedger` and
+`CategoryBook` are separate opaque types with separate durable logs, but
+share the device's one actor ID (`DeviceIdentity`, distinct from either
+`EventStore`), since both logs are still one device's writes.
+
+"Custom titles that auto-assign on repeat" (also in scope for Phase 1) needs
+no new state at all: it looks up the most recent past transaction whose
+title matches and reuses its category, reading the ledger's existing
+`TransactionRecorded` events directly.
+
 ## Boundaries
 
 - `rust/core`: deterministic domain types, validation, event fold, and snapshot

@@ -134,3 +134,29 @@ storage layer to report a clean vs. truncated read (e.g. comparing byte
 counts) was rejected because `localStorage`'s read/write API gives no such
 signal, and the codec would otherwise need a different corruption story per
 platform.
+
+## 2026-09-26 — Categories are a second, independent state mechanism
+
+The build brief (§2.5) calls out categories as soft state suited to
+last-writer-wins, explicitly separate from the ledger's event-sourced
+financial state. Implemented as a new `cash_core::categories` module with
+its own upsert type, its own commutative/idempotent fold
+(`fold_categories`, which never rejects), and its own durable log and bridge
+type (`CategoryBook`), sharing only the byte-level frame codec with the
+financial event log. Adding a `CategoryAssigned`-style variant to the
+existing `EventKind` enum instead was rejected: that enum's fold is the one
+place the brief requires strict, error-on-conflict semantics, and folding a
+last-writer-wins field through it would either weaken that guarantee for
+every variant or require per-variant special-casing inside a fold that is
+supposed to be uniform.
+
+## 2026-09-26 — One actor ID, one identity store, many logs
+
+Adding the categories log meant two durable logs needed a stable actor ID,
+not one. Introduced `DeviceIdentity` as a store separate from `EventStore`
+(which is now parameterized by a log name), so both logs read the same
+persisted ID instead of each generating and persisting their own. Letting
+each log manage its own actor ID independently was rejected: two IDs for one
+device would let the ledger and the category book each think they were a
+different actor, which breaks the total order's assumption that an actor ID
+identifies one physical writer.

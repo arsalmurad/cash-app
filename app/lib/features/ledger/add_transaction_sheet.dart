@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
+import 'category_presets.dart';
 
 class TransactionDraft {
   const TransactionDraft({
@@ -17,7 +21,17 @@ class TransactionDraft {
 }
 
 class AddTransactionSheet extends StatefulWidget {
-  const AddTransactionSheet({super.key});
+  const AddTransactionSheet({
+    required this.categories,
+    required this.onSuggestCategory,
+    required this.onAddCategory,
+    super.key,
+  });
+
+  final List<CategoryView> categories;
+  final Future<String?> Function(String title) onSuggestCategory;
+  final Future<CategoryView?> Function(String name, String iconKey)
+  onAddCategory;
 
   @override
   State<AddTransactionSheet> createState() => _AddTransactionSheetState();
@@ -28,13 +42,46 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final titleController = TextEditingController();
   final amountController = TextEditingController();
   EntryKind kind = EntryKind.expense;
-  String category = 'Everyday';
+  String? categoryId;
+  bool categoryManuallyChosen = false;
+  Timer? suggestionDebounce;
+  late List<CategoryView> categories = widget.categories;
+
+  @override
+  void initState() {
+    super.initState();
+    if (categories.isNotEmpty) {
+      categoryId = categories.first.id;
+    }
+    titleController.addListener(_onTitleChanged);
+  }
 
   @override
   void dispose() {
+    suggestionDebounce?.cancel();
+    titleController.removeListener(_onTitleChanged);
     titleController.dispose();
     amountController.dispose();
     super.dispose();
+  }
+
+  void _onTitleChanged() {
+    // "Custom titles that auto-assign on repeat": once the user has picked a
+    // category themselves, stop overriding their choice.
+    if (categoryManuallyChosen) {
+      return;
+    }
+    suggestionDebounce?.cancel();
+    final title = titleController.text;
+    suggestionDebounce = Timer(const Duration(milliseconds: 400), () async {
+      final suggested = await widget.onSuggestCategory(title);
+      if (!mounted || suggested == null || categoryManuallyChosen) {
+        return;
+      }
+      if (categories.any((category) => category.id == suggested)) {
+        setState(() => categoryId = suggested);
+      }
+    });
   }
 
   @override
@@ -110,19 +157,43 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                initialValue: category,
+                initialValue: categoryId,
                 decoration: const InputDecoration(labelText: 'Category'),
-                items: const [
-                  DropdownMenuItem(value: 'Everyday', child: Text('Everyday')),
-                  DropdownMenuItem(value: 'Food', child: Text('Food')),
-                  DropdownMenuItem(
-                    value: 'Transport',
-                    child: Text('Transport'),
+                items: [
+                  for (final category in categories)
+                    DropdownMenuItem(
+                      value: category.id,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(categoryIcon(category.iconKey), size: 18),
+                          const SizedBox(width: 8),
+                          Text(category.name),
+                        ],
+                      ),
+                    ),
+                  const DropdownMenuItem(
+                    value: _addCategoryValue,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text('New category'),
+                      ],
+                    ),
                   ),
-                  DropdownMenuItem(value: 'Home', child: Text('Home')),
-                  DropdownMenuItem(value: 'Income', child: Text('Income')),
                 ],
-                onChanged: (value) => category = value ?? 'Everyday',
+                onChanged: (value) async {
+                  if (value == _addCategoryValue) {
+                    await _promptNewCategory();
+                    return;
+                  }
+                  setState(() {
+                    categoryId = value;
+                    categoryManuallyChosen = true;
+                  });
+                },
               ),
               const SizedBox(height: 20),
               FilledButton.icon(
@@ -137,6 +208,27 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     );
   }
 
+  static const _addCategoryValue = '__add_category__';
+
+  Future<void> _promptNewCategory() async {
+    final draft = await showDialog<CategoryDraft>(
+      context: context,
+      builder: (context) => const _NewCategoryDialog(),
+    );
+    if (draft == null || !mounted) {
+      return;
+    }
+    final created = await widget.onAddCategory(draft.name, draft.iconKey);
+    if (!mounted || created == null) {
+      return;
+    }
+    setState(() {
+      categories = [...categories, created];
+      categoryId = created.id;
+      categoryManuallyChosen = true;
+    });
+  }
+
   void _submit() {
     if (!formKey.currentState!.validate()) {
       return;
@@ -147,8 +239,81 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         title: titleController.text,
         amount: amountController.text.trim(),
         kind: kind,
-        categoryId: category,
+        categoryId: categoryId,
       ),
+    );
+  }
+}
+
+class CategoryDraft {
+  const CategoryDraft({required this.name, required this.iconKey});
+
+  final String name;
+  final String iconKey;
+}
+
+class _NewCategoryDialog extends StatefulWidget {
+  const _NewCategoryDialog();
+
+  @override
+  State<_NewCategoryDialog> createState() => _NewCategoryDialogState();
+}
+
+class _NewCategoryDialogState extends State<_NewCategoryDialog> {
+  final nameController = TextEditingController();
+  String iconKey = availableCategoryIconKeys.first;
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New category'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: nameController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final key in availableCategoryIconKeys)
+                ChoiceChip(
+                  label: Icon(categoryIcon(key), size: 20),
+                  selected: iconKey == key,
+                  onSelected: (_) => setState(() => iconKey = key),
+                ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final name = nameController.text.trim();
+            if (name.isEmpty) {
+              return;
+            }
+            Navigator.pop(context, CategoryDraft(name: name, iconKey: iconKey));
+          },
+          child: const Text('Create'),
+        ),
+      ],
     );
   }
 }

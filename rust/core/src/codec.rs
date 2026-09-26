@@ -16,14 +16,11 @@
 //! not a torn write — and is left for `fold`/`Snapshot` to reject.
 
 use crate::bytes_io::{Reader, write_bool, write_i64, write_string, write_u32};
+use crate::frame::{DecodedFrameLog, decode_frame_log, encode_frame};
 use crate::{
     AccountId, Currency, Event, EventKind, FxRate, Money, RoundingRule, TransactionId,
     TransactionKind,
 };
-
-/// Frame format version. Existing frames must keep decoding under this
-/// version forever: the durable log is the only copy of a user's history.
-const FRAME_FORMAT_VERSION: u8 = 1;
 
 const KIND_ACCOUNT_OPENED: u8 = 0;
 const KIND_TRANSACTION_RECORDED: u8 = 1;
@@ -40,54 +37,25 @@ pub struct DecodedLog {
     pub trailing_garbage_bytes: usize,
 }
 
+impl From<DecodedFrameLog<Event>> for DecodedLog {
+    fn from(decoded: DecodedFrameLog<Event>) -> Self {
+        Self {
+            events: decoded.items,
+            trailing_garbage_bytes: decoded.trailing_garbage_bytes,
+        }
+    }
+}
+
 /// Encodes one event as a self-contained, checksummed frame ready to append
 /// to a durable log. The same event always encodes to the same bytes.
 pub fn encode_event_frame(event: &Event) -> Vec<u8> {
-    let payload = encode_event(event);
-    let mut frame = Vec::with_capacity(payload.len() + 9);
-    frame.push(FRAME_FORMAT_VERSION);
-    write_u32(&mut frame, payload.len() as u32);
-    frame.extend_from_slice(&payload);
-    write_u32(&mut frame, fnv1a32(&payload));
-    frame
+    encode_frame(&encode_event(event))
 }
 
 /// Decodes a byte buffer made of zero or more frames written by
 /// [`encode_event_frame`], back-to-back, in append order.
 pub fn decode_event_log(bytes: &[u8]) -> DecodedLog {
-    let mut events = Vec::new();
-    let mut reader = Reader::new(bytes);
-    loop {
-        if reader.remaining() == 0 {
-            return DecodedLog {
-                events,
-                trailing_garbage_bytes: 0,
-            };
-        }
-        let start = reader.offset();
-        match decode_frame(&mut reader) {
-            Some(event) => events.push(event),
-            None => {
-                return DecodedLog {
-                    events,
-                    trailing_garbage_bytes: bytes.len() - start,
-                };
-            }
-        }
-    }
-}
-
-fn decode_frame(reader: &mut Reader<'_>) -> Option<Event> {
-    if reader.read_u8()? != FRAME_FORMAT_VERSION {
-        return None;
-    }
-    let length = usize::try_from(reader.read_u32()?).ok()?;
-    let payload = reader.read_bytes(length)?;
-    let checksum = reader.read_u32()?;
-    if fnv1a32(payload) != checksum {
-        return None;
-    }
-    decode_event(payload)
+    decode_frame_log(bytes, decode_event).into()
 }
 
 fn encode_event(event: &Event) -> Vec<u8> {
@@ -267,17 +235,6 @@ fn read_option_string(reader: &mut Reader<'_>) -> Option<Option<String>> {
     } else {
         Some(None)
     }
-}
-
-fn fnv1a32(data: &[u8]) -> u32 {
-    const OFFSET_BASIS: u32 = 0x811c_9dc5;
-    const PRIME: u32 = 0x0100_0193;
-    let mut hash = OFFSET_BASIS;
-    for &byte in data {
-        hash ^= u32::from(byte);
-        hash = hash.wrapping_mul(PRIME);
-    }
-    hash
 }
 
 #[cfg(test)]

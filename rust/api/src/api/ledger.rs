@@ -206,6 +206,36 @@ pub fn get_overview(ledger: &PersonalLedger) -> Result<LedgerOverview, String> {
     lock(ledger)?.overview()
 }
 
+/// "Custom titles that auto-assign on repeat" (build brief §5): the category
+/// of the most recent past transaction whose title matches, trimmed and
+/// case-insensitive, or `None` if nothing matches (or that transaction had
+/// no category either). This is a UI convenience, not part of the ledger's
+/// financial state, so it never fails the way recording a transaction can.
+pub fn suggest_category_for_title(
+    ledger: &PersonalLedger,
+    title: String,
+) -> Result<Option<String>, String> {
+    let data = lock(ledger)?;
+    let normalized = title.trim().to_lowercase();
+    if normalized.is_empty() {
+        return Ok(None);
+    }
+    let mut ordered: Vec<&Event> = data.events.iter().collect();
+    ordered.sort_by_key(|event| event.order_key());
+    let suggestion = ordered
+        .into_iter()
+        .rev()
+        .find_map(|event| match &event.kind {
+            EventKind::TransactionRecorded {
+                title: recorded_title,
+                category_id,
+                ..
+            } if recorded_title.trim().to_lowercase() == normalized => Some(category_id.clone()),
+            _ => None,
+        });
+    Ok(suggestion.flatten())
+}
+
 fn lock(ledger: &PersonalLedger) -> Result<MutexGuard<'_, LedgerData>, String> {
     ledger
         .data
@@ -518,5 +548,91 @@ mod tests {
         let advanced_timestamp = restarted.data.lock().unwrap().last_timestamp;
         assert!(advanced_timestamp > persisted_timestamp);
         assert_eq!(mutation.overview.accounts.len(), 2);
+    }
+
+    #[test]
+    fn a_repeated_title_suggests_its_previous_category() {
+        let ledger = new_ledger("device-a");
+        add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Checking".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+        record_transaction(
+            &ledger,
+            "t1".to_owned(),
+            "checking".to_owned(),
+            EntryKind::Expense,
+            "12.34".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "  Groceries  ".to_owned(),
+            Some("food".to_owned()),
+            2,
+        )
+        .unwrap();
+
+        assert_eq!(
+            suggest_category_for_title(&ledger, "groceries".to_owned()).unwrap(),
+            Some("food".to_owned())
+        );
+        assert_eq!(
+            suggest_category_for_title(&ledger, "GROCERIES".to_owned()).unwrap(),
+            Some("food".to_owned())
+        );
+        assert_eq!(
+            suggest_category_for_title(&ledger, "Rent".to_owned()).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn a_title_suggestion_follows_the_most_recent_matching_transaction() {
+        let ledger = new_ledger("device-a");
+        add_account(
+            &ledger,
+            "checking".to_owned(),
+            "Checking".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+        record_transaction(
+            &ledger,
+            "t1".to_owned(),
+            "checking".to_owned(),
+            EntryKind::Expense,
+            "5.00".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "Coffee".to_owned(),
+            Some("food".to_owned()),
+            2,
+        )
+        .unwrap();
+        record_transaction(
+            &ledger,
+            "t2".to_owned(),
+            "checking".to_owned(),
+            EntryKind::Expense,
+            "6.00".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "Coffee".to_owned(),
+            Some("drinks".to_owned()),
+            3,
+        )
+        .unwrap();
+
+        assert_eq!(
+            suggest_category_for_title(&ledger, "Coffee".to_owned()).unwrap(),
+            Some("drinks".to_owned())
+        );
     }
 }

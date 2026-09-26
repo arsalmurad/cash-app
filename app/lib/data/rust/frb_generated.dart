@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/categories.dart';
 import 'api/ledger.dart';
 
 import 'dart:async';
@@ -69,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -748327893;
+  int get rustContentHash => -268369972;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -89,11 +90,24 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
+  Future<CategoryLoadReport> crateApiCategoriesCategoryLoadReport({
+    required CategoryBook book,
+  });
+
   Future<LedgerOverview> crateApiLedgerGetOverview({
     required PersonalLedger ledger,
   });
 
   Future<void> crateApiLedgerInitApp();
+
+  Future<List<CategoryView>> crateApiCategoriesListCategories({
+    required CategoryBook book,
+  });
+
+  Future<CategoryBook> crateApiCategoriesLoadCategoryBook({
+    required String actorId,
+    required List<int> logBytes,
+  });
 
   Future<PersonalLedger> crateApiLedgerLoadPersonalLedger({
     required String actorId,
@@ -116,6 +130,27 @@ abstract class RustLibApi extends BaseApi {
     String? categoryId,
     required PlatformInt64 wallClockMillis,
   });
+
+  Future<String?> crateApiLedgerSuggestCategoryForTitle({
+    required PersonalLedger ledger,
+    required String title,
+  });
+
+  Future<CategoryMutation> crateApiCategoriesUpsertCategory({
+    required CategoryBook book,
+    required String categoryId,
+    required String name,
+    required String iconKey,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_CategoryBook;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_CategoryBook;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_CategoryBookPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_PersonalLedger;
@@ -185,6 +220,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<CategoryLoadReport> crateApiCategoriesCategoryLoadReport({
+    required CategoryBook book,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+            book,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_category_load_report,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiCategoriesCategoryLoadReportConstMeta,
+        argValues: [book],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCategoriesCategoryLoadReportConstMeta =>
+      const TaskConstMeta(
+        debugName: "category_load_report",
+        argNames: ["book"],
+      );
+
+  @override
   Future<LedgerOverview> crateApiLedgerGetOverview({
     required PersonalLedger ledger,
   }) {
@@ -199,7 +270,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 3,
             port: port_,
           );
         },
@@ -226,7 +297,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 4,
             port: port_,
           );
         },
@@ -245,6 +316,75 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  Future<List<CategoryView>> crateApiCategoriesListCategories({
+    required CategoryBook book,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+            book,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_category_view,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiCategoriesListCategoriesConstMeta,
+        argValues: [book],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCategoriesListCategoriesConstMeta =>
+      const TaskConstMeta(debugName: "list_categories", argNames: ["book"]);
+
+  @override
+  Future<CategoryBook> crateApiCategoriesLoadCategoryBook({
+    required String actorId,
+    required List<int> logBytes,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(actorId, serializer);
+          sse_encode_list_prim_u_8_loose(logBytes, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiCategoriesLoadCategoryBookConstMeta,
+        argValues: [actorId, logBytes],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCategoriesLoadCategoryBookConstMeta =>
+      const TaskConstMeta(
+        debugName: "load_category_book",
+        argNames: ["actorId", "logBytes"],
+      );
+
+  @override
   Future<PersonalLedger> crateApiLedgerLoadPersonalLedger({
     required String actorId,
     required String reportingCurrencyCode,
@@ -260,7 +400,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 7,
             port: port_,
           );
         },
@@ -297,7 +437,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 8,
             port: port_,
           );
         },
@@ -350,7 +490,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 9,
             port: port_,
           );
         },
@@ -395,6 +535,96 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ],
       );
 
+  @override
+  Future<String?> crateApiLedgerSuggestCategoryForTitle({
+    required PersonalLedger ledger,
+    required String title,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_String(title, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerSuggestCategoryForTitleConstMeta,
+        argValues: [ledger, title],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerSuggestCategoryForTitleConstMeta =>
+      const TaskConstMeta(
+        debugName: "suggest_category_for_title",
+        argNames: ["ledger", "title"],
+      );
+
+  @override
+  Future<CategoryMutation> crateApiCategoriesUpsertCategory({
+    required CategoryBook book,
+    required String categoryId,
+    required String name,
+    required String iconKey,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+            book,
+            serializer,
+          );
+          sse_encode_String(categoryId, serializer);
+          sse_encode_String(name, serializer);
+          sse_encode_String(iconKey, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 11,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_category_mutation,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiCategoriesUpsertCategoryConstMeta,
+        argValues: [book, categoryId, name, iconKey, wallClockMillis],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiCategoriesUpsertCategoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "upsert_category",
+        argNames: ["book", "categoryId", "name", "iconKey", "wallClockMillis"],
+      );
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_CategoryBook => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_CategoryBook => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook;
+
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_PersonalLedger => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger;
@@ -402,6 +632,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustArcDecrementStrongCountFnType
   get rust_arc_decrement_strong_count_PersonalLedger => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger;
+
+  @protected
+  CategoryBook
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return CategoryBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
 
   @protected
   PersonalLedger
@@ -413,12 +652,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  CategoryBook
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return CategoryBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   PersonalLedger
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     dynamic raw,
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return PersonalLedgerImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  CategoryBook
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return CategoryBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -453,6 +710,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  CategoryLoadReport dco_decode_category_load_report(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return CategoryLoadReport(
+      categories: dco_decode_list_category_view(arr[0]),
+      recoveredUpsertCount: dco_decode_u_64(arr[1]),
+      truncatedBytes: dco_decode_u_64(arr[2]),
+    );
+  }
+
+  @protected
+  CategoryMutation dco_decode_category_mutation(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return CategoryMutation(
+      categories: dco_decode_list_category_view(arr[0]),
+      appendedFrame: dco_decode_list_prim_u_8_strict(arr[1]),
+    );
+  }
+
+  @protected
+  CategoryView dco_decode_category_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return CategoryView(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      iconKey: dco_decode_String(arr[2]),
+    );
   }
 
   @protected
@@ -502,6 +797,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<AccountView> dco_decode_list_account_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_account_view).toList();
+  }
+
+  @protected
+  List<CategoryView> dco_decode_list_category_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_category_view).toList();
   }
 
   @protected
@@ -581,6 +882,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  CategoryBook
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return CategoryBookImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
@@ -593,12 +906,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  CategoryBook
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return CategoryBookImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return PersonalLedgerImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  CategoryBook
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return CategoryBookImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -640,6 +977,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  CategoryLoadReport sse_decode_category_load_report(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_categories = sse_decode_list_category_view(deserializer);
+    var var_recoveredUpsertCount = sse_decode_u_64(deserializer);
+    var var_truncatedBytes = sse_decode_u_64(deserializer);
+    return CategoryLoadReport(
+      categories: var_categories,
+      recoveredUpsertCount: var_recoveredUpsertCount,
+      truncatedBytes: var_truncatedBytes,
+    );
+  }
+
+  @protected
+  CategoryMutation sse_decode_category_mutation(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_categories = sse_decode_list_category_view(deserializer);
+    var var_appendedFrame = sse_decode_list_prim_u_8_strict(deserializer);
+    return CategoryMutation(
+      categories: var_categories,
+      appendedFrame: var_appendedFrame,
+    );
+  }
+
+  @protected
+  CategoryView sse_decode_category_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_iconKey = sse_decode_String(deserializer);
+    return CategoryView(id: var_id, name: var_name, iconKey: var_iconKey);
   }
 
   @protected
@@ -693,6 +1065,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <AccountView>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_account_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<CategoryView> sse_decode_list_category_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <CategoryView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_category_view(deserializer));
     }
     return ans_;
   }
@@ -791,6 +1177,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    CategoryBook self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as CategoryBookImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -804,6 +1203,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    CategoryBook self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as CategoryBookImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -811,6 +1223,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as PersonalLedgerImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    CategoryBook self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as CategoryBookImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -846,6 +1271,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_category_load_report(
+    CategoryLoadReport self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_category_view(self.categories, serializer);
+    sse_encode_u_64(self.recoveredUpsertCount, serializer);
+    sse_encode_u_64(self.truncatedBytes, serializer);
+  }
+
+  @protected
+  void sse_encode_category_mutation(
+    CategoryMutation self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_category_view(self.categories, serializer);
+    sse_encode_list_prim_u_8_strict(self.appendedFrame, serializer);
+  }
+
+  @protected
+  void sse_encode_category_view(CategoryView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_String(self.iconKey, serializer);
   }
 
   @protected
@@ -896,6 +1350,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_account_view(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_category_view(
+    List<CategoryView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_category_view(item, serializer);
     }
   }
 
@@ -986,6 +1452,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
   }
+}
+
+@sealed
+class CategoryBookImpl extends RustOpaque implements CategoryBook {
+  // Not to be used by end users
+  CategoryBookImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  CategoryBookImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_CategoryBook,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_CategoryBook,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_CategoryBookPtr,
+  );
 }
 
 @sealed

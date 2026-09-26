@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
 import 'add_transaction_sheet.dart';
+import 'category_presets.dart';
 import 'ledger_controller.dart';
 
 class LedgerScreen extends StatefulWidget {
@@ -110,8 +112,15 @@ class _LedgerScreenState extends State<LedgerScreen> {
         IndexedStack(
           index: selectedIndex,
           children: [
-            OverviewPane(overview: controller.overview!, onAdd: _add),
-            ActivityPane(transactions: controller.overview!.transactions),
+            OverviewPane(
+              overview: controller.overview!,
+              categories: controller.categories,
+              onAdd: _add,
+            ),
+            ActivityPane(
+              transactions: controller.overview!.transactions,
+              categories: controller.categories,
+            ),
           ],
         ),
         if (controller.isLoading)
@@ -126,11 +135,17 @@ class _LedgerScreenState extends State<LedgerScreen> {
   void _select(int index) => setState(() => selectedIndex = index);
 
   Future<void> _add() async {
+    final controller = widget.controller;
     final draft = await showModalBottomSheet<TransactionDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: false,
-      builder: (context) => const AddTransactionSheet(),
+      builder: (context) => AddTransactionSheet(
+        categories: controller.categories,
+        onSuggestCategory: controller.suggestCategoryFor,
+        onAddCategory: (name, iconKey) =>
+            controller.addCategory(name: name, iconKey: iconKey),
+      ),
     );
     if (draft == null || !mounted) {
       return;
@@ -157,9 +172,15 @@ class _LedgerScreenState extends State<LedgerScreen> {
 }
 
 class OverviewPane extends StatelessWidget {
-  const OverviewPane({required this.overview, required this.onAdd, super.key});
+  const OverviewPane({
+    required this.overview,
+    required this.categories,
+    required this.onAdd,
+    super.key,
+  });
 
   final LedgerOverview overview;
+  final List<CategoryView> categories;
   final VoidCallback onAdd;
 
   @override
@@ -221,7 +242,14 @@ class OverviewPane extends StatelessWidget {
               if (overview.transactions.isEmpty)
                 _EmptyTransactions(onAdd: onAdd)
               else
-                ...overview.transactions.take(5).map(TransactionTile.new),
+                ...overview.transactions
+                    .take(5)
+                    .map(
+                      (transaction) => TransactionTile(
+                        transaction,
+                        categories: categories,
+                      ),
+                    ),
             ],
           ),
         ),
@@ -231,9 +259,14 @@ class OverviewPane extends StatelessWidget {
 }
 
 class ActivityPane extends StatelessWidget {
-  const ActivityPane({required this.transactions, super.key});
+  const ActivityPane({
+    required this.transactions,
+    required this.categories,
+    super.key,
+  });
 
   final List<TransactionView> transactions;
+  final List<CategoryView> categories;
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +287,10 @@ class ActivityPane extends StatelessWidget {
                 if (transactions.isEmpty)
                   const _ActivityEmpty()
                 else
-                  ...transactions.map(TransactionTile.new),
+                  ...transactions.map(
+                    (transaction) =>
+                        TransactionTile(transaction, categories: categories),
+                  ),
               ],
             ),
           ),
@@ -338,13 +374,18 @@ class _AccountsCard extends StatelessWidget {
 }
 
 class TransactionTile extends StatelessWidget {
-  const TransactionTile(this.transaction, {super.key});
+  const TransactionTile(this.transaction, {this.categories = const [], super.key});
 
   final TransactionView transaction;
+  final List<CategoryView> categories;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final category = categories.cast<CategoryView?>().firstWhere(
+      (candidate) => candidate?.id == transaction.categoryId,
+      orElse: () => null,
+    );
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -353,16 +394,18 @@ class TransactionTile extends StatelessWidget {
               ? scheme.errorContainer
               : scheme.tertiaryContainer,
           child: Icon(
-            transaction.isExpense
-                ? Icons.arrow_upward_rounded
-                : Icons.arrow_downward_rounded,
+            category != null
+                ? categoryIcon(category.iconKey)
+                : (transaction.isExpense
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded),
             color: transaction.isExpense
                 ? scheme.onErrorContainer
                 : scheme.onTertiaryContainer,
           ),
         ),
         title: Text(transaction.title),
-        subtitle: Text(transaction.categoryId ?? 'Uncategorized'),
+        subtitle: Text(category?.name ?? 'Uncategorized'),
         trailing: Text(
           '${transaction.isExpense ? '−' : '+'}${transaction.amountLabel}',
           style: Theme.of(context).textTheme.titleSmall?.copyWith(

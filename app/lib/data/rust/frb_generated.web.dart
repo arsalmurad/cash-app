@@ -6,6 +6,7 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/categories.dart';
 import 'api/ledger.dart';
 
 import 'dart:async';
@@ -24,8 +25,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_CategoryBookPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_PersonalLedgerPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger;
+
+  @protected
+  CategoryBook
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    dynamic raw,
+  );
 
   @protected
   PersonalLedger
@@ -34,8 +45,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  CategoryBook
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    dynamic raw,
+  );
+
+  @protected
   PersonalLedger
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+    dynamic raw,
+  );
+
+  @protected
+  CategoryBook
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
     dynamic raw,
   );
 
@@ -55,6 +78,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool dco_decode_bool(dynamic raw);
 
   @protected
+  CategoryLoadReport dco_decode_category_load_report(dynamic raw);
+
+  @protected
+  CategoryMutation dco_decode_category_mutation(dynamic raw);
+
+  @protected
+  CategoryView dco_decode_category_view(dynamic raw);
+
+  @protected
   EntryKind dco_decode_entry_kind(dynamic raw);
 
   @protected
@@ -71,6 +103,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<AccountView> dco_decode_list_account_view(dynamic raw);
+
+  @protected
+  List<CategoryView> dco_decode_list_category_view(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -103,14 +138,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BigInt dco_decode_usize(dynamic raw);
 
   @protected
+  CategoryBook
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
   );
 
   @protected
+  CategoryBook
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CategoryBook
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
     SseDeserializer deserializer,
   );
 
@@ -130,6 +183,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   bool sse_decode_bool(SseDeserializer deserializer);
 
   @protected
+  CategoryLoadReport sse_decode_category_load_report(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  CategoryMutation sse_decode_category_mutation(SseDeserializer deserializer);
+
+  @protected
+  CategoryView sse_decode_category_view(SseDeserializer deserializer);
+
+  @protected
   EntryKind sse_decode_entry_kind(SseDeserializer deserializer);
 
   @protected
@@ -146,6 +210,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<AccountView> sse_decode_list_account_view(SseDeserializer deserializer);
+
+  @protected
+  List<CategoryView> sse_decode_list_category_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
@@ -181,6 +250,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    CategoryBook self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -188,8 +264,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    CategoryBook self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    CategoryBook self,
     SseSerializer serializer,
   );
 
@@ -208,6 +298,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_category_load_report(
+    CategoryLoadReport self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_category_mutation(
+    CategoryMutation self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_category_view(CategoryView self, SseSerializer serializer);
 
   @protected
   void sse_encode_entry_kind(EntryKind self, SseSerializer serializer);
@@ -233,6 +338,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_account_view(
     List<AccountView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_category_view(
+    List<CategoryView> self,
     SseSerializer serializer,
   );
 
@@ -282,6 +393,22 @@ class RustLibWire implements BaseWire {
   RustLibWire.fromExternalLibrary(ExternalLibrary lib);
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+        ptr,
+      );
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     int ptr,
   ) => wasmModule
@@ -304,6 +431,16 @@ external RustLibWasmModule get wasmModule;
 @JS()
 @anonymous
 extension type RustLibWasmModule._(JSObject _) implements JSObject {
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
+    int ptr,
+  );
+
   external void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     int ptr,
