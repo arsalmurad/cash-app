@@ -88,13 +88,16 @@ Dart 3.13.4):
   save goal card shows its progress toward the target; a spend goal past
   its cap is shown as over; the dialog returns a save `GoalDraft` with a
   linked account; the dialog returns a spend `GoalDraft` with no account).
-- iOS/Android/web runtime verification for this change is not yet run this
-  session — see "Remaining work" below. The iOS CI run triggered for the
-  budgets feature (commit bd482c2, run 36271282667) also stalled at the
-  "Prepare and test Flutter project" step for well over an hour with no
-  step progress, unlike the 6-10 minute runs typical on this branch; that
-  looks like a hung runner rather than a real test failure, and needs a
-  fresh run to confirm either way before it can be reported as verified.
+- iOS: verified. Run 36271282667 (commit bd482c2, the budgets commit) hung
+  at the "Prepare and test Flutter project" step for over an hour with no
+  step progress, unlike the 6-10 minute runs typical on this branch — that
+  run was superseded and cancelled. A fresh dispatch on this goals commit
+  (8f7a931, run 36271793365) completed normally and passed:
+  https://github.com/arsalmurad/cash-app/actions/runs/36271793365. Since
+  that commit's tree includes both the budgets and goals code, this run
+  verifies both features on real iOS hardware, not just goals.
+- Android/web runtime verification for both budgets and goals is not yet
+  run this session — see "Remaining work" below.
 
 ## Budgets with custom time periods and per-category limits
 
@@ -149,8 +152,11 @@ Dart 3.13.4):
   a budget card shows its name, period, resolved category name, spend, and
   percent; a budget with no category shows "All categories"; the dialog
   returns a `BudgetDraft` with a custom period and day count).
-- iOS/Android/web runtime verification for this change is not yet run this
-  session — see "Remaining work" below.
+- iOS: verified. The run dispatched directly on this commit (bd482c2, run
+  36271282667) hung and was superseded; a later run on the goals commit
+  (8f7a931, run 36271793365, whose tree includes this commit's code)
+  completed and passed — see the goals section above for the link.
+  Android/web runtime verification is not yet run this session.
 
 ## Search and filter
 
@@ -448,16 +454,15 @@ Ledger events now persist locally and survive a restart, each device keeps a
 stable actor ID, categories (with icons, and titles that auto-assign on
 repeat) are built, multiple accounts plus transfers between them are built
 and confirmed on real iOS hardware for all three, search/filter is built,
-budgets and goals (saving and spending) are built, and CSV import/export is
-built (see above). Still open before Phase 1's exit test can be called
-complete:
+budgets and goals are built and confirmed on real iOS hardware (run
+36271793365, after an earlier stalled run on the same budgets commit was
+superseded), and CSV import/export is built (see above). Still open before
+Phase 1's exit test can be called complete:
 
 - Run the Android integration test and the web runtime check against every
   change above (see each section's "Not verified this session"), including
-  budgets, goals, and CSV import/export, none of which has real-device
-  verification yet this session — and re-run iOS CI for budgets
-  specifically, since its triggered run stalled rather than reporting a
-  clean pass or fail.
+  budgets, goals, and CSV import/export, none of which has Android/web
+  verification yet this session.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
