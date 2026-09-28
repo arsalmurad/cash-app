@@ -99,7 +99,7 @@ jobs:
             # rejected "android" as not matching any device) — the AVD name
             # set above ("test") matches the action's own default and does
             # not appear in that id, so it can't be relied on either.
-            cd app && flutter test integration_test/ledger_test.dart -d emulator-5554
+            cd app && flutter test integration_test/ledger_test.dart -d emulator-5554 || { echo "--- logcat tail on failure ---"; adb logcat -d -t 800; exit 1; }
 
       - name: Build release APK
         working-directory: app
