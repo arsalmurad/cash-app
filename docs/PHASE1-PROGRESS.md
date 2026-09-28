@@ -748,8 +748,24 @@ cause investigation went through two rounds:
   entirely; that debug-mode JS has a different stack-trace shape than the
   release build the regex was written against, so the match fails. This
   is a documented `flutter_rust_bridge` constraint: web threading needs
-  release or profile mode, not debug. Fixed by adding `--release`.
-  Result not yet recorded here.
+  release or profile mode, not debug. Fixed by adding `--release`; the
+  panic disappeared entirely (real progress).
+- With that fixed, a real assertion failure appeared — reproducibly, on
+  both re-runs of the same commit, so not a flake — at the point the test
+  creates a second ("Savings") account. But the failure report showed
+  *no* exception text whatsoever, even with `--verbose`: `Failure
+  Details:` followed immediately by `Failure in method: ...` and
+  `end of failure 1`, nothing in between. Traced this to
+  `package:integration_test`'s own `Response.formatFailures` (in
+  `common.dart`), which just writes whatever `Failure.details` string the
+  app sent back — and to `FlutterError`/`TestFailure`'s verbose exception
+  formatting, which Flutter gates behind `!kReleaseMode` specifically so
+  production release builds don't leak internals; running in `--release`
+  had silently thrown that detail away at the source, not lost it in
+  transit. Switched from `--release` to `--profile`: it compiles the same
+  optimized (non-DDC) JS shape that satisfies `flutter_rust_bridge`'s
+  script-path regex, while `kReleaseMode` stays false so failure detail
+  reporting stays intact. Result not yet recorded here.
 
 ## Remaining work
 
