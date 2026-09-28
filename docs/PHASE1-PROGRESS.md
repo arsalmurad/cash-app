@@ -750,22 +750,38 @@ cause investigation went through two rounds:
   is a documented `flutter_rust_bridge` constraint: web threading needs
   release or profile mode, not debug. Fixed by adding `--release`; the
   panic disappeared entirely (real progress).
-- With that fixed, a real assertion failure appeared — reproducibly, on
-  both re-runs of the same commit, so not a flake — at the point the test
-  creates a second ("Savings") account. But the failure report showed
+- With that fixed, a real failure appeared — reproducibly, on repeated
+  runs of the same commit, so not a flake — but the failure report showed
   *no* exception text whatsoever, even with `--verbose`: `Failure
   Details:` followed immediately by `Failure in method: ...` and
-  `end of failure 1`, nothing in between. Traced this to
-  `package:integration_test`'s own `Response.formatFailures` (in
-  `common.dart`), which just writes whatever `Failure.details` string the
-  app sent back — and to `FlutterError`/`TestFailure`'s verbose exception
-  formatting, which Flutter gates behind `!kReleaseMode` specifically so
-  production release builds don't leak internals; running in `--release`
-  had silently thrown that detail away at the source, not lost it in
-  transit. Switched from `--release` to `--profile`: it compiles the same
-  optimized (non-DDC) JS shape that satisfies `flutter_rust_bridge`'s
-  script-path regex, while `kReleaseMode` stays false so failure detail
-  reporting stays intact. Result not yet recorded here.
+  `end of failure 1`, nothing in between. This sent the investigation down
+  two dead ends before finding the real cause:
+  - Suspected `package:integration_test`'s `FlutterError`/`TestFailure`
+    verbose formatting being gated behind `!kReleaseMode` (so `--release`
+    would silently discard it) and switched to `--profile`, expecting the
+    same optimized non-DDC JS shape without that gate. A real run proved
+    this wrong on both counts: `--profile` hit the *exact same*
+    `RuntimeError: unreachable` WorkerPool panic that `--release` was
+    supposed to have fixed — `--profile` does not, in fact, compile a JS
+    shape compatible with `flutter_rust_bridge`'s web threading, only
+    `--release` does.
+  - Suspected `print()` inside the test would surface in CI output
+    regardless of the driver's own reporting; it never appeared. Cause:
+    the `-d web-server` device has no browser console access at all
+    (`flutter drive`'s own log says so explicitly — "requires the Dart
+    Debug Chrome extension for debugging", which this headless CI setup
+    doesn't have).
+  - What actually worked: routing the caught exception through
+    `IntegrationTestWidgetsFlutterBinding.instance.reportData` (a
+    separate channel, unaffected by both of the above), with the driver
+    set to `writeResponseOnFailure: true` so it gets written to
+    `build/integration_response_data.json` regardless of outcome, printed
+    by a new always-run CI step. This finally surfaced the real
+    exception — and it was the same `RuntimeError: unreachable` /
+    `WorkerPool::default()` panic as the original one `--release` fixed,
+    just recurring under `--profile`. Reverted to `--release` (now with
+    `reportData` capture kept, so a *different* real failure would no
+    longer come back blank). Result not yet recorded here.
 
 ## Remaining work
 

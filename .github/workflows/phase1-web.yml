@@ -136,29 +136,29 @@ jobs:
         # identically ("RuntimeError: unreachable" unwinding from
         # WorkerPool::default()).
         #
-        # --profile (not --release, not the default debug): flutter drive
-        # defaults to debug mode, which recompiles and serves the app from
-        # source via its own dev server (DDC-style JS), ignoring the
-        # release build from the previous step entirely.
+        # --release (not the default debug, and not --profile either):
+        # flutter drive defaults to debug mode, which recompiles and serves
+        # the app from source via its own dev server (DDC-style JS),
+        # ignoring the release build from the previous step entirely.
         # flutter_rust_bridge's web worker pool locates its own script URL
         # via third_party::wasm_bindgen::worker_pool::script_path(), which
         # extracts a path from a deliberately-thrown Error's stack trace
         # with a regex — a hack that depends on stack-trace formatting
-        # that differs between debug and release/profile JS output, and
-        # silently returns None (then .expect()-panics) when it doesn't
-        # match. --release fixed that panic, but then a real, reproducible
-        # (twice, not a flake) test failure showed no exception detail at
-        # all: Flutter's FlutterError/TestFailure verbose formatting is
-        # gated behind `!kReleaseMode`, so release mode silently drops it.
-        # --profile compiles the same optimized (non-DDC) JS shape that
-        # satisfies flutter_rust_bridge's script-path regex, while keeping
-        # kReleaseMode false so failure details still get reported.
+        # and panics (`RuntimeError: unreachable` from WorkerPool::default)
+        # when it doesn't match. Confirmed by real runs to fail under BOTH
+        # debug and --profile identically; only --release avoids it. The
+        # earlier "profile keeps kReleaseMode false so failure details are
+        # still reported" theory was also confirmed wrong by a real run
+        # (--profile hit this exact same panic) — irrelevant now that the
+        # test captures failures via `reportData` (see
+        # test_driver/integration_test.dart), which isn't gated by
+        # kReleaseMode the way FlutterErrorDetails.toString() is.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart
           --target=integration_test/ledger_test.dart
           -d web-server --web-port=7357 --browser-name=chrome
-          --headless --web-run-headless --cross-origin-isolation --profile
+          --headless --web-run-headless --cross-origin-isolation --release
 
       - name: Print captured test exception (if any)
         if: always()
