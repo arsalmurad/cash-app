@@ -710,7 +710,18 @@ cause investigation went through two rounds:
   chrome` path silently do nothing) does not start one. Fixed by starting
   `chromedriver --port=4444` as a background process and polling
   `http://localhost:4444/status` until it accepts connections, before
-  running `flutter drive`. Result not yet recorded here.
+  running `flutter drive` (commit `b791cc3`).
+- That got a real WebDriver session request to fire, which then failed
+  immediately with `SessionNotCreatedException (500): session not created:
+  This version of ChromeDriver only supports Chrome version 154. Current
+  browser version is 153.0.8010.52.` — `chromedriver@stable` installs the
+  newest ChromeDriver release, which had moved ahead of the Chrome version
+  actually preinstalled on the `ubuntu-latest` runner image. Fixed by
+  reading the installed Chrome's exact version (`google-chrome --version`)
+  and installing that same version's ChromeDriver build instead of
+  `@stable` (a bare major version like `chromedriver@153` is not itself a
+  resolvable build via `@puppeteer/browsers` and 403s; the full
+  `major.minor.build.patch` version is). Result not yet recorded here.
 
 ## Remaining work
 

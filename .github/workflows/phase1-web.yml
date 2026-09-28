@@ -82,7 +82,20 @@ jobs:
 
       - name: Install and start ChromeDriver
         run: |
-          npx --yes @puppeteer/browsers install chromedriver@stable --path "$RUNNER_TEMP/chromedriver"
+          # `chromedriver@stable` installs the latest stable ChromeDriver
+          # release, which can be (and, on a real run, was) ahead of the
+          # Chrome version actually preinstalled on the runner image —
+          # ChromeDriver refuses to create a session against a mismatched
+          # major version ("This version of ChromeDriver only supports
+          # Chrome version 154. Current browser version is
+          # 153.0.8010.52."). Install the driver build matching the
+          # installed Chrome's exact version instead of the newest release
+          # (Chrome for Testing publishes a matching driver per full
+          # version for stable Chrome; a bare major version like
+          # "chromedriver@153" is not itself a resolvable build and 403s).
+          chrome_version="$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')"
+          echo "Installed Chrome version: $chrome_version"
+          npx --yes @puppeteer/browsers install "chromedriver@$chrome_version" --path "$RUNNER_TEMP/chromedriver"
           driver_bin="$(find "$RUNNER_TEMP/chromedriver" -type f -name chromedriver | head -n1)"
           chmod +x "$driver_bin"
           "$driver_bin" --version
