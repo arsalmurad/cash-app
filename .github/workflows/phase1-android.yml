@@ -1,0 +1,97 @@
+name: Phase 1 Android
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase1-android
+  cancel-in-progress: true
+
+jobs:
+  android-emulator:
+    name: Personal ledger on Android emulator
+    # macOS runners have hardware-accelerated virtualization available for
+    # the Android emulator out of the box; GitHub-hosted Linux runners do
+    # not (no nested KVM), which makes the emulator too slow to be usable
+    # there. This mirrors why phase1-ios.yml runs on macOS too.
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Record runner environment
+        run: |
+          sw_vers
+          uname -m
+          java -version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          rustup target add aarch64-linux-android x86_64-linux-android
+          rustc --version
+          cargo --version
+
+      - name: Install pinned Flutter SDK
+        run: |
+          git clone --branch 3.47.5 --depth 1 \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare and test Flutter project
+        working-directory: app
+        run: |
+          flutter config --no-analytics
+          flutter --version
+          flutter precache --android
+          flutter pub get
+          flutter analyze
+          flutter test test
+
+      - name: Enable KVM-equivalent acceleration and boot emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            adb devices
+            echo "EMULATOR_READY=1" >> "$GITHUB_ENV"
+
+      - name: Run personal ledger integration test
+        working-directory: app
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+        run: flutter test integration_test/ledger_test.dart -d android
+
+      - name: Build release APK
+        working-directory: app
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+        run: flutter build apk --release
+
+      - name: Record Phase 1 Android result
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk_path="$GITHUB_WORKSPACE/app/build/app/outputs/flutter-apk/app-release.apk"
+          apk_bytes="$(stat -f '%z' "$apk_path")"
+          {
+            echo "## Phase 1 Android result"
+            echo
+            echo "- Personal ledger integration test: passed"
+            echo "- Release APK build: passed"
+            echo "- app-release.apk bytes: $apk_bytes"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
