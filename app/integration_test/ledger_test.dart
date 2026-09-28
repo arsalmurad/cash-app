@@ -50,19 +50,29 @@ void main() {
     // `LedgerController.record()` swallows a failed bridge call into
     // `errorMessage` and just shows a SnackBar rather than throwing, so a
     // bare "Groceries not found" assertion below gives no clue whether the
-    // save actually failed. Surface the SnackBar text (if any) as part of
-    // the failure so a real save error is distinguishable from a genuine
-    // widget-finder/timing problem.
+    // save actually failed, or succeeded but the controller's own state
+    // (read straight off the widget tree, bypassing the UI entirely) still
+    // doesn't have it. Surface both in the failure reason.
     final snackBarText = tester
         .widgetList<SnackBar>(find.byType(SnackBar))
         .map((bar) => (bar.content as Text?)?.data)
         .join('; ');
+    final liveController = tester
+        .widget<LedgerScreen>(find.byType(LedgerScreen))
+        .controller;
+    final overview = liveController.overview;
+    final overviewDump =
+        'isLoading=${liveController.isLoading} '
+        'errorMessage=${liveController.errorMessage} '
+        'balanceLabel=${overview?.balanceLabel} '
+        'accountCount=${overview?.accounts.length} '
+        'transactionTitles=${overview?.transactions.map((t) => t.title).toList()}';
     expect(
       find.text('Groceries'),
       findsOneWidget,
-      reason: snackBarText.isEmpty
-          ? 'no SnackBar shown'
-          : 'SnackBar shown: $snackBarText',
+      reason:
+          '${snackBarText.isEmpty ? "no SnackBar shown" : "SnackBar shown: $snackBarText"}; '
+          'controller state: $overviewDump',
     );
     expect(find.text('Food'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
