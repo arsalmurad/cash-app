@@ -16,9 +16,11 @@ void main() {
   // new widget tree, which re-reads storage without touching `RustLib` again.
   testWidgets('an expense survives a simulated app restart', (tester) async {
     // A real, reproducible failure here reports through `flutter drive` with
-    // no exception text at all in debug, profile, or release mode (traced
-    // this far without finding the actual cause) — print it directly so it
-    // shows up in CI output regardless.
+    // no exception text at all in debug, profile, or release mode, and
+    // `print()` doesn't surface either since `-d web-server` has no browser
+    // console access — so attach it to `reportData` instead, which the
+    // driver (configured with `writeResponseOnFailure: true`) writes to
+    // build/integration_response_data.json regardless of outcome.
     try {
     await app.main();
     await tester.pumpAndSettle();
@@ -131,6 +133,10 @@ void main() {
     } catch (e, st) {
       // ignore: avoid_print
       print('TEST EXCEPTION: $e\nSTACK:\n$st');
+      IntegrationTestWidgetsFlutterBinding.instance.reportData = {
+        'exception': e.toString(),
+        'stackTrace': st.toString(),
+      };
       rethrow;
     }
   });

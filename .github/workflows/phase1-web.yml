@@ -160,6 +160,17 @@ jobs:
           -d web-server --web-port=7357 --browser-name=chrome
           --headless --web-run-headless --cross-origin-isolation --profile
 
+      - name: Print captured test exception (if any)
+        if: always()
+        working-directory: app
+        run: |
+          if [ -f build/integration_response_data.json ]; then
+            echo "--- build/integration_response_data.json ---"
+            cat build/integration_response_data.json
+          else
+            echo "No integration_response_data.json was written."
+          fi
+
       - name: Record Phase 1 web result
         shell: bash
         run: |
