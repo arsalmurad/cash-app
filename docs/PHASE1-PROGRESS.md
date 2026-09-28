@@ -683,17 +683,26 @@ sandbox investigation above transferred directly. The integration test
 step did not: it hung at "Waiting for connection from debug service on
 Chrome..." until the 45-minute job timeout killed it, confirming this was
 a real bug and not specific to the local sandbox as first suspected. Root
-cause: `flutter drive` has two independent headless controls —
-`--headless` (the WebDriver-controlled browser, defaults on) and
-`--web-run-headless` (the separate Chrome instance that actually hosts
-the Flutter web app under test and that Flutter's debug/VM service
-connects to, defaults **off**). Only the first was passed, so that second
-Chrome instance tried to open a window on a display-less runner and the
-debug-service connection never completed. Fixed by adding
-`--web-run-headless` (commit `18767cb`); as of this writing the
-re-dispatched run has moved past the previous hang point and is actively
-executing the integration test, but has not yet finished — its final
-pass/fail result is not yet recorded here.
+cause investigation went through two rounds:
+
+- First suspected `flutter drive`'s two independent headless controls —
+  `--headless` (the WebDriver-controlled browser, defaults on) and
+  `--web-run-headless` (the separate Chrome instance that actually hosts
+  the Flutter web app under test, defaults **off**); only the first was
+  passed. Added `--web-run-headless` (commit `18767cb`) and re-dispatched.
+  It hung at the exact same point, for the exact same duration (killed by
+  the 45-minute job timeout at "Waiting for connection from debug service
+  on Chrome... 21.2s") — this flag was not the actual cause, or was not
+  the only one.
+- The real cause: the command used `-d chrome`, which runs the app via
+  Chrome's own CDP connection — a different code path from the
+  WebDriver-managed Chrome (launched via the `chromedriver` binary already
+  on `PATH`, on `--driver-port`, default 4444) that `flutter drive`'s
+  driver script (`test_driver/integration_test.dart`) actually waits to
+  connect through. The two were never talking to the same browser
+  instance, so the driver waited forever. `-d web-server` is Flutter's own
+  documented device for this exact combination; switched to it (this
+  change). Re-dispatch result not yet recorded here.
 
 ## Remaining work
 

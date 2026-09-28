@@ -92,11 +92,21 @@ jobs:
         working-directory: app
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
+        # `-d chrome` hung indefinitely at "Waiting for connection from
+        # debug service on Chrome..." on two consecutive real CI runs
+        # (confirmed not a --headless/--web-run-headless flag issue: both
+        # were already passed). `-d chrome` runs the app via Chrome's own
+        # CDP connection, a different code path from the WebDriver-managed
+        # Chrome (launched through the `chromedriver` on PATH, on
+        # --driver-port, default 4444) that `flutter drive`'s driver script
+        # actually waits to connect through — so the two were never talking
+        # to the same browser instance. `-d web-server` is Flutter's own
+        # documented device for this combination.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart
           --target=integration_test/ledger_test.dart
-          -d chrome --web-port=7357 --browser-name=chrome
+          -d web-server --web-port=7357 --browser-name=chrome
           --headless --web-run-headless
 
       - name: Record Phase 1 web result
