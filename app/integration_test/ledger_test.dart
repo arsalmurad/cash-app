@@ -47,7 +47,23 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Groceries'), findsOneWidget);
+    // `LedgerController.record()` swallows a failed bridge call into
+    // `errorMessage` and just shows a SnackBar rather than throwing, so a
+    // bare "Groceries not found" assertion below gives no clue whether the
+    // save actually failed. Surface the SnackBar text (if any) as part of
+    // the failure so a real save error is distinguishable from a genuine
+    // widget-finder/timing problem.
+    final snackBarText = tester
+        .widgetList<SnackBar>(find.byType(SnackBar))
+        .map((bar) => (bar.content as Text?)?.data)
+        .join('; ');
+    expect(
+      find.text('Groceries'),
+      findsOneWidget,
+      reason: snackBarText.isEmpty
+          ? 'no SnackBar shown'
+          : 'SnackBar shown: $snackBarText',
+    );
     expect(find.text('Food'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
     expect(find.text('−USD 12.34'), findsOneWidget);
