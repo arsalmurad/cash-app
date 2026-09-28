@@ -15,6 +15,11 @@ void main() {
   // a "restart" is simulated afterwards with a fresh `LedgerController` in a
   // new widget tree, which re-reads storage without touching `RustLib` again.
   testWidgets('an expense survives a simulated app restart', (tester) async {
+    // A real, reproducible failure here reports through `flutter drive` with
+    // no exception text at all in debug, profile, or release mode (traced
+    // this far without finding the actual cause) — print it directly so it
+    // shows up in CI output regardless.
+    try {
     await app.main();
     await tester.pumpAndSettle();
 
@@ -123,5 +128,10 @@ void main() {
     expect(find.text('USD -512.34'), findsOneWidget);
     expect(find.text('USD -612.34'), findsOneWidget);
     expect(find.text('USD 100.00'), findsOneWidget);
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('TEST EXCEPTION: $e\nSTACK:\n$st');
+      rethrow;
+    }
   });
 }
