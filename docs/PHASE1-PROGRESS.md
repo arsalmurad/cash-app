@@ -625,10 +625,75 @@ this possible without waiting on CI):
 
 In short: both new workflows are informed by real, direct investigation
 of what Phase 1's own code needs for the WASM/web toolchain (not assumed
-from the Phase 0 spike's requirements), but **neither has completed a
-real run yet** — both need to actually be dispatched and their results
-recorded honestly, the same way every iOS workflow run above was, before
-Android/web verification can be marked done.
+from the Phase 0 spike's requirements), but **neither had completed a
+real run yet at the time they were written** — both needed to actually be
+dispatched and their results recorded honestly, the same way every iOS
+workflow run above was, before Android/web verification could be marked
+done. That dispatching happened next; see below for the real results and
+what it took to get there.
+
+### Android: real result
+
+`phase1-android.yml`'s first several real runs failed, each for a distinct,
+diagnosed reason rather than being retried blindly:
+
+- **`runs-on: macos-15` can't run any Android emulator at all.** Once
+  dispatched for real, every boot attempt failed with `HVF error:
+  HV_UNSUPPORTED` from QEMU, regardless of AVD architecture or API level.
+  GitHub-hosted Apple Silicon macOS runners are themselves nested VMs and
+  don't expose `Hypervisor.framework` to processes running inside them, so
+  no Android emulator architecture can be hardware-accelerated there — a
+  hard platform limitation, not a workflow bug
+  ([actions/runner-images#9472](https://github.com/actions/runner-images/issues/9472),
+  [ReactiveCircus/android-emulator-runner#350](https://github.com/ReactiveCircus/android-emulator-runner/issues/350)).
+  Fixed by moving the job to `runs-on: ubuntu-latest` with a
+  `sudo udevadm`-based "Enable KVM group perms" step and `arch: x86_64`
+  (the host's own architecture) — this is also this action's own
+  documented recommended setup, not just a workaround.
+- **The action tears the emulator down as soon as its `script` input
+  returns.** The first `ubuntu-latest` run booted the emulator
+  successfully (`Boot completed in 41130 ms`), but a *separate*,
+  subsequent workflow step then saw "No devices are connected" — the
+  emulator was already gone. Fixed by moving the actual
+  `flutter test integration_test/ledger_test.dart` invocation into the
+  `script:` block itself, after `adb devices`.
+- **`-d android` is not a valid flutter device selector.** With the
+  emulator alive at test time, `flutter test ... -d android` still failed:
+  "No supported devices found with name or id matching 'android'". Fixed
+  by selecting the emulator by its real listed id, `-d emulator-5554`.
+- One run at that point failed a real test assertion (creating a
+  "Savings" account, then not finding it rendered) but did not recur on
+  the next run with no logic changes — apparently a one-off timing flake
+  rather than a reproducible bug; a logcat-on-failure diagnostic was added
+  to the workflow in case it recurs.
+
+With all of that fixed,
+[run 36455584025](https://github.com/arsalmurad/cash-app/actions/runs/36455584025)
+(commit `fb6289b`, `ubuntu-latest`, KVM-accelerated `x86_64` emulator,
+API 34, `google_apis`, Pixel 6 profile) passed end to end: `flutter
+analyze`, `flutter test test`, `integration_test/ledger_test.dart` on the
+real emulator (`emulator-5554`), and `flutter build apk --release`.
+
+### Web: real result
+
+`phase1-web.yml`'s WASM/build steps (Rust→WASM via
+`flutter_rust_bridge_codegen build-web`, `flutter build web --wasm`,
+ChromeDriver install) passed on the very first real CI run — the local
+sandbox investigation above transferred directly. The integration test
+step did not: it hung at "Waiting for connection from debug service on
+Chrome..." until the 45-minute job timeout killed it, confirming this was
+a real bug and not specific to the local sandbox as first suspected. Root
+cause: `flutter drive` has two independent headless controls —
+`--headless` (the WebDriver-controlled browser, defaults on) and
+`--web-run-headless` (the separate Chrome instance that actually hosts
+the Flutter web app under test and that Flutter's debug/VM service
+connects to, defaults **off**). Only the first was passed, so that second
+Chrome instance tried to open a window on a display-less runner and the
+debug-service connection never completed. Fixed by adding
+`--web-run-headless` (commit `18767cb`); as of this writing the
+re-dispatched run has moved past the previous hang point and is actively
+executing the integration test, but has not yet finished — its final
+pass/fail result is not yet recorded here.
 
 ## Remaining work
 
@@ -642,11 +707,14 @@ biometric lock is built — every one of these confirmed on real iOS hardware
 the biometric lock; see each section above for the specific run that
 verified it). Still open before Phase 1's exit test can be called complete:
 
-- Dispatch `phase1-android.yml` and `phase1-web.yml` (see the "Android and
-  web CI infrastructure" section above) and record their real results —
-  the workflows exist now but have not actually been run to completion, so
-  nothing in this project has Android or web runtime verification yet,
-  only iOS.
+- Android runtime verification is done: `phase1-android.yml` passed end
+  to end on a real KVM-accelerated emulator (see the "Android and web CI
+  infrastructure" section above,
+  [run 36455584025](https://github.com/arsalmurad/cash-app/actions/runs/36455584025)).
+  `phase1-web.yml` is still in progress — its integration test previously
+  hung on every run but is now past that point after the
+  `--web-run-headless` fix; its final result still needs to be recorded
+  here once it completes.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
