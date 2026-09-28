@@ -97,7 +97,7 @@ jobs:
           --driver=test_driver/integration_test.dart
           --target=integration_test/ledger_test.dart
           -d chrome --web-port=7357 --browser-name=chrome
-          --headless
+          --headless --web-run-headless
 
       - name: Record Phase 1 web result
         shell: bash
