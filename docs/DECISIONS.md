@@ -417,32 +417,48 @@ a WebDriver (ChromeDriver) session, which is why `phase1-web.yml` and the
 new `app/test_driver/integration_test.dart` driver entrypoint exist
 alongside the `flutter test` calls the other workflows use.
 
-## 2026-09-28 — Rust bridge calls run synchronously, on every platform
+## 2026-09-28 — `default_dart_async: false` tried and reverted: broke iOS, didn't actually fix web
 
-`flutter_rust_bridge.yaml` sets `default_dart_async: false`. Without it,
-every generated Rust-bridge call on web panics on first use:
-`flutter_rust_bridge`'s web dispatch model spawns a pool of Web Workers
-and hands each one the WASM module via `postMessage`, and browsers
-cannot clone a `WebAssembly.Memory` object that way — a real,
-maintainer-acknowledged upstream limitation, closed as "not planned"
-([fzyzcjy/flutter_rust_bridge#2914](https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914)).
-Confirmed directly (not assumed) that this reproduces identically in
-debug, profile, and release web builds alike, and that this Flutter
-Rust bridge version has no per-platform override for it: `default_dart_async`
-is a single global codegen setting, so this change applies to iOS and
-Android too, not just web.
+Attempted fix for the web `WorkerPool` panic above: set
+`default_dart_async: false` in `flutter_rust_bridge.yaml` so every
+generated Rust-bridge call runs synchronously instead of being dispatched
+to a worker/isolate. This is a single global codegen setting with no
+per-platform override in this `flutter_rust_bridge` version, so it
+applied to iOS and Android too, not just web — a known, accepted
+trade-off at the time.
 
-The trade-off: every Rust call in `ledger_controller.dart` (previously
-`Future<T>`-returning, dispatched to a worker/isolate) now runs
-synchronously on the calling thread. For this app's actual operations —
-folding an in-memory event log measured in thousands of entries, not
-millions — that's a genuinely fast, sub-millisecond-scale call; the
-`Future<...>` signatures on `LedgerController`'s public methods
-(`record`, `transfer`, `addOrUpdateBudget`, etc.) are kept as-is so the UI
-layer's `await` calls don't need to change, but the actual Rust work they
-do is no longer offloaded to a separate worker/isolate. If a future
-Phase's ledger sizes make this measurably slow, the fix is `Snapshot`
-compaction (already implemented at the core level, not yet wired into
-the persisted log — see "Remaining work" in
-`docs/PHASE1-PROGRESS.md`), which bounds replay cost regardless of
-dispatch mode, rather than re-enabling a broken web threading path.
+Real CI evidence on all three platforms (not assumed) showed this was
+the wrong fix:
+
+- **Android**: passed clean.
+- **iOS**: the integration test step hung for the full 45-minute job
+  timeout and was killed (`conclusion: cancelled`) — a real regression,
+  not flakiness. A synchronous call on the calling thread/isolate is safe
+  for a fast in-memory operation; something about the native sync-call
+  path apparently blocks in a way the isolate-dispatched async path
+  didn't, most likely a deadlock between the calling thread and whatever
+  the FFI call needs free to complete. Not root-caused further, since the
+  fix was reverted rather than debugged.
+- **Web**: the `WorkerPool` panic was genuinely gone — the app ran real
+  test logic on web for the first time — but the very first
+  `recordTransaction` call silently no-op'd: `LedgerController.record()`
+  returned success (`errorMessage=null`, `isLoading=false`), yet
+  `overview.transactions` stayed empty and the balance stayed `USD 0.00`,
+  confirmed twice by reading `LedgerController`'s state directly off the
+  widget tree in the failing test (bypassing `find.text` entirely, so
+  this wasn't a UI-rebuild timing issue). The synchronous call path
+  apparently doesn't work through wasm-bindgen's web transport at all in
+  this build — worse than the original panic, since it fails silently
+  instead of loudly.
+
+Reverted in full (`flutter_rust_bridge.yaml`, the regenerated bridge, and
+`ledger_controller.dart`'s five `_mutate*` helpers) back to the async
+dispatch this file's previous entry describes. iOS and Android return to
+their previously-verified-green state; web returns to the documented,
+honest `WorkerPool` panic — a real, upstream, maintainer-acknowledged
+limitation ([fzyzcjy/flutter_rust_bridge#2914](https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914))
+with no known fix as of this entry, rather than a fix that trades a loud
+crash for silently dropped data. Diagnostic assertions added to
+`integration_test/ledger_test.dart` during this investigation (SnackBar
+text and live controller-state dumps on failure) were kept — they're
+generically useful and independent of this revert.

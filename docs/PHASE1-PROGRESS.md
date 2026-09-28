@@ -782,7 +782,7 @@ cause investigation went through two rounds:
     had actually resolved it; the reporting bug simply hid it well enough
     to look like progress.
 
-### Web: root cause found and fixed — sync dispatch, not web threading
+### Web: root cause found, not fixed — a real flutter_rust_bridge limitation
 
 With the real exception finally visible, this is a known, upstream,
 maintainer-acknowledged `flutter_rust_bridge` limitation, not a CI
@@ -797,47 +797,56 @@ app makes (`crateApiLedgerInitApp`), regardless of build mode.
 
 The one known workaround, confirmed by the upstream issue: set
 `default_dart_async: false` in `flutter_rust_bridge.yaml` and regenerate.
-First attempt: it does eliminate the panic, but it changes the generated
+First pass: this does eliminate the panic, but it changes the generated
 Dart bridge API from `Future<T>`-returning calls to plain, synchronous
-`T`-returning calls everywhere — not a web-only switch, since
-`default_dart_async` is a single global codegen setting with no
-per-platform override in this `flutter_rust_bridge` version. That broke
-`flutter analyze` with 22 issues across `ledger_controller.dart` alone
-(every `await someRustCall()` site there), which is the app's entire data
-layer. Initially reverted rather than committed, given the size of what
-fixing it properly would mean: auditing and rewriting every Rust-bridge
-call site, then re-verifying iOS and Android (both already green) weren't
-regressed by a change to how every bridge call behaves, on every
-platform — not something to push through under CI pressure without a
-deliberate decision to take it on.
+`T`-returning calls everywhere — not a web-only switch. Doing this
+immediately broke `flutter analyze` with 22 issues across
+`ledger_controller.dart` alone (every `await someRustCall()` site), which
+is the app's entire data layer; fixing it properly means auditing and
+rewriting every Rust-bridge call site across the app, then re-verifying
+iOS and Android (both already green on real hardware) weren't regressed.
+That's a real, substantial, cross-cutting refactor — not a safe or
+proportionate fix to push through under CI pressure — so it was reverted
+rather than committed, the first time this was tried.
 
-That decision was then made explicitly, and the refactor completed:
-`ledger_controller.dart`'s five `_mutate*` helpers (`_mutateLedger`,
-`_mutateCategories`, `_mutateBudgets`, `_mutateGoals`, `_mutateRecurring`)
-had their closure parameter types changed from `Future<T> Function()` to
-plain `T Function()`, and every direct bridge call in `initialize()` and
-the three progress-refresh methods (`_refreshBudgetProgress`,
-`_refreshGoalProgress`, `_refreshUpcoming`) had its now-unnecessary
-`await` removed. `LedgerController`'s public method signatures
-(`record`, `transfer`, `addOrUpdateBudget`, etc.) are unchanged —
-still `Future<bool>`/`Future<void>` — so nothing in the UI layer needed
-to change; only what happens *inside* those methods did. Verified
-directly: `flutter analyze` clean, `flutter test` 54/54, `cargo test
---workspace --all-targets` 84/84, and both `cargo build --workspace` and
-`flutter_rust_bridge_codegen build-web` / `flutter build web --wasm`
-compile cleanly with the regenerated bridge. `rust/api/src/frb_generated.rs`
-and `app/lib/data/rust/frb_generated.dart` no longer reference
-`WorkerPool` or `THREAD_POOL` at all — confirmed by grep, not just
-absence of the panic in a short local run — so the failure mode this
-whole investigation was chasing cannot recur. Real CI verification
-(all three platforms) is the next step; see the run links added here
-once dispatched.
+**Second attempt, taken on deliberately with real CI verification of all
+three platforms**: the refactor was completed properly this time (`flutter
+analyze` clean, `flutter test` 54/54, `cargo test --workspace` 84/84,
+`flutter_rust_bridge_codegen build-web` and `flutter build web --wasm`
+both compiling) and dispatched to real CI on all three platforms. The
+results were decisive, and worse than doing nothing:
 
-**Trade-off accepted, not hidden**: every Rust call in
-`LedgerController` now runs synchronously on the calling thread/isolate
-on *every* platform, not just web (see `docs/DECISIONS.md`'s matching
-entry for the full reasoning on why this is fine at Phase 1's data
-sizes, and what the real fix is if it ever isn't).
+- **Android**: passed clean.
+- **iOS**: the integration test step hung for the entire 45-minute job
+  timeout and was killed (`conclusion: cancelled`,
+  [run 36481665195](https://github.com/arsalmurad/cash-app/actions/runs/36481665195)) —
+  a real regression from the sync-dispatch change, not flakiness.
+- **Web**: the `WorkerPool` panic was genuinely gone and the app ran real
+  test logic for the first time
+  ([run 36481649775](https://github.com/arsalmurad/cash-app/actions/runs/36481649775),
+  reproduced identically on a clean re-run,
+  [run 36484976444](https://github.com/arsalmurad/cash-app/actions/runs/36484976444)) —
+  but the very first `recordTransaction` call silently no-op'd:
+  `LedgerController.record()` reported success (`errorMessage=null`,
+  `isLoading=false`), yet the controller's own `overview` (read directly
+  off the widget tree in
+  [a follow-up diagnostic run](https://github.com/arsalmurad/cash-app/actions/runs/36486301616),
+  bypassing `find.text` entirely) still showed zero transactions and a
+  `USD 0.00` balance. The synchronous call path doesn't actually work
+  through wasm-bindgen's web transport in this build — a silent failure,
+  which is worse than the original loud panic.
+
+Reverted in full back to async dispatch. See `docs/DECISIONS.md`'s
+"2026-09-28 — `default_dart_async: false` tried and reverted" entry for
+the complete evidence.
+
+**Current state**: `phase1-web.yml`'s Rust→WASM build, `flutter build web
+--wasm`, ChromeDriver setup, and app launch all work end to end on real
+CI; the one thing that does not work is running an actual Rust bridge
+call on web through this test, for the documented upstream reason above.
+Two independent attempts at the one known workaround both made things
+worse rather than better. Android and iOS are unaffected (their bridge
+calls don't go through `WorkerPool` at all) and remain fully green.
 
 ## Remaining work
 
@@ -861,12 +870,14 @@ verified it). Still open before Phase 1's exit test can be called complete:
   WASM compilation, and app launch all work, but the first Rust bridge
   call panics inside `flutter_rust_bridge`'s Web Worker thread pool
   (browsers can't clone a `WebAssembly.Memory` object via `postMessage`),
-  regardless of build mode. The one known fix changes every Rust-bridge
-  call site across the whole app from async to sync and needs its own
-  dedicated pass — including re-verifying iOS/Android aren't regressed —
-  not something to fold into this CI-infrastructure work. Android and iOS
-  are both fully verified on real hardware/emulator; web is not, and
-  isn't expected to be until that separate fix lands.
+  regardless of build mode. The one known fix (switching every Rust-bridge
+  call from async to sync dispatch) was attempted in full and verified on
+  real CI on all three platforms: it broke iOS (a 45-minute hang, real
+  regression) and didn't even fix web (the call silently no-ops instead of
+  panicking, worse than before) — see "Web: root cause found, not fixed"
+  above for the full evidence — so it was reverted. Android and iOS are
+  both fully verified on real hardware/emulator; web is not, and there is
+  currently no known fix that doesn't regress another platform.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB

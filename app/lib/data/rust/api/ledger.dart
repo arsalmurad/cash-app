@@ -20,7 +20,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// on a previous launch: it anchors this device's place in the total order,
 /// and changing it after events exist would let two different actors claim
 /// the same event IDs.
-PersonalLedger loadPersonalLedger({
+Future<PersonalLedger> loadPersonalLedger({
   required String actorId,
   required String reportingCurrencyCode,
   required List<int> logBytes,
@@ -31,10 +31,10 @@ PersonalLedger loadPersonalLedger({
 );
 
 /// Reports what a completed [`load_personal_ledger`] call recovered.
-LoadReport loadReport({required PersonalLedger ledger}) =>
+Future<LoadReport> loadReport({required PersonalLedger ledger}) =>
     RustLib.instance.api.crateApiLedgerLoadReport(ledger: ledger);
 
-LedgerMutation addAccount({
+Future<LedgerMutation> addAccount({
   required PersonalLedger ledger,
   required String accountId,
   required String name,
@@ -48,7 +48,7 @@ LedgerMutation addAccount({
   wallClockMillis: wallClockMillis,
 );
 
-LedgerMutation recordTransaction({
+Future<LedgerMutation> recordTransaction({
   required PersonalLedger ledger,
   required String transactionId,
   required String accountId,
@@ -82,7 +82,7 @@ LedgerMutation recordTransaction({
 /// `to_account_id`'s; for a same-currency transfer these are normally equal,
 /// but nothing here requires it (see `cash_core::EventKind::TransferRecorded`
 /// for why a cross-currency spread stays visible rather than assumed away).
-LedgerMutation recordTransfer({
+Future<LedgerMutation> recordTransfer({
   required PersonalLedger ledger,
   required String transferId,
   required String fromAccountId,
@@ -114,7 +114,7 @@ LedgerMutation recordTransfer({
   wallClockMillis: wallClockMillis,
 );
 
-LedgerOverview getOverview({required PersonalLedger ledger}) =>
+Future<LedgerOverview> getOverview({required PersonalLedger ledger}) =>
     RustLib.instance.api.crateApiLedgerGetOverview(ledger: ledger);
 
 /// "Custom titles that auto-assign on repeat" (build brief §5): the category
@@ -122,7 +122,7 @@ LedgerOverview getOverview({required PersonalLedger ledger}) =>
 /// case-insensitive, or `None` if nothing matches (or that transaction had
 /// no category either). This is a UI convenience, not part of the ledger's
 /// financial state, so it never fails the way recording a transaction can.
-String? suggestCategoryForTitle({
+Future<String?> suggestCategoryForTitle({
   required PersonalLedger ledger,
   required String title,
 }) => RustLib.instance.api.crateApiLedgerSuggestCategoryForTitle(

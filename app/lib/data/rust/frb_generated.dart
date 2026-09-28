@@ -62,7 +62,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
   @override
   Future<void> executeRustInitializers() async {
-    api.crateApiLedgerInitApp();
+    await api.crateApiLedgerInitApp();
   }
 
   @override
@@ -85,7 +85,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
-  LedgerMutation crateApiLedgerAddAccount({
+  Future<LedgerMutation> crateApiLedgerAddAccount({
     required PersonalLedger ledger,
     required String accountId,
     required String name,
@@ -93,62 +93,66 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
-  BudgetLoadReport crateApiBudgetsBudgetLoadReport({required BudgetBook book});
+  Future<BudgetLoadReport> crateApiBudgetsBudgetLoadReport({
+    required BudgetBook book,
+  });
 
-  List<BudgetView> crateApiBudgetsBudgetProgress({
+  Future<List<BudgetView>> crateApiBudgetsBudgetProgress({
     required PersonalLedger ledger,
     required BudgetBook book,
     required PlatformInt64 nowMillis,
   });
 
-  CategoryLoadReport crateApiCategoriesCategoryLoadReport({
+  Future<CategoryLoadReport> crateApiCategoriesCategoryLoadReport({
     required CategoryBook book,
   });
 
-  LedgerOverview crateApiLedgerGetOverview({required PersonalLedger ledger});
+  Future<LedgerOverview> crateApiLedgerGetOverview({
+    required PersonalLedger ledger,
+  });
 
-  GoalLoadReport crateApiGoalsGoalLoadReport({required GoalBook book});
+  Future<GoalLoadReport> crateApiGoalsGoalLoadReport({required GoalBook book});
 
-  List<GoalView> crateApiGoalsGoalProgress({
+  Future<List<GoalView>> crateApiGoalsGoalProgress({
     required PersonalLedger ledger,
     required GoalBook book,
   });
 
-  void crateApiLedgerInitApp();
+  Future<void> crateApiLedgerInitApp();
 
-  List<CategoryView> crateApiCategoriesListCategories({
+  Future<List<CategoryView>> crateApiCategoriesListCategories({
     required CategoryBook book,
   });
 
-  BudgetBook crateApiBudgetsLoadBudgetBook({
+  Future<BudgetBook> crateApiBudgetsLoadBudgetBook({
     required String actorId,
     required List<int> logBytes,
   });
 
-  CategoryBook crateApiCategoriesLoadCategoryBook({
+  Future<CategoryBook> crateApiCategoriesLoadCategoryBook({
     required String actorId,
     required List<int> logBytes,
   });
 
-  GoalBook crateApiGoalsLoadGoalBook({
+  Future<GoalBook> crateApiGoalsLoadGoalBook({
     required String actorId,
     required List<int> logBytes,
   });
 
-  PersonalLedger crateApiLedgerLoadPersonalLedger({
+  Future<PersonalLedger> crateApiLedgerLoadPersonalLedger({
     required String actorId,
     required String reportingCurrencyCode,
     required List<int> logBytes,
   });
 
-  RecurringBook crateApiRecurringLoadRecurringBook({
+  Future<RecurringBook> crateApiRecurringLoadRecurringBook({
     required String actorId,
     required List<int> logBytes,
   });
 
-  LoadReport crateApiLedgerLoadReport({required PersonalLedger ledger});
+  Future<LoadReport> crateApiLedgerLoadReport({required PersonalLedger ledger});
 
-  LedgerMutation crateApiLedgerRecordTransaction({
+  Future<LedgerMutation> crateApiLedgerRecordTransaction({
     required PersonalLedger ledger,
     required String transactionId,
     required String accountId,
@@ -163,7 +167,7 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
-  LedgerMutation crateApiLedgerRecordTransfer({
+  Future<LedgerMutation> crateApiLedgerRecordTransfer({
     required PersonalLedger ledger,
     required String transferId,
     required String fromAccountId,
@@ -180,23 +184,23 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
-  RecurringLoadReport crateApiRecurringRecurringLoadReport({
+  Future<RecurringLoadReport> crateApiRecurringRecurringLoadReport({
     required RecurringBook book,
   });
 
-  String? crateApiLedgerSuggestCategoryForTitle({
+  Future<String?> crateApiLedgerSuggestCategoryForTitle({
     required PersonalLedger ledger,
     required String title,
   });
 
-  List<UpcomingView> crateApiRecurringUpcomingOccurrences({
+  Future<List<UpcomingView>> crateApiRecurringUpcomingOccurrences({
     required PersonalLedger ledger,
     required RecurringBook book,
     required PlatformInt64 nowMillis,
     required int horizonDays,
   });
 
-  BudgetMutation crateApiBudgetsUpsertBudget({
+  Future<BudgetMutation> crateApiBudgetsUpsertBudget({
     required BudgetBook book,
     required String budgetId,
     required String name,
@@ -208,7 +212,7 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
-  CategoryMutation crateApiCategoriesUpsertCategory({
+  Future<CategoryMutation> crateApiCategoriesUpsertCategory({
     required CategoryBook book,
     required String categoryId,
     required String name,
@@ -216,7 +220,7 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
-  GoalMutation crateApiGoalsUpsertGoal({
+  Future<GoalMutation> crateApiGoalsUpsertGoal({
     required GoalBook book,
     required String goalId,
     required String name,
@@ -229,7 +233,7 @@ abstract class RustLibApi extends BaseApi {
     required PlatformInt64 wallClockMillis,
   });
 
-  RecurringMutation crateApiRecurringUpsertRecurring({
+  Future<RecurringMutation> crateApiRecurringUpsertRecurring({
     required RecurringBook book,
     required String recurringId,
     required String title,
@@ -295,16 +299,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
-  LedgerMutation crateApiLedgerAddAccount({
+  Future<LedgerMutation> crateApiLedgerAddAccount({
     required PersonalLedger ledger,
     required String accountId,
     required String name,
     required String currencyCode,
     required PlatformInt64 wallClockMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
@@ -314,7 +318,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(name, serializer);
           sse_encode_String(currencyCode, serializer);
           sse_encode_i_64(wallClockMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 1)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ledger_mutation,
@@ -339,16 +348,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  BudgetLoadReport crateApiBudgetsBudgetLoadReport({required BudgetBook book}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+  Future<BudgetLoadReport> crateApiBudgetsBudgetLoadReport({
+    required BudgetBook book,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
             book,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_budget_load_report,
@@ -365,14 +381,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "budget_load_report", argNames: ["book"]);
 
   @override
-  List<BudgetView> crateApiBudgetsBudgetProgress({
+  Future<List<BudgetView>> crateApiBudgetsBudgetProgress({
     required PersonalLedger ledger,
     required BudgetBook book,
     required PlatformInt64 nowMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
@@ -383,7 +399,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_i_64(nowMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_budget_view,
@@ -403,18 +424,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  CategoryLoadReport crateApiCategoriesCategoryLoadReport({
+  Future<CategoryLoadReport> crateApiCategoriesCategoryLoadReport({
     required CategoryBook book,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
             book,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 4)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_category_load_report,
@@ -434,16 +460,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  LedgerOverview crateApiLedgerGetOverview({required PersonalLedger ledger}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+  Future<LedgerOverview> crateApiLedgerGetOverview({
+    required PersonalLedger ledger,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 5,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ledger_overview,
@@ -460,16 +493,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_overview", argNames: ["ledger"]);
 
   @override
-  GoalLoadReport crateApiGoalsGoalLoadReport({required GoalBook book}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+  Future<GoalLoadReport> crateApiGoalsGoalLoadReport({required GoalBook book}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
             book,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 6,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_goal_load_report,
@@ -486,13 +524,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "goal_load_report", argNames: ["book"]);
 
   @override
-  List<GoalView> crateApiGoalsGoalProgress({
+  Future<List<GoalView>> crateApiGoalsGoalProgress({
     required PersonalLedger ledger,
     required GoalBook book,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
@@ -502,7 +540,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             book,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 7)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_goal_view,
@@ -521,12 +564,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  void crateApiLedgerInitApp() {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+  Future<void> crateApiLedgerInitApp() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 8)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
@@ -543,18 +591,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
-  List<CategoryView> crateApiCategoriesListCategories({
+  Future<List<CategoryView>> crateApiCategoriesListCategories({
     required CategoryBook book,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
             book,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 9)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_category_view,
@@ -571,17 +624,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "list_categories", argNames: ["book"]);
 
   @override
-  BudgetBook crateApiBudgetsLoadBudgetBook({
+  Future<BudgetBook> crateApiBudgetsLoadBudgetBook({
     required String actorId,
     required List<int> logBytes,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(actorId, serializer);
           sse_encode_list_prim_u_8_loose(logBytes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -602,17 +660,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  CategoryBook crateApiCategoriesLoadCategoryBook({
+  Future<CategoryBook> crateApiCategoriesLoadCategoryBook({
     required String actorId,
     required List<int> logBytes,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(actorId, serializer);
           sse_encode_list_prim_u_8_loose(logBytes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 11,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -633,17 +696,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  GoalBook crateApiGoalsLoadGoalBook({
+  Future<GoalBook> crateApiGoalsLoadGoalBook({
     required String actorId,
     required List<int> logBytes,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(actorId, serializer);
           sse_encode_list_prim_u_8_loose(logBytes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -663,19 +731,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  PersonalLedger crateApiLedgerLoadPersonalLedger({
+  Future<PersonalLedger> crateApiLedgerLoadPersonalLedger({
     required String actorId,
     required String reportingCurrencyCode,
     required List<int> logBytes,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(actorId, serializer);
           sse_encode_String(reportingCurrencyCode, serializer);
           sse_encode_list_prim_u_8_loose(logBytes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 13)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -696,17 +769,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  RecurringBook crateApiRecurringLoadRecurringBook({
+  Future<RecurringBook> crateApiRecurringLoadRecurringBook({
     required String actorId,
     required List<int> logBytes,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(actorId, serializer);
           sse_encode_list_prim_u_8_loose(logBytes, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 14)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData:
@@ -727,16 +805,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  LoadReport crateApiLedgerLoadReport({required PersonalLedger ledger}) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+  Future<LoadReport> crateApiLedgerLoadReport({
+    required PersonalLedger ledger,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 15)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_load_report,
@@ -753,7 +838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "load_report", argNames: ["ledger"]);
 
   @override
-  LedgerMutation crateApiLedgerRecordTransaction({
+  Future<LedgerMutation> crateApiLedgerRecordTransaction({
     required PersonalLedger ledger,
     required String transactionId,
     required String accountId,
@@ -767,9 +852,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     String? recurringId,
     required PlatformInt64 wallClockMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
@@ -786,7 +871,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(categoryId, serializer);
           sse_encode_opt_String(recurringId, serializer);
           sse_encode_i_64(wallClockMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 16)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ledger_mutation,
@@ -832,7 +922,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  LedgerMutation crateApiLedgerRecordTransfer({
+  Future<LedgerMutation> crateApiLedgerRecordTransfer({
     required PersonalLedger ledger,
     required String transferId,
     required String fromAccountId,
@@ -848,9 +938,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String title,
     required PlatformInt64 wallClockMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
@@ -869,7 +959,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_i_64(receivedFxDenominator, serializer);
           sse_encode_String(title, serializer);
           sse_encode_i_64(wallClockMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 17)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_ledger_mutation,
@@ -919,18 +1014,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  RecurringLoadReport crateApiRecurringRecurringLoadReport({
+  Future<RecurringLoadReport> crateApiRecurringRecurringLoadReport({
     required RecurringBook book,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
             book,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_recurring_load_report,
@@ -950,20 +1050,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  String? crateApiLedgerSuggestCategoryForTitle({
+  Future<String?> crateApiLedgerSuggestCategoryForTitle({
     required PersonalLedger ledger,
     required String title,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
             serializer,
           );
           sse_encode_String(title, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 19)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_opt_String,
@@ -983,15 +1088,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  List<UpcomingView> crateApiRecurringUpcomingOccurrences({
+  Future<List<UpcomingView>> crateApiRecurringUpcomingOccurrences({
     required PersonalLedger ledger,
     required RecurringBook book,
     required PlatformInt64 nowMillis,
     required int horizonDays,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
             ledger,
@@ -1003,7 +1108,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_i_64(nowMillis, serializer);
           sse_encode_u_32(horizonDays, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_upcoming_view,
@@ -1023,7 +1133,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  BudgetMutation crateApiBudgetsUpsertBudget({
+  Future<BudgetMutation> crateApiBudgetsUpsertBudget({
     required BudgetBook book,
     required String budgetId,
     required String name,
@@ -1034,9 +1144,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     int? customPeriodDays,
     required PlatformInt64 wallClockMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
             book,
@@ -1050,7 +1160,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_budget_period_kind(period, serializer);
           sse_encode_opt_box_autoadd_u_32(customPeriodDays, serializer);
           sse_encode_i_64(wallClockMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_budget_mutation,
@@ -1090,16 +1205,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  CategoryMutation crateApiCategoriesUpsertCategory({
+  Future<CategoryMutation> crateApiCategoriesUpsertCategory({
     required CategoryBook book,
     required String categoryId,
     required String name,
     required String iconKey,
     required PlatformInt64 wallClockMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerCategoryBook(
             book,
@@ -1109,7 +1224,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(name, serializer);
           sse_encode_String(iconKey, serializer);
           sse_encode_i_64(wallClockMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_category_mutation,
@@ -1129,7 +1249,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  GoalMutation crateApiGoalsUpsertGoal({
+  Future<GoalMutation> crateApiGoalsUpsertGoal({
     required GoalBook book,
     required String goalId,
     required String name,
@@ -1141,9 +1261,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     PlatformInt64? deadlineMillis,
     required PlatformInt64 wallClockMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
             book,
@@ -1158,7 +1278,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_opt_String(categoryId, serializer);
           sse_encode_opt_box_autoadd_i_64(deadlineMillis, serializer);
           sse_encode_i_64(wallClockMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 23)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_goal_mutation,
@@ -1199,7 +1324,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  RecurringMutation crateApiRecurringUpsertRecurring({
+  Future<RecurringMutation> crateApiRecurringUpsertRecurring({
     required RecurringBook book,
     required String recurringId,
     required String title,
@@ -1212,9 +1337,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required PlatformInt64 startMillis,
     required PlatformInt64 wallClockMillis,
   }) {
-    return handler.executeSync(
-      SyncTask(
-        callFfi: () {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook(
             book,
@@ -1230,7 +1355,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_recurring_frequency(frequency, serializer);
           sse_encode_i_64(startMillis, serializer);
           sse_encode_i_64(wallClockMillis, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_recurring_mutation,

@@ -65,23 +65,23 @@ class LedgerController extends ChangeNotifier {
       }
 
       final ledgerLogBytes = await _ledgerStore.readLog();
-      final ledger = loadPersonalLedger(
+      final ledger = await loadPersonalLedger(
         actorId: actorId,
         reportingCurrencyCode: 'USD',
         logBytes: ledgerLogBytes,
       );
-      final report = loadReport(ledger: ledger);
+      final report = await loadReport(ledger: ledger);
       _ledger = ledger;
       overview = report.overview;
       recoveredEventCount = report.recoveredEventCount.toInt();
       truncatedBytes = report.truncatedBytes.toInt();
 
       final categoryLogBytes = await _categoryStore.readLog();
-      final categoryBook = loadCategoryBook(
+      final categoryBook = await loadCategoryBook(
         actorId: actorId,
         logBytes: categoryLogBytes,
       );
-      final categoryReport = categoryLoadReport(book: categoryBook);
+      final categoryReport = await categoryLoadReport(book: categoryBook);
       _categoryBook = categoryBook;
       categories = categoryReport.categories;
 
@@ -112,24 +112,27 @@ class LedgerController extends ChangeNotifier {
       }
 
       final budgetLogBytes = await _budgetStore.readLog();
-      final budgetBook = loadBudgetBook(
+      final budgetBook = await loadBudgetBook(
         actorId: actorId,
         logBytes: budgetLogBytes,
       );
-      budgetLoadReport(book: budgetBook);
+      await budgetLoadReport(book: budgetBook);
       _budgetBook = budgetBook;
 
       final goalLogBytes = await _goalStore.readLog();
-      final goalBook = loadGoalBook(actorId: actorId, logBytes: goalLogBytes);
-      goalLoadReport(book: goalBook);
+      final goalBook = await loadGoalBook(
+        actorId: actorId,
+        logBytes: goalLogBytes,
+      );
+      await goalLoadReport(book: goalBook);
       _goalBook = goalBook;
 
       final recurringLogBytes = await _recurringStore.readLog();
-      final recurringBook = loadRecurringBook(
+      final recurringBook = await loadRecurringBook(
         actorId: actorId,
         logBytes: recurringLogBytes,
       );
-      recurringLoadReport(book: recurringBook);
+      await recurringLoadReport(book: recurringBook);
       _recurringBook = recurringBook;
 
       await _refreshBudgetProgress();
@@ -536,8 +539,8 @@ class LedgerController extends ChangeNotifier {
   /// [EventStore.appendFrame] returns, the mutation was never durable and the
   /// next launch simply won't see it — there is no half-applied state to
   /// reconcile.
-  Future<void> _mutateLedger(LedgerMutation Function() mutation) async {
-    final result = mutation();
+  Future<void> _mutateLedger(Future<LedgerMutation> Function() mutation) async {
+    final result = await mutation();
     await _ledgerStore.appendFrame(result.appendedFrame);
     overview = result.overview;
     await _refreshBudgetProgress();
@@ -546,15 +549,19 @@ class LedgerController extends ChangeNotifier {
   }
 
   /// Same durability protocol as [_mutateLedger], for the categories log.
-  Future<void> _mutateCategories(CategoryMutation Function() mutation) async {
-    final result = mutation();
+  Future<void> _mutateCategories(
+    Future<CategoryMutation> Function() mutation,
+  ) async {
+    final result = await mutation();
     await _categoryStore.appendFrame(result.appendedFrame);
     categories = result.categories;
   }
 
   /// Same durability protocol as [_mutateLedger], for the budgets log.
-  Future<void> _mutateBudgets(BudgetMutation Function() mutation) async {
-    final result = mutation();
+  Future<void> _mutateBudgets(
+    Future<BudgetMutation> Function() mutation,
+  ) async {
+    final result = await mutation();
     await _budgetStore.appendFrame(result.appendedFrame);
     await _refreshBudgetProgress();
   }
@@ -568,7 +575,7 @@ class LedgerController extends ChangeNotifier {
     if (ledger == null || book == null) {
       return;
     }
-    budgets = budgetProgress(
+    budgets = await budgetProgress(
       ledger: ledger,
       book: book,
       nowMillis: _nowMillis(),
@@ -576,8 +583,8 @@ class LedgerController extends ChangeNotifier {
   }
 
   /// Same durability protocol as [_mutateLedger], for the goals log.
-  Future<void> _mutateGoals(GoalMutation Function() mutation) async {
-    final result = mutation();
+  Future<void> _mutateGoals(Future<GoalMutation> Function() mutation) async {
+    final result = await mutation();
     await _goalStore.appendFrame(result.appendedFrame);
     await _refreshGoalProgress();
   }
@@ -591,12 +598,14 @@ class LedgerController extends ChangeNotifier {
     if (ledger == null || book == null) {
       return;
     }
-    goals = goalProgress(ledger: ledger, book: book);
+    goals = await goalProgress(ledger: ledger, book: book);
   }
 
   /// Same durability protocol as [_mutateLedger], for the recurring-rule log.
-  Future<void> _mutateRecurring(RecurringMutation Function() mutation) async {
-    final result = mutation();
+  Future<void> _mutateRecurring(
+    Future<RecurringMutation> Function() mutation,
+  ) async {
+    final result = await mutation();
     await _recurringStore.appendFrame(result.appendedFrame);
     await _refreshUpcoming();
   }
@@ -610,7 +619,7 @@ class LedgerController extends ChangeNotifier {
     if (ledger == null || book == null) {
       return;
     }
-    upcoming = upcomingOccurrences(
+    upcoming = await upcomingOccurrences(
       ledger: ledger,
       book: book,
       nowMillis: _nowMillis(),

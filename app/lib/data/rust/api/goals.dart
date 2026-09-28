@@ -16,13 +16,15 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// `log_bytes` for a brand-new installation; matches
 /// `ledger::load_personal_ledger`/`categories::load_category_book`/
 /// `budgets::load_budget_book`.
-GoalBook loadGoalBook({required String actorId, required List<int> logBytes}) =>
-    RustLib.instance.api.crateApiGoalsLoadGoalBook(
-      actorId: actorId,
-      logBytes: logBytes,
-    );
+Future<GoalBook> loadGoalBook({
+  required String actorId,
+  required List<int> logBytes,
+}) => RustLib.instance.api.crateApiGoalsLoadGoalBook(
+  actorId: actorId,
+  logBytes: logBytes,
+);
 
-GoalLoadReport goalLoadReport({required GoalBook book}) =>
+Future<GoalLoadReport> goalLoadReport({required GoalBook book}) =>
     RustLib.instance.api.crateApiGoalsGoalLoadReport(book: book);
 
 /// Creates or updates a goal. A save goal must name the account whose
@@ -32,7 +34,7 @@ GoalLoadReport goalLoadReport({required GoalBook book}) =>
 /// use the same currency as whatever the goal is measured against (the
 /// linked account for a save goal, the ledger's reporting currency for a
 /// spend goal) — see `goal_progress` and `docs/DECISIONS.md`.
-GoalMutation upsertGoal({
+Future<GoalMutation> upsertGoal({
   required GoalBook book,
   required String goalId,
   required String name,
@@ -63,7 +65,7 @@ GoalMutation upsertGoal({
 /// is no `now_millis` parameter (unlike `budget_progress`): a goal's window
 /// starts at its own creation and never rolls forward, so nothing here
 /// depends on the caller's wall clock.
-List<GoalView> goalProgress({
+Future<List<GoalView>> goalProgress({
   required PersonalLedger ledger,
   required GoalBook book,
 }) =>

@@ -15,7 +15,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// `log_bytes` for a brand-new installation; this is the only constructor,
 /// so first launch and every later restart share one code path, matching
 /// `ledger::load_personal_ledger`.
-CategoryBook loadCategoryBook({
+Future<CategoryBook> loadCategoryBook({
   required String actorId,
   required List<int> logBytes,
 }) => RustLib.instance.api.crateApiCategoriesLoadCategoryBook(
@@ -24,13 +24,13 @@ CategoryBook loadCategoryBook({
 );
 
 /// Reports what a completed [`load_category_book`] call recovered.
-CategoryLoadReport categoryLoadReport({required CategoryBook book}) =>
+Future<CategoryLoadReport> categoryLoadReport({required CategoryBook book}) =>
     RustLib.instance.api.crateApiCategoriesCategoryLoadReport(book: book);
 
 /// Creates or updates a category's name and icon. `category_id` is a stable
 /// key the caller chooses once (e.g. a slug); calling this again with the
 /// same ID always upserts rather than duplicating.
-CategoryMutation upsertCategory({
+Future<CategoryMutation> upsertCategory({
   required CategoryBook book,
   required String categoryId,
   required String name,
@@ -44,7 +44,7 @@ CategoryMutation upsertCategory({
   wallClockMillis: wallClockMillis,
 );
 
-List<CategoryView> listCategories({required CategoryBook book}) =>
+Future<List<CategoryView>> listCategories({required CategoryBook book}) =>
     RustLib.instance.api.crateApiCategoriesListCategories(book: book);
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>>
