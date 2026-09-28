@@ -45,7 +45,7 @@ jobs:
           rustup target add wasm32-unknown-unknown --toolchain nightly
           rustup run nightly rustc --version
 
-      - name: Install wasm-pack and wasm-bindgen-cli
+      - name: Install wasm-pack, wasm-bindgen-cli, and flutter_rust_bridge_codegen
         run: |
           cargo install wasm-pack --version 0.15.0
           # Installed explicitly, with a clean environment, so wasm-pack's
@@ -53,6 +53,7 @@ jobs:
           # RUSTFLAGS wasm-pack sets for the *target* build and wrongly
           # applies them to this *host* build too) is skipped entirely.
           env -u RUSTFLAGS -u RUSTUP_TOOLCHAIN cargo install wasm-bindgen-cli --version 0.2.129
+          cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
 
       - name: Install pinned Flutter SDK
         run: |
