@@ -127,20 +127,33 @@ jobs:
         # combination, but still needs chromedriver already running as a
         # server (see the previous step) rather than merely on PATH.
         #
-        # --cross-origin-isolation: without it, a real run got all the way
-        # to the app launching and then panicked immediately inside Rust's
-        # thread-pool init ("RuntimeError: unreachable", unwinding from
-        # flutter_rust_bridge's WorkerPool::default()). The WASM build
-        # uses -Ctarget-feature=atomics (needed for its threaded worker
-        # pool), which requires SharedArrayBuffer, which browsers only
-        # expose to a cross-origin-isolated page (COOP/COEP headers) —
-        # flutter drive's dev server doesn't send those by default.
+        # --cross-origin-isolation: the WASM build uses -Ctarget-feature=
+        # atomics (needed for flutter_rust_bridge's threaded worker pool),
+        # which requires SharedArrayBuffer, which browsers only expose to a
+        # cross-origin-isolated page (COOP/COEP headers) — flutter drive's
+        # dev server doesn't send those by default. Necessary but not
+        # sufficient on its own: two runs with this flag still panicked
+        # identically ("RuntimeError: unreachable" unwinding from
+        # WorkerPool::default()).
+        #
+        # --release: the actual remaining cause. flutter drive defaults to
+        # debug mode, which recompiles and serves the app from source via
+        # its own dev server (DDC-style JS), ignoring the release build
+        # from the previous step entirely. flutter_rust_bridge's web
+        # worker pool locates its own script URL via
+        # third_party::wasm_bindgen::worker_pool::script_path(), which
+        # extracts a path from a deliberately-thrown Error's stack trace
+        # with a regex — a hack that depends on stack-trace formatting
+        # that differs between debug and release JS output, and silently
+        # returns None (then .expect()-panics) when it doesn't match. This
+        # is a documented flutter_rust_bridge web-threading constraint:
+        # release/profile mode only, not debug.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart
           --target=integration_test/ledger_test.dart
           -d web-server --web-port=7357 --browser-name=chrome
-          --headless --web-run-headless --cross-origin-isolation
+          --headless --web-run-headless --cross-origin-isolation --release
 
       - name: Record Phase 1 web result
         shell: bash

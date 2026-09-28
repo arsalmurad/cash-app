@@ -733,8 +733,23 @@ cause investigation went through two rounds:
   `Cross-Origin-Embedder-Policy` headers) — `flutter drive`'s dev server
   doesn't send those by default (`flutter build web --wasm` turns them on
   automatically for the `skwasm` renderer, but the dev server used by
-  `flutter drive` needs the flag passed explicitly). Fixed by adding
-  `--cross-origin-isolation`. Result not yet recorded here.
+  `flutter drive` needs the flag passed explicitly). Added
+  `--cross-origin-isolation` and re-dispatched — it panicked identically,
+  proving this wasn't the (or wasn't the whole) cause.
+- Traced the actual cause by reading `flutter_rust_bridge` 2.13.0's own
+  vendored source
+  (`third_party::wasm_bindgen::worker_pool::WorkerPool`): its worker pool
+  locates its own script URL via `script_path()`, which deliberately
+  throws a JS `Error` and regex-matches a path out of its stack trace — a
+  hack borrowed from the `wasm_thread` crate — then `.expect()`-panics if
+  the regex doesn't match. `flutter drive` defaults to **debug** mode,
+  which recompiles and serves the app from source through its own
+  DDC-style dev server, ignoring the release build from the previous step
+  entirely; that debug-mode JS has a different stack-trace shape than the
+  release build the regex was written against, so the match fails. This
+  is a documented `flutter_rust_bridge` constraint: web threading needs
+  release or profile mode, not debug. Fixed by adding `--release`.
+  Result not yet recorded here.
 
 ## Remaining work
 
