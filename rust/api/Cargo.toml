@@ -14,3 +14,10 @@ flutter_rust_bridge = "=2.13.0"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+# wasm-pack's default release profile runs `wasm-opt`, which fetches a
+# prebuilt binaryen release from GitHub on first use. That's an extra
+# network dependency purely for binary-size optimization, not correctness,
+# so it's turned off here rather than left as a point of CI flakiness.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

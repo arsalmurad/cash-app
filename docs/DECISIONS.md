@@ -379,3 +379,40 @@ rejected: on mobile, backgrounding and resuming an app is the common case
 process launch would leave the ledger visible to anyone who picks up an
 already-running, backgrounded phone — which defeats the point of a
 biometric lock for exactly the scenario it exists to cover.
+
+## 2026-09-28 — Android/web verification gets its own CI workflow, not a manual-only gap
+
+`.github/workflows/phase1-android.yml` and `phase1-web.yml` were added
+(mirroring `phase1-ios.yml`'s manual `workflow_dispatch` pattern) rather
+than leaving Android/web runtime verification as a permanent note in
+`docs/PHASE1-PROGRESS.md` that no session in this environment can ever
+resolve. This environment has no Android emulator or browser capable of
+driving Flutter's `integration_test` harness, but a GitHub Actions runner
+does — the blocker was the environment, not the codebase, so the fix is
+infrastructure this environment *can* build, even though it can't run it
+to completion itself. Both workflows were partially verified locally in
+this session before being committed (see their own comments and
+`docs/PHASE1-PROGRESS.md` for exactly what was and wasn't confirmed here
+versus left for a real run).
+
+## 2026-09-28 — `wasm-opt` is disabled for the WASM build
+
+`rust/api/Cargo.toml` sets `[package.metadata.wasm-pack.profile.release]
+wasm-opt = false`. `wasm-pack`'s default release profile runs `wasm-opt`
+(from the `binaryen` project), which downloads a prebuilt binary from a
+GitHub release on first use — a network dependency with no bearing on
+correctness, only binary size. Leaving it enabled was rejected: it adds a
+point of CI flakiness (a single flaky download can fail an otherwise
+successful build) for an optimization Phase 1 doesn't need yet; it can be
+turned back on later if the WASM binary's size becomes a real problem.
+
+## 2026-09-28 — The web integration test uses `flutter drive`, not `flutter test`
+
+`flutter test` (the command every other test in this project runs through)
+refuses to run `integration_test`-based tests against a web device at all
+("Web devices are not supported for integration tests yet") — this is a
+hard limitation of the Flutter tooling itself, not a choice. The only way
+to run `integration_test/ledger_test.dart` on web is `flutter drive` with
+a WebDriver (ChromeDriver) session, which is why `phase1-web.yml` and the
+new `app/test_driver/integration_test.dart` driver entrypoint exist
+alongside the `flutter test` calls the other workflows use.

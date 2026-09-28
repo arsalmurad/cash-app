@@ -569,6 +569,67 @@ The first iOS run failed because app analysis included the separate vendored
 Cargokit build-tool package without its dependency setup. Excluding that
 tooling from application analysis resolved it; native builds still execute it.
 
+## Android and web CI infrastructure
+
+Implementation: this change. Every feature above was verified on real iOS
+hardware but had no path to Android or web verification, because this
+session's environment has neither an Android emulator nor a browser capable
+of driving Flutter's `integration_test` harness. Rather than leave that as
+a permanent gap, added `.github/workflows/phase1-android.yml` and
+`phase1-web.yml`, mirroring `phase1-ios.yml`'s manual `workflow_dispatch`
+pattern, so the same personal-ledger integration test
+(`integration_test/ledger_test.dart`) can actually run on both platforms
+via GitHub Actions' macOS runners (which have the Android emulator's
+hardware acceleration and a real Chrome) rather than staying unverifiable.
+
+What was actually confirmed in this session, directly, before committing
+either workflow (not on GitHub Actions — this environment has a system
+Rust/Flutter toolchain and a Playwright-provisioned Chromium, which made
+this possible without waiting on CI):
+
+- Compiling `rust/api`'s crate to `wasm32-unknown-unknown` via
+  `flutter_rust_bridge_codegen build-web` succeeds, using a nightly Rust
+  toolchain that `build-web` requires regardless of this project's own
+  pinned stable Rust (confirmed by trying the pinned 1.98.1 stable
+  toolchain first, which fails immediately with a `-Z build-std` error) —
+  matching what `docs/PHASE0-RESULT.md` already found for the earlier
+  OpenMLS spike's own WASM build, even though Phase 1's own crates have no
+  OpenMLS/crypto dependency and so were not guaranteed to hit the same
+  nightly requirement.
+- `wasm-pack`'s bundled `wasm-opt` step failed to download its `binaryen`
+  release asset in this environment; since it's a size optimization with no
+  bearing on correctness, it's now disabled via Cargo package metadata
+  (`wasm-opt = false`) rather than treated as a build failure to work
+  around every time — see `docs/DECISIONS.md`.
+- Installing `wasm-bindgen-cli` 0.2.129 directly (rather than letting
+  `wasm-pack` auto-install it) was necessary: `wasm-pack` leaks the WASM
+  target's `RUSTFLAGS` into that auto-install's own native host build,
+  breaking its linker step. This is a `wasm-pack` behavior, not a project
+  bug, but the workflow installs it explicitly up front to avoid hitting it.
+- `flutter build web --wasm` succeeds and produces a working `build/web`
+  deployment.
+- Running `integration_test/ledger_test.dart` against that build failed
+  locally: `flutter test` flatly refuses web devices for `integration_test`
+  ("Web devices are not supported for integration tests yet"), and the
+  `flutter drive` + ChromeDriver path that Flutter's own docs prescribe
+  instead hung waiting for Chrome's debug connection in this specific
+  sandbox (headless Chromium running as root, no GPU, a
+  several-major-versions-mismatched ChromeDriver were all in play at once,
+  any of which could be the cause) — this looks like an artifact of this
+  particular container rather than of the app, but it was not resolved
+  here, and `phase1-web.yml` has not actually been run end-to-end yet.
+- The Android workflow (`phase1-android.yml`) was not tried locally at
+  all — a hardware-accelerated Android emulator isn't something this
+  environment has, unlike the Chromium binary that made the web
+  investigation above possible.
+
+In short: both new workflows are informed by real, direct investigation
+of what Phase 1's own code needs for the WASM/web toolchain (not assumed
+from the Phase 0 spike's requirements), but **neither has completed a
+real run yet** — both need to actually be dispatched and their results
+recorded honestly, the same way every iOS workflow run above was, before
+Android/web verification can be marked done.
+
 ## Remaining work
 
 Ledger events now persist locally and survive a restart, each device keeps a
@@ -581,9 +642,11 @@ biometric lock is built — every one of these confirmed on real iOS hardware
 the biometric lock; see each section above for the specific run that
 verified it). Still open before Phase 1's exit test can be called complete:
 
-- Run the Android integration test and the web runtime check against every
-  feature above (see each section's iOS/Android/web note) — nothing this
-  session has Android or web runtime verification yet, only iOS.
+- Dispatch `phase1-android.yml` and `phase1-web.yml` (see the "Android and
+  web CI infrastructure" section above) and record their real results —
+  the workflows exist now but have not actually been run to completion, so
+  nothing in this project has Android or web runtime verification yet,
+  only iOS.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
