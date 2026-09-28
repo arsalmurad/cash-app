@@ -80,28 +80,39 @@ jobs:
         working-directory: app
         run: flutter build web --wasm
 
-      - name: Install a matching ChromeDriver
+      - name: Install and start ChromeDriver
         run: |
           npx --yes @puppeteer/browsers install chromedriver@stable --path "$RUNNER_TEMP/chromedriver"
           driver_bin="$(find "$RUNNER_TEMP/chromedriver" -type f -name chromedriver | head -n1)"
           chmod +x "$driver_bin"
-          echo "$(dirname "$driver_bin")" >> "$GITHUB_PATH"
           "$driver_bin" --version
+          # `-d web-server` needs a WebDriver server already listening on
+          # --driver-port (default 4444) — flutter drive does not spawn one
+          # itself. Confirmed by a real run: with chromedriver merely on
+          # PATH but not started, it failed fast with "Unable to start a
+          # WebDriver session for web testing. Make sure you have the
+          # correct WebDriver server (e.g. chromedriver) running at 4444."
+          "$driver_bin" --port=4444 &
+          echo "Waiting for ChromeDriver to accept connections..."
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:4444/status > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:4444/status
 
       - name: Run personal ledger integration test
         working-directory: app
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
-        # `-d chrome` hung indefinitely at "Waiting for connection from
-        # debug service on Chrome..." on two consecutive real CI runs
-        # (confirmed not a --headless/--web-run-headless flag issue: both
-        # were already passed). `-d chrome` runs the app via Chrome's own
-        # CDP connection, a different code path from the WebDriver-managed
-        # Chrome (launched through the `chromedriver` on PATH, on
-        # --driver-port, default 4444) that `flutter drive`'s driver script
-        # actually waits to connect through — so the two were never talking
-        # to the same browser instance. `-d web-server` is Flutter's own
-        # documented device for this combination.
+        # `-d chrome` (tried first) hung indefinitely at "Waiting for
+        # connection from debug service on Chrome..." on two consecutive
+        # real CI runs — it runs the app via Chrome's own CDP connection, a
+        # different code path from the WebDriver-managed Chrome that
+        # flutter drive's driver script actually waits to connect through,
+        # so the two were never talking to the same browser instance.
+        # `-d web-server` is Flutter's own documented device for this
+        # combination, but still needs chromedriver already running as a
+        # server (see the previous step) rather than merely on PATH.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart

@@ -696,13 +696,21 @@ cause investigation went through two rounds:
   the only one.
 - The real cause: the command used `-d chrome`, which runs the app via
   Chrome's own CDP connection — a different code path from the
-  WebDriver-managed Chrome (launched via the `chromedriver` binary already
-  on `PATH`, on `--driver-port`, default 4444) that `flutter drive`'s
-  driver script (`test_driver/integration_test.dart`) actually waits to
-  connect through. The two were never talking to the same browser
-  instance, so the driver waited forever. `-d web-server` is Flutter's own
-  documented device for this exact combination; switched to it (this
-  change). Re-dispatch result not yet recorded here.
+  WebDriver-managed Chrome that `flutter drive`'s driver script
+  (`test_driver/integration_test.dart`) actually waits to connect through.
+  The two were never talking to the same browser instance, so the driver
+  waited forever. Switched to `-d web-server`, Flutter's own documented
+  device for this combination (commit `5847da6`).
+- That switch turned the 45-minute hang into an immediate, explicit
+  failure instead: "Unable to start a WebDriver session for web testing.
+  Make sure you have the correct WebDriver server (e.g. chromedriver)
+  running at 4444." — `-d web-server` needs a WebDriver server already
+  *listening* on `--driver-port` (4444 by default); having `chromedriver`
+  merely on `PATH` (which was enough to make the earlier, wrong `-d
+  chrome` path silently do nothing) does not start one. Fixed by starting
+  `chromedriver --port=4444` as a background process and polling
+  `http://localhost:4444/status` until it accepts connections, before
+  running `flutter drive`. Result not yet recorded here.
 
 ## Remaining work
 
