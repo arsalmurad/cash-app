@@ -73,6 +73,8 @@ jobs:
 
       - name: Boot emulator and run instrumented test
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
         with:
           api-level: 34
           # ubuntu-latest runners are x86_64 hosts, so x86_64 is the
@@ -84,15 +86,14 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
+          # The action tears the emulator down as soon as `script` returns,
+          # so the actual test run has to happen in here — a later,
+          # separate step no longer has a device to talk to (confirmed by
+          # a real run: the emulator booted fine, but the following step
+          # saw "No devices are connected").
           script: |
             adb devices
-            echo "EMULATOR_READY=1" >> "$GITHUB_ENV"
-
-      - name: Run personal ledger integration test
-        working-directory: app
-        env:
-          RUSTUP_TOOLCHAIN: 1.98.1
-        run: flutter test integration_test/ledger_test.dart -d android
+            cd app && flutter test integration_test/ledger_test.dart -d android
 
       - name: Build release APK
         working-directory: app
