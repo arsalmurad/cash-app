@@ -60,11 +60,12 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          # macos-15 GitHub-hosted runners are Apple Silicon (arm64), which
-          # cannot boot an x86_64 emulator image without Rosetta — the
-          # first real run of this workflow hit exactly that and timed out
-          # waiting for the emulator to boot. arm64 matches the host CPU.
-          arch: arm64
+          # macos-15 GitHub-hosted runners are Apple Silicon, which cannot
+          # boot an x86_64 emulator image without Rosetta — the first real
+          # run of this workflow hit exactly that and timed out waiting
+          # for the emulator to boot. arm64-v8a matches the host CPU (the
+          # action rejects the shorter "arm64" spelling outright).
+          arch: arm64-v8a
           target: google_apis
           profile: pixel_6
           force-avd-creation: false
