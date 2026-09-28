@@ -1,3 +1,13 @@
 rust_input: crate::api
 rust_root: ../rust/api/
 dart_output: lib/data/rust
+# Web's threaded worker pool (the default async dispatch model) panics on
+# every Rust call: browsers can't clone a WebAssembly.Memory object via
+# postMessage, which is what that pool needs to hand work to a worker — a
+# known, maintainer-acknowledged flutter_rust_bridge limitation, closed
+# upstream as "not planned" (fzyzcjy/flutter_rust_bridge#2914). Disabling
+# async dispatch makes every generated Rust-bridge call run synchronously
+# on the calling isolate/thread instead, on every platform, not just web;
+# see docs/DECISIONS.md for the full rationale and what changed at each
+# call site to accommodate it.
+default_dart_async: false

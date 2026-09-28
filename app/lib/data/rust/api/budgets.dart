@@ -15,7 +15,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// Opens a budget book by replaying a durable log's bytes. Pass an empty
 /// `log_bytes` for a brand-new installation; matches
 /// `ledger::load_personal_ledger`/`categories::load_category_book`.
-Future<BudgetBook> loadBudgetBook({
+BudgetBook loadBudgetBook({
   required String actorId,
   required List<int> logBytes,
 }) => RustLib.instance.api.crateApiBudgetsLoadBudgetBook(
@@ -23,14 +23,14 @@ Future<BudgetBook> loadBudgetBook({
   logBytes: logBytes,
 );
 
-Future<BudgetLoadReport> budgetLoadReport({required BudgetBook book}) =>
+BudgetLoadReport budgetLoadReport({required BudgetBook book}) =>
     RustLib.instance.api.crateApiBudgetsBudgetLoadReport(book: book);
 
 /// Creates or updates a budget. `limit_amount`/`limit_currency_code` must use
 /// the ledger's reporting currency: budget progress is always computed and
 /// displayed in that currency (see `budget_progress`), so a mismatched
 /// currency here would silently compare unlike units.
-Future<BudgetMutation> upsertBudget({
+BudgetMutation upsertBudget({
   required BudgetBook book,
   required String budgetId,
   required String name,
@@ -54,7 +54,7 @@ Future<BudgetMutation> upsertBudget({
 
 /// Every budget's current progress, computed against `now_millis` (the
 /// caller's wall clock — this crate has no wall-clock dependency of its own).
-Future<List<BudgetView>> budgetProgress({
+List<BudgetView> budgetProgress({
   required PersonalLedger ledger,
   required BudgetBook book,
   required PlatformInt64 nowMillis,

@@ -53,16 +53,15 @@ flutter_rust_bridge::frb_generated_default_handler!();
 // Section: wire_funcs
 
 fn wire__crate__api__ledger__add_account_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "add_account",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -82,48 +81,45 @@ fn wire__crate__api__ledger__add_account_impl(
             let api_currency_code = <String>::sse_decode(&mut deserializer);
             let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let output_ok = crate::api::ledger::add_account(
-                        &*api_ledger_guard,
-                        api_account_id,
-                        api_name,
-                        api_currency_code,
-                        api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let output_ok = crate::api::ledger::add_account(
+                    &*api_ledger_guard,
+                    api_account_id,
+                    api_name,
+                    api_currency_code,
+                    api_wall_clock_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__budgets__budget_load_report_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "budget_load_report",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -139,40 +135,37 @@ fn wire__crate__api__budgets__budget_load_report_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::budgets::budget_load_report(&*api_book_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::budgets::budget_load_report(&*api_book_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__budgets__budget_progress_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "budget_progress",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -192,52 +185,49 @@ fn wire__crate__api__budgets__budget_progress_impl(
             >>::sse_decode(&mut deserializer);
             let api_now_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 1, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 1, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::budgets::budget_progress(
-                        &*api_ledger_guard,
-                        &*api_book_guard,
-                        api_now_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::budgets::budget_progress(
+                    &*api_ledger_guard,
+                    &*api_book_guard,
+                    api_now_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__categories__category_load_report_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "category_load_report",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -253,40 +243,37 @@ fn wire__crate__api__categories__category_load_report_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::categories::category_load_report(&*api_book_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::categories::category_load_report(&*api_book_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__ledger__get_overview_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "get_overview",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -302,42 +289,39 @@ fn wire__crate__api__ledger__get_overview_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let output_ok = crate::api::ledger::get_overview(&*api_ledger_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let output_ok = crate::api::ledger::get_overview(&*api_ledger_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__goals__goal_load_report_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "goal_load_report",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -353,40 +337,37 @@ fn wire__crate__api__goals__goal_load_report_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::goals::goal_load_report(&*api_book_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::goals::goal_load_report(&*api_book_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__goals__goal_progress_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "goal_progress",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -405,49 +386,46 @@ fn wire__crate__api__goals__goal_progress_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 1, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 1, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok =
-                        crate::api::goals::goal_progress(&*api_ledger_guard, &*api_book_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok =
+                    crate::api::goals::goal_progress(&*api_ledger_guard, &*api_book_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__ledger__init_app_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "init_app",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -460,28 +438,25 @@ fn wire__crate__api__ledger__init_app_impl(
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, ()>((move || {
-                    let output_ok = Ok::<_, ()>({
-                        crate::api::ledger::init_app();
-                    })?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Ok::<_, ()>({
+                    crate::api::ledger::init_app();
+                })?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__categories__list_categories_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "list_categories",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -497,40 +472,37 @@ fn wire__crate__api__categories__list_categories_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<CategoryBook>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::categories::list_categories(&*api_book_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::categories::list_categories(&*api_book_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__budgets__load_budget_book_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "load_budget_book",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -545,27 +517,23 @@ fn wire__crate__api__budgets__load_budget_book_impl(
             let api_actor_id = <String>::sse_decode(&mut deserializer);
             let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::api::budgets::load_budget_book(api_actor_id, api_log_bytes)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, String>((move || {
+                let output_ok = crate::api::budgets::load_budget_book(api_actor_id, api_log_bytes)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__categories__load_category_book_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "load_category_book",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -580,27 +548,24 @@ fn wire__crate__api__categories__load_category_book_impl(
             let api_actor_id = <String>::sse_decode(&mut deserializer);
             let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::api::categories::load_category_book(api_actor_id, api_log_bytes)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, String>((move || {
+                let output_ok =
+                    crate::api::categories::load_category_book(api_actor_id, api_log_bytes)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__goals__load_goal_book_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "load_goal_book",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -615,26 +580,23 @@ fn wire__crate__api__goals__load_goal_book_impl(
             let api_actor_id = <String>::sse_decode(&mut deserializer);
             let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::api::goals::load_goal_book(api_actor_id, api_log_bytes)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, String>((move || {
+                let output_ok = crate::api::goals::load_goal_book(api_actor_id, api_log_bytes)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__ledger__load_personal_ledger_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "load_personal_ledger",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -650,30 +612,27 @@ fn wire__crate__api__ledger__load_personal_ledger_impl(
             let api_reporting_currency_code = <String>::sse_decode(&mut deserializer);
             let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok = crate::api::ledger::load_personal_ledger(
-                        api_actor_id,
-                        api_reporting_currency_code,
-                        api_log_bytes,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, String>((move || {
+                let output_ok = crate::api::ledger::load_personal_ledger(
+                    api_actor_id,
+                    api_reporting_currency_code,
+                    api_log_bytes,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__recurring__load_recurring_book_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "load_recurring_book",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -688,27 +647,24 @@ fn wire__crate__api__recurring__load_recurring_book_impl(
             let api_actor_id = <String>::sse_decode(&mut deserializer);
             let api_log_bytes = <Vec<u8>>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let output_ok =
-                        crate::api::recurring::load_recurring_book(api_actor_id, api_log_bytes)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+            transform_result_sse::<_, String>((move || {
+                let output_ok =
+                    crate::api::recurring::load_recurring_book(api_actor_id, api_log_bytes)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__ledger__load_report_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "load_report",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -724,42 +680,39 @@ fn wire__crate__api__ledger__load_report_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let output_ok = crate::api::ledger::load_report(&*api_ledger_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let output_ok = crate::api::ledger::load_report(&*api_ledger_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__ledger__record_transaction_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "record_transaction",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -786,55 +739,52 @@ fn wire__crate__api__ledger__record_transaction_impl(
             let api_recurring_id = <Option<String>>::sse_decode(&mut deserializer);
             let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let output_ok = crate::api::ledger::record_transaction(
-                        &*api_ledger_guard,
-                        api_transaction_id,
-                        api_account_id,
-                        api_kind,
-                        api_amount,
-                        api_currency_code,
-                        api_fx_numerator,
-                        api_fx_denominator,
-                        api_title,
-                        api_category_id,
-                        api_recurring_id,
-                        api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let output_ok = crate::api::ledger::record_transaction(
+                    &*api_ledger_guard,
+                    api_transaction_id,
+                    api_account_id,
+                    api_kind,
+                    api_amount,
+                    api_currency_code,
+                    api_fx_numerator,
+                    api_fx_denominator,
+                    api_title,
+                    api_category_id,
+                    api_recurring_id,
+                    api_wall_clock_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__ledger__record_transfer_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "record_transfer",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -863,57 +813,54 @@ fn wire__crate__api__ledger__record_transfer_impl(
             let api_title = <String>::sse_decode(&mut deserializer);
             let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let output_ok = crate::api::ledger::record_transfer(
-                        &*api_ledger_guard,
-                        api_transfer_id,
-                        api_from_account_id,
-                        api_to_account_id,
-                        api_sent_amount,
-                        api_sent_currency_code,
-                        api_sent_fx_numerator,
-                        api_sent_fx_denominator,
-                        api_received_amount,
-                        api_received_currency_code,
-                        api_received_fx_numerator,
-                        api_received_fx_denominator,
-                        api_title,
-                        api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let output_ok = crate::api::ledger::record_transfer(
+                    &*api_ledger_guard,
+                    api_transfer_id,
+                    api_from_account_id,
+                    api_to_account_id,
+                    api_sent_amount,
+                    api_sent_currency_code,
+                    api_sent_fx_numerator,
+                    api_sent_fx_denominator,
+                    api_received_amount,
+                    api_received_currency_code,
+                    api_received_fx_numerator,
+                    api_received_fx_denominator,
+                    api_title,
+                    api_wall_clock_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__recurring__recurring_load_report_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "recurring_load_report",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -929,40 +876,37 @@ fn wire__crate__api__recurring__recurring_load_report_impl(
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>,
             >>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::recurring::recurring_load_report(&*api_book_guard)?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::recurring::recurring_load_report(&*api_book_guard)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__ledger__suggest_category_for_title_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "suggest_category_for_title",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -979,45 +923,40 @@ fn wire__crate__api__ledger__suggest_category_for_title_impl(
             >>::sse_decode(&mut deserializer);
             let api_title = <String>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let output_ok = crate::api::ledger::suggest_category_for_title(
-                        &*api_ledger_guard,
-                        api_title,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let output_ok =
+                    crate::api::ledger::suggest_category_for_title(&*api_ledger_guard, api_title)?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__recurring__upcoming_occurrences_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "upcoming_occurrences",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -1038,53 +977,50 @@ fn wire__crate__api__recurring__upcoming_occurrences_impl(
             let api_now_millis = <i64>::sse_decode(&mut deserializer);
             let api_horizon_days = <u32>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_ledger_guard = None;
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_ledger,
-                                0,
-                                false,
-                            ),
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 1, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
-                            1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_ledger_guard = None;
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_ledger,
+                            0,
+                            false,
+                        ),
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 1, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                        1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_ledger_guard = api_ledger_guard.unwrap();
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::recurring::upcoming_occurrences(
-                        &*api_ledger_guard,
-                        &*api_book_guard,
-                        api_now_millis,
-                        api_horizon_days,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_ledger_guard = api_ledger_guard.unwrap();
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::recurring::upcoming_occurrences(
+                    &*api_ledger_guard,
+                    &*api_book_guard,
+                    api_now_millis,
+                    api_horizon_days,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__budgets__upsert_budget_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "upsert_budget",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -1108,50 +1044,47 @@ fn wire__crate__api__budgets__upsert_budget_impl(
             let api_custom_period_days = <Option<u32>>::sse_decode(&mut deserializer);
             let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::budgets::upsert_budget(
-                        &*api_book_guard,
-                        api_budget_id,
-                        api_name,
-                        api_category_id,
-                        api_limit_amount,
-                        api_limit_currency_code,
-                        api_period,
-                        api_custom_period_days,
-                        api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::budgets::upsert_budget(
+                    &*api_book_guard,
+                    api_budget_id,
+                    api_name,
+                    api_category_id,
+                    api_limit_amount,
+                    api_limit_currency_code,
+                    api_period,
+                    api_custom_period_days,
+                    api_wall_clock_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__categories__upsert_category_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "upsert_category",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -1171,46 +1104,43 @@ fn wire__crate__api__categories__upsert_category_impl(
             let api_icon_key = <String>::sse_decode(&mut deserializer);
             let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::categories::upsert_category(
-                        &*api_book_guard,
-                        api_category_id,
-                        api_name,
-                        api_icon_key,
-                        api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::categories::upsert_category(
+                    &*api_book_guard,
+                    api_category_id,
+                    api_name,
+                    api_icon_key,
+                    api_wall_clock_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__goals__upsert_goal_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "upsert_goal",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -1235,51 +1165,48 @@ fn wire__crate__api__goals__upsert_goal_impl(
             let api_deadline_millis = <Option<i64>>::sse_decode(&mut deserializer);
             let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::goals::upsert_goal(
-                        &*api_book_guard,
-                        api_goal_id,
-                        api_name,
-                        api_kind,
-                        api_target_amount,
-                        api_target_currency_code,
-                        api_linked_account_id,
-                        api_category_id,
-                        api_deadline_millis,
-                        api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::goals::upsert_goal(
+                    &*api_book_guard,
+                    api_goal_id,
+                    api_name,
+                    api_kind,
+                    api_target_amount,
+                    api_target_currency_code,
+                    api_linked_account_id,
+                    api_category_id,
+                    api_deadline_millis,
+                    api_wall_clock_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
 fn wire__crate__api__recurring__upsert_recurring_impl(
-    port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
     data_len_: i32,
-) {
-    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
             debug_name: "upsert_recurring",
-            port: Some(port_),
-            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let message = unsafe {
@@ -1306,38 +1233,36 @@ fn wire__crate__api__recurring__upsert_recurring_impl(
             let api_start_millis = <i64>::sse_decode(&mut deserializer);
             let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
             deserializer.end();
-            move |context| {
-                transform_result_sse::<_, String>((move || {
-                    let mut api_book_guard = None;
-                    let decode_indices_ =
-                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
-                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
-                                &api_book, 0, false,
-                            ),
-                        ]);
-                    for i in decode_indices_ {
-                        match i {
-                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
-                            _ => unreachable!(),
-                        }
+            transform_result_sse::<_, String>((move || {
+                let mut api_book_guard = None;
+                let decode_indices_ =
+                    flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                        flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                            &api_book, 0, false,
+                        ),
+                    ]);
+                for i in decode_indices_ {
+                    match i {
+                        0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                        _ => unreachable!(),
                     }
-                    let api_book_guard = api_book_guard.unwrap();
-                    let output_ok = crate::api::recurring::upsert_recurring(
-                        &*api_book_guard,
-                        api_recurring_id,
-                        api_title,
-                        api_kind,
-                        api_amount,
-                        api_currency_code,
-                        api_account_id,
-                        api_category_id,
-                        api_frequency,
-                        api_start_millis,
-                        api_wall_clock_millis,
-                    )?;
-                    std::result::Result::Ok(output_ok)
-                })())
-            }
+                }
+                let api_book_guard = api_book_guard.unwrap();
+                let output_ok = crate::api::recurring::upsert_recurring(
+                    &*api_book_guard,
+                    api_recurring_id,
+                    api_title,
+                    api_kind,
+                    api_amount,
+                    api_currency_code,
+                    api_account_id,
+                    api_category_id,
+                    api_frequency,
+                    api_start_millis,
+                    api_wall_clock_millis,
+                )?;
+                std::result::Result::Ok(output_ok)
+            })())
         },
     )
 }
@@ -2014,56 +1939,6 @@ fn pde_ffi_dispatcher_primary_impl(
 ) {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        1 => wire__crate__api__ledger__add_account_impl(port, ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__budgets__budget_load_report_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__budgets__budget_progress_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__categories__category_load_report_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        5 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__goals__goal_load_report_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__goals__goal_progress_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
-        11 => {
-            wire__crate__api__categories__load_category_book_impl(port, ptr, rust_vec_len, data_len)
-        }
-        12 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
-        13 => {
-            wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
-        }
-        14 => {
-            wire__crate__api__recurring__load_recurring_book_impl(port, ptr, rust_vec_len, data_len)
-        }
-        15 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__recurring__recurring_load_report_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        19 => wire__crate__api__ledger__suggest_category_for_title_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        20 => wire__crate__api__recurring__upcoming_occurrences_impl(
-            port,
-            ptr,
-            rust_vec_len,
-            data_len,
-        ),
-        21 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2076,6 +1951,32 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
+        1 => wire__crate__api__ledger__add_account_impl(ptr, rust_vec_len, data_len),
+        2 => wire__crate__api__budgets__budget_load_report_impl(ptr, rust_vec_len, data_len),
+        3 => wire__crate__api__budgets__budget_progress_impl(ptr, rust_vec_len, data_len),
+        4 => wire__crate__api__categories__category_load_report_impl(ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__ledger__get_overview_impl(ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__goals__goal_load_report_impl(ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__goals__goal_progress_impl(ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__ledger__init_app_impl(ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__categories__list_categories_impl(ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__budgets__load_budget_book_impl(ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__categories__load_category_book_impl(ptr, rust_vec_len, data_len),
+        12 => wire__crate__api__goals__load_goal_book_impl(ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__ledger__load_personal_ledger_impl(ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__recurring__load_recurring_book_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__ledger__load_report_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__ledger__record_transaction_impl(ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__ledger__record_transfer_impl(ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__recurring__recurring_load_report_impl(ptr, rust_vec_len, data_len),
+        19 => {
+            wire__crate__api__ledger__suggest_category_for_title_impl(ptr, rust_vec_len, data_len)
+        }
+        20 => wire__crate__api__recurring__upcoming_occurrences_impl(ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__budgets__upsert_budget_impl(ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__categories__upsert_category_impl(ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__goals__upsert_goal_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__recurring__upsert_recurring_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

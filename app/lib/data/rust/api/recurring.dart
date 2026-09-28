@@ -16,7 +16,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// empty `log_bytes` for a brand-new installation; matches
 /// `ledger::load_personal_ledger`/`budgets::load_budget_book`/
 /// `goals::load_goal_book`.
-Future<RecurringBook> loadRecurringBook({
+RecurringBook loadRecurringBook({
   required String actorId,
   required List<int> logBytes,
 }) => RustLib.instance.api.crateApiRecurringLoadRecurringBook(
@@ -24,15 +24,14 @@ Future<RecurringBook> loadRecurringBook({
   logBytes: logBytes,
 );
 
-Future<RecurringLoadReport> recurringLoadReport({
-  required RecurringBook book,
-}) => RustLib.instance.api.crateApiRecurringRecurringLoadReport(book: book);
+RecurringLoadReport recurringLoadReport({required RecurringBook book}) =>
+    RustLib.instance.api.crateApiRecurringRecurringLoadReport(book: book);
 
 /// Creates or updates a recurring rule. `amount`/`currency_code` must use
 /// `account_id`'s own currency, exactly like `ledger::record_transaction`,
 /// since recording a due occurrence calls that same function with these
 /// values.
-Future<RecurringMutation> upsertRecurring({
+RecurringMutation upsertRecurring({
   required RecurringBook book,
   required String recurringId,
   required String title,
@@ -63,7 +62,7 @@ Future<RecurringMutation> upsertRecurring({
 /// its `recurring_id` (or the rule's own `start_millis`, if none has been
 /// recorded yet); the occurrence returned is the first one strictly after
 /// that anchor.
-Future<List<UpcomingView>> upcomingOccurrences({
+List<UpcomingView> upcomingOccurrences({
   required PersonalLedger ledger,
   required RecurringBook book,
   required PlatformInt64 nowMillis,

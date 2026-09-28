@@ -416,3 +416,33 @@ to run `integration_test/ledger_test.dart` on web is `flutter drive` with
 a WebDriver (ChromeDriver) session, which is why `phase1-web.yml` and the
 new `app/test_driver/integration_test.dart` driver entrypoint exist
 alongside the `flutter test` calls the other workflows use.
+
+## 2026-09-28 — Rust bridge calls run synchronously, on every platform
+
+`flutter_rust_bridge.yaml` sets `default_dart_async: false`. Without it,
+every generated Rust-bridge call on web panics on first use:
+`flutter_rust_bridge`'s web dispatch model spawns a pool of Web Workers
+and hands each one the WASM module via `postMessage`, and browsers
+cannot clone a `WebAssembly.Memory` object that way — a real,
+maintainer-acknowledged upstream limitation, closed as "not planned"
+([fzyzcjy/flutter_rust_bridge#2914](https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914)).
+Confirmed directly (not assumed) that this reproduces identically in
+debug, profile, and release web builds alike, and that this Flutter
+Rust bridge version has no per-platform override for it: `default_dart_async`
+is a single global codegen setting, so this change applies to iOS and
+Android too, not just web.
+
+The trade-off: every Rust call in `ledger_controller.dart` (previously
+`Future<T>`-returning, dispatched to a worker/isolate) now runs
+synchronously on the calling thread. For this app's actual operations —
+folding an in-memory event log measured in thousands of entries, not
+millions — that's a genuinely fast, sub-millisecond-scale call; the
+`Future<...>` signatures on `LedgerController`'s public methods
+(`record`, `transfer`, `addOrUpdateBudget`, etc.) are kept as-is so the UI
+layer's `await` calls don't need to change, but the actual Rust work they
+do is no longer offloaded to a separate worker/isolate. If a future
+Phase's ledger sizes make this measurably slow, the fix is `Snapshot`
+compaction (already implemented at the core level, not yet wired into
+the persisted log — see "Remaining work" in
+`docs/PHASE1-PROGRESS.md`), which bounds replay cost regardless of
+dispatch mode, rather than re-enabling a broken web threading path.
