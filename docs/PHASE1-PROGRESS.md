@@ -748,40 +748,74 @@ cause investigation went through two rounds:
   entirely; that debug-mode JS has a different stack-trace shape than the
   release build the regex was written against, so the match fails. This
   is a documented `flutter_rust_bridge` constraint: web threading needs
-  release or profile mode, not debug. Fixed by adding `--release`; the
-  panic disappeared entirely (real progress).
-- With that fixed, a real failure appeared — reproducibly, on repeated
-  runs of the same commit, so not a flake — but the failure report showed
-  *no* exception text whatsoever, even with `--verbose`: `Failure
-  Details:` followed immediately by `Failure in method: ...` and
-  `end of failure 1`, nothing in between. This sent the investigation down
-  two dead ends before finding the real cause:
-  - Suspected `package:integration_test`'s `FlutterError`/`TestFailure`
-    verbose formatting being gated behind `!kReleaseMode` (so `--release`
-    would silently discard it) and switched to `--profile`, expecting the
-    same optimized non-DDC JS shape without that gate. A real run proved
-    this wrong on both counts: `--profile` hit the *exact same*
-    `RuntimeError: unreachable` WorkerPool panic that `--release` was
-    supposed to have fixed — `--profile` does not, in fact, compile a JS
-    shape compatible with `flutter_rust_bridge`'s web threading, only
-    `--release` does.
+  release or profile mode, not debug. Switched from the default debug
+  mode to `--release`.
+- The failure report then showed *no* exception text whatsoever, even
+  with `--verbose`: `Failure Details:` followed immediately by
+  `Failure in method: ...` and `end of failure 1`, nothing in between —
+  which was wrongly read at the time as evidence the panic above was
+  fixed and a *different*, real test failure had appeared. It was not:
+  the blank report was hiding the exact same panic the whole time, and
+  every subsequent lead chasing "what's the new failure" was chasing a
+  failure that didn't exist as a separate thing:
+  - Suspected `FlutterError`/`TestFailure` verbose formatting being gated
+    behind `!kReleaseMode`; switched to `--profile`. Still blank, and (it
+    turned out) still the same panic.
   - Suspected `print()` inside the test would surface in CI output
-    regardless of the driver's own reporting; it never appeared. Cause:
-    the `-d web-server` device has no browser console access at all
-    (`flutter drive`'s own log says so explicitly — "requires the Dart
-    Debug Chrome extension for debugging", which this headless CI setup
-    doesn't have).
-  - What actually worked: routing the caught exception through
+    regardless of the driver's own reporting; it never appeared. Real
+    cause, confirmed: the `-d web-server` device has no browser console
+    access at all (`flutter drive`'s own log says so explicitly —
+    "requires the Dart Debug Chrome extension for debugging", which this
+    headless CI setup doesn't have).
+  - What finally worked: routing the caught exception through
     `IntegrationTestWidgetsFlutterBinding.instance.reportData` (a
     separate channel, unaffected by both of the above), with the driver
     set to `writeResponseOnFailure: true` so it gets written to
     `build/integration_response_data.json` regardless of outcome, printed
-    by a new always-run CI step. This finally surfaced the real
-    exception — and it was the same `RuntimeError: unreachable` /
-    `WorkerPool::default()` panic as the original one `--release` fixed,
-    just recurring under `--profile`. Reverted to `--release` (now with
-    `reportData` capture kept, so a *different* real failure would no
-    longer come back blank). Result not yet recorded here.
+    by a new always-run CI step
+    (`test_driver/integration_test.dart`, `integration_test/ledger_test.dart`).
+    This surfaced the real exception on the very next run — under
+    `--release` — and it was `RuntimeError: unreachable` /
+    `WorkerPool::default()`: **the exact same panic as at the very start
+    of this investigation, on every build mode tried (debug, profile,
+    release) alike.** Nothing in this whole chain of CI/build-mode fixes
+    had actually resolved it; the reporting bug simply hid it well enough
+    to look like progress.
+
+### Web: root cause found, not fixed — a real flutter_rust_bridge limitation
+
+With the real exception finally visible, this is a known, upstream,
+maintainer-acknowledged `flutter_rust_bridge` limitation, not a CI
+configuration problem:
+[fzyzcjy/flutter_rust_bridge#2914](https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914)
+(closed as "not planned"). `flutter_rust_bridge`'s web threading spawns a
+pool of Web Workers and hands each one the WASM module's linear memory via
+`postMessage` so Rust calls can run off the main thread; browsers cannot
+clone a `WebAssembly.Memory` object through `postMessage` for this kind of
+setup, so `WorkerPool::default()` panics on the very first Rust call this
+app makes (`crateApiLedgerInitApp`), regardless of build mode.
+
+The one known workaround, confirmed by the upstream issue: set
+`default_dart_async: false` in `flutter_rust_bridge.yaml` and regenerate.
+This was tried directly: it does eliminate the panic, but it changes the
+generated Dart bridge API from `Future<T>`-returning calls to plain,
+synchronous `T`-returning calls everywhere — not a web-only switch. Doing
+this immediately broke `flutter analyze` with 22 issues across
+`ledger_controller.dart` alone (every `await someRustCall()` site), which
+is the app's entire data layer; fixing it properly means auditing and
+rewriting every Rust-bridge call site across the app, then re-verifying
+iOS and Android (both already green on real hardware) weren't regressed
+by a change to how every single bridge call behaves, on every platform.
+That's a real, substantial, cross-cutting refactor — not a safe or
+proportionate fix to push through under CI pressure — so it was reverted
+rather than committed.
+
+**Current state**: `phase1-web.yml`'s Rust→WASM build, `flutter build web
+--wasm`, ChromeDriver setup, and app launch all work end to end on real
+CI; the one thing that does not work is running an actual Rust bridge
+call on web through this test, for the documented upstream reason above.
+Android and iOS are unaffected (their bridge calls don't go through
+`WorkerPool` at all) and remain fully green.
 
 ## Remaining work
 
@@ -799,10 +833,18 @@ verified it). Still open before Phase 1's exit test can be called complete:
   to end on a real KVM-accelerated emulator (see the "Android and web CI
   infrastructure" section above,
   [run 36455584025](https://github.com/arsalmurad/cash-app/actions/runs/36455584025)).
-  `phase1-web.yml` is still in progress — its integration test previously
-  hung on every run but is now past that point after the
-  `--web-run-headless` fix; its final result still needs to be recorded
-  here once it completes.
+  Web runtime verification hit a genuine, documented upstream
+  `flutter_rust_bridge` limitation (see "Web: root cause found, not
+  fixed" above) rather than a CI configuration problem: the web build,
+  WASM compilation, and app launch all work, but the first Rust bridge
+  call panics inside `flutter_rust_bridge`'s Web Worker thread pool
+  (browsers can't clone a `WebAssembly.Memory` object via `postMessage`),
+  regardless of build mode. The one known fix changes every Rust-bridge
+  call site across the whole app from async to sync and needs its own
+  dedicated pass — including re-verifying iOS/Android aren't regressed —
+  not something to fold into this CI-infrastructure work. Android and iOS
+  are both fully verified on real hardware/emulator; web is not, and
+  isn't expected to be until that separate fix lands.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB

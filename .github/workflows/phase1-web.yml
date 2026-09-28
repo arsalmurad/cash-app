@@ -136,23 +136,30 @@ jobs:
         # identically ("RuntimeError: unreachable" unwinding from
         # WorkerPool::default()).
         #
-        # --release (not the default debug, and not --profile either):
-        # flutter drive defaults to debug mode, which recompiles and serves
-        # the app from source via its own dev server (DDC-style JS),
-        # ignoring the release build from the previous step entirely.
-        # flutter_rust_bridge's web worker pool locates its own script URL
-        # via third_party::wasm_bindgen::worker_pool::script_path(), which
-        # extracts a path from a deliberately-thrown Error's stack trace
-        # with a regex — a hack that depends on stack-trace formatting
-        # and panics (`RuntimeError: unreachable` from WorkerPool::default)
-        # when it doesn't match. Confirmed by real runs to fail under BOTH
-        # debug and --profile identically; only --release avoids it. The
-        # earlier "profile keeps kReleaseMode false so failure details are
-        # still reported" theory was also confirmed wrong by a real run
-        # (--profile hit this exact same panic) — irrelevant now that the
-        # test captures failures via `reportData` (see
-        # test_driver/integration_test.dart), which isn't gated by
-        # kReleaseMode the way FlutterErrorDetails.toString() is.
+        # --release: flutter drive defaults to debug mode, which recompiles
+        # and serves the app from source via its own dev server (DDC-style
+        # JS), ignoring the release build from the previous step entirely.
+        # Kept here as the closest-to-production build mode even though it
+        # turned out NOT to fix the integration test (see below) — no
+        # build mode does.
+        #
+        # This test currently fails on every build mode (debug, profile,
+        # release) with the same panic: "RuntimeError: unreachable" from
+        # flutter_rust_bridge's WorkerPool::default(), on the very first
+        # Rust call. This is a known, upstream, maintainer-acknowledged
+        # flutter_rust_bridge limitation (closed as "not planned"):
+        # https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914 —
+        # browsers cannot clone a WebAssembly.Memory object via
+        # postMessage, which is what the web Worker thread pool needs to
+        # do to hand off work. The one known fix (`default_dart_async:
+        # false` in flutter_rust_bridge.yaml) changes every generated
+        # Rust-bridge call across the whole app from async to sync, not
+        # just on web — a substantial, cross-cutting refactor of its own,
+        # not a CI config change; see docs/PHASE1-PROGRESS.md's "Web: root
+        # cause found, not fixed" section for the full investigation and
+        # why it wasn't applied here. The test captures the real exception
+        # via `reportData` (see test_driver/integration_test.dart) since
+        # flutter drive's own failure reporting comes back blank here.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart
