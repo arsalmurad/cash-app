@@ -1,0 +1,112 @@
+name: Phase 1 Web
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase1-web
+  cancel-in-progress: true
+
+jobs:
+  web-wasm:
+    name: Personal ledger on Flutter web/WASM
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Record runner environment
+        run: |
+          uname -m
+          google-chrome --version || chromium-browser --version || true
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          rustc --version
+          cargo --version
+
+      # `flutter_rust_bridge_codegen build-web` always builds with a
+      # nightly toolchain regardless of the project's own pinned stable
+      # Rust (it needs unstable `-Z build-std` to produce a
+      # thread-capable WASM binary) — this matches what
+      # docs/PHASE0-RESULT.md already found for the Phase 0 spike, and is
+      # not something this project's own code controls.
+      - name: Install nightly Rust toolchain for the WASM build
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup component add rust-src --toolchain nightly
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+          rustup run nightly rustc --version
+
+      - name: Install wasm-pack and wasm-bindgen-cli
+        run: |
+          cargo install wasm-pack --version 0.15.0
+          # Installed explicitly, with a clean environment, so wasm-pack's
+          # own attempt to auto-install it (which inherits the wasm-only
+          # RUSTFLAGS wasm-pack sets for the *target* build and wrongly
+          # applies them to this *host* build too) is skipped entirely.
+          env -u RUSTFLAGS -u RUSTUP_TOOLCHAIN cargo install wasm-bindgen-cli --version 0.2.129
+
+      - name: Install pinned Flutter SDK
+        run: |
+          git clone --branch 3.47.5 --depth 1 \
+            https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare and test Flutter project
+        working-directory: app
+        run: |
+          flutter config --no-analytics
+          flutter --version
+          flutter precache --web
+          flutter pub get
+          flutter analyze
+          flutter test test
+
+      - name: Build the Rust core to WASM
+        working-directory: app
+        run: |
+          flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release
+
+      - name: Build Flutter web/WASM release
+        working-directory: app
+        run: flutter build web --wasm
+
+      - name: Install a matching ChromeDriver
+        run: |
+          npx --yes @puppeteer/browsers install chromedriver@stable --path "$RUNNER_TEMP/chromedriver"
+          driver_bin="$(find "$RUNNER_TEMP/chromedriver" -type f -name chromedriver | head -n1)"
+          chmod +x "$driver_bin"
+          echo "$(dirname "$driver_bin")" >> "$GITHUB_PATH"
+          "$driver_bin" --version
+
+      - name: Run personal ledger integration test
+        working-directory: app
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+        run: >-
+          flutter drive
+          --driver=test_driver/integration_test.dart
+          --target=integration_test/ledger_test.dart
+          -d chrome --web-port=7357 --browser-name=chrome
+          --headless
+
+      - name: Record Phase 1 web result
+        shell: bash
+        run: |
+          set -euo pipefail
+          web_bytes="$(du -sk "$GITHUB_WORKSPACE/app/build/web" | cut -f1)"
+          {
+            echo "## Phase 1 web result"
+            echo
+            echo "- Personal ledger integration test (Chrome, WASM): passed"
+            echo "- Web/WASM release build: passed"
+            echo "- build/web size: ${web_bytes} KiB"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
