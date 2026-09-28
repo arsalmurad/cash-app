@@ -148,12 +148,17 @@ jobs:
         # returns None (then .expect()-panics) when it doesn't match. This
         # is a documented flutter_rust_bridge web-threading constraint:
         # release/profile mode only, not debug.
+        # --verbose: the release-mode failure report shows only "Failure
+        # Details: Failure in method: ..." with no exception text at all —
+        # reproducible twice, not a flake — so verbose output is needed to
+        # see what's actually being thrown.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart
           --target=integration_test/ledger_test.dart
           -d web-server --web-port=7357 --browser-name=chrome
           --headless --web-run-headless --cross-origin-isolation --release
+          --verbose
 
       - name: Record Phase 1 web result
         shell: bash
