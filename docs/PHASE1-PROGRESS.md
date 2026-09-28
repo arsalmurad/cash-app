@@ -721,7 +721,20 @@ cause investigation went through two rounds:
   and installing that same version's ChromeDriver build instead of
   `@stable` (a bare major version like `chromedriver@153` is not itself a
   resolvable build via `@puppeteer/browsers` and 403s; the full
-  `major.minor.build.patch` version is). Result not yet recorded here.
+  `major.minor.build.patch` version is).
+- With a matching driver, the app finally launched for real (a Dart VM
+  Service came up, the WASM module loaded) — and then the very first FRB
+  call panicked: `RuntimeError: unreachable`, unwinding from
+  `flutter_rust_bridge`'s `WorkerPool::default()` during
+  `frb_generated::THREAD_POOL` init. Cause: the WASM build uses
+  `-Ctarget-feature=atomics` (needed for FRB's threaded worker pool),
+  which requires `SharedArrayBuffer`, which browsers only expose on a
+  cross-origin-isolated page (`Cross-Origin-Opener-Policy` /
+  `Cross-Origin-Embedder-Policy` headers) — `flutter drive`'s dev server
+  doesn't send those by default (`flutter build web --wasm` turns them on
+  automatically for the `skwasm` renderer, but the dev server used by
+  `flutter drive` needs the flag passed explicitly). Fixed by adding
+  `--cross-origin-isolation`. Result not yet recorded here.
 
 ## Remaining work
 

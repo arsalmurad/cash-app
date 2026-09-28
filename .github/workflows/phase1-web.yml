@@ -126,12 +126,21 @@ jobs:
         # `-d web-server` is Flutter's own documented device for this
         # combination, but still needs chromedriver already running as a
         # server (see the previous step) rather than merely on PATH.
+        #
+        # --cross-origin-isolation: without it, a real run got all the way
+        # to the app launching and then panicked immediately inside Rust's
+        # thread-pool init ("RuntimeError: unreachable", unwinding from
+        # flutter_rust_bridge's WorkerPool::default()). The WASM build
+        # uses -Ctarget-feature=atomics (needed for its threaded worker
+        # pool), which requires SharedArrayBuffer, which browsers only
+        # expose to a cross-origin-isolated page (COOP/COEP headers) —
+        # flutter drive's dev server doesn't send those by default.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart
           --target=integration_test/ledger_test.dart
           -d web-server --web-port=7357 --browser-name=chrome
-          --headless --web-run-headless
+          --headless --web-run-headless --cross-origin-isolation
 
       - name: Record Phase 1 web result
         shell: bash
