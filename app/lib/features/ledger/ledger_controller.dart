@@ -189,6 +189,37 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// Renames and/or re-icons an existing category. `categoryId` must be an
+  /// existing category's ID (not a new one to create) — [upsertCategory]
+  /// replaces that record in place rather than adding a second one.
+  Future<bool> updateCategory({
+    required String categoryId,
+    required String name,
+    required String iconKey,
+  }) async {
+    final book = _categoryBook;
+    if (book == null) {
+      return false;
+    }
+    try {
+      await _mutateCategories(
+        () => upsertCategory(
+          book: book,
+          categoryId: categoryId,
+          name: name.trim(),
+          iconKey: iconKey,
+          wallClockMillis: _nowMillis(),
+        ),
+      );
+      notifyListeners();
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> record({
     required String title,
     required String amount,

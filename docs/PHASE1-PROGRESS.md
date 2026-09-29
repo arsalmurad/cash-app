@@ -1,6 +1,33 @@
 # Phase 1 progress
 
-Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
+Updated 2026-09-29. Phase 1 is in progress; its complete exit test has not passed.
+
+## Category rename
+
+Implementation: this change. `CategoryEditDialog` generalizes the "new
+category" dialog to also handle editing (see `docs/DECISIONS.md`), and
+`LedgerController.updateCategory` reuses the existing `upsertCategory`
+bridge call with the category's existing ID rather than needing any
+Rust/bridge change. `CategoriesScreen`, reachable from `LedgerScreen`'s
+overflow menu ("Manage categories"), lists every category with an edit
+action per row.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- No Rust changes were needed — this feature only calls the existing
+  `upsert_category` bridge function with a different (pre-existing) ID.
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  58 tests across 14 files: the prior 54, plus 4 new `categories_screen.dart`
+  tests (the empty state shows no categories; each category lists its name
+  and icon; editing a category opens the dialog pre-filled and saves the
+  rename through `onUpdate`; the "New category" button still creates a
+  category through `onCreate`).
+- iOS/Android/web runtime verification not run for this change — it has no
+  bridge surface and is fully covered by the widget tests above; a full CI
+  dispatch was judged unnecessary for a UI-only change with no native or
+  Rust-bridge risk (unlike the Phase 1 slices above, which each touched the
+  bridge, native platform config, or WASM build).
 
 ## Biometric lock
 
@@ -882,9 +909,9 @@ verified it). Still open before Phase 1's exit test can be called complete:
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
   with one record per frame) if local history grows large.
-- Categories can be created and assigned but not renamed, re-iconed, or
-  deleted from the UI yet (the Rust/bridge upsert already supports rename;
-  only the "new category" entry point exists in `AddTransactionSheet`).
+- Categories can be renamed and re-iconed from the new "Manage categories"
+  screen (see the "Category rename" section above), but not deleted — the
+  Rust core has no delete operation for categories, only upsert.
 - Account currency is fixed at creation (no display-currency conversion
   toggle yet); the net balance card sums accounts' reporting-currency
   equivalents but never shows the same amount converted between two

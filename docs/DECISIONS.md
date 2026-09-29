@@ -462,3 +462,24 @@ crash for silently dropped data. Diagnostic assertions added to
 `integration_test/ledger_test.dart` during this investigation (SnackBar
 text and live controller-state dumps on failure) were kept — they're
 generically useful and independent of this revert.
+
+## 2026-09-29 — Category rename reuses the existing "new category" dialog
+
+`CategoryEditDialog` (`app/lib/features/ledger/category_edit_dialog.dart`)
+generalizes what was previously `AddTransactionSheet`'s private
+`_NewCategoryDialog`, taking optional `initialName`/`initialIconKey` to
+switch it into edit mode. Writing a second, separate rename-only dialog was
+rejected: creating and renaming a category collect exactly the same two
+fields (name, icon) and differ only in whether they start blank, so a
+second copy would just be the same form duplicated with no behavioral
+difference to justify it. `LedgerController.updateCategory` calls the same
+`upsertCategory` bridge function `addCategory` already uses, passing the
+existing category's ID instead of a freshly slugified one — `upsertCategory`
+already replaces-in-place on a repeated ID (see the categories LWW design,
+2026-09-26 entries above), so no bridge or core change was needed.
+`CategoriesScreen` is a new destination (reachable from `LedgerScreen`'s
+overflow menu, "Manage categories") listing every category with an edit
+action per row, rather than folding rename into the existing category
+dropdown inside `AddTransactionSheet`: that dropdown's job is picking a
+category for one transaction, and overloading it with a management UI would
+conflate the two.
