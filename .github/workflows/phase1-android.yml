@@ -13,11 +13,21 @@ concurrency:
 jobs:
   android-emulator:
     name: Personal ledger on Android emulator
-    # macOS runners have hardware-accelerated virtualization available for
-    # the Android emulator out of the box; GitHub-hosted Linux runners do
-    # not (no nested KVM), which makes the emulator too slow to be usable
-    # there. This mirrors why phase1-ios.yml runs on macOS too.
-    runs-on: macos-15
+    # Tried macos-15 first, on the assumption that macOS runners have
+    # hardware-accelerated virtualization for the Android emulator "out of
+    # the box" (true for the iOS Simulator in phase1-ios.yml, which uses
+    # Apple's own virtualization, not this). In practice, GitHub-hosted
+    # macOS-15 (Apple Silicon) runners are themselves nested VMs and do not
+    # expose Hypervisor.framework to processes inside them, so *no*
+    # emulator architecture can be hardware-accelerated there — every
+    # attempt failed with "HVF error: HV_UNSUPPORTED" regardless of AVD
+    # arch/API level
+    # (https://github.com/actions/runner-images/issues/9472,
+    # https://github.com/ReactiveCircus/android-emulator-runner/issues/350).
+    # GitHub-hosted Ubuntu runners, by contrast, do expose /dev/kvm and are
+    # the officially recommended target for this action (faster and
+    # cheaper than macOS too) — see the "Enable KVM group perms" step below.
+    runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
@@ -26,7 +36,6 @@ jobs:
 
       - name: Record runner environment
         run: |
-          sw_vers
           uname -m
           java -version
           echo "ANDROID_HOME=$ANDROID_HOME"
@@ -56,25 +65,41 @@ jobs:
           flutter analyze
           flutter test test
 
-      - name: Enable KVM-equivalent acceleration and boot emulator
+      - name: Enable KVM group perms
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Boot emulator and run instrumented test
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
         with:
           api-level: 34
+          # ubuntu-latest runners are x86_64 hosts, so x86_64 is the
+          # architecture that gets KVM hardware acceleration here (unlike
+          # macos-15, arm64-v8a would need to be emulated in software).
           arch: x86_64
           target: google_apis
           profile: pixel_6
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
+          # The action tears the emulator down as soon as `script` returns,
+          # so the actual test run has to happen in here — a later,
+          # separate step no longer has a device to talk to (confirmed by
+          # a real run: the emulator booted fine, but the following step
+          # saw "No devices are connected").
           script: |
             adb devices
-            echo "EMULATOR_READY=1" >> "$GITHUB_ENV"
-
-      - name: Run personal ledger integration test
-        working-directory: app
-        env:
-          RUSTUP_TOOLCHAIN: 1.98.1
-        run: flutter test integration_test/ledger_test.dart -d android
+            # "-d android" is not a recognized device selector for flutter
+            # test/drive (confirmed by a real run: flutter listed the
+            # booted emulator under its actual id, "emulator-5554", and
+            # rejected "android" as not matching any device) — the AVD name
+            # set above ("test") matches the action's own default and does
+            # not appear in that id, so it can't be relied on either.
+            cd app && flutter test integration_test/ledger_test.dart -d emulator-5554 || { echo "--- logcat tail on failure ---"; adb logcat -d -t 800; exit 1; }
 
       - name: Build release APK
         working-directory: app
@@ -87,7 +112,7 @@ jobs:
         run: |
           set -euo pipefail
           apk_path="$GITHUB_WORKSPACE/app/build/app/outputs/flutter-apk/app-release.apk"
-          apk_bytes="$(stat -f '%z' "$apk_path")"
+          apk_bytes="$(stat -c '%s' "$apk_path")"
           {
             echo "## Phase 1 Android result"
             echo

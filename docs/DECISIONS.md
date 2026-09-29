@@ -87,3 +87,378 @@ snapshots. Building screens against temporary Dart models was rejected because
 those models would either duplicate the money rules or become an accidental
 CRUD source of truth. The first Flutter vertical slice will consume this core
 through a thin bridge.
+
+## 2026-09-26 — Durable storage lives in Dart, not Rust
+
+Rust running as WASM in a browser has no filesystem, so `rust/core` cannot own
+*where* the event log's bytes are kept without a WASM-only code path
+contradicting its "no storage dependency" boundary. Instead `rust/core` only
+defines the durable frame codec (encode/decode, checksum, corruption
+recovery), and Dart owns the actual store: a plain file on iOS/Android/desktop,
+`window.localStorage` on web, selected at compile time the same way the
+generated `frb_generated.io.dart`/`.web.dart` bridge files already are. Putting
+file I/O in Rust via `std::fs` and passing it a path from Dart was rejected
+because it would still need a completely different, WASM-incompatible code
+path for web, duplicating the platform split one layer down instead of
+avoiding it.
+
+## 2026-09-26 — One ledger constructor, not create-vs-load
+
+`load_personal_ledger` replaces the old `create_personal_ledger`: a brand-new
+install passes an empty byte log and gets the same code path a restart does.
+Keeping a separate `create_personal_ledger` for first launch was rejected
+because two constructors are two chances for "new" and "restored" ledgers to
+compute HLC continuity or validation differently, exactly the kind of drift
+this milestone is trying to close off in the first change that touches
+startup.
+
+## 2026-09-26 — A rejected write is unrepresentable in the persisted log
+
+`add_account`/`record_transaction` return the newly appended event's durable
+frame only on `Ok`; a duplicate or otherwise-rejected write is an `Err` with
+no frame attached, so there is no value the caller could accidentally persist.
+Returning a frame alongside an error result (or persisting speculatively
+before validating) was rejected because it would let a caller bug — not a
+Rust bug — put a rejected write into durable history, which is exactly the
+silent-corruption failure mode event sourcing exists to prevent.
+
+## 2026-09-26 — Frame checksums, not file-format assumptions, define recovery
+
+The durable log's corruption test is "does this frame's checksum verify",
+not "did this file end where a normal write would end". A length-prefixed,
+FNV-1a-checksummed frame lets `decode_event_log` tell a torn write (checksum
+or length fails) apart from a genuine version mismatch without inspecting the
+storage backend at all, so the same recovery logic runs unchanged whether the
+bytes came from a native file or a browser's `localStorage`. Trusting the
+storage layer to report a clean vs. truncated read (e.g. comparing byte
+counts) was rejected because `localStorage`'s read/write API gives no such
+signal, and the codec would otherwise need a different corruption story per
+platform.
+
+## 2026-09-26 — Categories are a second, independent state mechanism
+
+The build brief (§2.5) calls out categories as soft state suited to
+last-writer-wins, explicitly separate from the ledger's event-sourced
+financial state. Implemented as a new `cash_core::categories` module with
+its own upsert type, its own commutative/idempotent fold
+(`fold_categories`, which never rejects), and its own durable log and bridge
+type (`CategoryBook`), sharing only the byte-level frame codec with the
+financial event log. Adding a `CategoryAssigned`-style variant to the
+existing `EventKind` enum instead was rejected: that enum's fold is the one
+place the brief requires strict, error-on-conflict semantics, and folding a
+last-writer-wins field through it would either weaken that guarantee for
+every variant or require per-variant special-casing inside a fold that is
+supposed to be uniform.
+
+## 2026-09-26 — One actor ID, one identity store, many logs
+
+Adding the categories log meant two durable logs needed a stable actor ID,
+not one. Introduced `DeviceIdentity` as a store separate from `EventStore`
+(which is now parameterized by a log name), so both logs read the same
+persisted ID instead of each generating and persisting their own. Letting
+each log manage its own actor ID independently was rejected: two IDs for one
+device would let the ledger and the category book each think they were a
+different actor, which breaks the total order's assumption that an actor ID
+identifies one physical writer.
+
+## 2026-09-26 — A transfer's two legs are independent amounts, not one conversion
+
+`EventKind::TransferRecorded` stores `sent` and `received` as two separate
+`Money` + frozen-`FxRate` pairs rather than one amount plus a transfer rate
+applied to derive the other. Deriving `received` from `sent` at a fixed rate
+was rejected because a real transfer can lose value in transit (a bank fee,
+a conversion spread) that the user needs to see and that later balances must
+reflect; assuming `received = convert(sent)` would silently hide that loss
+inside the transfer rate rather than recording what actually happened, which
+is the same silent-overwrite failure mode event sourcing exists to avoid
+elsewhere in this ledger.
+
+## 2026-09-26 — Transfers stay in the ledger's own fold, not alongside categories
+
+Unlike categories, a transfer is genuinely financial state — it changes
+account balances and the reporting total — so it is a new `EventKind`
+variant folded by the ledger's existing strict, error-on-conflict `fold`,
+not a second last-writer-wins mechanism. Treating "a second account is
+involved" as a reason to split it out the way categories were was rejected:
+the deciding question is which consistency guarantee the state needs, not
+how many entities it touches, and a transfer needs the ledger's guarantee.
+
+## 2026-09-26 — Search and filter run in Dart over the loaded overview, not in Rust
+
+`ActivityFilter` (`app/lib/features/ledger/activity_filter.dart`) is a pure
+Dart function over the `LedgerOverview` already loaded in memory. Adding a
+Rust-side query API (e.g. `search_transactions(ledger, query)`) was rejected:
+a personal ledger's entire history already crosses the bridge on every load
+for display, so filtering client-side costs nothing extra and avoids growing
+the bridge's surface for a feature with no correctness or determinism
+requirement — unlike the ledger's fold or the category upserts, there is no
+canonical answer a search result needs to converge to across devices.
+
+## 2026-09-26 — Budgets are LWW soft state, like categories, not a ledger event
+
+A budget's name, limit, category, and period are definitions, not facts
+about what happened financially — two conflicting edits should settle by
+last-writer-wins, the same as a category's name or icon, rather than stay
+visible in history the way a transaction conflict must. `rust/core` gives
+budgets their own module (`budgets.rs`), upsert type, and durable log,
+independent of both `ledger.rs` and `categories.rs`. Folding budgets into
+the categories module instead (since both are LWW) was rejected: a budget
+and a category answer unrelated questions and evolve independently, and
+merging them would make a future change to one module's shape (e.g. a
+category gaining a color) risk an unrelated migration for the other.
+
+## 2026-09-26 — Budget progress is computed, never stored
+
+`budget_progress` recomputes a budget's spend from the ledger's expense
+transactions on every call rather than maintaining a running total inside
+`BudgetBookState`. Storing a running total was rejected: it would become a
+second source of truth for "how much was spent," one that could drift from
+the ledger's own fold after a late-arriving or voided transaction, and
+budgets already need the ledger's transactions to enforce category matching
+and period boundaries, so recomputing costs nothing a stored total would
+have saved. This is also why `TransactionState` gained a fixed
+`recorded_at_millis` field (the `TransactionRecorded` event's own
+timestamp): using "now" or a mutable last-modified time to decide a
+transaction's period would let a later `AmountAdjusted` correction move a
+transaction into a different budget period than the one it was actually
+spent in.
+
+## 2026-09-26 — `BudgetPeriodKind` is a field-less bridge enum
+
+`cash_core::BudgetPeriod::Custom` carries a `days: u32` field, but the
+bridge-visible `BudgetPeriodKind` does not — `Custom`'s day count is passed
+as a separate `custom_period_days: Option<u32>` parameter to `upsert_budget`
+instead. A data-carrying Dart-side enum was rejected: `flutter_rust_bridge`
+2.13.0 requires the `freezed` package to generate a union type for an enum
+with fields, and pulling in a code-generation dependency for one field was
+not worth it. This mirrors the existing `EntryKind`/`TransactionKind`
+pattern already used for the ledger's own bridge surface.
+
+## 2026-09-26 — A goal's kind determines which fields are legal, enforced at the bridge
+
+`upsert_goal` rejects a `Save` goal missing `linked_account_id` or carrying
+a `category_id`, and rejects a `Spend` goal carrying `linked_account_id`.
+Letting `rust/core`'s `GoalUpsert` accept any combination and leaving the
+UI to only ever send valid ones was rejected: a stored goal with a nonsense
+combination (e.g. `Save` with no account) would have no defined progress,
+and by the time `goal_progress` discovered that, the failure would surface
+far from its cause. Validating at the one function that creates a goal
+catches the mistake at its source instead.
+
+## 2026-09-26 — A spend goal's window starts at its own creation, found from history
+
+A spend goal's progress counts expenses from the earliest upsert ever
+recorded for its `goal_id` — computed by scanning the goal book's full
+upsert history in `goal_progress`, not read from a dedicated `created_at`
+field on `GoalUpsert`/`GoalRecord`. Adding such a field was rejected: the
+upsert log already answers "when was this goal first written" without it,
+and a stored field would need its own rule for what an edit does to it
+(carry it forward? let the last writer overwrite it?) that scanning avoids
+by construction — the earliest timestamp for a `goal_id` is unambiguous and
+never a last-writer-wins question in the first place.
+
+## 2026-09-26 — `goal_progress` has no `now_millis` parameter, unlike `budget_progress`
+
+A budget's period rolls forward with the wall clock (this month, this
+week), so `budget_progress` must be told "now" to find the current
+window's start. A goal's window is fixed at its own creation and never
+rolls forward — it either counts everything since then (no deadline) or up
+to a fixed deadline — so nothing in `goal_progress` depends on the caller's
+wall clock, and adding an unused parameter to match `budget_progress`'s
+shape for consistency's sake was rejected as needless bridge surface.
+
+## 2026-09-26 — CSV import/export uses the clipboard, not a native file picker
+
+`ExportCsvDialog`/`ImportCsvDialog` (`app/lib/features/ledger/csv_import_export.dart`)
+copy CSV text to the clipboard and read it back from a pasted `TextField`,
+using only `Clipboard`/`TextField` from the Flutter SDK. Adding a file
+picker/file-save package (e.g. `file_picker`, `share_plus`) was rejected
+for this pass: those need per-platform setup (iOS entitlements, Android
+scoped-storage permissions, a web download shim) that can't be verified
+without a real device per platform, which this session doesn't have for
+Android or web, and the build brief's "CSV import and export" requirement
+doesn't specify the transport. The clipboard path works identically and
+verifiably on phone, tablet, and web today; swapping in a native file
+picker later is a UI-layer change, not a data-format one, since the CSV
+codec itself has no dependency on how its text arrives.
+
+## 2026-09-26 — CSV import replays through `record`, not a bulk bridge call
+
+Importing a CSV calls the controller's existing `record` once per row
+rather than adding a Rust-side bulk-import function. A bulk function was
+rejected: every imported transaction still needs the ledger's own
+validation (a valid account, a parseable amount) and still needs to be
+durably persisted one event at a time, so a bulk path would either
+duplicate that logic or just loop internally — the same work `record`
+already does — while adding bridge surface and a second way to create a
+transaction that could drift from the first.
+
+## 2026-09-26 — A recurring transaction is tagged, not a separate event type
+
+`EventKind::TransactionRecorded` gained an optional `recurring_id` field
+rather than introducing a new `RecurringTransactionRecorded` event variant.
+A due occurrence is, financially, exactly a normal expense or income
+transaction; the only difference is that the UI populated it from a rule
+instead of a blank form. Making it a distinct event type was rejected: it
+would duplicate the fold logic `TransactionRecorded` already has (balance
+update, reporting conversion, duplicate-ID rejection) for no behavioral
+difference, and would need its own case everywhere `TransactionRecorded`
+is already handled (budgets' spend sum, goals' spend sum, search/filter,
+CSV export). Tagging keeps "how a transaction was created" as metadata on
+one event shape rather than a second financial event to keep in sync with
+the first.
+
+## 2026-09-26 — An occurrence's "next due date" is derived, not a stored pointer
+
+`upcoming_occurrences` finds each rule's most recently recorded occurrence
+by scanning the ledger's own transactions for a matching `recurring_id`,
+rather than the recurring book maintaining a `last_recorded_millis` field
+that advances when an occurrence is recorded. A stored pointer was
+rejected for the same reason a goal's `created_at` isn't stored (see the
+2026-09-26 goals entries above): it would be a second thing that could
+drift from what the ledger actually recorded — for instance if recording a
+transaction succeeded but updating the pointer failed, or if an occurrence
+was recorded through some future path that forgot to advance it. Deriving
+the anchor from the ledger's own data means there is only ever one source
+of truth for "was this occurrence recorded," and it can never disagree
+with itself.
+
+## 2026-09-26 — Recurring frequency has no `Custom { days }` variant
+
+Unlike `budgets::BudgetPeriod`, `RecurringFrequency` is only
+`Daily`/`Weekly`/`Monthly`/`Yearly`. A rolling custom-day-count period was
+rejected here: a budget's `Custom` period always measures a window ending
+"now," which is unambiguous, but a recurring rule's occurrences must be
+independently addressable events (each one gets recorded or not), and a
+rolling window has no natural anchor to step from once an occurrence is
+skipped or recorded late. The four fixed frequencies all have an
+unambiguous "next occurrence after this one," which `next_occurrence_millis`
+depends on.
+
+## 2026-09-26 — Calendar math is shared, not duplicated, between budgets and recurring rules
+
+`civil_from_days`/`days_from_civil` moved from `budgets.rs` into a new
+`calendar.rs` module when `recurring.rs` needed the same conversions plus a
+new `add_months` helper. Leaving a second copy in `recurring.rs` (as
+`goals.rs` does for its own small amount of logic that doesn't overlap with
+budgets) was rejected specifically here because the risk is different: two
+independent implementations of the same date algorithm can silently drift
+apart under a future edit (an off-by-one fixed in one copy but not the
+other), which a shared module makes structurally impossible.
+
+## 2026-09-26 — The biometric lock is unsupported on web rather than unlockable
+
+`BiometricLockGate` always renders its child directly on web, skipping the
+lock screen entirely, rather than showing a lock screen with no way to pass
+it. `local_auth` has no web implementation at all (there is no
+`local_auth_web` package), so the only alternatives were: block web users
+out of their own ledger permanently, fabricate some other web-only
+authentication scheme not asked for in the build brief, or treat web as a
+lesser peer for this one feature the way `docs/PHASE0-RESULT.md` already
+established for the shared-layer spike. The third option was chosen: this
+is a real, documented platform gap, not silently dropped functionality —
+the lock is simply off by default and cannot be turned on in a browser.
+
+## 2026-09-26 — The lock preference is its own store, not folded into EventStore
+
+`LockPreferenceStore` is a new, small storage interface alongside
+`EventStore`/`DeviceIdentity` in `data/storage/`, not a third capability
+bolted onto `EventStore`. Reusing `EventStore` (e.g. a fake "lock" log with
+one frame) was rejected: a preference toggle has no fold, no frame codec,
+no durability requirement beyond "read the last value written," and no
+actor ID to speak of — modeling it as a durable append-only log would add
+all of that machinery for a single boolean with no history worth keeping.
+
+## 2026-09-26 — Re-locking on app resume, not just on cold start
+
+`BiometricLockGate` observes `AppLifecycleState.resumed` and re-locks
+(when the lock is enabled) every time the app returns from the background,
+not only when the process starts fresh. Locking only at cold start was
+rejected: on mobile, backgrounding and resuming an app is the common case
+(a phone call, switching apps, glancing away), and a lock that only guards
+process launch would leave the ledger visible to anyone who picks up an
+already-running, backgrounded phone — which defeats the point of a
+biometric lock for exactly the scenario it exists to cover.
+
+## 2026-09-28 — Android/web verification gets its own CI workflow, not a manual-only gap
+
+`.github/workflows/phase1-android.yml` and `phase1-web.yml` were added
+(mirroring `phase1-ios.yml`'s manual `workflow_dispatch` pattern) rather
+than leaving Android/web runtime verification as a permanent note in
+`docs/PHASE1-PROGRESS.md` that no session in this environment can ever
+resolve. This environment has no Android emulator or browser capable of
+driving Flutter's `integration_test` harness, but a GitHub Actions runner
+does — the blocker was the environment, not the codebase, so the fix is
+infrastructure this environment *can* build, even though it can't run it
+to completion itself. Both workflows were partially verified locally in
+this session before being committed (see their own comments and
+`docs/PHASE1-PROGRESS.md` for exactly what was and wasn't confirmed here
+versus left for a real run).
+
+## 2026-09-28 — `wasm-opt` is disabled for the WASM build
+
+`rust/api/Cargo.toml` sets `[package.metadata.wasm-pack.profile.release]
+wasm-opt = false`. `wasm-pack`'s default release profile runs `wasm-opt`
+(from the `binaryen` project), which downloads a prebuilt binary from a
+GitHub release on first use — a network dependency with no bearing on
+correctness, only binary size. Leaving it enabled was rejected: it adds a
+point of CI flakiness (a single flaky download can fail an otherwise
+successful build) for an optimization Phase 1 doesn't need yet; it can be
+turned back on later if the WASM binary's size becomes a real problem.
+
+## 2026-09-28 — The web integration test uses `flutter drive`, not `flutter test`
+
+`flutter test` (the command every other test in this project runs through)
+refuses to run `integration_test`-based tests against a web device at all
+("Web devices are not supported for integration tests yet") — this is a
+hard limitation of the Flutter tooling itself, not a choice. The only way
+to run `integration_test/ledger_test.dart` on web is `flutter drive` with
+a WebDriver (ChromeDriver) session, which is why `phase1-web.yml` and the
+new `app/test_driver/integration_test.dart` driver entrypoint exist
+alongside the `flutter test` calls the other workflows use.
+
+## 2026-09-28 — `default_dart_async: false` tried and reverted: broke iOS, didn't actually fix web
+
+Attempted fix for the web `WorkerPool` panic above: set
+`default_dart_async: false` in `flutter_rust_bridge.yaml` so every
+generated Rust-bridge call runs synchronously instead of being dispatched
+to a worker/isolate. This is a single global codegen setting with no
+per-platform override in this `flutter_rust_bridge` version, so it
+applied to iOS and Android too, not just web — a known, accepted
+trade-off at the time.
+
+Real CI evidence on all three platforms (not assumed) showed this was
+the wrong fix:
+
+- **Android**: passed clean.
+- **iOS**: the integration test step hung for the full 45-minute job
+  timeout and was killed (`conclusion: cancelled`) — a real regression,
+  not flakiness. A synchronous call on the calling thread/isolate is safe
+  for a fast in-memory operation; something about the native sync-call
+  path apparently blocks in a way the isolate-dispatched async path
+  didn't, most likely a deadlock between the calling thread and whatever
+  the FFI call needs free to complete. Not root-caused further, since the
+  fix was reverted rather than debugged.
+- **Web**: the `WorkerPool` panic was genuinely gone — the app ran real
+  test logic on web for the first time — but the very first
+  `recordTransaction` call silently no-op'd: `LedgerController.record()`
+  returned success (`errorMessage=null`, `isLoading=false`), yet
+  `overview.transactions` stayed empty and the balance stayed `USD 0.00`,
+  confirmed twice by reading `LedgerController`'s state directly off the
+  widget tree in the failing test (bypassing `find.text` entirely, so
+  this wasn't a UI-rebuild timing issue). The synchronous call path
+  apparently doesn't work through wasm-bindgen's web transport at all in
+  this build — worse than the original panic, since it fails silently
+  instead of loudly.
+
+Reverted in full (`flutter_rust_bridge.yaml`, the regenerated bridge, and
+`ledger_controller.dart`'s five `_mutate*` helpers) back to the async
+dispatch this file's previous entry describes. iOS and Android return to
+their previously-verified-green state; web returns to the documented,
+honest `WorkerPool` panic — a real, upstream, maintainer-acknowledged
+limitation ([fzyzcjy/flutter_rust_bridge#2914](https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914))
+with no known fix as of this entry, rather than a fix that trades a loud
+crash for silently dropped data. Diagnostic assertions added to
+`integration_test/ledger_test.dart` during this investigation (SnackBar
+text and live controller-state dumps on failure) were kept — they're
+generically useful and independent of this revert.

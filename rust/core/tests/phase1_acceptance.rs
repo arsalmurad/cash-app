@@ -50,6 +50,7 @@ fn transaction_event(
             reporting_fx: rate,
             title: format!("Entry {index}"),
             category_id: Some(format!("category-{}", index % 7)),
+            recurring_id: None,
         },
     )
 }
@@ -196,6 +197,7 @@ fn a_late_event_invalidates_instead_of_corrupting_a_snapshot() {
             reporting_fx: FxRate::identity(usd()),
             title: "Late arrival".to_owned(),
             category_id: None,
+        recurring_id: None,
         },
     );
 
