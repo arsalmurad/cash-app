@@ -6,6 +6,7 @@ import '../../data/rust/api/recurring.dart' show UpcomingView;
 import 'activity_filter.dart';
 import 'add_transaction_sheet.dart';
 import 'budgets_pane.dart';
+import 'categories_screen.dart';
 import 'category_presets.dart';
 import 'csv_import_export.dart';
 import 'goals_pane.dart';
@@ -51,6 +52,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
                         PopupMenuItem(
                           value: _DataMenuAction.importCsv,
                           child: Text('Import CSV'),
+                        ),
+                        PopupMenuItem(
+                          value: _DataMenuAction.manageCategories,
+                          child: Text('Manage categories'),
                         ),
                         PopupMenuItem(
                           value: _DataMenuAction.lockSettings,
@@ -296,6 +301,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
         _exportCsv();
       case _DataMenuAction.importCsv:
         _importCsv();
+      case _DataMenuAction.manageCategories:
+        _manageCategories();
       case _DataMenuAction.lockSettings:
         showDialog<void>(
           context: context,
@@ -333,6 +340,28 @@ class _LedgerScreenState extends State<LedgerScreen> {
           summary.errors.isEmpty
               ? 'Imported ${summary.imported} transaction(s)'
               : 'Imported ${summary.imported}, ${summary.errors.length} skipped: ${summary.errors.first}',
+        ),
+      ),
+    );
+  }
+
+  void _manageCategories() {
+    final controller = widget.controller;
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) => CategoriesScreen(
+            categories: controller.categories,
+            onCreate: (name, iconKey) =>
+                controller.addCategory(name: name, iconKey: iconKey),
+            onUpdate: (categoryId, name, iconKey) => controller.updateCategory(
+              categoryId: categoryId,
+              name: name,
+              iconKey: iconKey,
+            ),
+          ),
         ),
       ),
     );
@@ -1044,4 +1073,4 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-enum _DataMenuAction { exportCsv, importCsv, lockSettings }
+enum _DataMenuAction { exportCsv, importCsv, manageCategories, lockSettings }

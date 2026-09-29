@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
+import 'category_edit_dialog.dart';
 import 'category_presets.dart';
 
 /// What `AddTransactionSheet` returns: either a single-account transaction
@@ -360,7 +361,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   Future<void> _promptNewCategory() async {
     final draft = await showDialog<CategoryDraft>(
       context: context,
-      builder: (context) => const _NewCategoryDialog(),
+      builder: (context) => const CategoryEditDialog(),
     );
     if (draft == null || !mounted) {
       return;
@@ -414,79 +415,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         accountId: accountId!,
         categoryId: categoryId,
       ),
-    );
-  }
-}
-
-class CategoryDraft {
-  const CategoryDraft({required this.name, required this.iconKey});
-
-  final String name;
-  final String iconKey;
-}
-
-class _NewCategoryDialog extends StatefulWidget {
-  const _NewCategoryDialog();
-
-  @override
-  State<_NewCategoryDialog> createState() => _NewCategoryDialogState();
-}
-
-class _NewCategoryDialogState extends State<_NewCategoryDialog> {
-  final nameController = TextEditingController();
-  String iconKey = availableCategoryIconKeys.first;
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('New category'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: nameController,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Name'),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final key in availableCategoryIconKeys)
-                ChoiceChip(
-                  label: Icon(categoryIcon(key), size: 20),
-                  selected: iconKey == key,
-                  onSelected: (_) => setState(() => iconKey = key),
-                ),
-            ],
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final name = nameController.text.trim();
-            if (name.isEmpty) {
-              return;
-            }
-            Navigator.pop(context, CategoryDraft(name: name, iconKey: iconKey));
-          },
-          child: const Text('Create'),
-        ),
-      ],
     );
   }
 }
