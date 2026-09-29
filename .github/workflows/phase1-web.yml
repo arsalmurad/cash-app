@@ -45,7 +45,7 @@ jobs:
           rustup target add wasm32-unknown-unknown --toolchain nightly
           rustup run nightly rustc --version
 
-      - name: Install wasm-pack and wasm-bindgen-cli
+      - name: Install wasm-pack, wasm-bindgen-cli, and flutter_rust_bridge_codegen
         run: |
           cargo install wasm-pack --version 0.15.0
           # Installed explicitly, with a clean environment, so wasm-pack's
@@ -53,6 +53,7 @@ jobs:
           # RUSTFLAGS wasm-pack sets for the *target* build and wrongly
           # applies them to this *host* build too) is skipped entirely.
           env -u RUSTFLAGS -u RUSTUP_TOOLCHAIN cargo install wasm-bindgen-cli --version 0.2.129
+          cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
 
       - name: Install pinned Flutter SDK
         run: |
@@ -79,24 +80,103 @@ jobs:
         working-directory: app
         run: flutter build web --wasm
 
-      - name: Install a matching ChromeDriver
+      - name: Install and start ChromeDriver
         run: |
-          npx --yes @puppeteer/browsers install chromedriver@stable --path "$RUNNER_TEMP/chromedriver"
+          # `chromedriver@stable` installs the latest stable ChromeDriver
+          # release, which can be (and, on a real run, was) ahead of the
+          # Chrome version actually preinstalled on the runner image —
+          # ChromeDriver refuses to create a session against a mismatched
+          # major version ("This version of ChromeDriver only supports
+          # Chrome version 154. Current browser version is
+          # 153.0.8010.52."). Install the driver build matching the
+          # installed Chrome's exact version instead of the newest release
+          # (Chrome for Testing publishes a matching driver per full
+          # version for stable Chrome; a bare major version like
+          # "chromedriver@153" is not itself a resolvable build and 403s).
+          chrome_version="$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')"
+          echo "Installed Chrome version: $chrome_version"
+          npx --yes @puppeteer/browsers install "chromedriver@$chrome_version" --path "$RUNNER_TEMP/chromedriver"
           driver_bin="$(find "$RUNNER_TEMP/chromedriver" -type f -name chromedriver | head -n1)"
           chmod +x "$driver_bin"
-          echo "$(dirname "$driver_bin")" >> "$GITHUB_PATH"
           "$driver_bin" --version
+          # `-d web-server` needs a WebDriver server already listening on
+          # --driver-port (default 4444) — flutter drive does not spawn one
+          # itself. Confirmed by a real run: with chromedriver merely on
+          # PATH but not started, it failed fast with "Unable to start a
+          # WebDriver session for web testing. Make sure you have the
+          # correct WebDriver server (e.g. chromedriver) running at 4444."
+          "$driver_bin" --port=4444 &
+          echo "Waiting for ChromeDriver to accept connections..."
+          for _ in $(seq 1 30); do
+            curl -sf http://localhost:4444/status > /dev/null && break
+            sleep 1
+          done
+          curl -sf http://localhost:4444/status
 
       - name: Run personal ledger integration test
         working-directory: app
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
+        # `-d chrome` (tried first) hung indefinitely at "Waiting for
+        # connection from debug service on Chrome..." on two consecutive
+        # real CI runs — it runs the app via Chrome's own CDP connection, a
+        # different code path from the WebDriver-managed Chrome that
+        # flutter drive's driver script actually waits to connect through,
+        # so the two were never talking to the same browser instance.
+        # `-d web-server` is Flutter's own documented device for this
+        # combination, but still needs chromedriver already running as a
+        # server (see the previous step) rather than merely on PATH.
+        #
+        # --cross-origin-isolation: the WASM build uses -Ctarget-feature=
+        # atomics (needed for flutter_rust_bridge's threaded worker pool),
+        # which requires SharedArrayBuffer, which browsers only expose to a
+        # cross-origin-isolated page (COOP/COEP headers) — flutter drive's
+        # dev server doesn't send those by default. Necessary but not
+        # sufficient on its own: two runs with this flag still panicked
+        # identically ("RuntimeError: unreachable" unwinding from
+        # WorkerPool::default()).
+        #
+        # --release: flutter drive defaults to debug mode, which recompiles
+        # and serves the app from source via its own dev server (DDC-style
+        # JS), ignoring the release build from the previous step entirely.
+        # Kept here as the closest-to-production build mode even though it
+        # turned out NOT to fix the integration test (see below) — no
+        # build mode does.
+        #
+        # This test currently fails on every build mode (debug, profile,
+        # release) with the same panic: "RuntimeError: unreachable" from
+        # flutter_rust_bridge's WorkerPool::default(), on the very first
+        # Rust call. This is a known, upstream, maintainer-acknowledged
+        # flutter_rust_bridge limitation (closed as "not planned"):
+        # https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914 —
+        # browsers cannot clone a WebAssembly.Memory object via
+        # postMessage, which is what the web Worker thread pool needs to
+        # do to hand off work. The one known fix (`default_dart_async:
+        # false` in flutter_rust_bridge.yaml) changes every generated
+        # Rust-bridge call across the whole app from async to sync, not
+        # just on web — a substantial, cross-cutting refactor of its own,
+        # not a CI config change; see docs/PHASE1-PROGRESS.md's "Web: root
+        # cause found, not fixed" section for the full investigation and
+        # why it wasn't applied here. The test captures the real exception
+        # via `reportData` (see test_driver/integration_test.dart) since
+        # flutter drive's own failure reporting comes back blank here.
         run: >-
           flutter drive
           --driver=test_driver/integration_test.dart
           --target=integration_test/ledger_test.dart
-          -d chrome --web-port=7357 --browser-name=chrome
-          --headless
+          -d web-server --web-port=7357 --browser-name=chrome
+          --headless --web-run-headless --cross-origin-isolation --release
+
+      - name: Print captured test exception (if any)
+        if: always()
+        working-directory: app
+        run: |
+          if [ -f build/integration_response_data.json ]; then
+            echo "--- build/integration_response_data.json ---"
+            cat build/integration_response_data.json
+          else
+            echo "No integration_response_data.json was written."
+          fi
 
       - name: Record Phase 1 web result
         shell: bash
