@@ -565,3 +565,43 @@ reporting amounts, voids excluded, transfer legs at their own frozen
 rates), never stored, so equal event sets still give byte-identical state.
 Reporting-currency accounts show no conversion line.
 
+## 2026-09-30 — Shared layer: a dumb ordered relay, a total fold, pseudonymous credentials
+
+Phase 1's exit test passed, which opens Phase 2 (brief section 6). The design
+choices, each with the option rejected:
+
+- **One totally ordered log per group, with compare-and-swap on the tail.**
+  Every entry, commits included, is appended with the sequence number the
+  writer last saw; a stale writer is refused, catches up, and retries. Every
+  member therefore processes the same MLS messages in the same order, which
+  MLS requires. Rejected: letting clients broadcast freely and resolve
+  competing commits themselves; two members committing in the same epoch
+  forks the group, and recovering from that without an authority is the
+  hardest part of MLS deployment. The relay is still only an ordering
+  service and sees no plaintext.
+- **The relay knows nothing but sequence numbers and opaque bytes.** No
+  sender, no message kind, no size classes. Rejected: a `kind` tag (commit
+  vs message), which would let the relay see membership churn for no gain.
+- **Credentials carry a pseudonymous member ID, never a name.** A key
+  package and a welcome are signed, not secret, so a real name there would
+  reach the relay. Display names travel inside the encrypted stream.
+  Rejected: names in credentials (visible in key packages).
+- **Key packages travel out of band** (the invite link or QR), not through
+  the relay. This is also what makes the brief's out-of-band safety-number
+  check meaningful. Welcomes go through single-use, expiring mailboxes.
+- **The shared fold is total.** `fold_shared` never aborts: an event that
+  cannot apply (an edit after a void) or a duplicate ID with different
+  content is reported in the state, and two edits written without seeing
+  each other are reported as a `Conflict` with the later one in the total
+  order winning. Each edit carries `base`, the last event it had seen for
+  that field, instead of vector clocks. The personal `fold` stays strict:
+  one trusted writer, where an invalid event means corruption. Rejected:
+  reusing the strict fold (one bad or racing event would wedge every peer)
+  and silent last-writer-wins (violates "conflicts stay visible").
+- **Recovery phrase = BIP-39 encoding of 32 random bytes**, from which an
+  HKDF key seals device backups with ChaCha20-Poly1305. Rejected: deriving
+  keys from a user-chosen passphrase (weak) and inventing a word list.
+  Restoring a lost device from a backup forks that device's MLS leaf if the
+  old device is ever found and used again; the app must tell the user to
+  treat the old device as gone.
+
