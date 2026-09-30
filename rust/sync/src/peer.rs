@@ -45,6 +45,69 @@ impl<'a> Reader<'a> {
     }
 }
 
+/// What is waiting to be sent, oldest first.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Outbound {
+    /// One locally written event.
+    Event(EventId),
+    /// The events known when a member was added, sent in batches: MLS gives
+    /// a new member nothing written before their commit, so without this
+    /// they would never see the household's history. Receivers that already
+    /// have an event ignore it (events are idempotent by ID).
+    Backfill { ids: Vec<EventId>, offset: usize },
+}
+
+const PAYLOAD_EVENT: u8 = 1;
+const PAYLOAD_BATCH: u8 = 2;
+const MAX_BATCH_EVENTS: usize = 200;
+const MAX_BATCH_BYTES: usize = 48 * 1024;
+
+fn encode_event_payload(event: &SharedEvent) -> Vec<u8> {
+    let mut bytes = vec![PAYLOAD_EVENT];
+    bytes.extend_from_slice(&encode_shared_event(event));
+    bytes
+}
+
+fn encode_batch_payload(events: &[&SharedEvent]) -> Vec<u8> {
+    let mut bytes = vec![PAYLOAD_BATCH];
+    bytes.extend_from_slice(&(events.len() as u64).to_be_bytes());
+    for event in events {
+        write_field(&mut bytes, &encode_shared_event(event));
+    }
+    bytes
+}
+
+/// Decodes an application payload into the events it carries; `None` for
+/// anything that is not a payload this version understands.
+fn decode_payload(bytes: &[u8]) -> Option<Vec<SharedEvent>> {
+    let (tag, rest) = bytes.split_first()?;
+    match *tag {
+        PAYLOAD_EVENT => Some(vec![decode_shared_event(rest)?]),
+        PAYLOAD_BATCH => {
+            let mut reader = Reader { bytes: rest };
+            let count = reader.u64()?;
+            let mut events = Vec::new();
+            for _ in 0..count {
+                events.push(decode_shared_event(reader.field()?)?);
+            }
+            reader.bytes.is_empty().then_some(events)
+        }
+        _ => None,
+    }
+}
+
+/// How many events, starting at `offset`, fit in one backfill message.
+fn batch_len(events: &[&SharedEvent]) -> usize {
+    let mut size = 0;
+    for (index, event) in events.iter().enumerate() {
+        size += encode_shared_event(event).len() + 8;
+        if index >= MAX_BATCH_EVENTS || (index > 0 && size > MAX_BATCH_BYTES) {
+            return index;
+        }
+    }
+    events.len()
+}
+
 /// How many times a write retries after losing the compare-and-swap before
 /// giving up; each retry first catches up on what won.
 const MAX_ATTEMPTS: usize = 64;
@@ -108,11 +171,14 @@ pub struct Peer {
     last_timestamp: HybridTimestamp,
     events: Vec<SharedEvent>,
     known: BTreeSet<EventId>,
-    outbox: VecDeque<SharedEvent>,
+    outbox: VecDeque<Outbound>,
     removed: bool,
     /// A commit this peer created is awaiting the relay's verdict. Not
     /// persisted: it must be resolved before the peer is exported.
     staged: bool,
+    /// The staged commit adds a member (rather than removes one), so
+    /// accepting it owes them a history backfill.
+    staged_adds_member: bool,
 }
 
 impl Peer {
@@ -132,6 +198,7 @@ impl Peer {
             outbox: VecDeque::new(),
             removed: false,
             staged: false,
+            staged_adds_member: false,
         })
     }
 
@@ -164,8 +231,21 @@ impl Peer {
             write_field(&mut bytes, &encode_shared_event(event));
         }
         bytes.extend_from_slice(&(self.outbox.len() as u64).to_be_bytes());
-        for event in &self.outbox {
-            write_field(&mut bytes, event.event.id.as_str().as_bytes());
+        for item in &self.outbox {
+            match item {
+                Outbound::Event(id) => {
+                    bytes.push(0);
+                    write_field(&mut bytes, id.as_str().as_bytes());
+                }
+                Outbound::Backfill { ids, offset } => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&(*offset as u64).to_be_bytes());
+                    bytes.extend_from_slice(&(ids.len() as u64).to_be_bytes());
+                    for id in ids {
+                        write_field(&mut bytes, id.as_str().as_bytes());
+                    }
+                }
+            }
         }
         write_field(&mut bytes, &self.member.export()?);
         Ok(bytes)
@@ -205,12 +285,30 @@ impl Peer {
         }
         let mut outbox = VecDeque::new();
         for _ in 0..reader.u64().ok_or_else(malformed)? {
-            let id = EventId::new(text(reader.field().ok_or_else(malformed)?)?);
-            let event = events
-                .iter()
-                .find(|shared| shared.event.id == id)
-                .ok_or_else(malformed)?;
-            outbox.push_back(event.clone());
+            let read_id = |reader: &mut Reader<'_>| -> Result<EventId, SyncError> {
+                let id = EventId::new(text(reader.field().ok_or_else(malformed)?)?);
+                if known.contains(&id) {
+                    Ok(id)
+                } else {
+                    Err(malformed())
+                }
+            };
+            match reader.take(1).ok_or_else(malformed)?[0] {
+                0 => outbox.push_back(Outbound::Event(read_id(&mut reader)?)),
+                1 => {
+                    let offset = usize::try_from(reader.u64().ok_or_else(malformed)?)
+                        .map_err(|_| malformed())?;
+                    let mut ids = Vec::new();
+                    for _ in 0..reader.u64().ok_or_else(malformed)? {
+                        ids.push(read_id(&mut reader)?);
+                    }
+                    if offset > ids.len() {
+                        return Err(malformed());
+                    }
+                    outbox.push_back(Outbound::Backfill { ids, offset });
+                }
+                _ => return Err(malformed()),
+            }
         }
         let member = Member::import(reader.field().ok_or_else(malformed)?)?;
         if !reader.bytes.is_empty() {
@@ -228,6 +326,7 @@ impl Peer {
             outbox,
             removed,
             staged: false,
+            staged_adds_member: false,
         })
     }
 
@@ -322,10 +421,10 @@ impl Peer {
             }
             match self.member.receive(frame)? {
                 Received::Application(bytes) => {
-                    // A frame that decrypts but is not a shared event came
+                    // A frame that decrypts but carries no shared events came
                     // from a buggy or hostile member; skip it rather than
                     // stall everyone behind it.
-                    if let Some(shared) = decode_shared_event(&bytes) {
+                    for shared in decode_payload(&bytes).unwrap_or_default() {
                         self.observe(shared);
                     }
                 }
@@ -345,10 +444,19 @@ impl Peer {
         if !self.is_member() {
             return Ok(None);
         }
-        let Some(next) = self.outbox.front() else {
-            return Ok(None);
+        let payload = match self.outbox.front() {
+            None => return Ok(None),
+            Some(Outbound::Event(id)) => {
+                let event = self.event(id)?;
+                encode_event_payload(event)
+            }
+            Some(Outbound::Backfill { ids, offset }) => {
+                let remaining = self.events_named(&ids[*offset..])?;
+                let count = batch_len(&remaining);
+                encode_batch_payload(&remaining[..count])
+            }
         };
-        let blob = self.member.encrypt(&encode_shared_event(next))?;
+        let blob = self.member.encrypt(&payload)?;
         Ok(Some(Outgoing {
             expected_tail: self.cursor,
             blob,
@@ -358,11 +466,34 @@ impl Peer {
     /// The relay appended the entry from [`Peer::next_outgoing`] as
     /// `sequence`.
     pub fn outgoing_accepted(&mut self, sequence: u64) -> Result<(), SyncError> {
-        if self.outbox.pop_front().is_none() {
-            return Err(SyncError("nothing was waiting to be sent".to_owned()));
+        match self.outbox.front() {
+            None => return Err(SyncError("nothing was waiting to be sent".to_owned())),
+            Some(Outbound::Event(_)) => {
+                self.outbox.pop_front();
+            }
+            Some(Outbound::Backfill { ids, offset }) => {
+                let count = batch_len(&self.events_named(&ids[*offset..])?);
+                let next = offset + count;
+                if next >= ids.len() {
+                    self.outbox.pop_front();
+                } else if let Some(Outbound::Backfill { offset, .. }) = self.outbox.front_mut() {
+                    *offset = next;
+                }
+            }
         }
         self.cursor = sequence;
         Ok(())
+    }
+
+    fn event(&self, id: &EventId) -> Result<&SharedEvent, SyncError> {
+        self.events
+            .iter()
+            .rfind(|shared| shared.event.id == *id)
+            .ok_or_else(|| SyncError(format!("queued event {} is missing", id.as_str())))
+    }
+
+    fn events_named(&self, ids: &[EventId]) -> Result<Vec<&SharedEvent>, SyncError> {
+        ids.iter().map(|id| self.event(id)).collect()
     }
 
     /// Stages adding the holder of `key_package`. The peer must be caught
@@ -372,6 +503,7 @@ impl Peer {
         self.ensure_not_staged()?;
         let invite = self.member.add(key_package)?;
         self.staged = true;
+        self.staged_adds_member = true;
         Ok(StagedInvite {
             commit: Outgoing {
                 expected_tail: self.cursor,
@@ -387,6 +519,7 @@ impl Peer {
         self.ensure_not_staged()?;
         let commit = self.member.remove(member_id)?;
         self.staged = true;
+        self.staged_adds_member = false;
         Ok(Outgoing {
             expected_tail: self.cursor,
             blob: commit,
@@ -401,6 +534,18 @@ impl Peer {
         self.member.confirm_commit()?;
         self.staged = false;
         self.cursor = sequence;
+        if self.staged_adds_member && !self.events.is_empty() {
+            // Sorted into the total order so the new member's first batches
+            // are the oldest history.
+            let mut ordered: Vec<_> = self.events.iter().collect();
+            ordered.sort_by_key(|shared| shared.event.order_key());
+            let ids = ordered
+                .into_iter()
+                .map(|shared| shared.event.id.clone())
+                .collect();
+            self.outbox.push_back(Outbound::Backfill { ids, offset: 0 });
+        }
+        self.staged_adds_member = false;
         Ok(())
     }
 
@@ -548,7 +693,8 @@ impl Peer {
         };
         self.known.insert(event.event.id.clone());
         self.events.push(event.clone());
-        self.outbox.push_back(event.clone());
+        self.outbox
+            .push_back(Outbound::Event(event.event.id.clone()));
         Ok(event)
     }
 

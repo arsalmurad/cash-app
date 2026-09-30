@@ -220,3 +220,131 @@ fn staged_state_survives_nothing_but_a_clean_export_is_refused_while_staged() {
     alice.commit_rejected().unwrap();
     assert!(alice.export().is_ok());
 }
+
+/// Adds `joiner` to an existing household the way the app does, returning
+/// nothing: the commit is appended and the welcome consumed.
+fn add_member(log: &mut Log, adder: &mut Peer, joiner: &mut Peer, group: &str) {
+    let invite = adder.begin_invite(&joiner.key_package().unwrap()).unwrap();
+    let sequence = log
+        .append(invite.commit.expected_tail, invite.commit.blob)
+        .unwrap();
+    adder.commit_accepted(sequence).unwrap();
+    joiner.join(group, &invite.welcome, sequence).unwrap();
+}
+
+#[test]
+fn a_member_added_later_receives_the_history_written_before_they_joined() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    alice.write(2, expense("rent", 90_000)).unwrap();
+    bob.write(3, expense("coffee", 450)).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    flush(&mut alice, &mut log);
+    assert_eq!(alice.state().ledger.transactions.len(), 2);
+
+    // Carol joins afterwards. MLS gives her nothing written before her
+    // commit, so the inviter must backfill it.
+    let mut carol = Peer::new("carol-tablet", usd()).unwrap();
+    let group = alice.group_id().unwrap().to_owned();
+    add_member(&mut log, &mut alice, &mut carol, &group);
+    flush(&mut alice, &mut log);
+    flush(&mut carol, &mut log);
+    flush(&mut bob, &mut log);
+
+    assert_eq!(carol.state().ledger.transactions.len(), 2);
+    assert_eq!(carol.state().ledger.accounts.len(), 1);
+    for peer in [&alice, &bob] {
+        assert_eq!(
+            peer.state().canonical_bytes(),
+            carol.state().canonical_bytes()
+        );
+    }
+
+    // And Carol can write on top of that history: her edit finds the
+    // account and the expense it refers to.
+    carol
+        .write(
+            4,
+            EventKind::AmountAdjusted {
+                transaction_id: TransactionId::new("rent"),
+                original: Money::new(91_000, usd()),
+                reporting_fx: FxRate::identity(usd()),
+            },
+        )
+        .unwrap();
+    flush(&mut carol, &mut log);
+    flush(&mut alice, &mut log);
+    assert_eq!(
+        alice.state().canonical_bytes(),
+        carol.state().canonical_bytes()
+    );
+    assert!(alice.state().rejected.is_empty());
+}
+
+#[test]
+fn a_long_history_is_backfilled_in_batches_with_nothing_missing() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    for index in 0..700 {
+        alice
+            .write(2 + index, expense(&format!("t{index}"), 100 + index))
+            .unwrap();
+    }
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+
+    let before = log.0.len();
+    let mut carol = Peer::new("carol-tablet", usd()).unwrap();
+    let group = alice.group_id().unwrap().to_owned();
+    add_member(&mut log, &mut alice, &mut carol, &group);
+    flush(&mut alice, &mut log);
+    flush(&mut carol, &mut log);
+
+    assert_eq!(carol.state().ledger.transactions.len(), 700);
+    assert_eq!(
+        carol.state().canonical_bytes(),
+        alice.state().canonical_bytes()
+    );
+    // Batching: the commit plus a handful of batches, not one entry per
+    // event (701 events in batches of at most 200).
+    let added = log.0.len() - before;
+    assert!(added <= 10, "{added} log entries for the backfill");
+}
+
+#[test]
+fn a_pending_backfill_survives_a_restart_of_the_inviter() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    alice.write(2, expense("rent", 90_000)).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+
+    let mut carol = Peer::new("carol-tablet", usd()).unwrap();
+    let group = alice.group_id().unwrap().to_owned();
+    add_member(&mut log, &mut alice, &mut carol, &group);
+
+    // Alice's app dies after adding Carol but before sending the backfill.
+    let mut alice = Peer::import(&alice.export().unwrap()).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut carol, &mut log);
+    assert_eq!(carol.state().ledger.transactions.len(), 1);
+    assert_eq!(
+        carol.state().canonical_bytes(),
+        alice.state().canonical_bytes()
+    );
+}
+
+#[test]
+fn removing_a_member_does_not_backfill_anything() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    let before = log.0.len();
+    let out = alice.begin_removal("bob-phone").unwrap();
+    let sequence = log.append(out.expected_tail, out.blob).unwrap();
+    alice.commit_accepted(sequence).unwrap();
+    assert!(alice.next_outgoing().unwrap().is_none());
+    assert_eq!(log.0.len(), before + 1);
+}
