@@ -2,6 +2,36 @@
 
 Updated 2026-09-30. Phase 1 is in progress; its complete exit test has not passed.
 
+## Web runtime verification
+
+Web support works; the earlier "blocked on an upstream limitation" finding
+(see "Web: root cause found, not fixed" below, kept for the history) only
+applied to running the integration test through `flutter drive`, which
+compiles to JavaScript. The production `flutter build web --wasm` build
+runs the Rust bridge correctly. `scripts/verify_web_runtime.mjs` (now
+cross-platform: Windows, Linux, CI) serves that build with COOP/COEP
+headers and drives real Chrome: it records "Groceries" (USD 12.34) through
+the UI and the Rust bridge, reloads the page, confirms the ledger is rebuilt
+from `localStorage`, records "Rent" (USD 500.00), reloads again, and
+confirms both entries and the USD -512.34 balance. See `docs/DECISIONS.md`
+(2026-09-30) for why this replaced `flutter drive` in `phase1-web.yml`.
+
+Verified evidence:
+
+- Local: the script passed against a fresh `flutter_rust_bridge_codegen
+  build-web` + `flutter build web --wasm --no-web-resources-cdn` of the
+  current code, in Chromium 141 (`Web runtime verification passed.`, all
+  four `Verified ...` lines).
+- CI: `phase1-web.yml` was rewritten to run the same script; its first real
+  run is recorded under "Web runtime verification: CI result" once
+  dispatched (not yet run at the time of writing).
+- Found and fixed along the way: the add-entry sheet was not scrollable, so
+  it overflowed on short viewports; `AddTransactionSheet` now scrolls, with
+  a test that fails without the fix. `flutter test` passes 65 tests;
+  `flutter analyze` is clean.
+- Not covered on web: the account-creation, transfer, and category-dropdown
+  steps that `integration_test/ledger_test.dart` exercises on iOS/Android.
+
 ## Budget, goal, and recurring-rule rename
 
 Implementation: this change. `NewBudgetDialog`, `NewGoalDialog`, and

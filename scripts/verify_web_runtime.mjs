@@ -14,12 +14,14 @@ const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const webRoot = join(repoRoot, 'app', 'build', 'web');
 const chromeBinary =
   process.env.CHROME_BINARY ??
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+  (process.platform === 'win32'
+    ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+    : 'google-chrome');
 
 if (!existsSync(join(webRoot, 'index.html'))) {
   throw new Error('Build app/build/web before running the browser verification.');
 }
-if (!existsSync(chromeBinary)) {
+if (process.platform === 'win32' && !existsSync(chromeBinary)) {
   throw new Error(`Chrome not found at ${chromeBinary}`);
 }
 
@@ -60,6 +62,10 @@ const chrome = spawn(
     '--disable-background-networking',
     '--no-first-run',
     '--no-default-browser-check',
+    '--window-size=1280,900',
+    // Containers and CI runners run as root, where Chrome refuses to start
+    // with its sandbox on.
+    ...(process.env.CHROME_NO_SANDBOX ? ['--no-sandbox'] : []),
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=${profile}`,
     `http://127.0.0.1:${appPort}`,
@@ -76,14 +82,7 @@ try {
   cdp = await connectCdp(page.webSocketDebuggerUrl);
   await cdp.send('Runtime.enable');
   await cdp.send('Page.enable');
-  await waitFor(
-    cdp,
-    `document.querySelector('flt-semantics-placeholder, flt-semantics-host') !== null`,
-  );
-  await evaluate(
-    cdp,
-    `document.querySelector('flt-semantics-placeholder')?.click(); true`,
-  );
+  await openApp(cdp);
   await waitForLabel(cdp, 'Private Ledger');
   await waitForLabel(cdp, 'USD 0.00');
 
@@ -97,8 +96,34 @@ try {
 
   await waitForLabel(cdp, 'USD -12.34');
   await waitForLabel(cdp, 'Groceries');
-  console.log('Web runtime verification passed.');
   console.log('Verified: Private Ledger | Groceries | USD -12.34');
+
+  // A full page reload is this platform's "app restart": the event log lives
+  // in window.localStorage, so the ledger must be rebuilt from it alone.
+  await cdp.send('Page.reload');
+  await openApp(cdp);
+  await waitForLabel(cdp, 'Private Ledger');
+  await waitForLabel(cdp, 'USD -12.34');
+  await waitForLabel(cdp, 'Groceries');
+  console.log('Verified after reload: Groceries | USD -12.34 (persisted)');
+
+  await clickLabel(cdp, 'Add', 'button');
+  await waitForLabel(cdp, 'Add transaction');
+  await focusLabel(cdp, 'Title');
+  await cdp.send('Input.insertText', { text: 'Rent' });
+  await focusLabel(cdp, 'Amount');
+  await cdp.send('Input.insertText', { text: '500.00' });
+  await clickLabel(cdp, 'Add transaction', 'button');
+  await waitForLabel(cdp, 'USD -512.34');
+  await waitForLabel(cdp, 'Rent');
+
+  await cdp.send('Page.reload');
+  await openApp(cdp);
+  await waitForLabel(cdp, 'USD -512.34');
+  await waitForLabel(cdp, 'Rent');
+  await waitForLabel(cdp, 'Groceries');
+  console.log('Verified after second reload: Rent + Groceries | USD -512.34');
+  console.log('Web runtime verification passed.');
 } catch (error) {
   if (cdp) {
     const diagnostics = await evaluate(
@@ -144,6 +169,19 @@ try {
   }
 }
 
+// Waits for Flutter to boot and turns on its accessibility tree, which is
+// what this script reads and clicks (Flutter draws to a canvas otherwise).
+async function openApp(cdp) {
+  await waitFor(
+    cdp,
+    `document.querySelector('flt-semantics-placeholder, flt-semantics-host') !== null`,
+  );
+  await evaluate(
+    cdp,
+    `document.querySelector('flt-semantics-placeholder')?.click(); true`,
+  );
+}
+
 function contentType(extension) {
   return (
     {
@@ -187,6 +225,14 @@ async function waitForPage(port, expectedUrl) {
 
 async function stopChrome(processId) {
   if (!processId) return;
+  if (process.platform !== 'win32') {
+    try {
+      process.kill(processId, 'SIGKILL');
+    } catch (_) {
+      // Already exited.
+    }
+    return;
+  }
   await new Promise((resolve) => {
     const taskkill = spawn(
       'C:\\Windows\\System32\\taskkill.exe',
