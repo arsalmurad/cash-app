@@ -15,13 +15,6 @@ void main() {
   // a "restart" is simulated afterwards with a fresh `LedgerController` in a
   // new widget tree, which re-reads storage without touching `RustLib` again.
   testWidgets('an expense survives a simulated app restart', (tester) async {
-    // A real, reproducible failure here reports through `flutter drive` with
-    // no exception text at all in debug, profile, or release mode, and
-    // `print()` doesn't surface either since `-d web-server` has no browser
-    // console access — so attach it to `reportData` instead, which the
-    // driver (configured with `writeResponseOnFailure: true`) writes to
-    // build/integration_response_data.json regardless of outcome.
-    try {
     await app.main();
     await tester.pumpAndSettle();
 
@@ -47,33 +40,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
     await tester.pumpAndSettle();
 
-    // `LedgerController.record()` swallows a failed bridge call into
-    // `errorMessage` and just shows a SnackBar rather than throwing, so a
-    // bare "Groceries not found" assertion below gives no clue whether the
-    // save actually failed, or succeeded but the controller's own state
-    // (read straight off the widget tree, bypassing the UI entirely) still
-    // doesn't have it. Surface both in the failure reason.
-    final snackBarText = tester
-        .widgetList<SnackBar>(find.byType(SnackBar))
-        .map((bar) => (bar.content as Text?)?.data)
-        .join('; ');
-    final liveController = tester
-        .widget<LedgerScreen>(find.byType(LedgerScreen))
-        .controller;
-    final overview = liveController.overview;
-    final overviewDump =
-        'isLoading=${liveController.isLoading} '
-        'errorMessage=${liveController.errorMessage} '
-        'balanceLabel=${overview?.balanceLabel} '
-        'accountCount=${overview?.accounts.length} '
-        'transactionTitles=${overview?.transactions.map((t) => t.title).toList()}';
-    expect(
-      find.text('Groceries'),
-      findsOneWidget,
-      reason:
-          '${snackBarText.isEmpty ? "no SnackBar shown" : "SnackBar shown: $snackBarText"}; '
-          'controller state: $overviewDump',
-    );
+    expect(find.text('Groceries'), findsOneWidget);
     expect(find.text('Food'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
     expect(find.text('−USD 12.34'), findsOneWidget);
@@ -156,14 +123,48 @@ void main() {
     expect(find.text('USD -512.34'), findsOneWidget);
     expect(find.text('USD -612.34'), findsOneWidget);
     expect(find.text('USD 100.00'), findsOneWidget);
-    } catch (e, st) {
-      // ignore: avoid_print
-      print('TEST EXCEPTION: $e\nSTACK:\n$st');
-      IntegrationTestWidgetsFlutterBinding.instance.reportData = {
-        'exception': e.toString(),
-        'stackTrace': st.toString(),
-      };
-      rethrow;
-    }
+
+    // A foreign-currency account: the entry freezes the typed rate, the
+    // account shows its reporting-currency value, and both survive a restart.
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.add_rounded));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Euro');
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EUR').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('accountDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Euro').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Hotel');
+    await tester.enterText(find.byType(TextFormField).at(1), '80.00');
+    await tester.enterText(find.byKey(const Key('rateField')), '1.0875');
+    await tester.ensureVisible(
+      find.widgetWithText(FilledButton, 'Add transaction'),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
+    await tester.pumpAndSettle();
+
+    // 80.00 EUR at 1.0875 = 87.00 USD, added to the -512.34 net balance.
+    expect(find.text('EUR -80.00'), findsOneWidget);
+    expect(find.text('≈ USD -87.00'), findsOneWidget);
+    expect(find.text('USD -599.34'), findsOneWidget);
+
+    restartedController = LedgerController();
+    await restartedController.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: restartedController)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('EUR -80.00'), findsOneWidget);
+    expect(find.text('≈ USD -87.00'), findsOneWidget);
+    expect(find.text('USD -599.34'), findsOneWidget);
   });
 }

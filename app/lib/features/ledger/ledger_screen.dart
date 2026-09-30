@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../data/rust/api/budgets.dart' show BudgetView;
 import '../../data/rust/api/categories.dart';
+import '../../data/rust/api/goals.dart' show GoalView;
 import '../../data/rust/api/ledger.dart';
 import '../../data/rust/api/recurring.dart' show UpcomingView;
 import 'activity_filter.dart';
 import 'add_transaction_sheet.dart';
 import 'budgets_pane.dart';
+import 'categories_screen.dart';
 import 'category_presets.dart';
 import 'csv_import_export.dart';
+import 'exchange_rate_dialog.dart';
 import 'goals_pane.dart';
 import 'ledger_controller.dart';
 import '../lock/lock_settings_dialog.dart';
@@ -51,6 +55,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
                         PopupMenuItem(
                           value: _DataMenuAction.importCsv,
                           child: Text('Import CSV'),
+                        ),
+                        PopupMenuItem(
+                          value: _DataMenuAction.manageCategories,
+                          child: Text('Manage categories'),
                         ),
                         PopupMenuItem(
                           value: _DataMenuAction.lockSettings,
@@ -152,14 +160,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
                               _ => _add,
                             },
                       icon: const Icon(Icons.add_rounded),
-                      label: Text(
-                        switch (selectedIndex) {
-                          2 => 'Add budget',
-                          3 => 'Add goal',
-                          4 => 'Add recurring',
-                          _ => 'Add',
-                        },
-                      ),
+                      label: Text(switch (selectedIndex) {
+                        2 => 'Add budget',
+                        3 => 'Add goal',
+                        4 => 'Add recurring',
+                        _ => 'Add',
+                      }),
                     ),
             );
           },
@@ -198,11 +204,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
             BudgetsPane(
               budgets: controller.budgets,
               categories: controller.categories,
+              onEdit: _editBudget,
             ),
-            GoalsPane(goals: controller.goals),
+            GoalsPane(goals: controller.goals, onEdit: _editGoal),
             RecurringPane(
               upcoming: controller.upcoming,
               onRecord: _recordUpcoming,
+              onEdit: _editRecurring,
             ),
           ],
         ),
@@ -225,6 +233,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
       showDragHandle: false,
       builder: (context) => AddTransactionSheet(
         accounts: controller.overview?.accounts ?? const [],
+        reportingCurrencyCode: controller.reportingCurrencyCode,
         categories: controller.categories,
         onSuggestCategory: controller.suggestCategoryFor,
         onAddCategory: (name, iconKey) =>
@@ -241,6 +250,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
         kind: draft.kind,
         accountId: draft.accountId,
         categoryId: draft.categoryId,
+        rate: draft.rate,
       ),
       TransferDraft() => await controller.transfer(
         fromAccountId: draft.fromAccountId,
@@ -248,6 +258,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
         sentAmount: draft.sentAmount,
         receivedAmount: draft.receivedAmount,
         title: draft.title,
+        sentRate: draft.sentRate,
+        receivedRate: draft.receivedRate,
       ),
     };
     if (!mounted) {
@@ -262,16 +274,22 @@ class _LedgerScreenState extends State<LedgerScreen> {
     }
   }
 
-  Future<void> _addBudget() async {
+  Future<void> _addBudget() => _editBudget(null);
+
+  Future<void> _editBudget(BudgetView? existing) async {
     final controller = widget.controller;
     final draft = await showDialog<BudgetDraft>(
       context: context,
-      builder: (context) => NewBudgetDialog(categories: controller.categories),
+      builder: (context) => NewBudgetDialog(
+        categories: controller.categories,
+        existing: existing,
+      ),
     );
     if (draft == null || !mounted) {
       return;
     }
     final saved = await controller.addOrUpdateBudget(
+      budgetId: existing?.id,
       name: draft.name,
       categoryId: draft.categoryId,
       limitAmount: draft.limitAmount,
@@ -284,7 +302,9 @@ class _LedgerScreenState extends State<LedgerScreen> {
     if (!saved) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.controller.errorMessage ?? 'Could not save budget'),
+          content: Text(
+            widget.controller.errorMessage ?? 'Could not save budget',
+          ),
         ),
       );
     }
@@ -296,6 +316,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
         _exportCsv();
       case _DataMenuAction.importCsv:
         _importCsv();
+      case _DataMenuAction.manageCategories:
+        _manageCategories();
       case _DataMenuAction.lockSettings:
         showDialog<void>(
           context: context,
@@ -338,22 +360,50 @@ class _LedgerScreenState extends State<LedgerScreen> {
     );
   }
 
-  Future<void> _addGoal() async {
+  void _manageCategories() {
+    final controller = widget.controller;
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) => CategoriesScreen(
+            categories: controller.categories,
+            onCreate: (name, iconKey) =>
+                controller.addCategory(name: name, iconKey: iconKey),
+            onUpdate: (categoryId, name, iconKey) => controller.updateCategory(
+              categoryId: categoryId,
+              name: name,
+              iconKey: iconKey,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addGoal() => _editGoal(null);
+
+  Future<void> _editGoal(GoalView? existing) async {
     final controller = widget.controller;
     final draft = await showDialog<GoalDraft>(
       context: context,
       builder: (context) => NewGoalDialog(
         accounts: controller.overview?.accounts ?? const [],
+        existing: existing,
       ),
     );
     if (draft == null || !mounted) {
       return;
     }
     final saved = await controller.addOrUpdateGoal(
+      goalId: existing?.id,
       name: draft.name,
       kind: draft.kind,
       targetAmount: draft.targetAmount,
       linkedAccountId: draft.linkedAccountId,
+      categoryId: draft.categoryId,
+      deadlineMillis: draft.deadlineMillis,
     );
     if (!mounted) {
       return;
@@ -361,24 +411,30 @@ class _LedgerScreenState extends State<LedgerScreen> {
     if (!saved) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.controller.errorMessage ?? 'Could not save goal'),
+          content: Text(
+            widget.controller.errorMessage ?? 'Could not save goal',
+          ),
         ),
       );
     }
   }
 
-  Future<void> _addRecurring() async {
+  Future<void> _addRecurring() => _editRecurring(null);
+
+  Future<void> _editRecurring(UpcomingView? existing) async {
     final controller = widget.controller;
     final draft = await showDialog<RecurringDraft>(
       context: context,
       builder: (context) => NewRecurringDialog(
         accounts: controller.overview?.accounts ?? const [],
+        existing: existing,
       ),
     );
     if (draft == null || !mounted) {
       return;
     }
     final saved = await controller.addOrUpdateRecurring(
+      recurringId: existing?.recurringId,
       title: draft.title,
       kind: draft.kind,
       amount: draft.amount,
@@ -402,7 +458,28 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   Future<void> _recordUpcoming(UpcomingView occurrence) async {
-    final saved = await widget.controller.recordUpcoming(occurrence);
+    String? rate;
+    final account = widget.controller.overview?.accounts
+        .where((account) => account.id == occurrence.accountId)
+        .firstOrNull;
+    final reportingCurrency = widget.controller.reportingCurrencyCode;
+    if (account != null && account.currencyCode != reportingCurrency) {
+      // The rule carries no rate (it would go stale); ask for today's.
+      rate = await showDialog<String>(
+        context: context,
+        builder: (context) => ExchangeRateDialog(
+          sourceCurrencyCode: account.currencyCode,
+          reportingCurrencyCode: reportingCurrency,
+        ),
+      );
+      if (rate == null || !mounted) {
+        return;
+      }
+    }
+    final saved = await widget.controller.recordUpcoming(
+      occurrence,
+      rate: rate,
+    );
     if (!mounted) {
       return;
     }
@@ -521,10 +598,8 @@ class OverviewPane extends StatelessWidget {
                 ...overview.transactions
                     .take(5)
                     .map(
-                      (transaction) => TransactionTile(
-                        transaction,
-                        categories: categories,
-                      ),
+                      (transaction) =>
+                          TransactionTile(transaction, categories: categories),
                     ),
             ],
           ),
@@ -589,7 +664,8 @@ class _ActivityPaneState extends State<ActivityPane> {
                 ],
                 if (!somethingToShow)
                   const _ActivityEmpty()
-                else if (filteredTransactions.isEmpty && filteredTransfers.isEmpty)
+                else if (filteredTransactions.isEmpty &&
+                    filteredTransfers.isEmpty)
                   const _NoMatchingActivity()
                 else ...[
                   ...filteredTransactions.map(
@@ -679,7 +755,10 @@ class _ActivitySearchAndFiltersState extends State<_ActivitySearchAndFilters> {
                 hint: const Text('All accounts'),
                 underline: const SizedBox.shrink(),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('All accounts')),
+                  const DropdownMenuItem(
+                    value: null,
+                    child: Text('All accounts'),
+                  ),
                   for (final account in accounts)
                     DropdownMenuItem(
                       value: account.id,
@@ -778,9 +857,20 @@ class _AccountsCard extends StatelessWidget {
                 leading: const CircleAvatar(child: Icon(Icons.wallet_outlined)),
                 title: Text(account.name),
                 subtitle: Text(account.currencyCode),
-                trailing: Text(
-                  account.balanceLabel,
-                  style: Theme.of(context).textTheme.labelLarge,
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      account.balanceLabel,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    if (account.reportingBalanceLabel != null)
+                      Text(
+                        '≈ ${account.reportingBalanceLabel}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
                 ),
               ),
           ],
@@ -867,7 +957,11 @@ class _NewAccountDialogState extends State<_NewAccountDialog> {
 }
 
 class TransactionTile extends StatelessWidget {
-  const TransactionTile(this.transaction, {this.categories = const [], super.key});
+  const TransactionTile(
+    this.transaction, {
+    this.categories = const [],
+    super.key,
+  });
 
   final TransactionView transaction;
   final List<CategoryView> categories;
@@ -1044,4 +1138,4 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-enum _DataMenuAction { exportCsv, importCsv, lockSettings }
+enum _DataMenuAction { exportCsv, importCsv, manageCategories, lockSettings }

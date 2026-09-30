@@ -1,6 +1,146 @@
 # Phase 1 progress
 
-Updated 2026-09-26. Phase 1 is in progress; its complete exit test has not passed.
+Updated 2026-09-30. Phase 1 is in progress; its complete exit test has not passed.
+
+## Web runtime verification
+
+Web support works; the earlier "blocked on an upstream limitation" finding
+(see "Web: root cause found, not fixed" below, kept for the history) only
+applied to running the integration test through `flutter drive`, which
+compiles to JavaScript. The production `flutter build web --wasm` build
+runs the Rust bridge correctly. `scripts/verify_web_runtime.mjs` (now
+cross-platform: Windows, Linux, CI) serves that build with COOP/COEP
+headers and drives real Chrome: it records "Groceries" (USD 12.34) through
+the UI and the Rust bridge, reloads the page, confirms the ledger is rebuilt
+from `localStorage`, records "Rent" (USD 500.00), reloads again, and
+confirms both entries and the USD -512.34 balance. See `docs/DECISIONS.md`
+(2026-09-30) for why this replaced `flutter drive` in `phase1-web.yml`.
+
+Verified evidence:
+
+- Local: the script passed against a fresh `flutter_rust_bridge_codegen
+  build-web` + `flutter build web --wasm --no-web-resources-cdn` of the
+  current code, in Chromium 141 (`Web runtime verification passed.`, all
+  four `Verified ...` lines).
+- CI: `phase1-web.yml` passed on `claude/category-rename` at `d5a3399`
+  (https://github.com/arsalmurad/cash-app/actions/runs/36762051257): the
+  same script, in the runner's Chrome, against the production wasm build.
+- Found and fixed along the way: the add-entry sheet was not scrollable, so
+  it overflowed on short viewports; `AddTransactionSheet` now scrolls, with
+  a test that fails without the fix. `flutter test` passes 65 tests;
+  `flutter analyze` is clean.
+- Not covered on web: the account-creation, transfer, and category-dropdown
+  steps that `integration_test/ledger_test.dart` exercises on iOS/Android.
+
+## Multi-currency entry and conversion display
+
+Implementation: this change; rationale in `docs/DECISIONS.md` (2026-09-30,
+"Foreign-currency entries need a typed, frozen rate").
+
+- Core: `FxRate::from_decimal_rate` with 7 unit tests (exponent handling,
+  reduction, rejection of zero/garbage/overflow).
+- Bridge: `fx_rate_from_decimal`, `AccountView.reporting_balance_label`
+  (derived; transfer legs at their frozen rates), with Rust tests; bindings
+  regenerated with flutter_rust_bridge 2.13.0.
+- UI: rate fields on the add-entry sheet (expense/income, and each foreign
+  transfer leg), `ExchangeRateDialog` for recurring occurrences on foreign
+  accounts, "≈ USD ..." under foreign account balances.
+
+Verified locally: `cargo test --workspace` (all pass), `flutter analyze`
+clean, `flutter test test` 72 passing (new: rate fields on the sheet, the
+account-tile conversion line, `ExchangeRateDialog`).
+
+CI, all on `claude/category-rename` at `1d843d4`, all passed:
+
+- iOS (simulator): https://github.com/arsalmurad/cash-app/actions/runs/36763102377
+- Android (emulator): https://github.com/arsalmurad/cash-app/actions/runs/36763105604
+- Web (Chrome, wasm): https://github.com/arsalmurad/cash-app/actions/runs/36763109906
+
+`integration_test/ledger_test.dart` gained a EUR account flow (80.00 EUR at
+1.0875 = 87.00 USD, net balance USD -599.34, surviving a restart), which ran
+on iOS and Android. The web script does not cover it.
+
+Not done: a rate column for CSV import, rate editing on an existing entry,
+and deleting accounts.
+
+## Budget, goal, and recurring-rule rename
+
+Implementation: this change. `NewBudgetDialog`, `NewGoalDialog`, and
+`NewRecurringDialog` each gained an optional `existing` parameter that
+pre-fills the form and switches the title to "Edit ..." — the same pattern
+`CategoryEditDialog` established (see "Category rename" below and
+`docs/DECISIONS.md`). `LedgerController.addOrUpdateBudget`/`addOrUpdateGoal`/
+`addOrUpdateRecurring` already accepted an optional ID for exactly this
+(see their Phase 1 slices above); only the UI edit entry point and
+pre-filling were missing. `BudgetsPane`/`GoalsPane`/`RecurringPane` each
+gained an `onEdit` callback and an edit icon per row/card, wired in
+`LedgerScreen` by refactoring `_addBudget`/`_addGoal`/`_addRecurring` into
+`_editBudget`/`_editGoal`/`_editRecurring` that accept an optional existing
+view (`null` for the original "Add" entry points).
+
+Two pre-filling wrinkles worth recording:
+
+- `BudgetView.periodLabel` is a display string ("This week", "This month",
+  "This year", "Last N days" — see `period_label` in
+  `rust/api/src/api/budgets.rs`), not the `BudgetPeriodKind` enum the dialog
+  needs to pre-select. It's parsed back from those four deterministic shapes
+  rather than adding a bridge field just to round-trip what the label
+  already encodes.
+- Neither `NewGoalDialog` nor `NewRecurringDialog` has ever had UI for a
+  goal's `categoryId`/`deadlineMillis` or a recurring rule's `categoryId`
+  (see each feature's original Phase 1 slice above) — editing without also
+  collecting them would have silently cleared them on save. `GoalDraft`
+  and `RecurringDraft` now carry those fields through unchanged from
+  `existing` rather than defaulting them to null, so editing a goal or rule
+  that already has one doesn't lose it; adding UI to actually set them
+  remains open (see "Remaining work" below, unchanged from before this
+  change for goals' category/deadline, newly noted here for recurring's
+  category).
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- No Rust changes were needed — same reasoning as category rename below.
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  64 tests across 14 files: the prior 58, plus 6 new tests (2 per pane:
+  tapping a card/row's edit icon invokes `onEdit` with the right
+  budget/goal/rule; the corresponding dialog in edit mode pre-fills its
+  fields from `existing` and, for the budget case, correctly parses a
+  custom period back out of its label; the recurring case also confirms an
+  edited rule's existing `categoryId` survives the round trip even though
+  the dialog has no field for it).
+- `cargo test --workspace` still passes all 84 tests, confirming no Rust
+  behavior changed.
+- iOS/Android/web runtime verification not run, for the same reason as
+  category rename below (UI-only, no bridge/native surface, already
+  covered by widget tests).
+
+## Category rename
+
+Implementation: this change. `CategoryEditDialog` generalizes the "new
+category" dialog to also handle editing (see `docs/DECISIONS.md`), and
+`LedgerController.updateCategory` reuses the existing `upsertCategory`
+bridge call with the category's existing ID rather than needing any
+Rust/bridge change. `CategoriesScreen`, reachable from `LedgerScreen`'s
+overflow menu ("Manage categories"), lists every category with an edit
+action per row.
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- No Rust changes were needed — this feature only calls the existing
+  `upsert_category` bridge function with a different (pre-existing) ID.
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  58 tests across 14 files: the prior 54, plus 4 new `categories_screen.dart`
+  tests (the empty state shows no categories; each category lists its name
+  and icon; editing a category opens the dialog pre-filled and saves the
+  rename through `onUpdate`; the "New category" button still creates a
+  category through `onCreate`).
+- iOS/Android/web runtime verification not run for this change — it has no
+  bridge surface and is fully covered by the widget tests above; a full CI
+  dispatch was judged unnecessary for a UI-only change with no native or
+  Rust-bridge risk (unlike the Phase 1 slices above, which each touched the
+  bridge, native platform config, or WASM build).
 
 ## Biometric lock
 
@@ -882,9 +1022,9 @@ verified it). Still open before Phase 1's exit test can be called complete:
   over the whole log (see `event_store_web.dart`), which is O(log size) per
   write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
   with one record per frame) if local history grows large.
-- Categories can be created and assigned but not renamed, re-iconed, or
-  deleted from the UI yet (the Rust/bridge upsert already supports rename;
-  only the "new category" entry point exists in `AddTransactionSheet`).
+- Categories can be renamed and re-iconed from the new "Manage categories"
+  screen (see the "Category rename" section above), but not deleted — the
+  Rust core has no delete operation for categories, only upsert.
 - Account currency is fixed at creation (no display-currency conversion
   toggle yet); the net balance card sums accounts' reporting-currency
   equivalents but never shows the same amount converted between two
@@ -893,10 +1033,12 @@ verified it). Still open before Phase 1's exit test can be called complete:
   it re-locks on every single background/resume cycle, which may be
   stricter than some users want; also untested against a device with no
   biometrics enrolled but a passcode set (device-credential fallback).
-- Budgets, goals, and recurring rules can be created and their
-  progress/occurrences tracked, but not renamed or deleted from the UI yet
-  (the Rust/bridge upsert already supports rename via re-using the same
-  ID; only the "new" entry point exists for each).
+- Budgets, goals, and recurring rules can now be edited from the UI (see
+  "Budget, goal, and recurring-rule rename" above), but not deleted — like
+  categories, the Rust core has no delete operation, only upsert. Goals
+  still have no UI to set a category or deadline, and recurring rules
+  still have no UI to set a category (editing preserves an existing value
+  it can't show, but can't set one on a rule/goal that never had it).
 - Recurring rules have no "skip this occurrence" action; the only way past
   a due occurrence is to record it (or edit the rule's start date).
 - CSV export/import uses the clipboard rather than a native file

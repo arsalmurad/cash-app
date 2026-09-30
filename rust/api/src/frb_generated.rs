@@ -44,7 +44,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 346076172;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1675032996;
 
 // Section: executor
 
@@ -270,6 +270,45 @@ fn wire__crate__api__categories__category_load_report_impl(
                     }
                     let api_book_guard = api_book_guard.unwrap();
                     let output_ok = crate::api::categories::category_load_report(&*api_book_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__ledger__fx_rate_from_decimal_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "fx_rate_from_decimal",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_rate = <String>::sse_decode(&mut deserializer);
+            let api_source_currency_code = <String>::sse_decode(&mut deserializer);
+            let api_target_currency_code = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let output_ok = crate::api::ledger::fx_rate_from_decimal(
+                        api_rate,
+                        api_source_currency_code,
+                        api_target_currency_code,
+                    )?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -1477,11 +1516,13 @@ impl SseDecode for crate::api::ledger::AccountView {
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_currencyCode = <String>::sse_decode(deserializer);
         let mut var_balanceLabel = <String>::sse_decode(deserializer);
+        let mut var_reportingBalanceLabel = <Option<String>>::sse_decode(deserializer);
         return crate::api::ledger::AccountView {
             id: var_id,
             name: var_name,
             currency_code: var_currencyCode,
             balance_label: var_balanceLabel,
+            reporting_balance_label: var_reportingBalanceLabel,
         };
     }
 }
@@ -1601,6 +1642,18 @@ impl SseDecode for crate::api::ledger::EntryKind {
             0 => crate::api::ledger::EntryKind::Expense,
             1 => crate::api::ledger::EntryKind::Income,
             _ => unreachable!("Invalid variant for EntryKind: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::ledger::FxRatio {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_numerator = <i64>::sse_decode(deserializer);
+        let mut var_denominator = <i64>::sse_decode(deserializer);
+        return crate::api::ledger::FxRatio {
+            numerator: var_numerator,
+            denominator: var_denominator,
         };
     }
 }
@@ -2023,47 +2076,48 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        5 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__goals__goal_load_report_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__goals__goal_progress_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
-        10 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
-        11 => {
+        5 => wire__crate__api__ledger__fx_rate_from_decimal_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
+        7 => wire__crate__api__goals__goal_load_report_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__goals__goal_progress_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
+        12 => {
             wire__crate__api__categories__load_category_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        12 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
-        13 => {
+        13 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
+        14 => {
             wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
         }
-        14 => {
+        15 => {
             wire__crate__api__recurring__load_recurring_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        15 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__recurring__recurring_load_report_impl(
+        16 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__recurring__recurring_load_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        19 => wire__crate__api__ledger__suggest_category_for_title_impl(
+        20 => wire__crate__api__ledger__suggest_category_for_title_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__recurring__upcoming_occurrences_impl(
+        21 => wire__crate__api__recurring__upcoming_occurrences_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2165,6 +2219,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::ledger::AccountView {
             self.name.into_into_dart().into_dart(),
             self.currency_code.into_into_dart().into_dart(),
             self.balance_label.into_into_dart().into_dart(),
+            self.reporting_balance_label.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2347,6 +2402,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::EntryKind>
     for crate::api::ledger::EntryKind
 {
     fn into_into_dart(self) -> crate::api::ledger::EntryKind {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ledger::FxRatio {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.numerator.into_into_dart().into_dart(),
+            self.denominator.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::ledger::FxRatio {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::FxRatio>
+    for crate::api::ledger::FxRatio
+{
+    fn into_into_dart(self) -> crate::api::ledger::FxRatio {
         self
     }
 }
@@ -2762,6 +2835,7 @@ impl SseEncode for crate::api::ledger::AccountView {
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.currency_code, serializer);
         <String>::sse_encode(self.balance_label, serializer);
+        <Option<String>>::sse_encode(self.reporting_balance_label, serializer);
     }
 }
 
@@ -2857,6 +2931,14 @@ impl SseEncode for crate::api::ledger::EntryKind {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::ledger::FxRatio {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.numerator, serializer);
+        <i64>::sse_encode(self.denominator, serializer);
     }
 }
 

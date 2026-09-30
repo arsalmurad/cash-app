@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show PlatformInt64;
 
 import '../../data/rust/api/goals.dart';
 import '../../data/rust/api/ledger.dart';
@@ -7,9 +9,10 @@ import '../../data/rust/api/ledger.dart';
 /// Rust core each time (see `goal_progress`), so this widget is purely
 /// presentational.
 class GoalsPane extends StatelessWidget {
-  const GoalsPane({required this.goals, super.key});
+  const GoalsPane({required this.goals, this.onEdit, super.key});
 
   final List<GoalView> goals;
+  final void Function(GoalView goal)? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -19,15 +22,19 @@ class GoalsPane extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
       itemCount: goals.length,
-      itemBuilder: (context, index) => _GoalCard(goal: goals[index]),
+      itemBuilder: (context, index) => _GoalCard(
+        goal: goals[index],
+        onEdit: onEdit == null ? null : () => onEdit!(goals[index]),
+      ),
     );
   }
 }
 
 class _GoalCard extends StatelessWidget {
-  const _GoalCard({required this.goal});
+  const _GoalCard({required this.goal, this.onEdit});
 
   final GoalView goal;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -63,6 +70,12 @@ class _GoalCard extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (onEdit != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    tooltip: 'Edit goal',
+                    onPressed: onEdit,
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -116,18 +129,32 @@ class GoalDraft {
     required this.kind,
     required this.targetAmount,
     this.linkedAccountId,
+    this.categoryId,
+    this.deadlineMillis,
   });
 
   final String name;
   final GoalKind kind;
   final String targetAmount;
   final String? linkedAccountId;
+
+  /// Neither this nor [deadlineMillis] has UI in this dialog yet (see
+  /// `docs/PHASE1-PROGRESS.md`'s "Remaining work"); carried through from an
+  /// edited goal's existing value so editing doesn't silently clear it.
+  final String? categoryId;
+  final PlatformInt64? deadlineMillis;
 }
 
 class NewGoalDialog extends StatefulWidget {
-  const NewGoalDialog({required this.accounts, super.key});
+  const NewGoalDialog({required this.accounts, this.existing, super.key});
 
   final List<AccountView> accounts;
+
+  /// When set, the dialog starts pre-filled from this goal and behaves as an
+  /// edit rather than a create (see [GoalsPane.onEdit]).
+  final GoalView? existing;
+
+  bool get isEditing => existing != null;
 
   @override
   State<NewGoalDialog> createState() => _NewGoalDialogState();
@@ -135,17 +162,33 @@ class NewGoalDialog extends StatefulWidget {
 
 class _NewGoalDialogState extends State<NewGoalDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _targetController = TextEditingController();
-  GoalKind _kind = GoalKind.save;
+  late final _nameController = TextEditingController(
+    text: widget.existing?.name,
+  );
+  late final _targetController = TextEditingController(
+    text: widget.existing == null
+        ? null
+        : _amountFromLabel(widget.existing!.targetLabel),
+  );
+  late GoalKind _kind = widget.existing == null
+      ? GoalKind.save
+      : (widget.existing!.isSave ? GoalKind.save : GoalKind.spend);
   String? _linkedAccountId;
+
+  /// A target/progress label is always `"<CODE> <amount>"`; the amount alone
+  /// is what the target field edits (mirrors the same helper in
+  /// `budgets_pane.dart`/`ledger_controller.dart`).
+  String _amountFromLabel(String label) {
+    final spaceIndex = label.indexOf(' ');
+    return spaceIndex < 0 ? label : label.substring(spaceIndex + 1);
+  }
 
   @override
   void initState() {
     super.initState();
-    _linkedAccountId = widget.accounts.isNotEmpty
-        ? widget.accounts.first.id
-        : null;
+    _linkedAccountId =
+        widget.existing?.linkedAccountId ??
+        (widget.accounts.isNotEmpty ? widget.accounts.first.id : null);
   }
 
   @override
@@ -158,7 +201,7 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('New goal'),
+      title: Text(widget.isEditing ? 'Edit goal' : 'New goal'),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -247,6 +290,8 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
         kind: _kind,
         targetAmount: _targetController.text.trim(),
         linkedAccountId: _kind == GoalKind.save ? _linkedAccountId : null,
+        categoryId: widget.existing?.categoryId,
+        deadlineMillis: widget.existing?.deadlineMillis,
       ),
     );
   }

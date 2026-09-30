@@ -462,3 +462,106 @@ crash for silently dropped data. Diagnostic assertions added to
 `integration_test/ledger_test.dart` during this investigation (SnackBar
 text and live controller-state dumps on failure) were kept — they're
 generically useful and independent of this revert.
+
+## 2026-09-29 — Category rename reuses the existing "new category" dialog
+
+`CategoryEditDialog` (`app/lib/features/ledger/category_edit_dialog.dart`)
+generalizes what was previously `AddTransactionSheet`'s private
+`_NewCategoryDialog`, taking optional `initialName`/`initialIconKey` to
+switch it into edit mode. Writing a second, separate rename-only dialog was
+rejected: creating and renaming a category collect exactly the same two
+fields (name, icon) and differ only in whether they start blank, so a
+second copy would just be the same form duplicated with no behavioral
+difference to justify it. `LedgerController.updateCategory` calls the same
+`upsertCategory` bridge function `addCategory` already uses, passing the
+existing category's ID instead of a freshly slugified one — `upsertCategory`
+already replaces-in-place on a repeated ID (see the categories LWW design,
+2026-09-26 entries above), so no bridge or core change was needed.
+`CategoriesScreen` is a new destination (reachable from `LedgerScreen`'s
+overflow menu, "Manage categories") listing every category with an edit
+action per row, rather than folding rename into the existing category
+dropdown inside `AddTransactionSheet`: that dropdown's job is picking a
+category for one transaction, and overloading it with a management UI would
+conflate the two.
+
+## 2026-09-30 — Budget/goal/recurring-rule dialogs edit in place, not a second dialog
+
+`NewBudgetDialog`, `NewGoalDialog`, and `NewRecurringDialog` each gained an
+optional `existing` parameter rather than a parallel `EditBudgetDialog`
+etc.: the same reasoning as `CategoryEditDialog` applies to each — creating
+and editing collect the same fields, just starting blank or pre-filled, so
+a second dialog would duplicate the form for no behavioral difference. A
+budget's `periodLabel` is a display string, not its `BudgetPeriodKind`, so
+pre-filling the edit form parses it back from the four fixed shapes
+`period_label` in `rust/api/src/api/budgets.rs` produces ("This week" /
+"This month" / "This year" / "Last N days") rather than adding a bridge
+field only the edit dialog would ever read.
+
+A goal's `categoryId`/`deadlineMillis` and a recurring rule's `categoryId`
+have never had UI to set them (neither creation dialog collects them), so
+editing without addressing that would silently null them out on save for
+anything that already had one. Rejected fixing this by adding that UI now:
+it's a real, separate feature gap (see `docs/PHASE1-PROGRESS.md`'s
+"Remaining work"), out of scope for a rename fix, and would have expanded
+this change well past "let an existing value survive an edit." Instead
+`GoalDraft`/`RecurringDraft` carry the existing value through unchanged
+when editing, so the edit is safe today and the missing UI stays a single,
+clearly-scoped follow-up rather than two problems tangled into one fix.
+
+## 2026-09-30 — Web is verified by a runtime script against the production build, not `flutter drive`
+
+Correction to the two entries above about the web `WorkerPool` panic: web
+support was never broken, only the way the integration test reached it was.
+`flutter drive -d web-server` compiles the test target to JavaScript
+(`main.dart.js`), and there the first Rust bridge call panicked on every
+build mode. The production build the app actually ships —
+`flutter build web --wasm` (dart2wasm) — runs the Rust bridge fine:
+`scripts/verify_web_runtime.mjs` serves it with COOP/COEP headers, drives
+real Chrome over the DevTools protocol, records expenses through the bridge,
+and reloads the page twice to prove the ledger is rebuilt from
+`localStorage` alone. It passed locally (Chromium 141) on the current
+async-dispatch code. Two things were needed to make it hermetic and
+portable: `--no-web-resources-cdn` (otherwise Flutter fetches CanvasKit from
+Google's CDN at load, so the app never boots without outbound network), and
+a Chrome window larger than the 780x388 default (the add-entry sheet was cut
+off; making the sheet scrollable fixed the underlying small-screen bug too).
+
+`phase1-web.yml` now runs that script instead of `flutter drive`, and the
+ChromeDriver/`reportData` machinery that existed only to debug the drive
+path was deleted (`app/test_driver/`, the try/catch in
+`integration_test/ledger_test.dart`). Keeping `flutter drive` as a second,
+failing check was rejected: a check known to fail for a reason unrelated to
+the product trains everyone to ignore red CI. What this does not do is run
+`integration_test/ledger_test.dart` on web — the script covers the same
+record/restart flow through the real UI instead, but not the account,
+transfer, and category steps; extending it to those is tracked in
+`docs/PHASE1-PROGRESS.md`. The root cause of the JS-path panic itself
+(`fzyzcjy/flutter_rust_bridge#2914`) remains unfixed upstream and is not
+needed to ship web.
+
+## 2026-09-30 — Foreign-currency entries need a typed, frozen rate
+
+Until now `record`/`transfer` hardcoded a 1:1 reporting rate, which silently
+mis-valued any account outside the reporting currency (a EUR 80.00 expense
+would have counted as USD 80.00). The core already froze a rate per event;
+the gap was input and display.
+
+Decision: an entry or transfer leg on an account whose currency differs from
+the reporting currency must carry a user-typed decimal rate ("USD per 1
+EUR"). It is never prefilled, remembered, or fetched: a stale or guessed
+rate is a wrong number in the ledger, and an empty required field is
+visible. `FxRate::from_decimal_rate` parses the text into an exact reduced
+integer ratio of target minor units per source minor unit (accounting for
+each currency's exponent, so EUR→JPY works) with no floating point;
+malformed, zero, negative, or overflowing input is rejected. Recurring rules
+carry no rate (it would go stale), so recording an occurrence on a foreign
+account asks for that day's rate. CSV import rows on foreign accounts fail
+with the same "enter the exchange rate" error per line rather than being
+valued at 1:1; a rate column is future work.
+
+Per-account reporting balances (`AccountView.reporting_balance_label`) are
+derived from folded state at display time (transactions at their frozen
+reporting amounts, voids excluded, transfer legs at their own frozen
+rates), never stored, so equal event sets still give byte-identical state.
+Reporting-currency accounts show no conversion line.
+

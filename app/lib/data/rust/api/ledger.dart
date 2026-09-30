@@ -7,9 +7,9 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `append_and_mutation`, `folded_state`, `lock`, `next_event`, `overview_from_state`, `overview`
+// These functions are ignored because they are not marked as `pub`: `append_and_mutation`, `folded_state`, `lock`, `next_event`, `overview_from_state`, `overview`, `reporting_balances`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LedgerData`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 
 /// Opens a personal ledger by replaying a durable log's bytes. Pass an empty
 /// `log_bytes` for a brand-new installation; this is the only ledger
@@ -46,6 +46,18 @@ Future<LedgerMutation> addAccount({
   name: name,
   currencyCode: currencyCode,
   wallClockMillis: wallClockMillis,
+);
+
+/// Converts a user-typed decimal rate ("1.0875" target units per one source
+/// unit) into the exact integer ratio the ledger freezes on an entry.
+Future<FxRatio> fxRateFromDecimal({
+  required String rate,
+  required String sourceCurrencyCode,
+  required String targetCurrencyCode,
+}) => RustLib.instance.api.crateApiLedgerFxRateFromDecimal(
+  rate: rate,
+  sourceCurrencyCode: sourceCurrencyCode,
+  targetCurrencyCode: targetCurrencyCode,
 );
 
 Future<LedgerMutation> recordTransaction({
@@ -139,11 +151,17 @@ class AccountView {
   final String currencyCode;
   final String balanceLabel;
 
+  /// The account's balance valued at each entry's frozen rate, in the
+  /// ledger's reporting currency. `None` for accounts already held in the
+  /// reporting currency, where it would only repeat `balance_label`.
+  final String? reportingBalanceLabel;
+
   const AccountView({
     required this.id,
     required this.name,
     required this.currencyCode,
     required this.balanceLabel,
+    this.reportingBalanceLabel,
   });
 
   @override
@@ -151,7 +169,8 @@ class AccountView {
       id.hashCode ^
       name.hashCode ^
       currencyCode.hashCode ^
-      balanceLabel.hashCode;
+      balanceLabel.hashCode ^
+      reportingBalanceLabel.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -161,10 +180,31 @@ class AccountView {
           id == other.id &&
           name == other.name &&
           currencyCode == other.currencyCode &&
-          balanceLabel == other.balanceLabel;
+          balanceLabel == other.balanceLabel &&
+          reportingBalanceLabel == other.reportingBalanceLabel;
 }
 
 enum EntryKind { expense, income }
+
+/// An exact exchange-rate ratio, as accepted by `record_transaction` and
+/// `record_transfer`: target minor units per one source minor unit.
+class FxRatio {
+  final PlatformInt64 numerator;
+  final PlatformInt64 denominator;
+
+  const FxRatio({required this.numerator, required this.denominator});
+
+  @override
+  int get hashCode => numerator.hashCode ^ denominator.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FxRatio &&
+          runtimeType == other.runtimeType &&
+          numerator == other.numerator &&
+          denominator == other.denominator;
+}
 
 /// The result of a mutation that appended one event. `appended_frame` is the
 /// durable-log frame for that event and only exists when the mutation
