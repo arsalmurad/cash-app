@@ -106,4 +106,103 @@ void main() {
     expect(result!.accountId, 'checking');
     expect(result!.frequency, RecurringFrequency.monthly);
   });
+
+  testWidgets('tapping a rule\'s edit icon opens the dialog pre-filled', (
+    tester,
+  ) async {
+    final occurrence = UpcomingView(
+      recurringId: 'rent',
+      title: 'Rent',
+      isExpense: true,
+      amountLabel: 'USD 1500.00',
+      accountId: 'checking',
+      categoryId: null,
+      frequency: RecurringFrequency.monthly,
+      occurrenceMillis: PlatformInt64Util.from(
+        DateTime(2026, 3, 1).millisecondsSinceEpoch,
+      ),
+      isOverdue: true,
+    );
+    UpcomingView? edited;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RecurringPane(
+            upcoming: [occurrence],
+            onRecord: (_) async {},
+            onEdit: (view) => edited = view,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pump();
+
+    expect(edited, occurrence);
+  });
+
+  testWidgets(
+    'NewRecurringDialog in edit mode pre-fills title, amount, kind, and frequency',
+    (tester) async {
+      final occurrence = UpcomingView(
+        recurringId: 'rent',
+        title: 'Rent',
+        isExpense: true,
+        amountLabel: 'USD 1500.00',
+        accountId: 'checking',
+        categoryId: 'housing',
+        frequency: RecurringFrequency.monthly,
+        occurrenceMillis: PlatformInt64Util.from(
+          DateTime(2026, 3, 1).millisecondsSinceEpoch,
+        ),
+        isOverdue: true,
+      );
+      const accounts = [
+        AccountView(
+          id: 'checking',
+          name: 'Checking',
+          currencyCode: 'USD',
+          balanceLabel: 'USD 0.00',
+        ),
+      ];
+      RecurringDraft? result;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () async {
+                  result = await showDialog<RecurringDraft>(
+                    context: context,
+                    builder: (context) => NewRecurringDialog(
+                      accounts: accounts,
+                      existing: occurrence,
+                    ),
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit recurring rule'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Rent'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, '1500.00'), findsOneWidget);
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      // No category picker exists in this dialog; the existing category must
+      // still be carried through rather than dropped.
+      expect(result!.categoryId, 'housing');
+    },
+  );
 }

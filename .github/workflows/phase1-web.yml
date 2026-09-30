@@ -14,7 +14,7 @@ jobs:
   web-wasm:
     name: Personal ledger on Flutter web/WASM
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
@@ -23,7 +23,14 @@ jobs:
       - name: Record runner environment
         run: |
           uname -m
-          google-chrome --version || chromium-browser --version || true
+          google-chrome --version
+
+      # scripts/verify_web_runtime.mjs uses Node's global WebSocket, which is
+      # only stable from Node 22.
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Install pinned Rust toolchain
         run: |
@@ -76,107 +83,34 @@ jobs:
         run: |
           flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release
 
+      # --no-web-resources-cdn bundles CanvasKit/skwasm into build/web
+      # instead of fetching them from Google's CDN at load time, so the
+      # runtime check below depends on nothing outside this checkout.
       - name: Build Flutter web/WASM release
         working-directory: app
-        run: flutter build web --wasm
+        run: flutter build web --wasm --no-web-resources-cdn
 
-      - name: Install and start ChromeDriver
-        run: |
-          # `chromedriver@stable` installs the latest stable ChromeDriver
-          # release, which can be (and, on a real run, was) ahead of the
-          # Chrome version actually preinstalled on the runner image —
-          # ChromeDriver refuses to create a session against a mismatched
-          # major version ("This version of ChromeDriver only supports
-          # Chrome version 154. Current browser version is
-          # 153.0.8010.52."). Install the driver build matching the
-          # installed Chrome's exact version instead of the newest release
-          # (Chrome for Testing publishes a matching driver per full
-          # version for stable Chrome; a bare major version like
-          # "chromedriver@153" is not itself a resolvable build and 403s).
-          chrome_version="$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')"
-          echo "Installed Chrome version: $chrome_version"
-          npx --yes @puppeteer/browsers install "chromedriver@$chrome_version" --path "$RUNNER_TEMP/chromedriver"
-          driver_bin="$(find "$RUNNER_TEMP/chromedriver" -type f -name chromedriver | head -n1)"
-          chmod +x "$driver_bin"
-          "$driver_bin" --version
-          # `-d web-server` needs a WebDriver server already listening on
-          # --driver-port (default 4444) — flutter drive does not spawn one
-          # itself. Confirmed by a real run: with chromedriver merely on
-          # PATH but not started, it failed fast with "Unable to start a
-          # WebDriver session for web testing. Make sure you have the
-          # correct WebDriver server (e.g. chromedriver) running at 4444."
-          "$driver_bin" --port=4444 &
-          echo "Waiting for ChromeDriver to accept connections..."
-          for _ in $(seq 1 30); do
-            curl -sf http://localhost:4444/status > /dev/null && break
-            sleep 1
-          done
-          curl -sf http://localhost:4444/status
-
-      - name: Run personal ledger integration test
-        working-directory: app
+      # The runtime check serves the production build above with COOP/COEP
+      # headers and drives real Chrome over the DevTools protocol: it
+      # records expenses through the Rust bridge, reloads the page (the web
+      # equivalent of an app restart, since the event log lives in
+      # localStorage), and checks the ledger is rebuilt from storage alone.
+      #
+      # This replaced a `flutter drive -d web-server` run of
+      # integration_test/ledger_test.dart. That path compiles the app to
+      # JavaScript rather than WASM, and on every build mode (debug,
+      # profile, release) the very first Rust bridge call panicked inside
+      # flutter_rust_bridge's WorkerPool ("RuntimeError: unreachable"; see
+      # https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914). The
+      # production dart2wasm build does not hit it — this script passes
+      # against it — so the integration test's web path was the thing that
+      # was broken, not web support. See docs/DECISIONS.md.
+      - name: Run web runtime verification
         env:
-          RUSTUP_TOOLCHAIN: 1.98.1
-        # `-d chrome` (tried first) hung indefinitely at "Waiting for
-        # connection from debug service on Chrome..." on two consecutive
-        # real CI runs — it runs the app via Chrome's own CDP connection, a
-        # different code path from the WebDriver-managed Chrome that
-        # flutter drive's driver script actually waits to connect through,
-        # so the two were never talking to the same browser instance.
-        # `-d web-server` is Flutter's own documented device for this
-        # combination, but still needs chromedriver already running as a
-        # server (see the previous step) rather than merely on PATH.
-        #
-        # --cross-origin-isolation: the WASM build uses -Ctarget-feature=
-        # atomics (needed for flutter_rust_bridge's threaded worker pool),
-        # which requires SharedArrayBuffer, which browsers only expose to a
-        # cross-origin-isolated page (COOP/COEP headers) — flutter drive's
-        # dev server doesn't send those by default. Necessary but not
-        # sufficient on its own: two runs with this flag still panicked
-        # identically ("RuntimeError: unreachable" unwinding from
-        # WorkerPool::default()).
-        #
-        # --release: flutter drive defaults to debug mode, which recompiles
-        # and serves the app from source via its own dev server (DDC-style
-        # JS), ignoring the release build from the previous step entirely.
-        # Kept here as the closest-to-production build mode even though it
-        # turned out NOT to fix the integration test (see below) — no
-        # build mode does.
-        #
-        # This test currently fails on every build mode (debug, profile,
-        # release) with the same panic: "RuntimeError: unreachable" from
-        # flutter_rust_bridge's WorkerPool::default(), on the very first
-        # Rust call. This is a known, upstream, maintainer-acknowledged
-        # flutter_rust_bridge limitation (closed as "not planned"):
-        # https://github.com/fzyzcjy/flutter_rust_bridge/issues/2914 —
-        # browsers cannot clone a WebAssembly.Memory object via
-        # postMessage, which is what the web Worker thread pool needs to
-        # do to hand off work. The one known fix (`default_dart_async:
-        # false` in flutter_rust_bridge.yaml) changes every generated
-        # Rust-bridge call across the whole app from async to sync, not
-        # just on web — a substantial, cross-cutting refactor of its own,
-        # not a CI config change; see docs/PHASE1-PROGRESS.md's "Web: root
-        # cause found, not fixed" section for the full investigation and
-        # why it wasn't applied here. The test captures the real exception
-        # via `reportData` (see test_driver/integration_test.dart) since
-        # flutter drive's own failure reporting comes back blank here.
-        run: >-
-          flutter drive
-          --driver=test_driver/integration_test.dart
-          --target=integration_test/ledger_test.dart
-          -d web-server --web-port=7357 --browser-name=chrome
-          --headless --web-run-headless --cross-origin-isolation --release
-
-      - name: Print captured test exception (if any)
-        if: always()
-        working-directory: app
+          CHROME_NO_SANDBOX: "1"
         run: |
-          if [ -f build/integration_response_data.json ]; then
-            echo "--- build/integration_response_data.json ---"
-            cat build/integration_response_data.json
-          else
-            echo "No integration_response_data.json was written."
-          fi
+          export CHROME_BINARY="$(command -v google-chrome)"
+          node scripts/verify_web_runtime.mjs
 
       - name: Record Phase 1 web result
         shell: bash
@@ -186,7 +120,7 @@ jobs:
           {
             echo "## Phase 1 web result"
             echo
-            echo "- Personal ledger integration test (Chrome, WASM): passed"
+            echo "- Personal ledger runtime check (Chrome, WASM, reload persistence): passed"
             echo "- Web/WASM release build: passed"
             echo "- build/web size: ${web_bytes} KiB"
           } | tee -a "$GITHUB_STEP_SUMMARY"

@@ -10,11 +10,13 @@ class BudgetsPane extends StatelessWidget {
   const BudgetsPane({
     required this.budgets,
     required this.categories,
+    this.onEdit,
     super.key,
   });
 
   final List<BudgetView> budgets;
   final List<CategoryView> categories;
+  final void Function(BudgetView budget)? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +29,7 @@ class BudgetsPane extends StatelessWidget {
       itemBuilder: (context, index) => _BudgetCard(
         budget: budgets[index],
         categoryName: _categoryName(budgets[index].categoryId),
+        onEdit: onEdit == null ? null : () => onEdit!(budgets[index]),
       ),
     );
   }
@@ -45,10 +48,15 @@ class BudgetsPane extends StatelessWidget {
 }
 
 class _BudgetCard extends StatelessWidget {
-  const _BudgetCard({required this.budget, required this.categoryName});
+  const _BudgetCard({
+    required this.budget,
+    required this.categoryName,
+    this.onEdit,
+  });
 
   final BudgetView budget;
   final String? categoryName;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +81,12 @@ class _BudgetCard extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (onEdit != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    tooltip: 'Edit budget',
+                    onPressed: onEdit,
+                  ),
               ],
             ),
             Text(
@@ -145,9 +159,19 @@ class BudgetDraft {
 }
 
 class NewBudgetDialog extends StatefulWidget {
-  const NewBudgetDialog({required this.categories, super.key});
+  const NewBudgetDialog({
+    required this.categories,
+    this.existing,
+    super.key,
+  });
 
   final List<CategoryView> categories;
+
+  /// When set, the dialog starts pre-filled from this budget and behaves as
+  /// an edit rather than a create (see [BudgetsPane.onEdit]).
+  final BudgetView? existing;
+
+  bool get isEditing => existing != null;
 
   @override
   State<NewBudgetDialog> createState() => _NewBudgetDialogState();
@@ -155,11 +179,52 @@ class NewBudgetDialog extends StatefulWidget {
 
 class _NewBudgetDialogState extends State<NewBudgetDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _limitController = TextEditingController();
-  final _customDaysController = TextEditingController(text: '30');
-  String? _categoryId;
-  BudgetPeriodKind _period = BudgetPeriodKind.monthly;
+  late final _nameController = TextEditingController(
+    text: widget.existing?.name,
+  );
+  late final _limitController = TextEditingController(
+    text: widget.existing == null
+        ? null
+        : _amountFromLabel(widget.existing!.limitLabel),
+  );
+  late final _customDaysController = TextEditingController(
+    text: _parsedPeriod.$2?.toString() ?? '30',
+  );
+  late String? _categoryId = widget.existing?.categoryId;
+  late BudgetPeriodKind _period = _parsedPeriod.$1;
+
+  /// A limit/spent label is always `"<CODE> <amount>"`; the amount alone is
+  /// what the limit field edits (mirrors `_amountFromLabel` in
+  /// `ledger_controller.dart`).
+  String _amountFromLabel(String label) {
+    final spaceIndex = label.indexOf(' ');
+    return spaceIndex < 0 ? label : label.substring(spaceIndex + 1);
+  }
+
+  /// `BudgetView.periodLabel` is a display string ("This week", "This
+  /// month", "This year", "Last N days" — see `period_label` in
+  /// `rust/api/src/api/budgets.rs`), not the `BudgetPeriodKind` this dialog
+  /// needs to pre-select. It's deterministic in exactly those four shapes,
+  /// so it's parsed back rather than adding a bridge field just to round-trip
+  /// what the label already encodes.
+  (BudgetPeriodKind, int?) get _parsedPeriod {
+    final label = widget.existing?.periodLabel;
+    if (label == null) {
+      return (BudgetPeriodKind.monthly, null);
+    }
+    switch (label) {
+      case 'This week':
+        return (BudgetPeriodKind.weekly, null);
+      case 'This month':
+        return (BudgetPeriodKind.monthly, null);
+      case 'This year':
+        return (BudgetPeriodKind.yearly, null);
+      default:
+        final match = RegExp(r'^Last (\d+) days$').firstMatch(label);
+        final days = match == null ? null : int.tryParse(match.group(1)!);
+        return (BudgetPeriodKind.custom, days ?? 30);
+    }
+  }
 
   @override
   void dispose() {
@@ -172,7 +237,7 @@ class _NewBudgetDialogState extends State<NewBudgetDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('New budget'),
+      title: Text(widget.isEditing ? 'Edit budget' : 'New budget'),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(

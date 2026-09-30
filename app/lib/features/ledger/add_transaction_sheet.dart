@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
+import 'category_edit_dialog.dart';
 import 'category_presets.dart';
 
 /// What `AddTransactionSheet` returns: either a single-account transaction
@@ -22,6 +23,7 @@ class TransactionDraft extends EntryDraft {
     required this.kind,
     required this.accountId,
     this.categoryId,
+    this.rate,
   });
 
   final String title;
@@ -29,6 +31,10 @@ class TransactionDraft extends EntryDraft {
   final EntryKind kind;
   final String accountId;
   final String? categoryId;
+
+  /// Reporting-currency units per one unit of the account's currency, as
+  /// typed. Only set when the account isn't in the reporting currency.
+  final String? rate;
 }
 
 class TransferDraft extends EntryDraft {
@@ -38,15 +44,23 @@ class TransferDraft extends EntryDraft {
     required this.sentAmount,
     this.receivedAmount,
     required this.title,
+    this.sentRate,
+    this.receivedRate,
   });
 
   final String fromAccountId;
   final String toAccountId;
   final String sentAmount;
+
   /// Only set (and only needed) when the two accounts don't share a
   /// currency; see `LedgerController.transfer`.
   final String? receivedAmount;
   final String title;
+
+  /// Typed rate for each leg; only set for a leg whose account isn't in the
+  /// reporting currency.
+  final String? sentRate;
+  final String? receivedRate;
 }
 
 enum _EntryMode { expense, income, transfer }
@@ -54,6 +68,7 @@ enum _EntryMode { expense, income, transfer }
 class AddTransactionSheet extends StatefulWidget {
   const AddTransactionSheet({
     required this.accounts,
+    required this.reportingCurrencyCode,
     required this.categories,
     required this.onSuggestCategory,
     required this.onAddCategory,
@@ -61,6 +76,10 @@ class AddTransactionSheet extends StatefulWidget {
   });
 
   final List<AccountView> accounts;
+
+  /// The ledger's reporting currency. Entries on accounts in any other
+  /// currency need an exchange rate to it, frozen on the entry.
+  final String reportingCurrencyCode;
   final List<CategoryView> categories;
   final Future<String?> Function(String title) onSuggestCategory;
   final Future<CategoryView?> Function(String name, String iconKey)
@@ -75,6 +94,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final titleController = TextEditingController();
   final amountController = TextEditingController();
   final receivedAmountController = TextEditingController();
+  final rateController = TextEditingController();
+  final sentRateController = TextEditingController();
+  final receivedRateController = TextEditingController();
   _EntryMode mode = _EntryMode.expense;
   String? categoryId;
   bool categoryManuallyChosen = false;
@@ -110,6 +132,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     titleController.dispose();
     amountController.dispose();
     receivedAmountController.dispose();
+    rateController.dispose();
+    sentRateController.dispose();
+    receivedRateController.dispose();
     super.dispose();
   }
 
@@ -141,6 +166,43 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     return null;
   }
 
+  bool _needsRate(String? accountId) {
+    final account = _accountById(accountId);
+    return account != null &&
+        account.currencyCode != widget.reportingCurrencyCode;
+  }
+
+  /// A rate field for [accountId]'s currency, or no widgets when that
+  /// account is already in the reporting currency.
+  List<Widget> _rateField({
+    required Key key,
+    required TextEditingController controller,
+    required String? accountId,
+  }) {
+    if (!_needsRate(accountId)) {
+      return const [];
+    }
+    final currency = _accountById(accountId)!.currencyCode;
+    return [
+      const SizedBox(height: 12),
+      TextFormField(
+        key: key,
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: 'Exchange rate',
+          helperText:
+              '${widget.reportingCurrencyCode} per 1 $currency, frozen on '
+              'this entry',
+          hintText: '1.0000',
+        ),
+        validator: (value) => value == null || value.trim().isEmpty
+            ? 'Enter the exchange rate'
+            : null,
+      ),
+    ];
+  }
+
   bool get _transferCrossesCurrencies {
     final from = _accountById(fromAccountId);
     final to = _accountById(toAccountId);
@@ -155,60 +217,69 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottomInset),
         child: Form(
           key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(99),
+          // Scrollable so the sheet stays usable on short viewports (a phone
+          // in landscape, or with the keyboard up) instead of overflowing.
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text('Add entry', style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 20),
-              SegmentedButton<_EntryMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: _EntryMode.expense,
-                    icon: Icon(Icons.arrow_upward_rounded),
-                    label: Text('Expense'),
-                  ),
-                  ButtonSegment(
-                    value: _EntryMode.income,
-                    icon: Icon(Icons.arrow_downward_rounded),
-                    label: Text('Income'),
-                  ),
-                  ButtonSegment(
-                    value: _EntryMode.transfer,
-                    icon: Icon(Icons.swap_horiz_rounded),
-                    label: Text('Transfer'),
-                  ),
-                ],
-                selected: {mode},
-                onSelectionChanged: (selection) {
-                  setState(() => mode = selection.first);
-                },
-              ),
-              const SizedBox(height: 16),
-              if (mode == _EntryMode.transfer)
-                ..._transferFields()
-              else
-                ..._transactionFields(),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.check_rounded),
-                label: Text(
-                  mode == _EntryMode.transfer ? 'Add transfer' : 'Add transaction',
+                const SizedBox(height: 24),
+                Text(
+                  'Add entry',
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                SegmentedButton<_EntryMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _EntryMode.expense,
+                      icon: Icon(Icons.arrow_upward_rounded),
+                      label: Text('Expense'),
+                    ),
+                    ButtonSegment(
+                      value: _EntryMode.income,
+                      icon: Icon(Icons.arrow_downward_rounded),
+                      label: Text('Income'),
+                    ),
+                    ButtonSegment(
+                      value: _EntryMode.transfer,
+                      icon: Icon(Icons.swap_horiz_rounded),
+                      label: Text('Transfer'),
+                    ),
+                  ],
+                  selected: {mode},
+                  onSelectionChanged: (selection) {
+                    setState(() => mode = selection.first);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (mode == _EntryMode.transfer)
+                  ..._transferFields()
+                else
+                  ..._transactionFields(),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.check_rounded),
+                  label: Text(
+                    mode == _EntryMode.transfer
+                        ? 'Add transfer'
+                        : 'Add transaction',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -247,6 +318,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
             DropdownMenuItem(value: account.id, child: Text(account.name)),
         ],
         onChanged: (value) => setState(() => accountId = value),
+      ),
+      ..._rateField(
+        key: const Key('rateField'),
+        controller: rateController,
+        accountId: accountId,
       ),
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
@@ -324,9 +400,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
           prefixText: '${_accountById(fromAccountId)?.currencyCode ?? ''} ',
           hintText: '0.00',
         ),
-        validator: (value) => value == null || value.trim().isEmpty
-            ? 'Enter an amount'
-            : null,
+        validator: (value) =>
+            value == null || value.trim().isEmpty ? 'Enter an amount' : null,
+      ),
+      ..._rateField(
+        key: const Key('sentRateField'),
+        controller: sentRateController,
+        accountId: fromAccountId,
       ),
       if (_transferCrossesCurrencies) ...[
         const SizedBox(height: 12),
@@ -343,6 +423,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               : null,
         ),
       ],
+      ..._rateField(
+        key: const Key('receivedRateField'),
+        controller: receivedRateController,
+        accountId: toAccountId,
+      ),
       const SizedBox(height: 12),
       TextFormField(
         controller: titleController,
@@ -360,7 +445,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   Future<void> _promptNewCategory() async {
     final draft = await showDialog<CategoryDraft>(
       context: context,
-      builder: (context) => const _NewCategoryDialog(),
+      builder: (context) => const CategoryEditDialog(),
     );
     if (draft == null || !mounted) {
       return;
@@ -398,6 +483,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
           title: titleController.text.trim().isEmpty
               ? 'Transfer'
               : titleController.text.trim(),
+          sentRate: _needsRate(fromAccountId)
+              ? sentRateController.text.trim()
+              : null,
+          receivedRate: _needsRate(toAccountId)
+              ? receivedRateController.text.trim()
+              : null,
         ),
       );
       return;
@@ -413,80 +504,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         kind: mode == _EntryMode.income ? EntryKind.income : EntryKind.expense,
         accountId: accountId!,
         categoryId: categoryId,
+        rate: _needsRate(accountId) ? rateController.text.trim() : null,
       ),
-    );
-  }
-}
-
-class CategoryDraft {
-  const CategoryDraft({required this.name, required this.iconKey});
-
-  final String name;
-  final String iconKey;
-}
-
-class _NewCategoryDialog extends StatefulWidget {
-  const _NewCategoryDialog();
-
-  @override
-  State<_NewCategoryDialog> createState() => _NewCategoryDialogState();
-}
-
-class _NewCategoryDialogState extends State<_NewCategoryDialog> {
-  final nameController = TextEditingController();
-  String iconKey = availableCategoryIconKeys.first;
-
-  @override
-  void dispose() {
-    nameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('New category'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: nameController,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Name'),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final key in availableCategoryIconKeys)
-                ChoiceChip(
-                  label: Icon(categoryIcon(key), size: 20),
-                  selected: iconKey == key,
-                  onSelected: (_) => setState(() => iconKey = key),
-                ),
-            ],
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final name = nameController.text.trim();
-            if (name.isEmpty) {
-              return;
-            }
-            Navigator.pop(context, CategoryDraft(name: name, iconKey: iconKey));
-          },
-          child: const Text('Create'),
-        ),
-      ],
     );
   }
 }
