@@ -9,6 +9,13 @@ const _categories = [
   CategoryView(id: 'transport', name: 'Transport', iconKey: 'directions_car'),
 ];
 
+const _euroAccount = AccountView(
+  id: 'euro',
+  name: 'Euro',
+  currencyCode: 'EUR',
+  balanceLabel: 'EUR 0.00',
+);
+
 const _accounts = [
   AccountView(
     id: 'everyday',
@@ -31,23 +38,27 @@ Future<void> _openSheet(
   WidgetTester tester, {
   required Future<String?> Function(String) onSuggestCategory,
   Future<CategoryView?> Function(String, String)? onAddCategory,
+  List<AccountView> accounts = _accounts,
+  ValueChanged<EntryDraft?>? onResult,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
-            onPressed: () {
-              showModalBottomSheet<TransactionDraft>(
+            onPressed: () async {
+              final result = await showModalBottomSheet<EntryDraft>(
                 context: context,
                 isScrollControlled: true,
                 builder: (context) => AddTransactionSheet(
-                  accounts: _accounts,
+                  accounts: accounts,
+                  reportingCurrencyCode: 'USD',
                   categories: _categories,
                   onSuggestCategory: onSuggestCategory,
                   onAddCategory: onAddCategory ?? (_, _) async => null,
                 ),
               );
+              onResult?.call(result);
             },
             child: const Text('open'),
           ),
@@ -60,20 +71,21 @@ Future<void> _openSheet(
 }
 
 void main() {
-  testWidgets('typing a title auto-selects its previous category after a pause', (
-    tester,
-  ) async {
-    await _openSheet(
-      tester,
-      onSuggestCategory: (title) async =>
-          title == 'Coffee' ? 'transport' : null,
-    );
+  testWidgets(
+    'typing a title auto-selects its previous category after a pause',
+    (tester) async {
+      await _openSheet(
+        tester,
+        onSuggestCategory: (title) async =>
+            title == 'Coffee' ? 'transport' : null,
+      );
 
-    await tester.enterText(find.byType(TextFormField).first, 'Coffee');
-    await tester.pump(const Duration(milliseconds: 500));
+      await tester.enterText(find.byType(TextFormField).first, 'Coffee');
+      await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('Transport'), findsOneWidget);
-  });
+      expect(find.text('Transport'), findsOneWidget);
+    },
+  );
 
   testWidgets('manually choosing a category stops later auto-suggestion', (
     tester,
@@ -96,9 +108,7 @@ void main() {
     expect(find.text('Transport'), findsNothing);
   });
 
-  testWidgets('creating a new category selects it immediately', (
-    tester,
-  ) async {
+  testWidgets('creating a new category selects it immediately', (tester) async {
     await _openSheet(
       tester,
       onSuggestCategory: (_) async => null,
@@ -139,6 +149,7 @@ void main() {
                   isScrollControlled: true,
                   builder: (context) => AddTransactionSheet(
                     accounts: _accounts,
+                    reportingCurrencyCode: 'USD',
                     categories: _categories,
                     onSuggestCategory: (_) async => null,
                     onAddCategory: (_, _) async => null,
@@ -167,59 +178,61 @@ void main() {
     expect(result?.categoryId, 'food');
   });
 
-  testWidgets('switching to transfer mode returns a TransferDraft between two accounts', (
-    tester,
-  ) async {
-    EntryDraft? result;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () async {
-                result = await showModalBottomSheet<EntryDraft>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (context) => AddTransactionSheet(
-                    accounts: _accounts,
-                    categories: _categories,
-                    onSuggestCategory: (_) async => null,
-                    onAddCategory: (_, _) async => null,
-                  ),
-                );
-              },
-              child: const Text('open'),
+  testWidgets(
+    'switching to transfer mode returns a TransferDraft between two accounts',
+    (tester) async {
+      EntryDraft? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  result = await showModalBottomSheet<EntryDraft>(
+                    context: context,
+                    isScrollControlled: true,
+                    builder: (context) => AddTransactionSheet(
+                      accounts: _accounts,
+                      reportingCurrencyCode: 'USD',
+                      categories: _categories,
+                      onSuggestCategory: (_) async => null,
+                      onAddCategory: (_, _) async => null,
+                    ),
+                  );
+                },
+                child: const Text('open'),
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Transfer'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Transfer'));
+      await tester.pumpAndSettle();
 
-    // Defaults to the first two distinct accounts; switch "To account" to
-    // confirm the dropdown is wired up, then fill in the amount.
-    await tester.tap(find.byKey(const Key('toAccountDropdown')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Savings').last);
-    await tester.pumpAndSettle();
+      // Defaults to the first two distinct accounts; switch "To account" to
+      // confirm the dropdown is wired up, then fill in the amount.
+      await tester.tap(find.byKey(const Key('toAccountDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Savings').last);
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).first, '25.00');
-    await tester.tap(find.widgetWithText(FilledButton, 'Add transfer'));
-    await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).first, '25.00');
+      await tester.tap(find.widgetWithText(FilledButton, 'Add transfer'));
+      await tester.pumpAndSettle();
 
-    final transfer = result;
-    expect(transfer, isA<TransferDraft>());
-    transfer as TransferDraft;
-    expect(transfer.fromAccountId, 'everyday');
-    expect(transfer.toAccountId, 'savings');
-    expect(transfer.sentAmount, '25.00');
-    expect(transfer.receivedAmount, isNull);
-    expect(transfer.title, 'Transfer');
-  });
+      final transfer = result;
+      expect(transfer, isA<TransferDraft>());
+      transfer as TransferDraft;
+      expect(transfer.fromAccountId, 'everyday');
+      expect(transfer.toAccountId, 'savings');
+      expect(transfer.sentAmount, '25.00');
+      expect(transfer.receivedAmount, isNull);
+      expect(transfer.title, 'Transfer');
+    },
+  );
 
   testWidgets('the sheet scrolls instead of overflowing on a short screen', (
     tester,
@@ -242,5 +255,99 @@ void main() {
       find.widgetWithText(FilledButton, 'Add transaction'),
       findsOneWidget,
     );
+  });
+
+  group('foreign-currency entries', () {
+    final accounts = [..._accounts, _euroAccount];
+
+    testWidgets('an account in the reporting currency asks for no rate', (
+      tester,
+    ) async {
+      await _openSheet(
+        tester,
+        accounts: accounts,
+        onSuggestCategory: (_) async => null,
+      );
+      expect(find.byKey(const Key('rateField')), findsNothing);
+    });
+
+    testWidgets('a foreign-currency expense requires and returns a rate', (
+      tester,
+    ) async {
+      EntryDraft? result;
+      await _openSheet(
+        tester,
+        accounts: accounts,
+        onSuggestCategory: (_) async => null,
+        onResult: (draft) => result = draft,
+      );
+
+      await tester.tap(find.byKey(const Key('accountDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Euro').last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('rateField')), findsOneWidget);
+
+      await tester.enterText(find.byType(TextFormField).at(0), 'Hotel');
+      await tester.enterText(find.byType(TextFormField).at(1), '80.00');
+      await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
+      await tester.pumpAndSettle();
+      expect(result, isNull, reason: 'a missing rate must block submission');
+      expect(find.text('Enter the exchange rate'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('rateField')), '1.0875');
+      await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
+      await tester.pumpAndSettle();
+
+      final draft = result as TransactionDraft;
+      expect(draft.accountId, 'euro');
+      expect(draft.rate, '1.0875');
+    });
+
+    testWidgets('a transfer only asks for a rate on its foreign leg', (
+      tester,
+    ) async {
+      EntryDraft? result;
+      await _openSheet(
+        tester,
+        accounts: accounts,
+        onSuggestCategory: (_) async => null,
+        onResult: (draft) => result = draft,
+      );
+      await tester.tap(find.text('Transfer'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('sentRateField')), findsNothing);
+      expect(find.byKey(const Key('receivedRateField')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('toAccountDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Euro').last);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('sentRateField')), findsNothing);
+      expect(find.byKey(const Key('receivedRateField')), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Amount sent'),
+        '110.00',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Amount received'),
+        '100.00',
+      );
+      await tester.enterText(
+        find.byKey(const Key('receivedRateField')),
+        '1.10',
+      );
+      await tester.ensureVisible(
+        find.widgetWithText(FilledButton, 'Add transfer'),
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Add transfer'));
+      await tester.pumpAndSettle();
+
+      final draft = result as TransferDraft;
+      expect(draft.sentRate, isNull);
+      expect(draft.receivedRate, '1.10');
+    });
   });
 }
