@@ -65,7 +65,8 @@ CI for the app-level work (branch `claude/stoic-brahmagupta-1wwxwq`):
   through the real bridge.
 - **iOS simulator**, `0e7a706`:
   [run 36779072179](https://github.com/arsalmurad/cash-app/actions/runs/36779072179):
-  the ledger integration test and the household scenario both passed. Two
+  the ledger integration test, the household scenario, and the unsigned
+  release build all passed. Two
   earlier runs on this code hung after "Xcode build done" with no test output
   (the runner flake recorded earlier in this repo); iOS steps now time out
   after 20 minutes.
@@ -79,10 +80,9 @@ CI for the app-level work (branch `claude/stoic-brahmagupta-1wwxwq`):
   commit; the integration test now waits for asynchronous bridge results
   before asserting, and the same flow passed in the run above. The cause was
   not proven to be timing.
-- `Phase 2 Shared Layer` (Rust workspace, worker tests, Rust engine against
-  the worker) passed on `cf1459d`; the later Rust commits (backfill) and the
-  CORS change were verified locally but are covered by that workflow only
-  once it runs on the PR's final head.
+- `Phase 2 Shared Layer` (Rust workspace, worker tests with CORS, Rust engine
+  against the worker) passed on the final head `a466b75`:
+  [run 36781383594](https://github.com/arsalmurad/cash-app/actions/runs/36781383594).
 
 ## Not done
 
