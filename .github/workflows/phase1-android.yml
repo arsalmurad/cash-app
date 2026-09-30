@@ -99,10 +99,10 @@ jobs:
             # rejected "android" as not matching any device) — the AVD name
             # set above ("test") matches the action's own default and does
             # not appear in that id, so it can't be relied on either.
-            cd app
-            for test in ledger_test household_test; do
-              flutter test "integration_test/$test.dart" -d emulator-5554 || { echo "--- logcat tail on failure ($test) ---"; adb logcat -d -t 800; exit 1; }
-            done
+            # The action runs this script one line at a time, so each test
+            # is a single self-contained command (no multi-line loop).
+            cd app && flutter test integration_test/ledger_test.dart -d emulator-5554 || { echo "--- logcat tail on failure (ledger_test) ---"; adb logcat -d -t 800; exit 1; }
+            cd app && flutter test integration_test/household_test.dart -d emulator-5554 || { echo "--- logcat tail on failure (household_test) ---"; adb logcat -d -t 800; exit 1; }
 
       - name: Build release APK
         working-directory: app
