@@ -16,6 +16,7 @@ mod goals;
 mod ledger;
 mod money;
 mod recurring;
+mod shared;
 mod snapshot;
 
 pub use budgets::{
@@ -39,5 +40,9 @@ pub use recurring::{
     DecodedRecurringLog, RecurringBookState, RecurringFrequency, RecurringId, RecurringKind,
     RecurringRecord, RecurringUpsert, decode_recurring_log, encode_recurring_frame, fold_recurring,
     next_occurrence_millis,
+};
+pub use shared::{
+    Conflict, RejectReason, Rejected, SharedEvent, SharedState, decode_shared_event,
+    encode_shared_event, fold_shared,
 };
 pub use snapshot::{Snapshot, SnapshotError};
