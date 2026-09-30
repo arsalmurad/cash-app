@@ -418,7 +418,7 @@ impl LedgerData {
 /// Each account's balance valued at the rates frozen on its entries, derived
 /// from the folded state rather than stored (voided transactions are
 /// excluded, matching `native_balance_minor`). `None` if the sum overflows.
-fn reporting_balances(state: &LedgerState) -> BTreeMap<&AccountId, Option<i64>> {
+pub(crate) fn reporting_balances(state: &LedgerState) -> BTreeMap<&AccountId, Option<i64>> {
     fn add<'a>(
         balances: &mut BTreeMap<&'a AccountId, Option<i64>>,
         id: &'a AccountId,

@@ -1,5 +1,5 @@
 [workspace]
-members = ["api", "core"]
+members = ["api", "core", "crypto", "sync"]
 resolver = "2"
 
 [workspace.package]
