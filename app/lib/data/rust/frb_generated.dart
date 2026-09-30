@@ -8,6 +8,7 @@ import 'api/categories.dart';
 import 'api/goals.dart';
 import 'api/ledger.dart';
 import 'api/recurring.dart';
+import 'api/shared.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -73,7 +74,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 1675032996;
+  int get rustContentHash => 750879491;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -122,6 +123,110 @@ abstract class RustLibApi extends BaseApi {
   Future<List<GoalView>> crateApiGoalsGoalProgress({
     required PersonalLedger ledger,
     required GoalBook book,
+  });
+
+  Future<void> crateApiSharedHouseholdAdjustAmount({
+    required Household household,
+    required String transactionId,
+    required String amount,
+    required String currencyCode,
+    required PlatformInt64 fxNumerator,
+    required PlatformInt64 fxDenominator,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  Future<StagedInvite> crateApiSharedHouseholdBeginInvite({
+    required Household household,
+    required List<int> keyPackage,
+  });
+
+  Future<OutgoingEntry> crateApiSharedHouseholdBeginRemoval({
+    required Household household,
+    required String memberId,
+  });
+
+  Future<void> crateApiSharedHouseholdCommitAccepted({
+    required Household household,
+    required PlatformInt64 sequence,
+  });
+
+  Future<void> crateApiSharedHouseholdCommitRejected({
+    required Household household,
+  });
+
+  Future<Uint8List> crateApiSharedHouseholdExport({
+    required Household household,
+  });
+
+  Future<String> crateApiSharedHouseholdFound({required Household household});
+
+  Future<void> crateApiSharedHouseholdIngest({
+    required Household household,
+    required List<RelayEntry> entries,
+  });
+
+  Future<void> crateApiSharedHouseholdJoin({
+    required Household household,
+    required String groupId,
+    required List<int> welcome,
+    required PlatformInt64 joinedAfter,
+  });
+
+  Future<Uint8List> crateApiSharedHouseholdKeyPackage({
+    required Household household,
+  });
+
+  Future<Household> crateApiSharedHouseholdNew({
+    required String memberId,
+    required String reportingCurrencyCode,
+  });
+
+  Future<OutgoingEntry?> crateApiSharedHouseholdNextOutgoing({
+    required Household household,
+  });
+
+  Future<void> crateApiSharedHouseholdOpenAccount({
+    required Household household,
+    required String accountId,
+    required String name,
+    required String currencyCode,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  Future<void> crateApiSharedHouseholdOutgoingAccepted({
+    required Household household,
+    required PlatformInt64 sequence,
+  });
+
+  Future<HouseholdOverview> crateApiSharedHouseholdOverview({
+    required Household household,
+  });
+
+  Future<void> crateApiSharedHouseholdRecordTransaction({
+    required Household household,
+    required String transactionId,
+    required String accountId,
+    required EntryKind kind,
+    required String amount,
+    required String currencyCode,
+    required PlatformInt64 fxNumerator,
+    required PlatformInt64 fxDenominator,
+    required String title,
+    String? categoryId,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  Future<Household> crateApiSharedHouseholdRestore({required List<int> saved});
+
+  Future<String> crateApiSharedHouseholdSafetyNumber({
+    required Household household,
+    required String memberId,
+  });
+
+  Future<void> crateApiSharedHouseholdVoidTransaction({
+    required Household household,
+    required String transactionId,
+    required PlatformInt64 wallClockMillis,
   });
 
   Future<void> crateApiLedgerInitApp();
@@ -189,6 +294,20 @@ abstract class RustLibApi extends BaseApi {
     required String title,
     required PlatformInt64 wallClockMillis,
   });
+
+  Future<String> crateApiSharedRecoveryGeneratePhrase();
+
+  Future<Uint8List> crateApiSharedRecoveryOpen({
+    required String phrase,
+    required List<int> sealed,
+  });
+
+  Future<Uint8List> crateApiSharedRecoverySeal({
+    required String phrase,
+    required List<int> plaintext,
+  });
+
+  Future<void> crateApiSharedRecoveryValidatePhrase({required String phrase});
 
   Future<RecurringLoadReport> crateApiRecurringRecurringLoadReport({
     required RecurringBook book,
@@ -276,6 +395,14 @@ abstract class RustLibApi extends BaseApi {
   get rust_arc_decrement_strong_count_GoalBook;
 
   CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_GoalBookPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_Household;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_Household;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_HouseholdPtr;
 
   RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_PersonalLedger;
@@ -607,6 +734,788 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiSharedHouseholdAdjustAmount({
+    required Household household,
+    required String transactionId,
+    required String amount,
+    required String currencyCode,
+    required PlatformInt64 fxNumerator,
+    required PlatformInt64 fxDenominator,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_String(transactionId, serializer);
+          sse_encode_String(amount, serializer);
+          sse_encode_String(currencyCode, serializer);
+          sse_encode_i_64(fxNumerator, serializer);
+          sse_encode_i_64(fxDenominator, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdAdjustAmountConstMeta,
+        argValues: [
+          household,
+          transactionId,
+          amount,
+          currencyCode,
+          fxNumerator,
+          fxDenominator,
+          wallClockMillis,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdAdjustAmountConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_adjust_amount",
+        argNames: [
+          "household",
+          "transactionId",
+          "amount",
+          "currencyCode",
+          "fxNumerator",
+          "fxDenominator",
+          "wallClockMillis",
+        ],
+      );
+
+  @override
+  Future<StagedInvite> crateApiSharedHouseholdBeginInvite({
+    required Household household,
+    required List<int> keyPackage,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_list_prim_u_8_loose(keyPackage, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 10,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_staged_invite,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdBeginInviteConstMeta,
+        argValues: [household, keyPackage],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdBeginInviteConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_begin_invite",
+        argNames: ["household", "keyPackage"],
+      );
+
+  @override
+  Future<OutgoingEntry> crateApiSharedHouseholdBeginRemoval({
+    required Household household,
+    required String memberId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_String(memberId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 11,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_outgoing_entry,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdBeginRemovalConstMeta,
+        argValues: [household, memberId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdBeginRemovalConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_begin_removal",
+        argNames: ["household", "memberId"],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdCommitAccepted({
+    required Household household,
+    required PlatformInt64 sequence,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_i_64(sequence, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdCommitAcceptedConstMeta,
+        argValues: [household, sequence],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdCommitAcceptedConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_commit_accepted",
+        argNames: ["household", "sequence"],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdCommitRejected({
+    required Household household,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdCommitRejectedConstMeta,
+        argValues: [household],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdCommitRejectedConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_commit_rejected",
+        argNames: ["household"],
+      );
+
+  @override
+  Future<Uint8List> crateApiSharedHouseholdExport({
+    required Household household,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdExportConstMeta,
+        argValues: [household],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdExportConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_export",
+        argNames: ["household"],
+      );
+
+  @override
+  Future<String> crateApiSharedHouseholdFound({required Household household}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdFoundConstMeta,
+        argValues: [household],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdFoundConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_found",
+        argNames: ["household"],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdIngest({
+    required Household household,
+    required List<RelayEntry> entries,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_list_relay_entry(entries, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdIngestConstMeta,
+        argValues: [household, entries],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdIngestConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_ingest",
+        argNames: ["household", "entries"],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdJoin({
+    required Household household,
+    required String groupId,
+    required List<int> welcome,
+    required PlatformInt64 joinedAfter,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_String(groupId, serializer);
+          sse_encode_list_prim_u_8_loose(welcome, serializer);
+          sse_encode_i_64(joinedAfter, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdJoinConstMeta,
+        argValues: [household, groupId, welcome, joinedAfter],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdJoinConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_join",
+        argNames: ["household", "groupId", "welcome", "joinedAfter"],
+      );
+
+  @override
+  Future<Uint8List> crateApiSharedHouseholdKeyPackage({
+    required Household household,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdKeyPackageConstMeta,
+        argValues: [household],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdKeyPackageConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_key_package",
+        argNames: ["household"],
+      );
+
+  @override
+  Future<Household> crateApiSharedHouseholdNew({
+    required String memberId,
+    required String reportingCurrencyCode,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(memberId, serializer);
+          sse_encode_String(reportingCurrencyCode, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdNewConstMeta,
+        argValues: [memberId, reportingCurrencyCode],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdNewConstMeta => const TaskConstMeta(
+    debugName: "household_new",
+    argNames: ["memberId", "reportingCurrencyCode"],
+  );
+
+  @override
+  Future<OutgoingEntry?> crateApiSharedHouseholdNextOutgoing({
+    required Household household,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 20,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_outgoing_entry,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdNextOutgoingConstMeta,
+        argValues: [household],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdNextOutgoingConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_next_outgoing",
+        argNames: ["household"],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdOpenAccount({
+    required Household household,
+    required String accountId,
+    required String name,
+    required String currencyCode,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_String(accountId, serializer);
+          sse_encode_String(name, serializer);
+          sse_encode_String(currencyCode, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdOpenAccountConstMeta,
+        argValues: [household, accountId, name, currencyCode, wallClockMillis],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdOpenAccountConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_open_account",
+        argNames: [
+          "household",
+          "accountId",
+          "name",
+          "currencyCode",
+          "wallClockMillis",
+        ],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdOutgoingAccepted({
+    required Household household,
+    required PlatformInt64 sequence,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_i_64(sequence, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 22,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdOutgoingAcceptedConstMeta,
+        argValues: [household, sequence],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdOutgoingAcceptedConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_outgoing_accepted",
+        argNames: ["household", "sequence"],
+      );
+
+  @override
+  Future<HouseholdOverview> crateApiSharedHouseholdOverview({
+    required Household household,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 23,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_household_overview,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdOverviewConstMeta,
+        argValues: [household],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdOverviewConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_overview",
+        argNames: ["household"],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdRecordTransaction({
+    required Household household,
+    required String transactionId,
+    required String accountId,
+    required EntryKind kind,
+    required String amount,
+    required String currencyCode,
+    required PlatformInt64 fxNumerator,
+    required PlatformInt64 fxDenominator,
+    required String title,
+    String? categoryId,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_String(transactionId, serializer);
+          sse_encode_String(accountId, serializer);
+          sse_encode_entry_kind(kind, serializer);
+          sse_encode_String(amount, serializer);
+          sse_encode_String(currencyCode, serializer);
+          sse_encode_i_64(fxNumerator, serializer);
+          sse_encode_i_64(fxDenominator, serializer);
+          sse_encode_String(title, serializer);
+          sse_encode_opt_String(categoryId, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 24,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdRecordTransactionConstMeta,
+        argValues: [
+          household,
+          transactionId,
+          accountId,
+          kind,
+          amount,
+          currencyCode,
+          fxNumerator,
+          fxDenominator,
+          title,
+          categoryId,
+          wallClockMillis,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdRecordTransactionConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_record_transaction",
+        argNames: [
+          "household",
+          "transactionId",
+          "accountId",
+          "kind",
+          "amount",
+          "currencyCode",
+          "fxNumerator",
+          "fxDenominator",
+          "title",
+          "categoryId",
+          "wallClockMillis",
+        ],
+      );
+
+  @override
+  Future<Household> crateApiSharedHouseholdRestore({required List<int> saved}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(saved, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdRestoreConstMeta,
+        argValues: [saved],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdRestoreConstMeta =>
+      const TaskConstMeta(debugName: "household_restore", argNames: ["saved"]);
+
+  @override
+  Future<String> crateApiSharedHouseholdSafetyNumber({
+    required Household household,
+    required String memberId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_String(memberId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdSafetyNumberConstMeta,
+        argValues: [household, memberId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdSafetyNumberConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_safety_number",
+        argNames: ["household", "memberId"],
+      );
+
+  @override
+  Future<void> crateApiSharedHouseholdVoidTransaction({
+    required Household household,
+    required String transactionId,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_String(transactionId, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdVoidTransactionConstMeta,
+        argValues: [household, transactionId, wallClockMillis],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdVoidTransactionConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_void_transaction",
+        argNames: ["household", "transactionId", "wallClockMillis"],
+      );
+
+  @override
   Future<void> crateApiLedgerInitApp() {
     return handler.executeNormal(
       NormalTask(
@@ -615,7 +1524,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 28,
             port: port_,
           );
         },
@@ -648,7 +1557,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 29,
             port: port_,
           );
         },
@@ -680,7 +1589,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 30,
             port: port_,
           );
         },
@@ -716,7 +1625,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 31,
             port: port_,
           );
         },
@@ -752,7 +1661,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 32,
             port: port_,
           );
         },
@@ -789,7 +1698,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 33,
             port: port_,
           );
         },
@@ -825,7 +1734,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 34,
             port: port_,
           );
         },
@@ -862,7 +1771,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 35,
             port: port_,
           );
         },
@@ -917,7 +1826,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1005,7 +1914,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1057,6 +1966,132 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiSharedRecoveryGeneratePhrase() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 38,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSharedRecoveryGeneratePhraseConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedRecoveryGeneratePhraseConstMeta =>
+      const TaskConstMeta(debugName: "recovery_generate_phrase", argNames: []);
+
+  @override
+  Future<Uint8List> crateApiSharedRecoveryOpen({
+    required String phrase,
+    required List<int> sealed,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(phrase, serializer);
+          sse_encode_list_prim_u_8_loose(sealed, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 39,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedRecoveryOpenConstMeta,
+        argValues: [phrase, sealed],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedRecoveryOpenConstMeta => const TaskConstMeta(
+    debugName: "recovery_open",
+    argNames: ["phrase", "sealed"],
+  );
+
+  @override
+  Future<Uint8List> crateApiSharedRecoverySeal({
+    required String phrase,
+    required List<int> plaintext,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(phrase, serializer);
+          sse_encode_list_prim_u_8_loose(plaintext, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 40,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedRecoverySealConstMeta,
+        argValues: [phrase, plaintext],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedRecoverySealConstMeta => const TaskConstMeta(
+    debugName: "recovery_seal",
+    argNames: ["phrase", "plaintext"],
+  );
+
+  @override
+  Future<void> crateApiSharedRecoveryValidatePhrase({required String phrase}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(phrase, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 41,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedRecoveryValidatePhraseConstMeta,
+        argValues: [phrase],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedRecoveryValidatePhraseConstMeta =>
+      const TaskConstMeta(
+        debugName: "recovery_validate_phrase",
+        argNames: ["phrase"],
+      );
+
+  @override
   Future<RecurringLoadReport> crateApiRecurringRecurringLoadReport({
     required RecurringBook book,
   }) {
@@ -1071,7 +2106,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 42,
             port: port_,
           );
         },
@@ -1109,7 +2144,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 43,
             port: port_,
           );
         },
@@ -1154,7 +2189,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 44,
             port: port_,
           );
         },
@@ -1206,7 +2241,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 45,
             port: port_,
           );
         },
@@ -1270,7 +2305,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 46,
             port: port_,
           );
         },
@@ -1324,7 +2359,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 47,
             port: port_,
           );
         },
@@ -1401,7 +2436,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 48,
             port: port_,
           );
         },
@@ -1471,6 +2506,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook;
 
   RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_Household => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_Household => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold;
+
+  RustArcIncrementStrongCountFnType
   get rust_arc_increment_strong_count_PersonalLedger => wire
       .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger;
 
@@ -1511,6 +2554,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return GoalBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  Household
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return HouseholdImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1559,6 +2611,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Household
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return HouseholdImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   PersonalLedger
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     dynamic raw,
@@ -1601,6 +2662,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return GoalBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  Household
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return HouseholdImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -1652,6 +2722,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_i_64(raw);
+  }
+
+  @protected
+  OutgoingEntry dco_decode_box_autoadd_outgoing_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_outgoing_entry(raw);
   }
 
   @protected
@@ -1745,6 +2821,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ConflictView dco_decode_conflict_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ConflictView(
+      transactionId: dco_decode_String(arr[0]),
+      overwrittenEventId: dco_decode_String(arr[1]),
+      winningEventId: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
   EntryKind dco_decode_entry_kind(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return EntryKind.values[raw as int];
@@ -1809,6 +2898,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HouseholdOverview dco_decode_household_overview(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    return HouseholdOverview(
+      memberId: dco_decode_String(arr[0]),
+      groupId: dco_decode_opt_String(arr[1]),
+      isMember: dco_decode_bool(arr[2]),
+      cursor: dco_decode_i_64(arr[3]),
+      pendingCount: dco_decode_i_64(arr[4]),
+      memberIds: dco_decode_list_String(arr[5]),
+      balanceLabel: dco_decode_String(arr[6]),
+      accounts: dco_decode_list_account_view(arr[7]),
+      transactions: dco_decode_list_shared_transaction_view(arr[8]),
+      conflicts: dco_decode_list_conflict_view(arr[9]),
+      rejected: dco_decode_list_rejected_view(arr[10]),
+    );
+  }
+
+  @protected
   int dco_decode_i_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -1847,6 +2957,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
   List<AccountView> dco_decode_list_account_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_account_view).toList();
@@ -1865,6 +2981,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ConflictView> dco_decode_list_conflict_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_conflict_view).toList();
+  }
+
+  @protected
   List<GoalView> dco_decode_list_goal_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_goal_view).toList();
@@ -1880,6 +3002,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<RejectedView> dco_decode_list_rejected_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_rejected_view).toList();
+  }
+
+  @protected
+  List<RelayEntry> dco_decode_list_relay_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_relay_entry).toList();
+  }
+
+  @protected
+  List<SharedTransactionView> dco_decode_list_shared_transaction_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_shared_transaction_view)
+        .toList();
   }
 
   @protected
@@ -1926,9 +3070,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OutgoingEntry? dco_decode_opt_box_autoadd_outgoing_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_outgoing_entry(raw);
+  }
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
+  }
+
+  @protected
+  OutgoingEntry dco_decode_outgoing_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return OutgoingEntry(
+      expectedTail: dco_decode_i_64(arr[0]),
+      blob: dco_decode_list_prim_u_8_strict(arr[1]),
+    );
   }
 
   @protected
@@ -1963,6 +3125,60 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
     return RecurringMutation(
       appendedFrame: dco_decode_list_prim_u_8_strict(arr[0]),
+    );
+  }
+
+  @protected
+  RejectedView dco_decode_rejected_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return RejectedView(
+      eventId: dco_decode_String(arr[0]),
+      reason: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
+  RelayEntry dco_decode_relay_entry(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return RelayEntry(
+      sequence: dco_decode_i_64(arr[0]),
+      blob: dco_decode_list_prim_u_8_strict(arr[1]),
+    );
+  }
+
+  @protected
+  SharedTransactionView dco_decode_shared_transaction_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return SharedTransactionView(
+      id: dco_decode_String(arr[0]),
+      accountId: dco_decode_String(arr[1]),
+      title: dco_decode_String(arr[2]),
+      amountLabel: dco_decode_String(arr[3]),
+      isExpense: dco_decode_bool(arr[4]),
+      voided: dco_decode_bool(arr[5]),
+      categoryId: dco_decode_opt_String(arr[6]),
+      conflicted: dco_decode_bool(arr[7]),
+    );
+  }
+
+  @protected
+  StagedInvite dco_decode_staged_invite(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return StagedInvite(
+      commit: dco_decode_outgoing_entry(arr[0]),
+      welcome: dco_decode_list_prim_u_8_strict(arr[1]),
     );
   }
 
@@ -2084,6 +3300,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Household
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return HouseholdImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
@@ -2138,6 +3366,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return GoalBookImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  Household
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return HouseholdImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -2204,6 +3444,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  Household
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return HouseholdImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   PersonalLedger
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
@@ -2261,6 +3513,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_i_64(deserializer));
+  }
+
+  @protected
+  OutgoingEntry sse_decode_box_autoadd_outgoing_entry(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_outgoing_entry(deserializer));
   }
 
   @protected
@@ -2351,6 +3611,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ConflictView sse_decode_conflict_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_transactionId = sse_decode_String(deserializer);
+    var var_overwrittenEventId = sse_decode_String(deserializer);
+    var var_winningEventId = sse_decode_String(deserializer);
+    return ConflictView(
+      transactionId: var_transactionId,
+      overwrittenEventId: var_overwrittenEventId,
+      winningEventId: var_winningEventId,
+    );
+  }
+
+  @protected
   EntryKind sse_decode_entry_kind(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
@@ -2416,6 +3689,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  HouseholdOverview sse_decode_household_overview(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_memberId = sse_decode_String(deserializer);
+    var var_groupId = sse_decode_opt_String(deserializer);
+    var var_isMember = sse_decode_bool(deserializer);
+    var var_cursor = sse_decode_i_64(deserializer);
+    var var_pendingCount = sse_decode_i_64(deserializer);
+    var var_memberIds = sse_decode_list_String(deserializer);
+    var var_balanceLabel = sse_decode_String(deserializer);
+    var var_accounts = sse_decode_list_account_view(deserializer);
+    var var_transactions = sse_decode_list_shared_transaction_view(
+      deserializer,
+    );
+    var var_conflicts = sse_decode_list_conflict_view(deserializer);
+    var var_rejected = sse_decode_list_rejected_view(deserializer);
+    return HouseholdOverview(
+      memberId: var_memberId,
+      groupId: var_groupId,
+      isMember: var_isMember,
+      cursor: var_cursor,
+      pendingCount: var_pendingCount,
+      memberIds: var_memberIds,
+      balanceLabel: var_balanceLabel,
+      accounts: var_accounts,
+      transactions: var_transactions,
+      conflicts: var_conflicts,
+      rejected: var_rejected,
+    );
+  }
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getInt32();
@@ -2451,6 +3757,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       transactions: var_transactions,
       transfers: var_transfers,
     );
+  }
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <String>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -2492,6 +3810,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ConflictView> sse_decode_list_conflict_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ConflictView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_conflict_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<GoalView> sse_decode_list_goal_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2515,6 +3847,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<RejectedView> sse_decode_list_rejected_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <RejectedView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_rejected_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<RelayEntry> sse_decode_list_relay_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <RelayEntry>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_relay_entry(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SharedTransactionView> sse_decode_list_shared_transaction_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SharedTransactionView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_shared_transaction_view(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -2595,6 +3967,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  OutgoingEntry? sse_decode_opt_box_autoadd_outgoing_entry(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_outgoing_entry(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -2603,6 +3988,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     } else {
       return null;
     }
+  }
+
+  @protected
+  OutgoingEntry sse_decode_outgoing_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_expectedTail = sse_decode_i_64(deserializer);
+    var var_blob = sse_decode_list_prim_u_8_strict(deserializer);
+    return OutgoingEntry(expectedTail: var_expectedTail, blob: var_blob);
   }
 
   @protected
@@ -2641,6 +4034,55 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_appendedFrame = sse_decode_list_prim_u_8_strict(deserializer);
     return RecurringMutation(appendedFrame: var_appendedFrame);
+  }
+
+  @protected
+  RejectedView sse_decode_rejected_view(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_eventId = sse_decode_String(deserializer);
+    var var_reason = sse_decode_String(deserializer);
+    return RejectedView(eventId: var_eventId, reason: var_reason);
+  }
+
+  @protected
+  RelayEntry sse_decode_relay_entry(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_sequence = sse_decode_i_64(deserializer);
+    var var_blob = sse_decode_list_prim_u_8_strict(deserializer);
+    return RelayEntry(sequence: var_sequence, blob: var_blob);
+  }
+
+  @protected
+  SharedTransactionView sse_decode_shared_transaction_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_accountId = sse_decode_String(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_amountLabel = sse_decode_String(deserializer);
+    var var_isExpense = sse_decode_bool(deserializer);
+    var var_voided = sse_decode_bool(deserializer);
+    var var_categoryId = sse_decode_opt_String(deserializer);
+    var var_conflicted = sse_decode_bool(deserializer);
+    return SharedTransactionView(
+      id: var_id,
+      accountId: var_accountId,
+      title: var_title,
+      amountLabel: var_amountLabel,
+      isExpense: var_isExpense,
+      voided: var_voided,
+      categoryId: var_categoryId,
+      conflicted: var_conflicted,
+    );
+  }
+
+  @protected
+  StagedInvite sse_decode_staged_invite(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_commit = sse_decode_outgoing_entry(deserializer);
+    var var_welcome = sse_decode_list_prim_u_8_strict(deserializer);
+    return StagedInvite(commit: var_commit, welcome: var_welcome);
   }
 
   @protected
@@ -2776,6 +4218,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    Household self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as HouseholdImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -2835,6 +4290,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as GoalBookImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    Household self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as HouseholdImpl).frbInternalSseEncode(move: false),
       serializer,
     );
   }
@@ -2906,6 +4374,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    Household self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as HouseholdImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -2959,6 +4440,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_outgoing_entry(
+    OutgoingEntry self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_outgoing_entry(self, serializer);
   }
 
   @protected
@@ -3037,6 +4527,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_conflict_view(ConflictView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.transactionId, serializer);
+    sse_encode_String(self.overwrittenEventId, serializer);
+    sse_encode_String(self.winningEventId, serializer);
+  }
+
+  @protected
   void sse_encode_entry_kind(EntryKind self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
@@ -3086,6 +4584,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_household_overview(
+    HouseholdOverview self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.memberId, serializer);
+    sse_encode_opt_String(self.groupId, serializer);
+    sse_encode_bool(self.isMember, serializer);
+    sse_encode_i_64(self.cursor, serializer);
+    sse_encode_i_64(self.pendingCount, serializer);
+    sse_encode_list_String(self.memberIds, serializer);
+    sse_encode_String(self.balanceLabel, serializer);
+    sse_encode_list_account_view(self.accounts, serializer);
+    sse_encode_list_shared_transaction_view(self.transactions, serializer);
+    sse_encode_list_conflict_view(self.conflicts, serializer);
+    sse_encode_list_rejected_view(self.rejected, serializer);
+  }
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putInt32(self);
@@ -3117,6 +4634,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_account_view(self.accounts, serializer);
     sse_encode_list_transaction_view(self.transactions, serializer);
     sse_encode_list_transfer_view(self.transfers, serializer);
+  }
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_String(item, serializer);
+    }
   }
 
   @protected
@@ -3156,6 +4682,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_conflict_view(
+    List<ConflictView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_conflict_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_goal_view(
     List<GoalView> self,
     SseSerializer serializer,
@@ -3187,6 +4725,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint8List(self);
+  }
+
+  @protected
+  void sse_encode_list_rejected_view(
+    List<RejectedView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_rejected_view(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_relay_entry(
+    List<RelayEntry> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_relay_entry(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_shared_transaction_view(
+    List<SharedTransactionView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_shared_transaction_view(item, serializer);
+    }
   }
 
   @protected
@@ -3257,6 +4831,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_outgoing_entry(
+    OutgoingEntry? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_outgoing_entry(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -3264,6 +4851,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (self != null) {
       sse_encode_box_autoadd_u_32(self, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_outgoing_entry(OutgoingEntry self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.expectedTail, serializer);
+    sse_encode_list_prim_u_8_strict(self.blob, serializer);
   }
 
   @protected
@@ -3298,6 +4892,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(self.appendedFrame, serializer);
+  }
+
+  @protected
+  void sse_encode_rejected_view(RejectedView self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.eventId, serializer);
+    sse_encode_String(self.reason, serializer);
+  }
+
+  @protected
+  void sse_encode_relay_entry(RelayEntry self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.sequence, serializer);
+    sse_encode_list_prim_u_8_strict(self.blob, serializer);
+  }
+
+  @protected
+  void sse_encode_shared_transaction_view(
+    SharedTransactionView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.accountId, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_String(self.amountLabel, serializer);
+    sse_encode_bool(self.isExpense, serializer);
+    sse_encode_bool(self.voided, serializer);
+    sse_encode_opt_String(self.categoryId, serializer);
+    sse_encode_bool(self.conflicted, serializer);
+  }
+
+  @protected
+  void sse_encode_staged_invite(StagedInvite self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_outgoing_entry(self.commit, serializer);
+    sse_encode_list_prim_u_8_strict(self.welcome, serializer);
   }
 
   @protected
@@ -3426,6 +5057,26 @@ class GoalBookImpl extends RustOpaque implements GoalBook {
         RustLib.instance.api.rust_arc_decrement_strong_count_GoalBook,
     rustArcDecrementStrongCountPtr:
         RustLib.instance.api.rust_arc_decrement_strong_count_GoalBookPtr,
+  );
+}
+
+@sealed
+class HouseholdImpl extends RustOpaque implements Household {
+  // Not to be used by end users
+  HouseholdImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  HouseholdImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_Household,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_Household,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_HouseholdPtr,
   );
 }
 

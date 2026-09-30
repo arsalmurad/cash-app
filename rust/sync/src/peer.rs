@@ -231,6 +231,15 @@ impl Peer {
         })
     }
 
+    /// How many locally written events are still waiting to be sent.
+    pub fn pending_count(&self) -> usize {
+        self.outbox.len()
+    }
+
+    pub fn reporting_currency(&self) -> &Currency {
+        &self.reporting_currency
+    }
+
     pub fn member_id(&self) -> &str {
         &self.member_id
     }
