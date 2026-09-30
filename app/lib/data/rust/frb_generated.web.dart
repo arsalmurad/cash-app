@@ -177,6 +177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   EntryKind dco_decode_entry_kind(dynamic raw);
 
   @protected
+  FxRatio dco_decode_fx_ratio(dynamic raw);
+
+  @protected
   GoalKind dco_decode_goal_kind(dynamic raw);
 
   @protected
@@ -405,6 +408,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   EntryKind sse_decode_entry_kind(SseDeserializer deserializer);
+
+  @protected
+  FxRatio sse_decode_fx_ratio(SseDeserializer deserializer);
 
   @protected
   GoalKind sse_decode_goal_kind(SseDeserializer deserializer);
@@ -678,6 +684,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_entry_kind(EntryKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_fx_ratio(FxRatio self, SseSerializer serializer);
 
   @protected
   void sse_encode_goal_kind(GoalKind self, SseSerializer serializer);

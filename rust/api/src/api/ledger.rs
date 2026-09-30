@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::{Mutex, MutexGuard};
 
 use cash_core::{
@@ -60,6 +61,18 @@ pub struct AccountView {
     pub name: String,
     pub currency_code: String,
     pub balance_label: String,
+    /// The account's balance valued at each entry's frozen rate, in the
+    /// ledger's reporting currency. `None` for accounts already held in the
+    /// reporting currency, where it would only repeat `balance_label`.
+    pub reporting_balance_label: Option<String>,
+}
+
+/// An exact exchange-rate ratio, as accepted by `record_transaction` and
+/// `record_transfer`: target minor units per one source minor unit.
+#[derive(Debug, PartialEq)]
+pub struct FxRatio {
+    pub numerator: i64,
+    pub denominator: i64,
 }
 
 #[derive(Debug, PartialEq)]
@@ -169,6 +182,23 @@ pub fn add_account(
         },
     );
     data.append_and_mutation(event)
+}
+
+/// Converts a user-typed decimal rate ("1.0875" target units per one source
+/// unit) into the exact integer ratio the ledger freezes on an entry.
+pub fn fx_rate_from_decimal(
+    rate: String,
+    source_currency_code: String,
+    target_currency_code: String,
+) -> Result<FxRatio, String> {
+    let source = Currency::from_code(&source_currency_code).map_err(|error| error.to_string())?;
+    let target = Currency::from_code(&target_currency_code).map_err(|error| error.to_string())?;
+    let parsed =
+        FxRate::from_decimal_rate(&rate, &source, target).map_err(|error| error.to_string())?;
+    Ok(FxRatio {
+        numerator: parsed.numerator,
+        denominator: parsed.denominator,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -385,7 +415,47 @@ impl LedgerData {
     }
 }
 
+/// Each account's balance valued at the rates frozen on its entries, derived
+/// from the folded state rather than stored (voided transactions are
+/// excluded, matching `native_balance_minor`). `None` if the sum overflows.
+fn reporting_balances(state: &LedgerState) -> BTreeMap<&AccountId, Option<i64>> {
+    fn add<'a>(
+        balances: &mut BTreeMap<&'a AccountId, Option<i64>>,
+        id: &'a AccountId,
+        delta: Option<i64>,
+    ) {
+        if let Some(slot) = balances.get_mut(id) {
+            *slot = slot
+                .zip(delta)
+                .and_then(|(total, delta)| total.checked_add(delta));
+        }
+    }
+    let mut balances: BTreeMap<&AccountId, Option<i64>> =
+        state.accounts.keys().map(|id| (id, Some(0))).collect();
+    for transaction in state.transactions.values().filter(|t| !t.voided) {
+        let delta = match transaction.kind {
+            TransactionKind::Expense => transaction.reporting_minor.checked_neg(),
+            TransactionKind::Income => Some(transaction.reporting_minor),
+        };
+        add(&mut balances, &transaction.account_id, delta);
+    }
+    for transfer in state.transfers.values() {
+        add(
+            &mut balances,
+            &transfer.from_account_id,
+            transfer.sent_reporting_minor.checked_neg(),
+        );
+        add(
+            &mut balances,
+            &transfer.to_account_id,
+            Some(transfer.received_reporting_minor),
+        );
+    }
+    balances
+}
+
 fn overview_from_state(state: LedgerState) -> LedgerOverview {
+    let reporting = reporting_balances(&state);
     let accounts = state
         .accounts
         .iter()
@@ -396,6 +466,15 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
             balance_label: account
                 .currency
                 .format_minor_units(account.native_balance_minor),
+            reporting_balance_label: if account.currency == state.reporting_currency {
+                None
+            } else {
+                reporting
+                    .get(id)
+                    .copied()
+                    .flatten()
+                    .map(|minor| state.reporting_currency.format_minor_units(minor))
+            },
         })
         .collect();
     let transactions = state
@@ -582,8 +661,7 @@ mod tests {
         .unwrap();
         log.extend(before_restart.appended_frame);
 
-        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log)
-            .unwrap();
+        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log).unwrap();
         let report = load_report(&restarted).unwrap();
         assert_eq!(report.recovered_event_count, 2);
         assert_eq!(report.truncated_bytes, 0);
@@ -625,8 +703,7 @@ mod tests {
         let torn_len = transaction_frame.len() / 2;
         log.extend(&transaction_frame[..torn_len]);
 
-        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log)
-            .unwrap();
+        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log).unwrap();
         let report = load_report(&restarted).unwrap();
         assert_eq!(report.recovered_event_count, 1);
         // Trailing garbage is what was actually written for the torn frame,
@@ -819,6 +896,113 @@ mod tests {
     }
 
     #[test]
+    fn a_foreign_currency_account_shows_its_balance_in_the_reporting_currency() {
+        let ledger = new_ledger("device-a");
+        add_account(
+            &ledger,
+            "usd".to_owned(),
+            "Cash".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+        add_account(
+            &ledger,
+            "eur".to_owned(),
+            "Euro".to_owned(),
+            "EUR".to_owned(),
+            2,
+        )
+        .unwrap();
+
+        // 1 EUR = 1.10 USD -> 110/100 minor units, reduced to 11/10.
+        let rate =
+            fx_rate_from_decimal("1.10".to_owned(), "EUR".to_owned(), "USD".to_owned()).unwrap();
+        assert_eq!((rate.numerator, rate.denominator), (11, 10));
+
+        let overview = record_transaction(
+            &ledger,
+            "e1".to_owned(),
+            "eur".to_owned(),
+            EntryKind::Income,
+            "100.00".to_owned(),
+            "EUR".to_owned(),
+            rate.numerator,
+            rate.denominator,
+            "Refund".to_owned(),
+            None,
+            None,
+            3,
+        )
+        .unwrap()
+        .overview;
+
+        let euro = overview.accounts.iter().find(|a| a.id == "eur").unwrap();
+        assert_eq!(euro.balance_label, "EUR 100.00");
+        assert_eq!(euro.reporting_balance_label.as_deref(), Some("USD 110.00"));
+        // The reporting-currency account needs no conversion line.
+        let usd = overview.accounts.iter().find(|a| a.id == "usd").unwrap();
+        assert_eq!(usd.reporting_balance_label, None);
+        assert_eq!(overview.balance_label, "USD 110.00");
+    }
+
+    #[test]
+    fn transfer_legs_contribute_their_own_frozen_rate_to_each_account() {
+        let ledger = new_ledger("device-a");
+        add_account(
+            &ledger,
+            "usd".to_owned(),
+            "Cash".to_owned(),
+            "USD".to_owned(),
+            1,
+        )
+        .unwrap();
+        add_account(
+            &ledger,
+            "eur".to_owned(),
+            "Euro".to_owned(),
+            "EUR".to_owned(),
+            2,
+        )
+        .unwrap();
+
+        // Send USD 110.00 (1:1) and receive EUR 100.00 at 1.10 USD per EUR.
+        let overview = record_transfer(
+            &ledger,
+            "t1".to_owned(),
+            "usd".to_owned(),
+            "eur".to_owned(),
+            "110.00".to_owned(),
+            "USD".to_owned(),
+            1,
+            1,
+            "100.00".to_owned(),
+            "EUR".to_owned(),
+            11,
+            10,
+            "Top up".to_owned(),
+            3,
+        )
+        .unwrap()
+        .overview;
+
+        let euro = overview.accounts.iter().find(|a| a.id == "eur").unwrap();
+        assert_eq!(euro.reporting_balance_label.as_deref(), Some("USD 110.00"));
+        assert_eq!(overview.balance_label, "USD 0.00");
+    }
+
+    #[test]
+    fn fx_rate_parsing_reports_bad_input_as_an_error() {
+        assert!(
+            fx_rate_from_decimal("abc".to_owned(), "EUR".to_owned(), "USD".to_owned()).is_err()
+        );
+        assert!(fx_rate_from_decimal("0".to_owned(), "EUR".to_owned(), "USD".to_owned()).is_err());
+        assert!(
+            fx_rate_from_decimal("1.1".to_owned(), "eur".to_owned(), "USD".to_owned()).is_err()
+        );
+    }
+
+    #[test]
     fn a_transfer_to_the_same_account_is_rejected_by_the_bridge() {
         let ledger = new_ledger("device-a");
         add_account(
@@ -898,8 +1082,7 @@ mod tests {
             .appended_frame,
         );
 
-        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log)
-            .unwrap();
+        let restarted = load_personal_ledger("device-a".to_owned(), "USD".to_owned(), log).unwrap();
         let report = load_report(&restarted).unwrap();
         assert_eq!(report.recovered_event_count, 3);
         assert_eq!(report.truncated_bytes, 0);
