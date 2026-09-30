@@ -317,24 +317,25 @@ class HouseholdController extends ChangeNotifier {
   /// Restores a household from a backup and its phrase, for a replacement
   /// device. The old device must be treated as gone: two devices with the
   /// same member identity would fork it.
-  Future<bool> restoreBackup(String phrase, String backupCode) => _run(() async {
-    if (isMember) {
-      throw const FormatException('This device is already in a household.');
-    }
-    final plaintext = await recoveryOpen(
-      phrase: phrase,
-      sealed: decodeBackup(backupCode),
-    );
-    _household = await householdRestore(saved: plaintext);
-    await _persist();
-    await _refresh();
-    if (_relay == null && relayUrl != null) {
-      _relay = _relayFactory(relayUrl!);
-    }
-    if (_relay != null) {
-      await _sync();
-    }
-  });
+  Future<bool> restoreBackup(String phrase, String backupCode) =>
+      _run(() async {
+        if (isMember) {
+          throw const FormatException('This device is already in a household.');
+        }
+        final plaintext = await recoveryOpen(
+          phrase: phrase,
+          sealed: decodeBackup(backupCode),
+        );
+        _household = await householdRestore(saved: plaintext);
+        await _persist();
+        await _refresh();
+        if (_relay == null && relayUrl != null) {
+          _relay = _relayFactory(relayUrl!);
+        }
+        if (_relay != null) {
+          await _sync();
+        }
+      });
 
   // --- Shared expenses --------------------------------------------------
 
