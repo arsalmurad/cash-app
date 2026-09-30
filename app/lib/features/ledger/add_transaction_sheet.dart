@@ -44,6 +44,7 @@ class TransferDraft extends EntryDraft {
   final String fromAccountId;
   final String toAccountId;
   final String sentAmount;
+
   /// Only set (and only needed) when the two accounts don't share a
   /// currency; see `LedgerController.transfer`.
   final String? receivedAmount;
@@ -156,60 +157,69 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         padding: EdgeInsets.fromLTRB(24, 16, 24, 24 + bottomInset),
         child: Form(
           key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(99),
+          // Scrollable so the sheet stays usable on short viewports (a phone
+          // in landscape, or with the keyboard up) instead of overflowing.
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Text('Add entry', style: Theme.of(context).textTheme.headlineSmall),
-              const SizedBox(height: 20),
-              SegmentedButton<_EntryMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: _EntryMode.expense,
-                    icon: Icon(Icons.arrow_upward_rounded),
-                    label: Text('Expense'),
-                  ),
-                  ButtonSegment(
-                    value: _EntryMode.income,
-                    icon: Icon(Icons.arrow_downward_rounded),
-                    label: Text('Income'),
-                  ),
-                  ButtonSegment(
-                    value: _EntryMode.transfer,
-                    icon: Icon(Icons.swap_horiz_rounded),
-                    label: Text('Transfer'),
-                  ),
-                ],
-                selected: {mode},
-                onSelectionChanged: (selection) {
-                  setState(() => mode = selection.first);
-                },
-              ),
-              const SizedBox(height: 16),
-              if (mode == _EntryMode.transfer)
-                ..._transferFields()
-              else
-                ..._transactionFields(),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _submit,
-                icon: const Icon(Icons.check_rounded),
-                label: Text(
-                  mode == _EntryMode.transfer ? 'Add transfer' : 'Add transaction',
+                const SizedBox(height: 24),
+                Text(
+                  'Add entry',
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                SegmentedButton<_EntryMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: _EntryMode.expense,
+                      icon: Icon(Icons.arrow_upward_rounded),
+                      label: Text('Expense'),
+                    ),
+                    ButtonSegment(
+                      value: _EntryMode.income,
+                      icon: Icon(Icons.arrow_downward_rounded),
+                      label: Text('Income'),
+                    ),
+                    ButtonSegment(
+                      value: _EntryMode.transfer,
+                      icon: Icon(Icons.swap_horiz_rounded),
+                      label: Text('Transfer'),
+                    ),
+                  ],
+                  selected: {mode},
+                  onSelectionChanged: (selection) {
+                    setState(() => mode = selection.first);
+                  },
+                ),
+                const SizedBox(height: 16),
+                if (mode == _EntryMode.transfer)
+                  ..._transferFields()
+                else
+                  ..._transactionFields(),
+                const SizedBox(height: 20),
+                FilledButton.icon(
+                  onPressed: _submit,
+                  icon: const Icon(Icons.check_rounded),
+                  label: Text(
+                    mode == _EntryMode.transfer
+                        ? 'Add transfer'
+                        : 'Add transaction',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -325,9 +335,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
           prefixText: '${_accountById(fromAccountId)?.currencyCode ?? ''} ',
           hintText: '0.00',
         ),
-        validator: (value) => value == null || value.trim().isEmpty
-            ? 'Enter an amount'
-            : null,
+        validator: (value) =>
+            value == null || value.trim().isEmpty ? 'Enter an amount' : null,
       ),
       if (_transferCrossesCurrencies) ...[
         const SizedBox(height: 12),
