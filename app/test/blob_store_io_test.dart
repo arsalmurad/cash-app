@@ -34,12 +34,15 @@ void main() {
     expect(await IoBlobStore('household').read(), isNull);
   });
 
-  test('a write replaces the previous value and survives a new instance', () async {
-    final store = IoBlobStore('household');
-    await store.write(Uint8List.fromList([1, 2, 3]));
-    await store.write(Uint8List.fromList([4, 5]));
-    expect(await IoBlobStore('household').read(), [4, 5]);
-  });
+  test(
+    'a write replaces the previous value and survives a new instance',
+    () async {
+      final store = IoBlobStore('household');
+      await store.write(Uint8List.fromList([1, 2, 3]));
+      await store.write(Uint8List.fromList([4, 5]));
+      expect(await IoBlobStore('household').read(), [4, 5]);
+    },
+  );
 
   test('names are isolated from each other', () async {
     await IoBlobStore('one').write(Uint8List.fromList([1]));
@@ -55,18 +58,24 @@ void main() {
     expect(await store.read(), isNotNull);
   });
 
-  test('delete removes the value and leaves no temporary file behind', () async {
-    final store = IoBlobStore('household');
-    await store.write(Uint8List.fromList([1]));
-    await store.delete();
-    expect(await store.read(), isNull);
-    await store.delete(); // deleting nothing is fine
-    expect(sandbox.listSync().whereType<File>(), isEmpty);
-  });
+  test(
+    'delete removes the value and leaves no temporary file behind',
+    () async {
+      final store = IoBlobStore('household');
+      await store.write(Uint8List.fromList([1]));
+      await store.delete();
+      expect(await store.read(), isNull);
+      await store.delete(); // deleting nothing is fine
+      expect(sandbox.listSync().whereType<File>(), isEmpty);
+    },
+  );
 
   test('a write leaves only the final file, never the temporary one', () async {
     await IoBlobStore('household').write(Uint8List.fromList([1]));
-    final names = sandbox.listSync().map((e) => e.path.split('/').last).toList();
+    final names = sandbox
+        .listSync()
+        .map((e) => e.path.split('/').last)
+        .toList();
     expect(names, hasLength(1));
     expect(names.single, isNot(endsWith('.tmp')));
   });

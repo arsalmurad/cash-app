@@ -1,0 +1,467 @@
+import 'dart:math';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show PlatformInt64Util;
+
+import '../../data/rust/api/ledger.dart' show EntryKind;
+import '../../data/rust/api/shared.dart';
+import '../../data/storage/blob_store.dart';
+import 'invite_codes.dart';
+import 'relay_client.dart';
+
+/// Runs the household layer: owns the network (the Rust core does no I/O),
+/// persists the secret state after every change, and exposes the folded
+/// view. The protocol itself (MLS, ordering, conflicts) lives in
+/// `rust/sync`; this class only moves bytes between it and the relay, in
+/// the same loop `cash_sync::Peer::sync` runs in Rust.
+class HouseholdController extends ChangeNotifier {
+  HouseholdController({
+    BlobStore? stateStore,
+    BlobStore? configStore,
+    RelayClient Function(String url)? relayFactory,
+    int Function()? clockMillis,
+    String Function()? newMemberId,
+  }) : _stateStore = stateStore ?? BlobStore('household'),
+       _configStore = configStore ?? BlobStore('household-config'),
+       _relayFactory = relayFactory ?? HttpRelayClient.new,
+       _clockMillis =
+           clockMillis ?? (() => DateTime.now().millisecondsSinceEpoch),
+       _newMemberId = newMemberId ?? _randomId;
+
+  static const reportingCurrency = 'USD';
+  static const _accountId = 'household';
+  static const _maxAttempts = 64;
+
+  final BlobStore _stateStore;
+  final BlobStore _configStore;
+  final RelayClient Function(String url) _relayFactory;
+  final int Function() _clockMillis;
+  final String Function() _newMemberId;
+
+  Household? _household;
+  RelayClient? _relay;
+  HouseholdOverview? overview;
+  String? relayUrl;
+  bool isBusy = false;
+  String? errorMessage;
+  bool isLoading = true;
+  int _sequence = 0;
+
+  bool get isMember => overview?.isMember ?? false;
+
+  /// This device has an identity (and so can show a join request) but is
+  /// not in a household yet.
+  bool get hasIdentity => _household != null;
+
+  static String _randomId() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
+  Future<void> initialize() async {
+    try {
+      final config = await _configStore.read();
+      if (config != null && config.isNotEmpty) {
+        relayUrl = String.fromCharCodes(config);
+        _relay = _relayFactory(relayUrl!);
+      }
+      final saved = await _stateStore.read();
+      if (saved != null) {
+        _household = await householdRestore(saved: saved);
+        overview = await householdOverview(household: _household!);
+      }
+    } catch (error) {
+      errorMessage = error.toString();
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Sets the relay address (an `http(s)` URL). The relay sees only
+  /// ciphertext, but it is still the one place everyone's traffic passes.
+  Future<bool> setRelayUrl(String url) async {
+    final trimmed = url.trim().replaceAll(RegExp(r'/+$'), '');
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null ||
+        !(uri.scheme == 'https' || uri.scheme == 'http') ||
+        uri.host.isEmpty) {
+      errorMessage = 'Enter a relay address starting with https://';
+      notifyListeners();
+      return false;
+    }
+    await _configStore.write(Uint8List.fromList(trimmed.codeUnits));
+    relayUrl = trimmed;
+    _relay = _relayFactory(trimmed);
+    errorMessage = null;
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> _run(Future<void> Function() action) async {
+    isBusy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      await action();
+      return true;
+    } on RelayUnavailable catch (error) {
+      errorMessage = error.toString();
+      return false;
+    } on FormatException catch (error) {
+      errorMessage = error.message;
+      return false;
+    } catch (error) {
+      errorMessage = error.toString();
+      return false;
+    } finally {
+      isBusy = false;
+      notifyListeners();
+    }
+  }
+
+  RelayClient _requireRelay() {
+    final relay = _relay;
+    if (relay == null) {
+      throw const FormatException('Set the relay address first.');
+    }
+    return relay;
+  }
+
+  Household _requireHousehold() {
+    final household = _household;
+    if (household == null) {
+      throw const FormatException('There is no household on this device.');
+    }
+    return household;
+  }
+
+  Future<void> _refresh() async {
+    overview = await householdOverview(household: _requireHousehold());
+  }
+
+  /// Saves the secret state. Called after every change so a crash loses at
+  /// most the call in flight.
+  Future<void> _persist() async {
+    await _stateStore.write(
+      await householdExport(household: _requireHousehold()),
+    );
+  }
+
+  Future<void> _ensureIdentity() async {
+    if (_household != null) {
+      return;
+    }
+    _household = await householdNew(
+      memberId: _newMemberId(),
+      reportingCurrencyCode: reportingCurrency,
+    );
+    await _persist();
+  }
+
+  String _newId(String prefix) {
+    _sequence += 1;
+    return '$prefix-${_clockMillis()}-$_sequence';
+  }
+
+  // --- Founding and joining ---------------------------------------------
+
+  Future<bool> createHousehold() => _run(() async {
+    _requireRelay();
+    await _ensureIdentity();
+    final household = _requireHousehold();
+    await householdFound(household: household);
+    await householdOpenAccount(
+      household: household,
+      accountId: _accountId,
+      name: 'Household',
+      currencyCode: reportingCurrency,
+      wallClockMillis: PlatformInt64Util.from(_clockMillis()),
+    );
+    await _persist();
+    await _refresh();
+    await _sync();
+  });
+
+  /// The text a would-be member shows to whoever is inviting them. Creates
+  /// this device's identity on first use; the key package's private half is
+  /// saved before the code is returned, so it still works after a restart.
+  Future<String?> prepareJoinRequest() async {
+    String? code;
+    final ok = await _run(() async {
+      await _ensureIdentity();
+      final household = _requireHousehold();
+      final keyPackage = await householdKeyPackage(household: household);
+      await _persist();
+      code = encodeJoinRequest(keyPackage);
+    });
+    return ok ? code : null;
+  }
+
+  /// Adds the person behind [joinRequest] and returns the invite code to
+  /// give them. Retries when another member's write wins the race.
+  Future<String?> invite(String joinRequest) async {
+    String? code;
+    final ok = await _run(() async {
+      final relay = _requireRelay();
+      final household = _requireHousehold();
+      final keyPackage = decodeJoinRequest(joinRequest);
+      for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {
+        await _catchUp(relay, household);
+        final staged = await householdBeginInvite(
+          household: household,
+          keyPackage: keyPackage,
+        );
+        final int sequence;
+        try {
+          sequence = await relay.append(
+            _groupId(),
+            staged.commit.expectedTail.toInt(),
+            staged.commit.blob,
+          );
+        } on RelayConflict {
+          await householdCommitRejected(household: household);
+          continue;
+        } catch (_) {
+          await householdCommitRejected(household: household);
+          rethrow;
+        }
+        await householdCommitAccepted(
+          household: household,
+          sequence: PlatformInt64Util.from(sequence),
+        );
+        final mailbox = _randomId();
+        await relay.putMailbox(mailbox, _groupId(), sequence, staged.welcome);
+        await _persist();
+        await _refresh();
+        code = encodeInvite(
+          HouseholdInvite(
+            relayUrl: relayUrl!,
+            group: _groupId(),
+            mailbox: mailbox,
+          ),
+        );
+        return;
+      }
+      throw const RelayUnavailable('the relay stayed busy; try again');
+    });
+    return ok ? code : null;
+  }
+
+  /// Joins using an invite code, after [prepareJoinRequest] produced the
+  /// request it answers. Adopts the relay address the invite carries.
+  Future<bool> acceptInvite(String inviteCode) => _run(() async {
+    final invite = decodeInvite(inviteCode);
+    final household = _requireHousehold();
+    if (isMember) {
+      throw const FormatException('This device is already in a household.');
+    }
+    final relay = _relayFactory(invite.relayUrl);
+    final item = await relay.takeMailbox(invite.mailbox);
+    if (item == null) {
+      throw const FormatException(
+        'That invite was already used or has expired.',
+      );
+    }
+    if (item.group != invite.group) {
+      throw const FormatException('That invite does not match its welcome.');
+    }
+    await householdJoin(
+      household: household,
+      groupId: item.group,
+      welcome: item.welcome,
+      joinedAfter: PlatformInt64Util.from(item.joinedAfter),
+    );
+    relayUrl = invite.relayUrl;
+    _relay = relay;
+    await _configStore.write(Uint8List.fromList(invite.relayUrl.codeUnits));
+    await _persist();
+    await _refresh();
+    await _sync();
+  });
+
+  /// Forgets the household on this device (the others keep theirs). The
+  /// identity is discarded too: rejoining needs a fresh invite.
+  Future<void> forgetHousehold() async {
+    await _stateStore.delete();
+    _household = null;
+    overview = null;
+    errorMessage = null;
+    notifyListeners();
+  }
+
+  // --- Shared expenses --------------------------------------------------
+
+  Future<bool> addExpense({
+    required String title,
+    required String amount,
+    EntryKind kind = EntryKind.expense,
+  }) => _write(
+    () => householdRecordTransaction(
+      household: _requireHousehold(),
+      transactionId: _newId('shared'),
+      accountId: _accountId,
+      kind: kind,
+      amount: amount,
+      currencyCode: reportingCurrency,
+      fxNumerator: PlatformInt64Util.from(1),
+      fxDenominator: PlatformInt64Util.from(1),
+      title: title.trim(),
+      wallClockMillis: PlatformInt64Util.from(_clockMillis()),
+    ),
+  );
+
+  Future<bool> adjustAmount(String transactionId, String amount) => _write(
+    () => householdAdjustAmount(
+      household: _requireHousehold(),
+      transactionId: transactionId,
+      amount: amount,
+      currencyCode: reportingCurrency,
+      fxNumerator: PlatformInt64Util.from(1),
+      fxDenominator: PlatformInt64Util.from(1),
+      wallClockMillis: PlatformInt64Util.from(_clockMillis()),
+    ),
+  );
+
+  Future<bool> voidTransaction(String transactionId) => _write(
+    () => householdVoidTransaction(
+      household: _requireHousehold(),
+      transactionId: transactionId,
+      wallClockMillis: PlatformInt64Util.from(_clockMillis()),
+    ),
+  );
+
+  /// Applies a local write, saves it, then tries to send it. A failed send
+  /// is reported but the write is kept and retried by the next sync.
+  Future<bool> _write(Future<void> Function() write) async {
+    final written = await _run(() async {
+      await write();
+      await _persist();
+      await _refresh();
+    });
+    if (!written) {
+      return false;
+    }
+    return syncNow();
+  }
+
+  // --- Sync -------------------------------------------------------------
+
+  Future<bool> syncNow() => _run(_sync);
+
+  String _groupId() {
+    final group = overview?.groupId;
+    if (group == null) {
+      throw const FormatException('There is no household on this device.');
+    }
+    return group;
+  }
+
+  Future<void> _catchUp(RelayClient relay, Household household) async {
+    final overview = await householdOverview(household: household);
+    final entries = await relay.readAfter(_groupId(), overview.cursor.toInt());
+    if (entries.isNotEmpty) {
+      await householdIngest(
+        household: household,
+        entries: [
+          for (final entry in entries)
+            RelayEntry(
+              sequence: PlatformInt64Util.from(entry.sequence),
+              blob: entry.blob,
+            ),
+        ],
+      );
+    }
+  }
+
+  Future<void> _sync() async {
+    final relay = _requireRelay();
+    final household = _requireHousehold();
+    if (!isMember) {
+      return;
+    }
+    try {
+      var conflicts = 0;
+      while (true) {
+        await _catchUp(relay, household);
+        final next = await householdNextOutgoing(household: household);
+        if (next == null) {
+          break;
+        }
+        try {
+          final sequence = await relay.append(
+            _groupId(),
+            next.expectedTail.toInt(),
+            next.blob,
+          );
+          await householdOutgoingAccepted(
+            household: household,
+            sequence: PlatformInt64Util.from(sequence),
+          );
+        } on RelayConflict {
+          conflicts += 1;
+          if (conflicts >= _maxAttempts) {
+            throw const RelayUnavailable('the relay stayed busy');
+          }
+        }
+      }
+    } finally {
+      // Whatever happened, keep what was learned and what is still queued.
+      await _persist();
+      await _refresh();
+    }
+  }
+
+  // --- Members ----------------------------------------------------------
+
+  Future<bool> removeMember(String memberId) => _run(() async {
+    final relay = _requireRelay();
+    final household = _requireHousehold();
+    for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {
+      await _catchUp(relay, household);
+      final commit = await householdBeginRemoval(
+        household: household,
+        memberId: memberId,
+      );
+      final int sequence;
+      try {
+        sequence = await relay.append(
+          _groupId(),
+          commit.expectedTail.toInt(),
+          commit.blob,
+        );
+      } on RelayConflict {
+        await householdCommitRejected(household: household);
+        continue;
+      } catch (_) {
+        await householdCommitRejected(household: household);
+        rethrow;
+      }
+      await householdCommitAccepted(
+        household: household,
+        sequence: PlatformInt64Util.from(sequence),
+      );
+      await _persist();
+      await _refresh();
+      return;
+    }
+    throw const RelayUnavailable('the relay stayed busy; try again');
+  });
+
+  Future<String?> safetyNumberWith(String memberId) async {
+    try {
+      return await householdSafetyNumber(
+        household: _requireHousehold(),
+        memberId: memberId,
+      );
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+}

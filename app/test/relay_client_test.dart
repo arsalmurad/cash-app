@@ -26,7 +26,11 @@ void main() {
       }),
     );
 
-    final sequence = await client.append(_group, 7, Uint8List.fromList([1, 2, 3]));
+    final sequence = await client.append(
+      _group,
+      7,
+      Uint8List.fromList([1, 2, 3]),
+    );
 
     expect(sequence, 8);
     expect(seen.method, 'POST');
@@ -57,51 +61,69 @@ void main() {
       failing.append(_group, 0, Uint8List(1)),
       throwsA(isA<RelayUnavailable>()),
     );
-    await expectLater(failing.readAfter(_group, 0), throwsA(isA<RelayUnavailable>()));
+    await expectLater(
+      failing.readAfter(_group, 0),
+      throwsA(isA<RelayUnavailable>()),
+    );
 
     final offline = HttpRelayClient(
       'https://relay.example',
       MockClient((_) async => throw http.ClientException('no route')),
     );
-    await expectLater(offline.readAfter(_group, 0), throwsA(isA<RelayUnavailable>()));
+    await expectLater(
+      offline.readAfter(_group, 0),
+      throwsA(isA<RelayUnavailable>()),
+    );
   });
 
-  test('readAfter follows pages until the relay says there is no more', () async {
-    final requested = <String>[];
-    final client = HttpRelayClient(
-      'https://relay.example',
-      MockClient((request) async {
-        requested.add(request.url.toString());
-        final after = int.parse(request.url.queryParameters['after']!);
-        if (after == 0) {
+  test(
+    'readAfter follows pages until the relay says there is no more',
+    () async {
+      final requested = <String>[];
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((request) async {
+          requested.add(request.url.toString());
+          final after = int.parse(request.url.queryParameters['after']!);
+          if (after == 0) {
+            return _json(200, {
+              'entries': [
+                {
+                  'seq': 1,
+                  'blob': base64.encode([1]),
+                },
+                {
+                  'seq': 2,
+                  'blob': base64.encode([2]),
+                },
+              ],
+              'tail': 3,
+              'more': true,
+            });
+          }
           return _json(200, {
             'entries': [
-              {'seq': 1, 'blob': base64.encode([1])},
-              {'seq': 2, 'blob': base64.encode([2])},
+              {
+                'seq': 3,
+                'blob': base64.encode([3]),
+              },
             ],
             'tail': 3,
-            'more': true,
+            'more': false,
           });
-        }
-        return _json(200, {
-          'entries': [
-            {'seq': 3, 'blob': base64.encode([3])},
-          ],
-          'tail': 3,
-          'more': false,
-        });
-      }),
-    );
+        }),
+      );
 
-    final entries = await client.readAfter(_group, 0);
+      final entries = await client.readAfter(_group, 0);
 
-    expect(entries.map((e) => e.sequence), [1, 2, 3]);
-    expect(entries.map((e) => e.blob.first), [1, 2, 3]);
-    expect(requested, [
-      'https://relay.example/g/$_group?after=0',
-      'https://relay.example/g/$_group?after=2',
-    ]);
-  });
+      expect(entries.map((e) => e.sequence), [1, 2, 3]);
+      expect(entries.map((e) => e.blob.first), [1, 2, 3]);
+      expect(requested, [
+        'https://relay.example/g/$_group?after=0',
+        'https://relay.example/g/$_group?after=2',
+      ]);
+    },
+  );
 
   test('a malformed reply is RelayUnavailable, not a crash', () async {
     for (final body in [
@@ -123,45 +145,51 @@ void main() {
         'https://relay.example',
         MockClient((_) async => _json(200, body)),
       );
-      await expectLater(client.readAfter(_group, 0), throwsA(isA<RelayUnavailable>()));
+      await expectLater(
+        client.readAfter(_group, 0),
+        throwsA(isA<RelayUnavailable>()),
+      );
     }
   });
 
-  test('mailboxes: put sends the item, take returns it once then null', () async {
-    final puts = <Map<String, dynamic>>[];
-    var taken = false;
-    final client = HttpRelayClient(
-      'https://relay.example',
-      MockClient((request) async {
-        if (request.method == 'PUT') {
-          puts.add(jsonDecode(request.body) as Map<String, dynamic>);
-          return _json(200, {'ok': true});
-        }
-        if (taken) {
-          return _json(404, {'error': 'empty mailbox'});
-        }
-        taken = true;
-        return _json(200, {
-          'group': _group,
-          'joined_after': 4,
-          'welcome': base64.encode([9, 9]),
-        });
-      }),
-    );
+  test(
+    'mailboxes: put sends the item, take returns it once then null',
+    () async {
+      final puts = <Map<String, dynamic>>[];
+      var taken = false;
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((request) async {
+          if (request.method == 'PUT') {
+            puts.add(jsonDecode(request.body) as Map<String, dynamic>);
+            return _json(200, {'ok': true});
+          }
+          if (taken) {
+            return _json(404, {'error': 'empty mailbox'});
+          }
+          taken = true;
+          return _json(200, {
+            'group': _group,
+            'joined_after': 4,
+            'welcome': base64.encode([9, 9]),
+          });
+        }),
+      );
 
-    await client.putMailbox(_mailbox, _group, 4, Uint8List.fromList([9, 9]));
-    expect(puts.single, {
-      'group': _group,
-      'joined_after': 4,
-      'welcome': base64.encode([9, 9]),
-    });
+      await client.putMailbox(_mailbox, _group, 4, Uint8List.fromList([9, 9]));
+      expect(puts.single, {
+        'group': _group,
+        'joined_after': 4,
+        'welcome': base64.encode([9, 9]),
+      });
 
-    final item = await client.takeMailbox(_mailbox);
-    expect(item!.group, _group);
-    expect(item.joinedAfter, 4);
-    expect(item.welcome, [9, 9]);
-    expect(await client.takeMailbox(_mailbox), isNull);
-  });
+      final item = await client.takeMailbox(_mailbox);
+      expect(item!.group, _group);
+      expect(item.joinedAfter, 4);
+      expect(item.welcome, [9, 9]);
+      expect(await client.takeMailbox(_mailbox), isNull);
+    },
+  );
 
   group('MemoryRelayClient (the test double must obey the same contract)', () {
     test('is an ordered compare-and-swap log', () async {
