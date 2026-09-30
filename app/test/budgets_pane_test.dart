@@ -124,4 +124,94 @@ void main() {
     expect(result!.period, BudgetPeriodKind.custom);
     expect(result!.customPeriodDays, 14);
   });
+
+  testWidgets('tapping a budget\'s edit icon opens the dialog pre-filled', (
+    tester,
+  ) async {
+    final budget = BudgetView(
+      id: 'groceries',
+      name: 'Groceries',
+      categoryId: 'food',
+      periodLabel: 'Last 14 days',
+      limitLabel: 'USD 200.00',
+      spentLabel: 'USD 50.00',
+      percentUsed: PlatformInt64Util.from(25),
+    );
+    const categories = [
+      CategoryView(id: 'food', name: 'Food', iconKey: 'restaurant'),
+    ];
+    BudgetView? edited;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BudgetsPane(
+            budgets: [budget],
+            categories: categories,
+            onEdit: (b) => edited = b,
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pump();
+
+    expect(edited, budget);
+  });
+
+  testWidgets(
+    'NewBudgetDialog in edit mode pre-fills name, limit, category, and custom period',
+    (tester) async {
+      final budget = BudgetView(
+        id: 'groceries',
+        name: 'Groceries',
+        categoryId: 'food',
+        periodLabel: 'Last 14 days',
+        limitLabel: 'USD 200.00',
+        spentLabel: 'USD 50.00',
+        percentUsed: PlatformInt64Util.from(25),
+      );
+      const categories = [
+        CategoryView(id: 'food', name: 'Food', iconKey: 'restaurant'),
+      ];
+      BudgetDraft? result;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () async {
+                  result = await showDialog<BudgetDraft>(
+                    context: context,
+                    builder: (context) => NewBudgetDialog(
+                      categories: categories,
+                      existing: budget,
+                    ),
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit budget'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Groceries'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, '200.00'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, '14'), findsOneWidget);
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(result!.categoryId, 'food');
+      expect(result!.period, BudgetPeriodKind.custom);
+      expect(result!.customPeriodDays, 14);
+    },
+  );
 }

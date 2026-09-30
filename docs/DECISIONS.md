@@ -483,3 +483,27 @@ action per row, rather than folding rename into the existing category
 dropdown inside `AddTransactionSheet`: that dropdown's job is picking a
 category for one transaction, and overloading it with a management UI would
 conflate the two.
+
+## 2026-09-30 — Budget/goal/recurring-rule dialogs edit in place, not a second dialog
+
+`NewBudgetDialog`, `NewGoalDialog`, and `NewRecurringDialog` each gained an
+optional `existing` parameter rather than a parallel `EditBudgetDialog`
+etc.: the same reasoning as `CategoryEditDialog` applies to each — creating
+and editing collect the same fields, just starting blank or pre-filled, so
+a second dialog would duplicate the form for no behavioral difference. A
+budget's `periodLabel` is a display string, not its `BudgetPeriodKind`, so
+pre-filling the edit form parses it back from the four fixed shapes
+`period_label` in `rust/api/src/api/budgets.rs` produces ("This week" /
+"This month" / "This year" / "Last N days") rather than adding a bridge
+field only the edit dialog would ever read.
+
+A goal's `categoryId`/`deadlineMillis` and a recurring rule's `categoryId`
+have never had UI to set them (neither creation dialog collects them), so
+editing without addressing that would silently null them out on save for
+anything that already had one. Rejected fixing this by adding that UI now:
+it's a real, separate feature gap (see `docs/PHASE1-PROGRESS.md`'s
+"Remaining work"), out of scope for a rename fix, and would have expanded
+this change well past "let an existing value survive an edit." Instead
+`GoalDraft`/`RecurringDraft` carry the existing value through unchanged
+when editing, so the edit is safe today and the missing UI stays a single,
+clearly-scoped follow-up rather than two problems tangled into one fix.

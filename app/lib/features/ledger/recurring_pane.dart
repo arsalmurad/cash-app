@@ -12,11 +12,13 @@ class RecurringPane extends StatelessWidget {
   const RecurringPane({
     required this.upcoming,
     required this.onRecord,
+    this.onEdit,
     super.key,
   });
 
   final List<UpcomingView> upcoming;
   final Future<void> Function(UpcomingView occurrence) onRecord;
+  final void Function(UpcomingView occurrence)? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -29,16 +31,22 @@ class RecurringPane extends StatelessWidget {
       itemBuilder: (context, index) => _UpcomingCard(
         occurrence: upcoming[index],
         onRecord: () => onRecord(upcoming[index]),
+        onEdit: onEdit == null ? null : () => onEdit!(upcoming[index]),
       ),
     );
   }
 }
 
 class _UpcomingCard extends StatelessWidget {
-  const _UpcomingCard({required this.occurrence, required this.onRecord});
+  const _UpcomingCard({
+    required this.occurrence,
+    required this.onRecord,
+    this.onEdit,
+  });
 
   final UpcomingView occurrence;
   final VoidCallback onRecord;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +85,12 @@ class _UpcomingCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (onEdit != null)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                tooltip: 'Edit recurring rule',
+                onPressed: onEdit,
+              ),
             Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -130,9 +144,21 @@ class RecurringDraft {
 }
 
 class NewRecurringDialog extends StatefulWidget {
-  const NewRecurringDialog({required this.accounts, super.key});
+  const NewRecurringDialog({required this.accounts, this.existing, super.key});
 
   final List<AccountView> accounts;
+
+  /// When set, the dialog starts pre-filled from this rule's next upcoming
+  /// occurrence and behaves as an edit rather than a create (see
+  /// [RecurringPane.onEdit]). `existing.occurrenceMillis` doubles as the
+  /// rule's start date here: it equals the rule's real `start_millis` when
+  /// no occurrence has been recorded yet (the common edit case, since a
+  /// rule's next occurrence only advances once one has been recorded), and
+  /// is otherwise inert — `upsert_recurring`'s `start_millis` only anchors a
+  /// rule that has no recorded history yet (see `docs/DECISIONS.md`).
+  final UpcomingView? existing;
+
+  bool get isEditing => existing != null;
 
   @override
   State<NewRecurringDialog> createState() => _NewRecurringDialogState();
@@ -140,17 +166,41 @@ class NewRecurringDialog extends StatefulWidget {
 
 class _NewRecurringDialogState extends State<NewRecurringDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _amountController = TextEditingController();
-  RecurringKind _kind = RecurringKind.expense;
-  RecurringFrequency _frequency = RecurringFrequency.monthly;
+  late final _titleController = TextEditingController(
+    text: widget.existing?.title,
+  );
+  late final _amountController = TextEditingController(
+    text: widget.existing == null
+        ? null
+        : _amountFromLabel(widget.existing!.amountLabel),
+  );
+  late RecurringKind _kind = widget.existing == null
+      ? RecurringKind.expense
+      : (widget.existing!.isExpense
+            ? RecurringKind.expense
+            : RecurringKind.income);
+  late RecurringFrequency _frequency =
+      widget.existing?.frequency ?? RecurringFrequency.monthly;
   String? _accountId;
-  DateTime _startDate = DateTime.now();
+  late DateTime _startDate = widget.existing == null
+      ? DateTime.now()
+      : DateTime.fromMillisecondsSinceEpoch(
+          widget.existing!.occurrenceMillis.toInt(),
+        );
+
+  /// An amount label is always `"<CODE> <amount>"`; the amount alone is what
+  /// this field edits (mirrors the same helper in `ledger_controller.dart`).
+  String _amountFromLabel(String label) {
+    final spaceIndex = label.indexOf(' ');
+    return spaceIndex < 0 ? label : label.substring(spaceIndex + 1);
+  }
 
   @override
   void initState() {
     super.initState();
-    _accountId = widget.accounts.isNotEmpty ? widget.accounts.first.id : null;
+    _accountId =
+        widget.existing?.accountId ??
+        (widget.accounts.isNotEmpty ? widget.accounts.first.id : null);
   }
 
   @override
@@ -163,7 +213,9 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('New recurring rule'),
+      title: Text(
+        widget.isEditing ? 'Edit recurring rule' : 'New recurring rule',
+      ),
       content: Form(
         key: _formKey,
         child: SingleChildScrollView(
@@ -300,6 +352,10 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
         kind: _kind,
         amount: _amountController.text.trim(),
         accountId: _accountId!,
+        // This dialog has no category picker of its own; carry an edited
+        // rule's existing category through unchanged rather than dropping it
+        // (a new rule simply has none).
+        categoryId: widget.existing?.categoryId,
         frequency: _frequency,
         startMillis: PlatformInt64Util.from(_startDate.millisecondsSinceEpoch),
       ),
