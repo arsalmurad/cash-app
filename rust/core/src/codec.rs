@@ -59,7 +59,7 @@ pub fn decode_event_log(bytes: &[u8]) -> DecodedLog {
     decode_frame_log(bytes, decode_event).into()
 }
 
-fn encode_event(event: &Event) -> Vec<u8> {
+pub(crate) fn encode_event(event: &Event) -> Vec<u8> {
     let mut bytes = Vec::new();
     write_string(&mut bytes, event.id.as_str());
     write_string(&mut bytes, event.actor_id.as_str());
@@ -69,7 +69,7 @@ fn encode_event(event: &Event) -> Vec<u8> {
     bytes
 }
 
-fn decode_event(payload: &[u8]) -> Option<Event> {
+pub(crate) fn decode_event(payload: &[u8]) -> Option<Event> {
     let mut reader = Reader::new(payload);
     let id = reader.read_string()?;
     let actor_id = reader.read_string()?;
