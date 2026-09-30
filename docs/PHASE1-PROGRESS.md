@@ -22,15 +22,41 @@ Verified evidence:
   build-web` + `flutter build web --wasm --no-web-resources-cdn` of the
   current code, in Chromium 141 (`Web runtime verification passed.`, all
   four `Verified ...` lines).
-- CI: `phase1-web.yml` was rewritten to run the same script; its first real
-  run is recorded under "Web runtime verification: CI result" once
-  dispatched (not yet run at the time of writing).
+- CI: `phase1-web.yml` passed on `claude/category-rename` at `d5a3399`
+  (https://github.com/arsalmurad/cash-app/actions/runs/36762051257): the
+  same script, in the runner's Chrome, against the production wasm build.
 - Found and fixed along the way: the add-entry sheet was not scrollable, so
   it overflowed on short viewports; `AddTransactionSheet` now scrolls, with
   a test that fails without the fix. `flutter test` passes 65 tests;
   `flutter analyze` is clean.
 - Not covered on web: the account-creation, transfer, and category-dropdown
   steps that `integration_test/ledger_test.dart` exercises on iOS/Android.
+
+## Multi-currency entry and conversion display
+
+Implementation: this change; rationale in `docs/DECISIONS.md` (2026-09-30,
+"Foreign-currency entries need a typed, frozen rate").
+
+- Core: `FxRate::from_decimal_rate` with 7 unit tests (exponent handling,
+  reduction, rejection of zero/garbage/overflow).
+- Bridge: `fx_rate_from_decimal`, `AccountView.reporting_balance_label`
+  (derived; transfer legs at their frozen rates), with Rust tests; bindings
+  regenerated with flutter_rust_bridge 2.13.0.
+- UI: rate fields on the add-entry sheet (expense/income, and each foreign
+  transfer leg), `ExchangeRateDialog` for recurring occurrences on foreign
+  accounts, "≈ USD ..." under foreign account balances.
+
+Verified locally: `cargo test --workspace` (all pass), `flutter analyze`
+clean, `flutter test test` 72 passing (new: rate fields on the sheet, the
+account-tile conversion line, `ExchangeRateDialog`).
+
+Device/browser evidence for this change is recorded under "CI results" below
+once the runs finish. `integration_test/ledger_test.dart` gained a EUR
+account flow (80.00 EUR at 1.0875 = 87.00 USD, surviving a restart); it is
+not covered by the web script.
+
+Not done: a rate column for CSV import, rate editing on an existing entry,
+and deleting accounts.
 
 ## Budget, goal, and recurring-rule rename
 
