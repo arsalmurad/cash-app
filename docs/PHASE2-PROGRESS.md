@@ -19,8 +19,11 @@ it is **not yet reachable from the app** (no bridge, no UI) and the relay is
 ## Exit test (brief section 6), item by item
 
 Verified locally on 2026-09-30 (`cargo test --workspace`, and
-`scripts/verify_relay.sh`); CI evidence is recorded below once the workflow
-has run.
+`scripts/verify_relay.sh`), and in CI: the `Phase 2 Shared Layer` workflow
+passed on `d189ca2`
+([run 36768018516](https://github.com/arsalmurad/cash-app/actions/runs/36768018516);
+workspace tests, then the worker tests in workerd and the Rust engine against
+the running worker, all steps successful).
 
 | Item | Evidence | Caveat |
 | --- | --- | --- |

@@ -20,5 +20,5 @@ mod relay;
 
 #[cfg(feature = "http")]
 pub use http::HttpRelay;
-pub use peer::{Peer, SyncError};
+pub use peer::{Outgoing, Peer, StagedInvite, SyncError};
 pub use relay::{MailboxItem, MemoryRelay, Relay, RelayError};

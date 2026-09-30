@@ -49,6 +49,22 @@ impl<'a> Reader<'a> {
 /// giving up; each retry first catches up on what won.
 const MAX_ATTEMPTS: usize = 64;
 
+/// One entry the transport should append to the relay log, but only if the
+/// log's tail is still `expected_tail`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Outgoing {
+    pub expected_tail: u64,
+    pub blob: Vec<u8>,
+}
+
+/// A staged commit adding a member, and the welcome to leave for them. The
+/// welcome is only for delivery once the commit is accepted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedInvite {
+    pub commit: Outgoing,
+    pub welcome: Vec<u8>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncError(pub String);
 
@@ -94,6 +110,9 @@ pub struct Peer {
     known: BTreeSet<EventId>,
     outbox: VecDeque<SharedEvent>,
     removed: bool,
+    /// A commit this peer created is awaiting the relay's verdict. Not
+    /// persisted: it must be resolved before the peer is exported.
+    staged: bool,
 }
 
 impl Peer {
@@ -112,6 +131,7 @@ impl Peer {
             known: BTreeSet::new(),
             outbox: VecDeque::new(),
             removed: false,
+            staged: false,
         })
     }
 
@@ -119,6 +139,11 @@ impl Peer {
     /// every event seen, the place in the relay log, and writes not yet
     /// sent. The bytes contain private keys; store them like a password.
     pub fn export(&self) -> Result<Vec<u8>, SyncError> {
+        if self.staged {
+            return Err(SyncError(
+                "a commit is pending; resolve it before exporting".to_owned(),
+            ));
+        }
         let mut bytes = Vec::new();
         bytes.extend_from_slice(EXPORT_MAGIC);
         write_field(&mut bytes, self.member_id.as_bytes());
@@ -202,6 +227,7 @@ impl Peer {
             known,
             outbox,
             removed,
+            staged: false,
         })
     }
 
@@ -228,8 +254,9 @@ impl Peer {
         self.member.public_key()
     }
 
-    /// Starts a new household group with this peer as its only member.
-    pub fn found(&mut self, _relay: &mut impl Relay) -> Result<String, SyncError> {
+    /// Starts a new household group with this peer as its only member,
+    /// returning the group's random ID.
+    pub fn found_group(&mut self) -> Result<String, SyncError> {
         self.member.create_group()?;
         let group = random_id();
         self.group = Some(group.clone());
@@ -237,10 +264,166 @@ impl Peer {
         Ok(group)
     }
 
+    pub fn group_id(&self) -> Option<&str> {
+        self.group.as_deref()
+    }
+
+    /// Sequence number of the last relay entry this peer has processed.
+    pub fn cursor(&self) -> u64 {
+        self.cursor
+    }
+
     fn group(&self) -> Result<String, SyncError> {
         self.group
             .clone()
             .ok_or_else(|| SyncError("this peer has not joined a group".to_owned()))
+    }
+
+    fn ensure_not_staged(&self) -> Result<(), SyncError> {
+        if self.staged {
+            Err(SyncError(
+                "a commit is pending; accept or reject it first".to_owned(),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    // --- The step interface -------------------------------------------
+    //
+    // The app keeps its network in Dart, so the engine is also usable as a
+    // state machine: the transport fetches entries and hands them to
+    // `ingest`, asks `next_outgoing` what to send, and reports the relay's
+    // verdict. `sync`, `invite`, and `remove` below are the same steps
+    // driven through a `Relay`.
+
+    /// Processes relay entries in order. Entries already seen are skipped;
+    /// a gap is an error, since MLS needs every message in sequence.
+    pub fn ingest(&mut self, entries: &[(u64, Vec<u8>)]) -> Result<(), SyncError> {
+        self.ensure_not_staged()?;
+        for (sequence, frame) in entries {
+            if self.removed || *sequence <= self.cursor {
+                continue;
+            }
+            if *sequence != self.cursor + 1 {
+                return Err(SyncError(format!(
+                    "entries skipped from {} to {sequence}",
+                    self.cursor
+                )));
+            }
+            match self.member.receive(frame)? {
+                Received::Application(bytes) => {
+                    // A frame that decrypts but is not a shared event came
+                    // from a buggy or hostile member; skip it rather than
+                    // stall everyone behind it.
+                    if let Some(shared) = decode_shared_event(&bytes) {
+                        self.observe(shared);
+                    }
+                }
+                Received::Commit { .. } | Received::Own => {}
+                Received::Removed => self.removed = true,
+            }
+            self.cursor = *sequence;
+        }
+        Ok(())
+    }
+
+    /// Encrypts the next queued event for the transport to append. The
+    /// same event is returned again until [`Peer::outgoing_accepted`], so a
+    /// refused append is retried after catching up.
+    pub fn next_outgoing(&mut self) -> Result<Option<Outgoing>, SyncError> {
+        self.ensure_not_staged()?;
+        if !self.is_member() {
+            return Ok(None);
+        }
+        let Some(next) = self.outbox.front() else {
+            return Ok(None);
+        };
+        let blob = self.member.encrypt(&encode_shared_event(next))?;
+        Ok(Some(Outgoing {
+            expected_tail: self.cursor,
+            blob,
+        }))
+    }
+
+    /// The relay appended the entry from [`Peer::next_outgoing`] as
+    /// `sequence`.
+    pub fn outgoing_accepted(&mut self, sequence: u64) -> Result<(), SyncError> {
+        if self.outbox.pop_front().is_none() {
+            return Err(SyncError("nothing was waiting to be sent".to_owned()));
+        }
+        self.cursor = sequence;
+        Ok(())
+    }
+
+    /// Stages adding the holder of `key_package`. The peer must be caught
+    /// up; it then refuses everything except [`Peer::commit_accepted`] or
+    /// [`Peer::commit_rejected`].
+    pub fn begin_invite(&mut self, key_package: &[u8]) -> Result<StagedInvite, SyncError> {
+        self.ensure_not_staged()?;
+        let invite = self.member.add(key_package)?;
+        self.staged = true;
+        Ok(StagedInvite {
+            commit: Outgoing {
+                expected_tail: self.cursor,
+                blob: invite.commit,
+            },
+            welcome: invite.welcome,
+        })
+    }
+
+    /// Stages removing the member with `member_id`, rotating the group's
+    /// keys so they cannot read anything written from now on.
+    pub fn begin_removal(&mut self, member_id: &str) -> Result<Outgoing, SyncError> {
+        self.ensure_not_staged()?;
+        let commit = self.member.remove(member_id)?;
+        self.staged = true;
+        Ok(Outgoing {
+            expected_tail: self.cursor,
+            blob: commit,
+        })
+    }
+
+    /// The relay appended the staged commit as `sequence`.
+    pub fn commit_accepted(&mut self, sequence: u64) -> Result<(), SyncError> {
+        if !self.staged {
+            return Err(SyncError("no commit is pending".to_owned()));
+        }
+        self.member.confirm_commit()?;
+        self.staged = false;
+        self.cursor = sequence;
+        Ok(())
+    }
+
+    /// The relay refused the staged commit (stale tail, or unreachable).
+    pub fn commit_rejected(&mut self) -> Result<(), SyncError> {
+        if !self.staged {
+            return Err(SyncError("no commit is pending".to_owned()));
+        }
+        self.member.discard_commit()?;
+        self.staged = false;
+        Ok(())
+    }
+
+    /// Joins a group from a welcome. `joined_after` is the sequence number
+    /// of the commit that added this peer.
+    pub fn join(
+        &mut self,
+        group: &str,
+        welcome: &[u8],
+        joined_after: u64,
+    ) -> Result<(), SyncError> {
+        self.member.join(welcome)?;
+        self.group = Some(group.to_owned());
+        self.cursor = joined_after;
+        Ok(())
+    }
+
+    // --- The same steps, driven through a `Relay` ----------------------
+
+    /// Starts a new household group. The relay creates it on first append.
+    pub fn found(&mut self, _relay: &mut impl Relay) -> Result<String, SyncError> {
+        self.found_group()
     }
 
     /// Adds the holder of `key_package` and leaves their welcome in a
@@ -253,11 +436,10 @@ impl Peer {
         let group = self.group()?;
         for _ in 0..MAX_ATTEMPTS {
             self.pull(relay)?;
-            let invite = self.member.add(key_package)?;
-            match relay.append(&group, self.cursor, invite.commit) {
+            let invite = self.begin_invite(key_package)?;
+            match relay.append(&group, invite.commit.expected_tail, invite.commit.blob) {
                 Ok(sequence) => {
-                    self.member.confirm_commit()?;
-                    self.cursor = sequence;
+                    self.commit_accepted(sequence)?;
                     let mailbox = random_id();
                     relay.put_mailbox(
                         &mailbox,
@@ -269,9 +451,9 @@ impl Peer {
                     )?;
                     return Ok(mailbox);
                 }
-                Err(RelayError::Conflict { .. }) => self.member.discard_commit()?,
+                Err(RelayError::Conflict { .. }) => self.commit_rejected()?,
                 Err(error) => {
-                    self.member.discard_commit()?;
+                    self.commit_rejected()?;
                     return Err(error.into());
                 }
             }
@@ -296,28 +478,20 @@ impl Peer {
                 "that welcome is for a different group".to_owned(),
             ));
         }
-        self.member.join(&item.welcome)?;
-        self.group = Some(group.to_owned());
-        self.cursor = item.joined_after;
-        Ok(())
+        self.join(group, &item.welcome, item.joined_after)
     }
 
-    /// Removes the member with `member_id`, rotating the group's keys so
-    /// they cannot read anything written from now on.
+    /// Removes the member with `member_id`.
     pub fn remove(&mut self, relay: &mut impl Relay, member_id: &str) -> Result<(), SyncError> {
         let group = self.group()?;
         for _ in 0..MAX_ATTEMPTS {
             self.pull(relay)?;
-            let commit = self.member.remove(member_id)?;
-            match relay.append(&group, self.cursor, commit) {
-                Ok(sequence) => {
-                    self.member.confirm_commit()?;
-                    self.cursor = sequence;
-                    return Ok(());
-                }
-                Err(RelayError::Conflict { .. }) => self.member.discard_commit()?,
+            let commit = self.begin_removal(member_id)?;
+            match relay.append(&group, commit.expected_tail, commit.blob) {
+                Ok(sequence) => return self.commit_accepted(sequence),
+                Err(RelayError::Conflict { .. }) => self.commit_rejected()?,
                 Err(error) => {
-                    self.member.discard_commit()?;
+                    self.commit_rejected()?;
                     return Err(error.into());
                 }
             }
@@ -392,25 +566,15 @@ impl Peer {
     /// Sends everything queued and pulls everything new, in the relay's
     /// order. A no-op for a peer that has been removed.
     pub fn sync(&mut self, relay: &mut impl Relay) -> Result<(), SyncError> {
-        if !self.is_member() {
-            return Ok(());
-        }
         let group = self.group()?;
         let mut attempts = 0;
         loop {
             self.pull(relay)?;
-            if !self.is_member() {
-                return Ok(());
-            }
-            let Some(next) = self.outbox.front() else {
+            let Some(next) = self.next_outgoing()? else {
                 return Ok(());
             };
-            let ciphertext = self.member.encrypt(&encode_shared_event(next))?;
-            match relay.append(&group, self.cursor, ciphertext) {
-                Ok(sequence) => {
-                    self.cursor = sequence;
-                    self.outbox.pop_front();
-                }
+            match relay.append(&group, next.expected_tail, next.blob) {
+                Ok(sequence) => self.outgoing_accepted(sequence)?,
                 Err(RelayError::Conflict { .. }) => {
                     attempts += 1;
                     if attempts >= MAX_ATTEMPTS {
@@ -424,26 +588,8 @@ impl Peer {
 
     fn pull(&mut self, relay: &impl Relay) -> Result<(), SyncError> {
         let group = self.group()?;
-        for (sequence, frame) in relay.read_after(&group, self.cursor)? {
-            match self.member.receive(&frame)? {
-                Received::Application(bytes) => {
-                    // A frame that decrypts but is not a shared event came
-                    // from a buggy or hostile member; skip it rather than
-                    // stall everyone behind it.
-                    if let Some(shared) = decode_shared_event(&bytes) {
-                        self.observe(shared);
-                    }
-                }
-                Received::Commit { .. } | Received::Own => {}
-                Received::Removed => {
-                    self.removed = true;
-                    self.cursor = sequence;
-                    return Ok(());
-                }
-            }
-            self.cursor = sequence;
-        }
-        Ok(())
+        let entries = relay.read_after(&group, self.cursor)?;
+        self.ingest(&entries)
     }
 
     fn observe(&mut self, shared: SharedEvent) {
