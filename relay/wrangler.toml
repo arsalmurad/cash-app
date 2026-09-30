@@ -1,0 +1,15 @@
+name = "cash-app-relay"
+main = "src/worker.js"
+compatibility_date = "2026-07-01"
+
+[[durable_objects.bindings]]
+name = "GROUP"
+class_name = "GroupLog"
+
+[[durable_objects.bindings]]
+name = "MAILBOX"
+class_name = "Mailbox"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GroupLog", "Mailbox"]

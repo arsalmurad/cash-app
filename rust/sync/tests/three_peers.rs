@@ -342,7 +342,10 @@ fn a_removed_member_cannot_read_anything_after_removal() {
 
     // And the ciphertext he could fetch is undecryptable for him: feed him
     // every post-removal frame directly.
-    let later = house.relay.read_after(&house.group, frames_before + 1);
+    let later = house
+        .relay
+        .read_after(&house.group, frames_before + 1)
+        .unwrap();
     assert!(!later.is_empty());
     for (_, frame) in later {
         assert!(house.peers[3].try_decrypt(&frame).is_err());
