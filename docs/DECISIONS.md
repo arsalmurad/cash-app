@@ -539,3 +539,29 @@ transfer, and category steps; extending it to those is tracked in
 (`fzyzcjy/flutter_rust_bridge#2914`) remains unfixed upstream and is not
 needed to ship web.
 
+## 2026-09-30 — Foreign-currency entries need a typed, frozen rate
+
+Until now `record`/`transfer` hardcoded a 1:1 reporting rate, which silently
+mis-valued any account outside the reporting currency (a EUR 80.00 expense
+would have counted as USD 80.00). The core already froze a rate per event;
+the gap was input and display.
+
+Decision: an entry or transfer leg on an account whose currency differs from
+the reporting currency must carry a user-typed decimal rate ("USD per 1
+EUR"). It is never prefilled, remembered, or fetched: a stale or guessed
+rate is a wrong number in the ledger, and an empty required field is
+visible. `FxRate::from_decimal_rate` parses the text into an exact reduced
+integer ratio of target minor units per source minor unit (accounting for
+each currency's exponent, so EUR→JPY works) with no floating point;
+malformed, zero, negative, or overflowing input is rejected. Recurring rules
+carry no rate (it would go stale), so recording an occurrence on a foreign
+account asks for that day's rate. CSV import rows on foreign accounts fail
+with the same "enter the exchange rate" error per line rather than being
+valued at 1:1; a rate column is future work.
+
+Per-account reporting balances (`AccountView.reporting_balance_label`) are
+derived from folded state at display time (transactions at their frozen
+reporting amounts, voids excluded, transfer legs at their own frozen
+rates), never stored, so equal event sets still give byte-identical state.
+Reporting-currency accounts show no conversion line.
+
