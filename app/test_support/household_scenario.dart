@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:private_ledger/data/rust/api/shared.dart'
+    show recoveryGeneratePhrase;
 import 'package:private_ledger/data/storage/blob_store.dart';
 import 'package:private_ledger/features/household/household_controller.dart';
 import 'package:private_ledger/features/household/relay_client.dart';
@@ -161,6 +163,32 @@ Future<void> runHouseholdScenario() async {
   final fromBob = await bob.controller.safetyNumberWith(alice.name);
   expect(fromAlice, isNotNull);
   expect(fromAlice, fromBob);
+
+  // A lost phone: Bob's state, sealed under a written-down phrase, restores
+  // on a replacement device; a wrong phrase restores nothing.
+  final backup = await bob.controller.createBackup();
+  expect(backup, isNotNull);
+  expect(backup!.phrase.split(' ').length, 24);
+  expect(backup.backup, startsWith('cashbk1:'));
+  final replacement = _Device(bob.name, bob.relay);
+  await replacement.controller.initialize();
+  expect(
+    await replacement.controller.restoreBackup(
+      await recoveryGeneratePhrase(),
+      backup.backup,
+    ),
+    isFalse,
+  );
+  expect(replacement.controller.isMember, isFalse);
+  expect(
+    await replacement.controller.restoreBackup(backup.phrase, backup.backup),
+    isTrue,
+  );
+  expect(replacement.controller.isMember, isTrue);
+  expect(
+    replacement.controller.overview!.balanceLabel,
+    bob.controller.overview!.balanceLabel,
+  );
 
   // Removing Bob locks him out of everything written afterwards.
   expect(await alice.controller.removeMember(bob.name), isTrue);

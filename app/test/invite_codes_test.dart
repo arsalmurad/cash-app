@@ -84,4 +84,24 @@ void main() {
       }
     });
   });
+
+  group('backup', () {
+    test('round-trips sealed bytes, forgiving wrapping', () {
+      final sealed = Uint8List.fromList(List.generate(500, (i) => (i * 7) % 256));
+      final code = encodeBackup(sealed);
+      expect(code, startsWith('cashbk1:'));
+      final wrapped = code.replaceAllMapped(RegExp(r'.{60}'), (m) => '${m[0]}\n');
+      expect(decodeBackup(wrapped), sealed);
+    });
+
+    test('rejects other codes, empties, and garbage', () {
+      expect(() => decodeBackup('cashbk1:'), throwsFormatException);
+      expect(() => decodeBackup('cashbk1:***'), throwsFormatException);
+      expect(() => decodeBackup('hello'), throwsFormatException);
+      expect(
+        () => decodeBackup(encodeJoinRequest(Uint8List.fromList([1]))),
+        throwsFormatException,
+      );
+    });
+  });
 }

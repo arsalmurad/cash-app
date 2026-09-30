@@ -16,6 +16,7 @@ import 'dart:typed_data';
 /// Both are plain text so they work over any messenger or as a QR payload.
 const _joinPrefix = 'cashkp1:';
 const _invitePrefix = 'cashinv1:';
+const _backupPrefix = 'cashbk1:';
 
 /// What an inviter hands the invitee after adding them.
 class HouseholdInvite {
@@ -106,4 +107,21 @@ HouseholdInvite decodeInvite(String code) {
     throw const FormatException('That invite has an invalid identifier.');
   }
   return HouseholdInvite(relayUrl: relay, group: group, mailbox: mailbox);
+}
+
+/// A sealed device backup as text, for pasting into a note or file. It is
+/// ciphertext under the recovery phrase, so it is safe to store anywhere;
+/// it is useless without the 24 words.
+String encodeBackup(Uint8List sealed) => '$_backupPrefix${_encode(sealed)}';
+
+Uint8List decodeBackup(String code) {
+  final cleaned = _clean(code);
+  if (!cleaned.startsWith(_backupPrefix)) {
+    throw const FormatException('That is not a backup code.');
+  }
+  final body = cleaned.substring(_backupPrefix.length);
+  if (body.isEmpty) {
+    throw const FormatException('That backup code is empty.');
+  }
+  return _decode(body);
 }
