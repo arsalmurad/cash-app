@@ -78,6 +78,16 @@ jobs:
           flutter test integration_test/ledger_test.dart
           -d "${{ steps.simulator.outputs.udid }}"
 
+      # The shared layer through the real bridge: two devices, MLS, and an
+      # in-memory relay (integration_test/household_test.dart).
+      - name: Run household integration test
+        working-directory: app
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+        run: >-
+          flutter test integration_test/household_test.dart
+          -d "${{ steps.simulator.outputs.udid }}"
+
       - name: Build unsigned iOS release
         working-directory: app
         env:
