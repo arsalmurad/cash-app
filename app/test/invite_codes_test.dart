@@ -64,7 +64,11 @@ void main() {
     test('rejects a relay address that is not http(s) or group ids that '
         'are not hex (a pasted invite must not steer the app elsewhere)', () {
       for (final bad in [
-        const HouseholdInvite(relayUrl: 'file:///etc', group: 'a', mailbox: 'b'),
+        const HouseholdInvite(
+          relayUrl: 'file:///etc',
+          group: 'a',
+          mailbox: 'b',
+        ),
         const HouseholdInvite(
           relayUrl: 'https://relay.example',
           group: '../../etc',

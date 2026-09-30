@@ -126,14 +126,18 @@ class HttpRelayClient implements RelayClient {
       if (tail is int) {
         throw RelayConflict(tail);
       }
-      throw const RelayUnavailable('the relay refused an append without a tail');
+      throw const RelayUnavailable(
+        'the relay refused an append without a tail',
+      );
     }
     if (response.statusCode != 200) {
       throw RelayUnavailable('append failed (${response.statusCode})');
     }
     final sequence = _object(response)['seq'];
     if (sequence is! int) {
-      throw const RelayUnavailable('the relay accepted an append without a seq');
+      throw const RelayUnavailable(
+        'the relay accepted an append without a seq',
+      );
     }
     return sequence;
   }
@@ -187,20 +191,22 @@ class HttpRelayClient implements RelayClient {
       ),
     );
     if (response.statusCode != 200) {
-      throw RelayUnavailable('could not leave the welcome (${response.statusCode})');
+      throw RelayUnavailable(
+        'could not leave the welcome (${response.statusCode})',
+      );
     }
   }
 
   @override
   Future<RelayMailboxItem?> takeMailbox(String mailbox) async {
-    final response = await _send(
-      () => _client.post(_uri('/m/$mailbox/take')),
-    );
+    final response = await _send(() => _client.post(_uri('/m/$mailbox/take')));
     if (response.statusCode == 404) {
       return null;
     }
     if (response.statusCode != 200) {
-      throw RelayUnavailable('could not collect the welcome (${response.statusCode})');
+      throw RelayUnavailable(
+        'could not collect the welcome (${response.statusCode})',
+      );
     }
     final item = _object(response);
     final group = item['group'];
