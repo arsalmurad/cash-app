@@ -50,10 +50,15 @@ Verified locally: `cargo test --workspace` (all pass), `flutter analyze`
 clean, `flutter test test` 72 passing (new: rate fields on the sheet, the
 account-tile conversion line, `ExchangeRateDialog`).
 
-Device/browser evidence for this change is recorded under "CI results" below
-once the runs finish. `integration_test/ledger_test.dart` gained a EUR
-account flow (80.00 EUR at 1.0875 = 87.00 USD, surviving a restart); it is
-not covered by the web script.
+CI, all on `claude/category-rename` at `1d843d4`, all passed:
+
+- iOS (simulator): https://github.com/arsalmurad/cash-app/actions/runs/36763102377
+- Android (emulator): https://github.com/arsalmurad/cash-app/actions/runs/36763105604
+- Web (Chrome, wasm): https://github.com/arsalmurad/cash-app/actions/runs/36763109906
+
+`integration_test/ledger_test.dart` gained a EUR account flow (80.00 EUR at
+1.0875 = 87.00 USD, net balance USD -599.34, surviving a restart), which ran
+on iOS and Android. The web script does not cover it.
 
 Not done: a rate column for CSV import, rate editing on an existing entry,
 and deleting accounts.
