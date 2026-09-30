@@ -10,6 +10,41 @@ use cash_crypto::{Member, Received};
 use crate::ids::random_id;
 use crate::relay::{MailboxItem, Relay, RelayError};
 
+const EXPORT_MAGIC: &[u8] = b"cash-app peer v1\0";
+
+fn write_field(bytes: &mut Vec<u8>, field: &[u8]) {
+    bytes.extend_from_slice(&(field.len() as u64).to_be_bytes());
+    bytes.extend_from_slice(field);
+}
+
+struct Reader<'a> {
+    bytes: &'a [u8],
+}
+
+impl<'a> Reader<'a> {
+    fn take(&mut self, len: usize) -> Option<&'a [u8]> {
+        if self.bytes.len() < len {
+            return None;
+        }
+        let (head, tail) = self.bytes.split_at(len);
+        self.bytes = tail;
+        Some(head)
+    }
+
+    fn u64(&mut self) -> Option<u64> {
+        Some(u64::from_be_bytes(self.take(8)?.try_into().ok()?))
+    }
+
+    fn u32(&mut self) -> Option<u32> {
+        Some(u32::from_be_bytes(self.take(4)?.try_into().ok()?))
+    }
+
+    fn field(&mut self) -> Option<&'a [u8]> {
+        let len = usize::try_from(self.u64()?).ok()?;
+        self.take(len)
+    }
+}
+
 /// How many times a write retries after losing the compare-and-swap before
 /// giving up; each retry first catches up on what won.
 const MAX_ATTEMPTS: usize = 64;
@@ -77,6 +112,96 @@ impl Peer {
             known: BTreeSet::new(),
             outbox: VecDeque::new(),
             removed: false,
+        })
+    }
+
+    /// Everything needed to resume after the app restarts: group keys,
+    /// every event seen, the place in the relay log, and writes not yet
+    /// sent. The bytes contain private keys; store them like a password.
+    pub fn export(&self) -> Result<Vec<u8>, SyncError> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(EXPORT_MAGIC);
+        write_field(&mut bytes, self.member_id.as_bytes());
+        write_field(&mut bytes, self.reporting_currency.code().as_bytes());
+        match &self.group {
+            Some(group) => {
+                bytes.push(1);
+                write_field(&mut bytes, group.as_bytes());
+            }
+            None => bytes.push(0),
+        }
+        bytes.extend_from_slice(&self.cursor.to_be_bytes());
+        bytes.extend_from_slice(&self.last_timestamp.physical_millis.to_be_bytes());
+        bytes.extend_from_slice(&self.last_timestamp.logical.to_be_bytes());
+        bytes.push(u8::from(self.removed));
+        bytes.extend_from_slice(&(self.events.len() as u64).to_be_bytes());
+        for event in &self.events {
+            write_field(&mut bytes, &encode_shared_event(event));
+        }
+        bytes.extend_from_slice(&(self.outbox.len() as u64).to_be_bytes());
+        for event in &self.outbox {
+            write_field(&mut bytes, event.event.id.as_str().as_bytes());
+        }
+        write_field(&mut bytes, &self.member.export()?);
+        Ok(bytes)
+    }
+
+    /// Restores a peer from [`Peer::export`]'s output.
+    pub fn import(bytes: &[u8]) -> Result<Self, SyncError> {
+        let malformed = || SyncError("malformed peer state".to_owned());
+        let mut reader = Reader { bytes };
+        if reader.take(EXPORT_MAGIC.len()) != Some(EXPORT_MAGIC) {
+            return Err(malformed());
+        }
+        let text = |bytes: &[u8]| String::from_utf8(bytes.to_vec()).map_err(|_| malformed());
+        let member_id = text(reader.field().ok_or_else(malformed)?)?;
+        let currency = text(reader.field().ok_or_else(malformed)?)?;
+        let reporting_currency = Currency::from_code(&currency).map_err(|_| malformed())?;
+        let group = match reader.take(1).ok_or_else(malformed)?[0] {
+            0 => None,
+            1 => Some(text(reader.field().ok_or_else(malformed)?)?),
+            _ => return Err(malformed()),
+        };
+        let cursor = reader.u64().ok_or_else(malformed)?;
+        let physical = i64::from_be_bytes(reader.u64().ok_or_else(malformed)?.to_be_bytes());
+        let logical = reader.u32().ok_or_else(malformed)?;
+        let removed = match reader.take(1).ok_or_else(malformed)?[0] {
+            0 => false,
+            1 => true,
+            _ => return Err(malformed()),
+        };
+        let mut events = Vec::new();
+        let mut known = BTreeSet::new();
+        for _ in 0..reader.u64().ok_or_else(malformed)? {
+            let shared =
+                decode_shared_event(reader.field().ok_or_else(malformed)?).ok_or_else(malformed)?;
+            known.insert(shared.event.id.clone());
+            events.push(shared);
+        }
+        let mut outbox = VecDeque::new();
+        for _ in 0..reader.u64().ok_or_else(malformed)? {
+            let id = EventId::new(text(reader.field().ok_or_else(malformed)?)?);
+            let event = events
+                .iter()
+                .find(|shared| shared.event.id == id)
+                .ok_or_else(malformed)?;
+            outbox.push_back(event.clone());
+        }
+        let member = Member::import(reader.field().ok_or_else(malformed)?)?;
+        if !reader.bytes.is_empty() {
+            return Err(malformed());
+        }
+        Ok(Self {
+            member,
+            member_id,
+            reporting_currency,
+            group,
+            cursor,
+            last_timestamp: HybridTimestamp::new(physical, logical),
+            events,
+            known,
+            outbox,
+            removed,
         })
     }
 
