@@ -11,6 +11,7 @@ import 'api/categories.dart';
 import 'api/goals.dart';
 import 'api/ledger.dart';
 import 'api/recurring.dart';
+import 'api/shared.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -40,6 +41,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook;
 
   CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_HouseholdPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold;
+
+  CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_PersonalLedgerPtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger;
 
@@ -62,6 +67,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   GoalBook
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    dynamic raw,
+  );
+
+  @protected
+  Household
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
     dynamic raw,
   );
 
@@ -96,6 +107,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Household
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    dynamic raw,
+  );
+
+  @protected
   PersonalLedger
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     dynamic raw,
@@ -126,6 +143,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Household
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    dynamic raw,
+  );
+
+  @protected
   PersonalLedger
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     dynamic raw,
@@ -148,6 +171,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  OutgoingEntry dco_decode_box_autoadd_outgoing_entry(dynamic raw);
 
   @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
@@ -174,6 +200,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CategoryView dco_decode_category_view(dynamic raw);
 
   @protected
+  ConflictView dco_decode_conflict_view(dynamic raw);
+
+  @protected
   EntryKind dco_decode_entry_kind(dynamic raw);
 
   @protected
@@ -192,6 +221,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GoalView dco_decode_goal_view(dynamic raw);
 
   @protected
+  HouseholdOverview dco_decode_household_overview(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -204,6 +236,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   LedgerOverview dco_decode_ledger_overview(dynamic raw);
 
   @protected
+  List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
   List<AccountView> dco_decode_list_account_view(dynamic raw);
 
   @protected
@@ -213,6 +248,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<CategoryView> dco_decode_list_category_view(dynamic raw);
 
   @protected
+  List<ConflictView> dco_decode_list_conflict_view(dynamic raw);
+
+  @protected
   List<GoalView> dco_decode_list_goal_view(dynamic raw);
 
   @protected
@@ -220,6 +258,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+  @protected
+  List<RejectedView> dco_decode_list_rejected_view(dynamic raw);
+
+  @protected
+  List<RelayEntry> dco_decode_list_relay_entry(dynamic raw);
+
+  @protected
+  List<SharedTransactionView> dco_decode_list_shared_transaction_view(
+    dynamic raw,
+  );
 
   @protected
   List<TransactionView> dco_decode_list_transaction_view(dynamic raw);
@@ -240,7 +289,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
+  OutgoingEntry? dco_decode_opt_box_autoadd_outgoing_entry(dynamic raw);
+
+  @protected
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  OutgoingEntry dco_decode_outgoing_entry(dynamic raw);
 
   @protected
   RecurringFrequency dco_decode_recurring_frequency(dynamic raw);
@@ -253,6 +308,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RecurringMutation dco_decode_recurring_mutation(dynamic raw);
+
+  @protected
+  RejectedView dco_decode_rejected_view(dynamic raw);
+
+  @protected
+  RelayEntry dco_decode_relay_entry(dynamic raw);
+
+  @protected
+  SharedTransactionView dco_decode_shared_transaction_view(dynamic raw);
+
+  @protected
+  StagedInvite dco_decode_staged_invite(dynamic raw);
 
   @protected
   TransactionView dco_decode_transaction_view(dynamic raw);
@@ -297,6 +364,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Household
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PersonalLedger
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
@@ -323,6 +396,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   GoalBook
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  Household
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
     SseDeserializer deserializer,
   );
 
@@ -357,6 +436,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Household
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   PersonalLedger
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     SseDeserializer deserializer,
@@ -379,6 +464,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  OutgoingEntry sse_decode_box_autoadd_outgoing_entry(
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
@@ -407,6 +497,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CategoryView sse_decode_category_view(SseDeserializer deserializer);
 
   @protected
+  ConflictView sse_decode_conflict_view(SseDeserializer deserializer);
+
+  @protected
   EntryKind sse_decode_entry_kind(SseDeserializer deserializer);
 
   @protected
@@ -425,6 +518,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   GoalView sse_decode_goal_view(SseDeserializer deserializer);
 
   @protected
+  HouseholdOverview sse_decode_household_overview(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
@@ -435,6 +531,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LedgerOverview sse_decode_ledger_overview(SseDeserializer deserializer);
+
+  @protected
+  List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
   List<AccountView> sse_decode_list_account_view(SseDeserializer deserializer);
@@ -448,6 +547,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ConflictView> sse_decode_list_conflict_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<GoalView> sse_decode_list_goal_view(SseDeserializer deserializer);
 
   @protected
@@ -455,6 +559,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
+  List<RejectedView> sse_decode_list_rejected_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<RelayEntry> sse_decode_list_relay_entry(SseDeserializer deserializer);
+
+  @protected
+  List<SharedTransactionView> sse_decode_list_shared_transaction_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<TransactionView> sse_decode_list_transaction_view(
@@ -481,7 +598,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  OutgoingEntry? sse_decode_opt_box_autoadd_outgoing_entry(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  OutgoingEntry sse_decode_outgoing_entry(SseDeserializer deserializer);
 
   @protected
   RecurringFrequency sse_decode_recurring_frequency(
@@ -498,6 +623,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RecurringMutation sse_decode_recurring_mutation(SseDeserializer deserializer);
+
+  @protected
+  RejectedView sse_decode_rejected_view(SseDeserializer deserializer);
+
+  @protected
+  RelayEntry sse_decode_relay_entry(SseDeserializer deserializer);
+
+  @protected
+  SharedTransactionView sse_decode_shared_transaction_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  StagedInvite sse_decode_staged_invite(SseDeserializer deserializer);
 
   @protected
   TransactionView sse_decode_transaction_view(SseDeserializer deserializer);
@@ -546,6 +685,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    Household self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -576,6 +722,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
     GoalBook self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    Household self,
     SseSerializer serializer,
   );
 
@@ -616,6 +769,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    Household self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     PersonalLedger self,
     SseSerializer serializer,
@@ -640,6 +800,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_i_64(
     PlatformInt64 self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_outgoing_entry(
+    OutgoingEntry self,
     SseSerializer serializer,
   );
 
@@ -683,6 +849,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_category_view(CategoryView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_conflict_view(ConflictView self, SseSerializer serializer);
+
+  @protected
   void sse_encode_entry_kind(EntryKind self, SseSerializer serializer);
 
   @protected
@@ -704,6 +873,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_goal_view(GoalView self, SseSerializer serializer);
 
   @protected
+  void sse_encode_household_overview(
+    HouseholdOverview self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
@@ -720,6 +895,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     LedgerOverview self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_account_view(
@@ -740,6 +918,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_conflict_view(
+    List<ConflictView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_goal_view(List<GoalView> self, SseSerializer serializer);
 
   @protected
@@ -748,6 +932,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_prim_u_8_strict(
     Uint8List self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_rejected_view(
+    List<RejectedView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_relay_entry(
+    List<RelayEntry> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_shared_transaction_view(
+    List<SharedTransactionView> self,
     SseSerializer serializer,
   );
 
@@ -782,7 +984,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_outgoing_entry(
+    OutgoingEntry? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_outgoing_entry(OutgoingEntry self, SseSerializer serializer);
 
   @protected
   void sse_encode_recurring_frequency(
@@ -804,6 +1015,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     RecurringMutation self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_rejected_view(RejectedView self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_relay_entry(RelayEntry self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_shared_transaction_view(
+    SharedTransactionView self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_staged_invite(StagedInvite self, SseSerializer serializer);
 
   @protected
   void sse_encode_transaction_view(
@@ -887,6 +1113,22 @@ class RustLibWire implements BaseWire {
       );
 
   void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+        ptr,
+      );
+
+  void
   rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
     int ptr,
   ) => wasmModule
@@ -952,6 +1194,16 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerGoalBook(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
     int ptr,
   );
 

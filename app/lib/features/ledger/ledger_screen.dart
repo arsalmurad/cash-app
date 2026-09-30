@@ -12,15 +12,21 @@ import 'categories_screen.dart';
 import 'category_presets.dart';
 import 'csv_import_export.dart';
 import 'exchange_rate_dialog.dart';
+import '../household/household_controller.dart';
+import '../household/household_screen.dart';
 import 'goals_pane.dart';
 import 'ledger_controller.dart';
 import '../lock/lock_settings_dialog.dart';
 import 'recurring_pane.dart';
 
 class LedgerScreen extends StatefulWidget {
-  const LedgerScreen({required this.controller, super.key});
+  const LedgerScreen({required this.controller, this.household, super.key});
 
   final LedgerController controller;
+
+  /// The shared layer. When null (as in most tests) the Household entry is
+  /// not offered.
+  final HouseholdController? household;
 
   @override
   State<LedgerScreen> createState() => _LedgerScreenState();
@@ -47,23 +53,28 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       tooltip: 'Import or export',
                       icon: const Icon(Icons.more_vert_rounded),
                       onSelected: _onDataMenuSelected,
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
                           value: _DataMenuAction.exportCsv,
                           child: Text('Export CSV'),
                         ),
-                        PopupMenuItem(
+                        const PopupMenuItem(
                           value: _DataMenuAction.importCsv,
                           child: Text('Import CSV'),
                         ),
-                        PopupMenuItem(
+                        const PopupMenuItem(
                           value: _DataMenuAction.manageCategories,
                           child: Text('Manage categories'),
                         ),
-                        PopupMenuItem(
+                        const PopupMenuItem(
                           value: _DataMenuAction.lockSettings,
                           child: Text('Screen lock'),
                         ),
+                        if (widget.household != null)
+                          const PopupMenuItem(
+                            value: _DataMenuAction.household,
+                            child: Text('Household'),
+                          ),
                       ],
                     ),
                   const Padding(
@@ -323,6 +334,15 @@ class _LedgerScreenState extends State<LedgerScreen> {
           context: context,
           builder: (context) => const LockSettingsDialog(),
         );
+      case _DataMenuAction.household:
+        final household = widget.household;
+        if (household != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) => HouseholdScreen(controller: household),
+            ),
+          );
+        }
     }
   }
 
@@ -1138,4 +1158,10 @@ class _ErrorState extends StatelessWidget {
   }
 }
 
-enum _DataMenuAction { exportCsv, importCsv, manageCategories, lockSettings }
+enum _DataMenuAction {
+  exportCsv,
+  importCsv,
+  manageCategories,
+  lockSettings,
+  household,
+}

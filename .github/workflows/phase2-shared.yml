@@ -1,0 +1,61 @@
+name: Phase 2 Shared Layer
+
+on:
+  workflow_dispatch:
+  # Cheap enough to run on every change to the shared layer, and lets a new
+  # branch be checked before this workflow exists on the default branch
+  # (workflow_dispatch only finds workflows already merged there).
+  pull_request:
+    paths:
+      - "rust/**"
+      - "relay/**"
+      - "scripts/verify_relay.sh"
+      - ".github/workflows/phase2-shared.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase2-shared
+  cancel-in-progress: true
+
+jobs:
+  shared-layer:
+    name: MLS, sync engine, and relay worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          rustc --version
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Rust workspace tests (core, crypto, sync)
+        working-directory: rust
+        run: cargo test --workspace
+
+      # Runs the worker's own tests in workerd (via miniflare), then the
+      # real Rust sync engine against that running worker.
+      - name: Relay worker and cross-implementation check
+        run: scripts/verify_relay.sh
+
+      - name: Record Phase 2 result
+        shell: bash
+        run: |
+          {
+            echo "## Phase 2 shared layer"
+            echo
+            echo "- cargo test --workspace (three-peer exit scenario, MLS, shared fold): passed"
+            echo "- Relay worker tests in workerd: passed"
+            echo "- Rust sync engine against the running worker: passed"
+          } | tee -a "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,14 @@
+{
+  "name": "cash-app-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ciphertext-only household relay for Cash App, as a Cloudflare Durable Object.",
+  "scripts": {
+    "test": "node --test test/relay.test.js",
+    "dev": "node dev-server.mjs"
+  },
+  "devDependencies": {
+    "miniflare": "4.20260730.0"
+  }
+}

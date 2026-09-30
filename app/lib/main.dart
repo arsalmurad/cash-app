@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'data/rust/frb_generated.dart';
+import 'features/household/household_controller.dart';
 import 'features/ledger/ledger_controller.dart';
 import 'features/ledger/ledger_screen.dart';
 import 'features/lock/biometric_lock_gate.dart';
@@ -20,16 +21,19 @@ class PrivateLedgerApp extends StatefulWidget {
 
 class _PrivateLedgerAppState extends State<PrivateLedgerApp> {
   late final LedgerController controller;
+  late final HouseholdController household;
 
   @override
   void initState() {
     super.initState();
     controller = LedgerController()..initialize();
+    household = HouseholdController()..initialize();
   }
 
   @override
   void dispose() {
     controller.dispose();
+    household.dispose();
     super.dispose();
   }
 
@@ -41,7 +45,9 @@ class _PrivateLedgerAppState extends State<PrivateLedgerApp> {
       themeMode: ThemeMode.system,
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      home: BiometricLockGate(child: LedgerScreen(controller: controller)),
+      home: BiometricLockGate(
+        child: LedgerScreen(controller: controller, household: household),
+      ),
     );
   }
 }

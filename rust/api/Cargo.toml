@@ -10,6 +10,8 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 cash_core = { path = "../core" }
+cash_crypto = { path = "../crypto" }
+cash_sync = { path = "../sync" }
 flutter_rust_bridge = "=2.13.0"
 
 [lints.rust]
