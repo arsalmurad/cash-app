@@ -220,4 +220,27 @@ void main() {
     expect(transfer.receivedAmount, isNull);
     expect(transfer.title, 'Transfer');
   });
+
+  testWidgets('the sheet scrolls instead of overflowing on a short screen', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 320);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _openSheet(tester, onSuggestCategory: (_) async => null);
+
+    // A RenderFlex overflow would surface as a test exception here.
+    expect(tester.takeException(), isNull);
+
+    await tester.scrollUntilVisible(
+      find.widgetWithText(FilledButton, 'Add transaction'),
+      100,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Add transaction'),
+      findsOneWidget,
+    );
+  });
 }
