@@ -107,8 +107,14 @@ impl Member {
     }
 
     pub fn create_group(&mut self) -> Result<(), Error> {
+        // Pinned explicitly, though it is also OpenMLS's default: commits
+        // carry credentials, so they must be encrypted like application
+        // messages, or the relay could read member identities out of an Add.
+        // `rust/sync/tests/three_peers.rs` fails if this ever becomes
+        // plaintext (checked by switching the policy to plaintext).
         let config = MlsGroupCreateConfig::builder()
             .ciphersuite(CIPHERSUITE)
+            .wire_format_policy(PURE_CIPHERTEXT_WIRE_FORMAT_POLICY)
             .use_ratchet_tree_extension(true)
             .build();
         self.group = Some(
@@ -129,6 +135,7 @@ impl Member {
             return Err(Error("not a welcome message".to_owned()));
         };
         let config = MlsGroupJoinConfig::builder()
+            .wire_format_policy(PURE_CIPHERTEXT_WIRE_FORMAT_POLICY)
             .use_ratchet_tree_extension(true)
             .build();
         let group = StagedWelcome::new_from_welcome(&self.provider, &config, welcome, None)
@@ -197,8 +204,10 @@ impl Member {
         let (commit, welcome, _) = group
             .add_members(&self.provider, &self.signer, &[key_package])
             .map_err(fail)?;
+        let commit = commit.tls_serialize_detached().map_err(fail)?;
+        self.sent.insert(digest(&commit));
         Ok(Invite {
-            commit: commit.tls_serialize_detached().map_err(fail)?,
+            commit,
             welcome: welcome.tls_serialize_detached().map_err(fail)?,
         })
     }
@@ -220,7 +229,9 @@ impl Member {
         let (commit, _, _) = group
             .remove_members(&self.provider, &self.signer, &[target])
             .map_err(fail)?;
-        commit.tls_serialize_detached().map_err(fail)
+        let commit = commit.tls_serialize_detached().map_err(fail)?;
+        self.sent.insert(digest(&commit));
+        Ok(commit)
     }
 
     /// The relay accepted the staged commit: advance to the new epoch.

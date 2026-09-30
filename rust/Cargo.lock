@@ -218,6 +218,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cash_sync"
+version = "0.1.0"
+dependencies = [
+ "cash_core",
+ "cash_crypto",
+ "getrandom 0.2.17",
+]
+
+[[package]]
 name = "cc"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
