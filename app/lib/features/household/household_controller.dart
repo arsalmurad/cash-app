@@ -294,6 +294,48 @@ class HouseholdController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --- Recovery ---------------------------------------------------------
+
+  /// A recovery phrase to write down, and this device's state sealed under
+  /// it as text to store anywhere (a note, cloud drive, email to yourself).
+  /// Without the phrase the backup is unreadable, and there is no server-side
+  /// reset: lose both and the household is gone from this device.
+  Future<({String phrase, String backup})?> createBackup() async {
+    ({String phrase, String backup})? result;
+    final ok = await _run(() async {
+      final household = _requireHousehold();
+      final phrase = await recoveryGeneratePhrase();
+      final sealed = await recoverySeal(
+        phrase: phrase,
+        plaintext: await householdExport(household: household),
+      );
+      result = (phrase: phrase, backup: encodeBackup(sealed));
+    });
+    return ok ? result : null;
+  }
+
+  /// Restores a household from a backup and its phrase, for a replacement
+  /// device. The old device must be treated as gone: two devices with the
+  /// same member identity would fork it.
+  Future<bool> restoreBackup(String phrase, String backupCode) => _run(() async {
+    if (isMember) {
+      throw const FormatException('This device is already in a household.');
+    }
+    final plaintext = await recoveryOpen(
+      phrase: phrase,
+      sealed: decodeBackup(backupCode),
+    );
+    _household = await householdRestore(saved: plaintext);
+    await _persist();
+    await _refresh();
+    if (_relay == null && relayUrl != null) {
+      _relay = _relayFactory(relayUrl!);
+    }
+    if (_relay != null) {
+      await _sync();
+    }
+  });
+
   // --- Shared expenses --------------------------------------------------
 
   Future<bool> addExpense({
