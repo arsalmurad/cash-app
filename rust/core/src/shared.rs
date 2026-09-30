@@ -63,9 +63,18 @@ pub struct SharedState {
     pub ledger: LedgerState,
     pub conflicts: Vec<Conflict>,
     pub rejected: Vec<Rejected>,
+    /// The last applied event per (transaction, field); derived, so it is
+    /// not part of `canonical_bytes`.
+    heads: BTreeMap<(TransactionId, EditField), EventId>,
 }
 
 impl SharedState {
+    /// The event a new edit of `field` on `transaction` should name as its
+    /// `base`: the last one this state applied to that field.
+    pub fn edit_head(&self, transaction: &TransactionId, field: EditField) -> Option<&EventId> {
+        self.heads.get(&(transaction.clone(), field))
+    }
+
     /// Canonical serialization: equal event sets give identical bytes.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut bytes = self.ledger.canonical_bytes();
@@ -87,8 +96,10 @@ impl SharedState {
     }
 }
 
+/// The independently editable parts of a transaction; concurrent edits are
+/// only a conflict when they touch the same one.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-enum Field {
+pub enum EditField {
     Amount,
     Category,
 }
@@ -103,7 +114,7 @@ pub fn fold_shared(
 
     let mut ledger = LedgerState::empty(reporting_currency);
     let mut conflicts = Vec::new();
-    let mut heads: BTreeMap<(TransactionId, Field), EventId> = BTreeMap::new();
+    let mut heads: BTreeMap<(TransactionId, EditField), EventId> = BTreeMap::new();
 
     for shared in &events {
         let event = &shared.event;
@@ -116,7 +127,7 @@ pub fn fold_shared(
         }
         match &event.kind {
             EventKind::TransactionRecorded { transaction_id, .. } => {
-                for field in [Field::Amount, Field::Category] {
+                for field in [EditField::Amount, EditField::Category] {
                     heads.insert((transaction_id.clone(), field), event.id.clone());
                 }
             }
@@ -125,7 +136,7 @@ pub fn fold_shared(
                     &mut heads,
                     &mut conflicts,
                     transaction_id,
-                    Field::Amount,
+                    EditField::Amount,
                     shared,
                 );
             }
@@ -134,7 +145,7 @@ pub fn fold_shared(
                     &mut heads,
                     &mut conflicts,
                     transaction_id,
-                    Field::Category,
+                    EditField::Category,
                     shared,
                 );
             }
@@ -146,14 +157,15 @@ pub fn fold_shared(
         ledger,
         conflicts,
         rejected,
+        heads,
     }
 }
 
 fn note_edit(
-    heads: &mut BTreeMap<(TransactionId, Field), EventId>,
+    heads: &mut BTreeMap<(TransactionId, EditField), EventId>,
     conflicts: &mut Vec<Conflict>,
     transaction_id: &TransactionId,
-    field: Field,
+    field: EditField,
     edit: &SharedEvent,
 ) {
     let head = heads.insert((transaction_id.clone(), field), edit.event.id.clone());
