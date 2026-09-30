@@ -42,7 +42,7 @@ pub use recurring::{
     next_occurrence_millis,
 };
 pub use shared::{
-    Conflict, RejectReason, Rejected, SharedEvent, SharedState, decode_shared_event,
+    Conflict, EditField, RejectReason, Rejected, SharedEvent, SharedState, decode_shared_event,
     encode_shared_event, fold_shared,
 };
 pub use snapshot::{Snapshot, SnapshotError};

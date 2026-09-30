@@ -4,8 +4,8 @@
 //! silently overwritten.
 
 use cash_core::{
-    AccountId, Conflict, Currency, Event, EventId, EventKind, FxRate, Money, RejectReason,
-    SharedEvent, TransactionId, TransactionKind, decode_shared_event, encode_shared_event,
+    AccountId, Conflict, Currency, EditField, Event, EventId, EventKind, FxRate, Money,
+    RejectReason, SharedEvent, TransactionId, TransactionKind, decode_shared_event, encode_shared_event,
     fold_shared,
 };
 
@@ -449,4 +449,29 @@ fn balances_are_unchanged_by_who_saw_what_when_nothing_conflicts() {
     let state = fold_shared(usd(), events.clone());
     assert_eq!(balance(events), -5_000);
     assert!(state.conflicts.is_empty() && state.rejected.is_empty());
+}
+
+#[test]
+fn edit_heads_report_the_last_applied_event_per_field() {
+    let state = fold_shared(
+        usd(),
+        vec![
+            open_account("a0", "alice", 1, "joint", usd()),
+            record("r1", "alice", 2, "dinner", "joint", 4_000),
+            adjust("e1", "alice", 10, "dinner", 4_500, "r1"),
+        ],
+    );
+    let dinner = TransactionId::new("dinner");
+    assert_eq!(
+        state.edit_head(&dinner, EditField::Amount),
+        Some(&EventId::new("e1"))
+    );
+    assert_eq!(
+        state.edit_head(&dinner, EditField::Category),
+        Some(&EventId::new("r1"))
+    );
+    assert_eq!(
+        state.edit_head(&TransactionId::new("missing"), EditField::Amount),
+        None
+    );
 }
