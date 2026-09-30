@@ -65,6 +65,33 @@ pub struct Member {
     sent: HashSet<[u8; 32]>,
 }
 
+const EXPORT_MAGIC: &[u8] = b"cash-app member v1\0";
+
+fn write_field(bytes: &mut Vec<u8>, field: &[u8]) {
+    bytes.extend_from_slice(&(field.len() as u64).to_be_bytes());
+    bytes.extend_from_slice(field);
+}
+
+struct ExportReader<'a> {
+    bytes: &'a [u8],
+}
+
+impl<'a> ExportReader<'a> {
+    fn take(&mut self, len: usize) -> Option<&'a [u8]> {
+        if self.bytes.len() < len {
+            return None;
+        }
+        let (head, tail) = self.bytes.split_at(len);
+        self.bytes = tail;
+        Some(head)
+    }
+
+    fn field(&mut self) -> Option<&'a [u8]> {
+        let len = usize::try_from(u64::from_be_bytes(self.take(8)?.try_into().ok()?)).ok()?;
+        self.take(len)
+    }
+}
+
 fn digest(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }
@@ -85,6 +112,143 @@ impl Member {
             credential,
             group: None,
             sent: HashSet::new(),
+        })
+    }
+
+    /// Everything needed to resume as this member after the app restarts:
+    /// identity, group state, and the record of messages it sent. The bytes
+    /// contain private keys; the caller must store them as it would a
+    /// password (the platform keychain or an encrypted file).
+    pub fn export(&self) -> Result<Vec<u8>, Error> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(EXPORT_MAGIC);
+        let name = match BasicCredential::try_from(self.credential.credential.clone()) {
+            Ok(basic) => basic.identity().to_vec(),
+            Err(error) => return Err(fail(error)),
+        };
+        write_field(&mut bytes, &name);
+        write_field(&mut bytes, self.signer.public());
+        match &self.group {
+            Some(group) => {
+                bytes.push(1);
+                write_field(&mut bytes, group.group_id().as_slice());
+            }
+            None => bytes.push(0),
+        }
+        let mut storage = Vec::new();
+        {
+            let values = self
+                .provider
+                .storage()
+                .values
+                .read()
+                .map_err(|_| Error("poisoned storage".to_owned()))?;
+            let mut entries: Vec<_> = values.iter().collect();
+            entries.sort();
+            storage.extend_from_slice(&(entries.len() as u64).to_be_bytes());
+            for (key, value) in entries {
+                write_field(&mut storage, key);
+                write_field(&mut storage, value);
+            }
+        }
+        write_field(&mut bytes, &storage);
+        bytes.extend_from_slice(&(self.sent.len() as u64).to_be_bytes());
+        let mut sent: Vec<_> = self.sent.iter().collect();
+        sent.sort();
+        for digest in sent {
+            bytes.extend_from_slice(digest);
+        }
+        Ok(bytes)
+    }
+
+    /// Restores a member from [`Self::export`]'s output.
+    pub fn import(bytes: &[u8]) -> Result<Self, Error> {
+        let malformed = || Error("malformed member state".to_owned());
+        let mut reader = ExportReader { bytes };
+        if reader.take(EXPORT_MAGIC.len()) != Some(EXPORT_MAGIC) {
+            return Err(malformed());
+        }
+        let name = reader.field().ok_or_else(malformed)?.to_vec();
+        let public_key = reader.field().ok_or_else(malformed)?.to_vec();
+        let group_id = match reader.take(1).ok_or_else(malformed)?[0] {
+            0 => None,
+            1 => Some(reader.field().ok_or_else(malformed)?.to_vec()),
+            _ => return Err(malformed()),
+        };
+        let storage_bytes = reader.field().ok_or_else(malformed)?;
+        let count = usize::try_from(u64::from_be_bytes(
+            reader
+                .take(8)
+                .ok_or_else(malformed)?
+                .try_into()
+                .map_err(|_| malformed())?,
+        ))
+        .map_err(|_| malformed())?;
+        let mut sent = HashSet::new();
+        for _ in 0..count {
+            let digest: [u8; 32] = reader
+                .take(32)
+                .ok_or_else(malformed)?
+                .try_into()
+                .map_err(|_| malformed())?;
+            sent.insert(digest);
+        }
+        if !reader.bytes.is_empty() {
+            return Err(malformed());
+        }
+
+        let mut storage = ExportReader {
+            bytes: storage_bytes,
+        };
+        let entries = usize::try_from(u64::from_be_bytes(
+            storage
+                .take(8)
+                .ok_or_else(malformed)?
+                .try_into()
+                .map_err(|_| malformed())?,
+        ))
+        .map_err(|_| malformed())?;
+        let mut values = std::collections::HashMap::new();
+        for _ in 0..entries {
+            let key = storage.field().ok_or_else(malformed)?.to_vec();
+            let value = storage.field().ok_or_else(malformed)?.to_vec();
+            values.insert(key, value);
+        }
+        if !storage.bytes.is_empty() {
+            return Err(malformed());
+        }
+
+        let provider = OpenMlsRustCrypto::default();
+        *provider
+            .storage()
+            .values
+            .write()
+            .map_err(|_| Error("poisoned storage".to_owned()))? = values;
+
+        let signer = SignatureKeyPair::read(
+            provider.storage(),
+            &public_key,
+            CIPHERSUITE.signature_algorithm(),
+        )
+        .ok_or_else(|| Error("the signing key is missing from the saved state".to_owned()))?;
+        let credential = CredentialWithKey {
+            credential: BasicCredential::new(name).into(),
+            signature_key: signer.public().into(),
+        };
+        let group = match group_id {
+            Some(id) => Some(
+                MlsGroup::load(provider.storage(), &GroupId::from_slice(&id))
+                    .map_err(fail)?
+                    .ok_or_else(|| Error("the group is missing from the saved state".to_owned()))?,
+            ),
+            None => None,
+        };
+        Ok(Self {
+            provider,
+            signer,
+            credential,
+            group,
+            sent,
         })
     }
 

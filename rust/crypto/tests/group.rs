@@ -139,3 +139,70 @@ fn safety_numbers_match_on_both_sides_and_differ_per_pair() {
             .all(|group| group.len() == 5 && group.bytes().all(|byte| byte.is_ascii_digit()))
     );
 }
+
+#[test]
+fn a_member_keeps_working_after_a_restart_mid_conversation() {
+    let (mut alice, bob, mut carol) = three();
+    let before = bob.epoch();
+
+    // Bob's app is killed and relaunched from nothing but its exported state.
+    let saved = bob.export().unwrap();
+    drop(bob);
+    let mut bob = Member::import(&saved).unwrap();
+    assert_eq!(bob.epoch(), before);
+    assert!(bob.is_active());
+    assert_eq!(bob.member_names().unwrap(), ["alice", "bob", "carol"]);
+
+    // He can still read what others send, and they can read him.
+    let hello = alice.encrypt(b"welcome back").unwrap();
+    assert_eq!(
+        bob.receive(&hello).unwrap(),
+        Received::Application(b"welcome back".to_vec())
+    );
+    carol.receive(&hello).unwrap();
+    let reply = bob.encrypt(b"thanks").unwrap();
+    assert_eq!(
+        alice.receive(&reply).unwrap(),
+        Received::Application(b"thanks".to_vec())
+    );
+
+    // And across an epoch change after the restart.
+    let commit = alice.remove("carol").unwrap();
+    alice.confirm_commit().unwrap();
+    assert!(matches!(
+        bob.receive(&commit).unwrap(),
+        Received::Commit { .. }
+    ));
+    let saved = bob.export().unwrap();
+    let mut bob = Member::import(&saved).unwrap();
+    let after = alice.encrypt(b"two of us").unwrap();
+    assert_eq!(
+        bob.receive(&after).unwrap(),
+        Received::Application(b"two of us".to_vec())
+    );
+}
+
+#[test]
+fn a_restarted_member_still_recognises_its_own_messages_and_identity() {
+    let (_, mut bob, _) = three();
+    let ciphertext = bob.encrypt(b"mine").unwrap();
+    let key = bob.public_key();
+
+    let mut bob = Member::import(&bob.export().unwrap()).unwrap();
+    assert_eq!(bob.public_key(), key);
+    assert_eq!(bob.receive(&ciphertext).unwrap(), Received::Own);
+}
+
+#[test]
+fn a_member_without_a_group_round_trips_and_garbage_is_rejected() {
+    let fresh = Member::new("dana").unwrap();
+    let key = fresh.public_key();
+    let restored = Member::import(&fresh.export().unwrap()).unwrap();
+    assert_eq!(restored.public_key(), key);
+    assert!(!restored.is_active());
+
+    assert!(Member::import(b"not a member").is_err());
+    let mut truncated = fresh.export().unwrap();
+    truncated.truncate(truncated.len() / 2);
+    assert!(Member::import(&truncated).is_err());
+}
