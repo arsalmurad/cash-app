@@ -507,3 +507,35 @@ this change well past "let an existing value survive an edit." Instead
 `GoalDraft`/`RecurringDraft` carry the existing value through unchanged
 when editing, so the edit is safe today and the missing UI stays a single,
 clearly-scoped follow-up rather than two problems tangled into one fix.
+
+## 2026-09-30 — Web is verified by a runtime script against the production build, not `flutter drive`
+
+Correction to the two entries above about the web `WorkerPool` panic: web
+support was never broken, only the way the integration test reached it was.
+`flutter drive -d web-server` compiles the test target to JavaScript
+(`main.dart.js`), and there the first Rust bridge call panicked on every
+build mode. The production build the app actually ships —
+`flutter build web --wasm` (dart2wasm) — runs the Rust bridge fine:
+`scripts/verify_web_runtime.mjs` serves it with COOP/COEP headers, drives
+real Chrome over the DevTools protocol, records expenses through the bridge,
+and reloads the page twice to prove the ledger is rebuilt from
+`localStorage` alone. It passed locally (Chromium 141) on the current
+async-dispatch code. Two things were needed to make it hermetic and
+portable: `--no-web-resources-cdn` (otherwise Flutter fetches CanvasKit from
+Google's CDN at load, so the app never boots without outbound network), and
+a Chrome window larger than the 780x388 default (the add-entry sheet was cut
+off; making the sheet scrollable fixed the underlying small-screen bug too).
+
+`phase1-web.yml` now runs that script instead of `flutter drive`, and the
+ChromeDriver/`reportData` machinery that existed only to debug the drive
+path was deleted (`app/test_driver/`, the try/catch in
+`integration_test/ledger_test.dart`). Keeping `flutter drive` as a second,
+failing check was rejected: a check known to fail for a reason unrelated to
+the product trains everyone to ignore red CI. What this does not do is run
+`integration_test/ledger_test.dart` on web — the script covers the same
+record/restart flow through the real UI instead, but not the account,
+transfer, and category steps; extending it to those is tracked in
+`docs/PHASE1-PROGRESS.md`. The root cause of the JS-path panic itself
+(`fzyzcjy/flutter_rust_bridge#2914`) remains unfixed upstream and is not
+needed to ship web.
+
