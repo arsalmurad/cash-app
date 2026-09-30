@@ -5,6 +5,22 @@ import 'package:private_ledger/features/ledger/ledger_controller.dart';
 import 'package:private_ledger/features/ledger/ledger_screen.dart';
 import 'package:private_ledger/main.dart' as app;
 
+/// Pumps until [finder] matches, up to [timeout]. `pumpAndSettle` returns as
+/// soon as animations stop, which can be before an asynchronous bridge call
+/// (a real Rust call on a real thread) has delivered its result, so an
+/// assertion right after a mutation must wait for the result to show up.
+Future<void> waitFor(
+  WidgetTester tester,
+  Finder finder, {
+  Duration timeout = const Duration(seconds: 20),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (finder.evaluate().isEmpty && DateTime.now().isBefore(deadline)) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await tester.pumpAndSettle();
+}
+
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
@@ -40,6 +56,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
     await tester.pumpAndSettle();
 
+    await waitFor(tester, find.text('Groceries'));
     expect(find.text('Groceries'), findsOneWidget);
     expect(find.text('Food'), findsOneWidget);
     expect(find.text('USD -12.34'), findsNWidgets(2));
@@ -69,6 +86,7 @@ void main() {
     await tester.enterText(moreFields.at(1), '500.00');
     await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
     await tester.pumpAndSettle();
+    await waitFor(tester, find.text('USD -512.34'));
     expect(find.text('USD -512.34'), findsNWidgets(2));
 
     restartedController = LedgerController();
@@ -91,6 +109,7 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'Savings');
     await tester.tap(find.widgetWithText(FilledButton, 'Create'));
     await tester.pumpAndSettle();
+    await waitFor(tester, find.text('Savings'));
     expect(find.text('Savings'), findsOneWidget);
 
     await tester.tap(find.text('Add'));
@@ -105,6 +124,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Add transfer'));
     await tester.pumpAndSettle();
 
+    await waitFor(tester, find.text('USD 100.00'));
     // The transfer moves money between accounts without changing the total:
     // the net balance card still reads -512.34, but it's now only Everyday's
     // -612.34 and Savings' +100.00 that sum to it, not any single account.
@@ -152,6 +172,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 80.00 EUR at 1.0875 = 87.00 USD, added to the -512.34 net balance.
+    await waitFor(tester, find.text('EUR -80.00'));
     expect(find.text('EUR -80.00'), findsOneWidget);
     expect(find.text('≈ USD -87.00'), findsOneWidget);
     expect(find.text('USD -599.34'), findsOneWidget);
