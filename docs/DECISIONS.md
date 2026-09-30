@@ -605,3 +605,41 @@ choices, each with the option rejected:
   old device is ever found and used again; the app must tell the user to
   treat the old device as gone.
 
+## 2026-09-30 — The app owns the network; new members get a history backfill
+
+- **Dart does the I/O; Rust is a state machine.** `cash_sync::Peer` exposes
+  `ingest` / `next_outgoing` / `outgoing_accepted` / `begin_invite` /
+  `begin_removal` / `commit_accepted` / `commit_rejected` / `join`, and the
+  bridge (`api::shared::Household`) wraps exactly those. Dart fetches relay
+  entries, hands them in, and appends what comes out. Rejected: giving the
+  Rust engine its own HTTP client (would need an async runtime and a
+  different TLS story on each of iOS, Android, and wasm, and a second place
+  to configure the network). The Rust `sync`/`invite`/`remove` convenience
+  methods are the same steps driven through a `Relay`, which is why the
+  three-peer tests still cover the path the app takes.
+- **MLS gives a new member nothing written before their commit, so the
+  inviter backfills.** Found by running the Dart scenario against the real
+  core: a member added to a household that already had an account and
+  expenses saw none of it, and every later edit referring to that account
+  was rejected. Accepting an invite commit now queues every known event,
+  oldest first, as batched messages (at most 200 events or 48 KiB each);
+  receivers ignore events they already hold, so the cost is bandwidth, not
+  correctness. Rejected: sending history inside the welcome (MLS has no
+  place for it) and making the new member replay from another peer's
+  snapshot (needs a second protocol).
+- **Joining is a short copy/paste exchange** (join request, then invite),
+  carried as plain-text codes that are validated before use (http(s) relay,
+  32-hex identifiers). Rejected: a key-package directory on the relay,
+  which would expose key packages (and so credentials) to it and remove the
+  out-of-band step that gives safety numbers their meaning.
+- **The household is its own screen, not a sixth tab,** opened from the
+  ledger menu only when a household controller is supplied, so the personal
+  ledger's navigation and tests are unchanged.
+- **Known limits, accepted for now** (also in `docs/PHASE2-PROGRESS.md`):
+  the actor ID inside an event is not bound to the MLS sender, so a member
+  could write events attributed to another member (the threat model is a
+  household of people who trust each other, not an adversarial group);
+  secret state is stored in an app-private file (native) or `localStorage`
+  (web), not the platform keychain; the relay has no authentication or rate
+  limiting.
+
