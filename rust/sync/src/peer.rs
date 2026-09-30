@@ -8,7 +8,7 @@ use cash_core::{
 use cash_crypto::{Member, Received};
 
 use crate::ids::random_id;
-use crate::relay::{AppendError, MailboxItem, Relay};
+use crate::relay::{MailboxItem, Relay, RelayError};
 
 /// How many times a write retries after losing the compare-and-swap before
 /// giving up; each retry first catches up on what won.
@@ -24,6 +24,15 @@ impl fmt::Display for SyncError {
 }
 
 impl std::error::Error for SyncError {}
+
+impl From<RelayError> for SyncError {
+    fn from(error: RelayError) -> Self {
+        match error {
+            RelayError::Conflict { tail } => Self(format!("relay log moved on (tail {tail})")),
+            RelayError::Unavailable(message) => Self(format!("relay unavailable: {message}")),
+        }
+    }
+}
 
 impl From<cash_crypto::Error> for SyncError {
     fn from(error: cash_crypto::Error) -> Self {
@@ -132,10 +141,14 @@ impl Peer {
                             joined_after: sequence,
                             welcome: invite.welcome,
                         },
-                    );
+                    )?;
                     return Ok(mailbox);
                 }
-                Err(AppendError::Conflict { .. }) => self.member.discard_commit()?,
+                Err(RelayError::Conflict { .. }) => self.member.discard_commit()?,
+                Err(error) => {
+                    self.member.discard_commit()?;
+                    return Err(error.into());
+                }
             }
         }
         Err(SyncError(
@@ -151,7 +164,7 @@ impl Peer {
         mailbox: &str,
     ) -> Result<(), SyncError> {
         let item = relay
-            .take_mailbox(mailbox)
+            .take_mailbox(mailbox)?
             .ok_or_else(|| SyncError("no welcome waiting in that mailbox".to_owned()))?;
         if item.group != group {
             return Err(SyncError(
@@ -177,7 +190,11 @@ impl Peer {
                     self.cursor = sequence;
                     return Ok(());
                 }
-                Err(AppendError::Conflict { .. }) => self.member.discard_commit()?,
+                Err(RelayError::Conflict { .. }) => self.member.discard_commit()?,
+                Err(error) => {
+                    self.member.discard_commit()?;
+                    return Err(error.into());
+                }
             }
         }
         Err(SyncError(
@@ -269,19 +286,20 @@ impl Peer {
                     self.cursor = sequence;
                     self.outbox.pop_front();
                 }
-                Err(AppendError::Conflict { .. }) => {
+                Err(RelayError::Conflict { .. }) => {
                     attempts += 1;
                     if attempts >= MAX_ATTEMPTS {
                         return Err(SyncError("the relay stayed busy".to_owned()));
                     }
                 }
+                Err(error) => return Err(error.into()),
             }
         }
     }
 
     fn pull(&mut self, relay: &impl Relay) -> Result<(), SyncError> {
         let group = self.group()?;
-        for (sequence, frame) in relay.read_after(&group, self.cursor) {
+        for (sequence, frame) in relay.read_after(&group, self.cursor)? {
             match self.member.receive(&frame)? {
                 Received::Application(bytes) => {
                     // A frame that decrypts but is not a shared event came

@@ -1,10 +1,14 @@
 use std::collections::BTreeMap;
 
-/// Why an append was refused.
+/// Why a relay call did not succeed.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AppendError {
-    /// The caller's view of the log was stale; `tail` is the current length.
+pub enum RelayError {
+    /// An append was refused because the caller's view of the log was stale;
+    /// `tail` is the current length.
     Conflict { tail: u64 },
+    /// The relay could not be reached or answered nonsense. Nothing was
+    /// changed that the caller can rely on; retry later.
+    Unavailable(String),
 }
 
 /// A welcome waiting for one invitee, found by an unguessable mailbox ID.
@@ -24,20 +28,16 @@ pub struct MailboxItem {
 pub trait Relay {
     /// Appends `blob` as entry `expected_tail + 1`, only if the log's tail is
     /// exactly `expected_tail`. Returns the new entry's sequence number.
-    fn append(
-        &mut self,
-        group: &str,
-        expected_tail: u64,
-        blob: Vec<u8>,
-    ) -> Result<u64, AppendError>;
+    fn append(&mut self, group: &str, expected_tail: u64, blob: Vec<u8>)
+    -> Result<u64, RelayError>;
 
     /// Entries with sequence number greater than `after`, in order.
-    fn read_after(&self, group: &str, after: u64) -> Vec<(u64, Vec<u8>)>;
+    fn read_after(&self, group: &str, after: u64) -> Result<Vec<(u64, Vec<u8>)>, RelayError>;
 
-    fn put_mailbox(&mut self, mailbox: &str, item: MailboxItem);
+    fn put_mailbox(&mut self, mailbox: &str, item: MailboxItem) -> Result<(), RelayError>;
 
     /// Removes and returns a mailbox's item (a welcome is single-use).
-    fn take_mailbox(&mut self, mailbox: &str) -> Option<MailboxItem>;
+    fn take_mailbox(&mut self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError>;
 }
 
 /// The reference relay: in memory, used by tests and as the behavioural
@@ -82,34 +82,36 @@ impl Relay for MemoryRelay {
         group: &str,
         expected_tail: u64,
         blob: Vec<u8>,
-    ) -> Result<u64, AppendError> {
+    ) -> Result<u64, RelayError> {
         let log = self.groups.entry(group.to_owned()).or_default();
         let tail = log.len() as u64;
         if tail != expected_tail {
-            return Err(AppendError::Conflict { tail });
+            return Err(RelayError::Conflict { tail });
         }
         log.push(blob);
         Ok(tail + 1)
     }
 
-    fn read_after(&self, group: &str, after: u64) -> Vec<(u64, Vec<u8>)> {
+    fn read_after(&self, group: &str, after: u64) -> Result<Vec<(u64, Vec<u8>)>, RelayError> {
         let Some(log) = self.groups.get(group) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let skip = usize::try_from(after).unwrap_or(usize::MAX);
-        log.iter()
+        Ok(log
+            .iter()
             .enumerate()
             .skip(skip)
             .map(|(index, blob)| (index as u64 + 1, blob.clone()))
-            .collect()
+            .collect())
     }
 
-    fn put_mailbox(&mut self, mailbox: &str, item: MailboxItem) {
+    fn put_mailbox(&mut self, mailbox: &str, item: MailboxItem) -> Result<(), RelayError> {
         self.mailboxes.insert(mailbox.to_owned(), item);
+        Ok(())
     }
 
-    fn take_mailbox(&mut self, mailbox: &str) -> Option<MailboxItem> {
-        self.mailboxes.remove(mailbox)
+    fn take_mailbox(&mut self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError> {
+        Ok(self.mailboxes.remove(mailbox))
     }
 }
 
@@ -125,15 +127,15 @@ mod tests {
         // A writer that still believes the tail is 1 is refused.
         assert_eq!(
             relay.append("g", 1, b"stale".to_vec()),
-            Err(AppendError::Conflict { tail: 2 })
+            Err(RelayError::Conflict { tail: 2 })
         );
         assert_eq!(
-            relay.read_after("g", 0),
+            relay.read_after("g", 0).unwrap(),
             vec![(1, b"a".to_vec()), (2, b"b".to_vec())]
         );
-        assert_eq!(relay.read_after("g", 1), vec![(2, b"b".to_vec())]);
-        assert!(relay.read_after("g", 2).is_empty());
-        assert!(relay.read_after("unknown", 0).is_empty());
+        assert_eq!(relay.read_after("g", 1).unwrap(), vec![(2, b"b".to_vec())]);
+        assert!(relay.read_after("g", 2).unwrap().is_empty());
+        assert!(relay.read_after("unknown", 0).unwrap().is_empty());
     }
 
     #[test]
@@ -153,8 +155,8 @@ mod tests {
             joined_after: 3,
             welcome: b"w".to_vec(),
         };
-        relay.put_mailbox("m", item.clone());
-        assert_eq!(relay.take_mailbox("m"), Some(item));
-        assert_eq!(relay.take_mailbox("m"), None);
+        relay.put_mailbox("m", item.clone()).unwrap();
+        assert_eq!(relay.take_mailbox("m").unwrap(), Some(item));
+        assert_eq!(relay.take_mailbox("m").unwrap(), None);
     }
 }

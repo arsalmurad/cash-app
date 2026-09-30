@@ -12,9 +12,13 @@
 //! a writer whose view is stale simply loses the compare-and-swap, catches
 //! up, and retries. No peer needs to see another directly.
 
+#[cfg(feature = "http")]
+mod http;
 mod ids;
 mod peer;
 mod relay;
 
+#[cfg(feature = "http")]
+pub use http::HttpRelay;
 pub use peer::{Peer, SyncError};
-pub use relay::{AppendError, MailboxItem, MemoryRelay, Relay};
+pub use relay::{MailboxItem, MemoryRelay, Relay, RelayError};
