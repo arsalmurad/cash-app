@@ -1,6 +1,58 @@
 # Phase 1 progress
 
-Updated 2026-09-29. Phase 1 is in progress; its complete exit test has not passed.
+Updated 2026-09-30. Phase 1 is in progress; its complete exit test has not passed.
+
+## Budget, goal, and recurring-rule rename
+
+Implementation: this change. `NewBudgetDialog`, `NewGoalDialog`, and
+`NewRecurringDialog` each gained an optional `existing` parameter that
+pre-fills the form and switches the title to "Edit ..." — the same pattern
+`CategoryEditDialog` established (see "Category rename" below and
+`docs/DECISIONS.md`). `LedgerController.addOrUpdateBudget`/`addOrUpdateGoal`/
+`addOrUpdateRecurring` already accepted an optional ID for exactly this
+(see their Phase 1 slices above); only the UI edit entry point and
+pre-filling were missing. `BudgetsPane`/`GoalsPane`/`RecurringPane` each
+gained an `onEdit` callback and an edit icon per row/card, wired in
+`LedgerScreen` by refactoring `_addBudget`/`_addGoal`/`_addRecurring` into
+`_editBudget`/`_editGoal`/`_editRecurring` that accept an optional existing
+view (`null` for the original "Add" entry points).
+
+Two pre-filling wrinkles worth recording:
+
+- `BudgetView.periodLabel` is a display string ("This week", "This month",
+  "This year", "Last N days" — see `period_label` in
+  `rust/api/src/api/budgets.rs`), not the `BudgetPeriodKind` enum the dialog
+  needs to pre-select. It's parsed back from those four deterministic shapes
+  rather than adding a bridge field just to round-trip what the label
+  already encodes.
+- Neither `NewGoalDialog` nor `NewRecurringDialog` has ever had UI for a
+  goal's `categoryId`/`deadlineMillis` or a recurring rule's `categoryId`
+  (see each feature's original Phase 1 slice above) — editing without also
+  collecting them would have silently cleared them on save. `GoalDraft`
+  and `RecurringDraft` now carry those fields through unchanged from
+  `existing` rather than defaulting them to null, so editing a goal or rule
+  that already has one doesn't lose it; adding UI to actually set them
+  remains open (see "Remaining work" below, unchanged from before this
+  change for goals' category/deadline, newly noted here for recurring's
+  category).
+
+Verified evidence, same toolchain as below (Rust 1.98.1; Flutter 3.47.5 /
+Dart 3.13.4):
+
+- No Rust changes were needed — same reasoning as category rename below.
+- Flutter: `flutter analyze` reported no issues. `flutter test` passed all
+  64 tests across 14 files: the prior 58, plus 6 new tests (2 per pane:
+  tapping a card/row's edit icon invokes `onEdit` with the right
+  budget/goal/rule; the corresponding dialog in edit mode pre-fills its
+  fields from `existing` and, for the budget case, correctly parses a
+  custom period back out of its label; the recurring case also confirms an
+  edited rule's existing `categoryId` survives the round trip even though
+  the dialog has no field for it).
+- `cargo test --workspace` still passes all 84 tests, confirming no Rust
+  behavior changed.
+- iOS/Android/web runtime verification not run, for the same reason as
+  category rename below (UI-only, no bridge/native surface, already
+  covered by widget tests).
 
 ## Category rename
 
@@ -920,10 +972,12 @@ verified it). Still open before Phase 1's exit test can be called complete:
   it re-locks on every single background/resume cycle, which may be
   stricter than some users want; also untested against a device with no
   biometrics enrolled but a passcode set (device-credential fallback).
-- Budgets, goals, and recurring rules can be created and their
-  progress/occurrences tracked, but not renamed or deleted from the UI yet
-  (the Rust/bridge upsert already supports rename via re-using the same
-  ID; only the "new" entry point exists for each).
+- Budgets, goals, and recurring rules can now be edited from the UI (see
+  "Budget, goal, and recurring-rule rename" above), but not deleted — like
+  categories, the Rust core has no delete operation, only upsert. Goals
+  still have no UI to set a category or deadline, and recurring rules
+  still have no UI to set a category (editing preserves an existing value
+  it can't show, but can't set one on a rule/goal that never had it).
 - Recurring rules have no "skip this occurrence" action; the only way past
   a due occurrence is to record it (or edit the rule's start date).
 - CSV export/import uses the clipboard rather than a native file

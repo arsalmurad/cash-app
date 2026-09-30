@@ -153,4 +153,78 @@ void main() {
     expect(result!.kind, GoalKind.spend);
     expect(result!.linkedAccountId, isNull);
   });
+
+  testWidgets('tapping a goal\'s edit icon opens the dialog pre-filled', (
+    tester,
+  ) async {
+    final goal = GoalView(
+      id: 'vacation',
+      name: 'Vacation',
+      isSave: true,
+      linkedAccountId: 'savings',
+      categoryId: null,
+      targetLabel: 'USD 1000.00',
+      progressLabel: 'USD 250.00',
+      percentComplete: PlatformInt64Util.from(25),
+    );
+    GoalView? edited;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: GoalsPane(goals: [goal], onEdit: (g) => edited = g),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.edit_outlined));
+    await tester.pump();
+
+    expect(edited, goal);
+  });
+
+  testWidgets('NewGoalDialog in edit mode pre-fills name, kind, and target', (
+    tester,
+  ) async {
+    final goal = GoalView(
+      id: 'vacation',
+      name: 'Vacation',
+      isSave: true,
+      linkedAccountId: 'savings',
+      categoryId: null,
+      targetLabel: 'USD 1000.00',
+      progressLabel: 'USD 250.00',
+      percentComplete: PlatformInt64Util.from(25),
+    );
+    const account = AccountView(
+      id: 'savings',
+      name: 'Savings',
+      currencyCode: 'USD',
+      balanceLabel: 'USD 250.00',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => ElevatedButton(
+              onPressed: () => showDialog<GoalDraft>(
+                context: context,
+                builder: (context) =>
+                    NewGoalDialog(accounts: const [account], existing: goal),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Edit goal'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Vacation'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, '1000.00'), findsOneWidget);
+  });
 }

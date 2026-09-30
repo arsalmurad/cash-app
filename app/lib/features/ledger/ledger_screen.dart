@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../data/rust/api/budgets.dart' show BudgetView;
 import '../../data/rust/api/categories.dart';
+import '../../data/rust/api/goals.dart' show GoalView;
 import '../../data/rust/api/ledger.dart';
 import '../../data/rust/api/recurring.dart' show UpcomingView;
 import 'activity_filter.dart';
@@ -203,11 +205,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
             BudgetsPane(
               budgets: controller.budgets,
               categories: controller.categories,
+              onEdit: _editBudget,
             ),
-            GoalsPane(goals: controller.goals),
+            GoalsPane(goals: controller.goals, onEdit: _editGoal),
             RecurringPane(
               upcoming: controller.upcoming,
               onRecord: _recordUpcoming,
+              onEdit: _editRecurring,
             ),
           ],
         ),
@@ -267,16 +271,22 @@ class _LedgerScreenState extends State<LedgerScreen> {
     }
   }
 
-  Future<void> _addBudget() async {
+  Future<void> _addBudget() => _editBudget(null);
+
+  Future<void> _editBudget(BudgetView? existing) async {
     final controller = widget.controller;
     final draft = await showDialog<BudgetDraft>(
       context: context,
-      builder: (context) => NewBudgetDialog(categories: controller.categories),
+      builder: (context) => NewBudgetDialog(
+        categories: controller.categories,
+        existing: existing,
+      ),
     );
     if (draft == null || !mounted) {
       return;
     }
     final saved = await controller.addOrUpdateBudget(
+      budgetId: existing?.id,
       name: draft.name,
       categoryId: draft.categoryId,
       limitAmount: draft.limitAmount,
@@ -367,22 +377,28 @@ class _LedgerScreenState extends State<LedgerScreen> {
     );
   }
 
-  Future<void> _addGoal() async {
+  Future<void> _addGoal() => _editGoal(null);
+
+  Future<void> _editGoal(GoalView? existing) async {
     final controller = widget.controller;
     final draft = await showDialog<GoalDraft>(
       context: context,
       builder: (context) => NewGoalDialog(
         accounts: controller.overview?.accounts ?? const [],
+        existing: existing,
       ),
     );
     if (draft == null || !mounted) {
       return;
     }
     final saved = await controller.addOrUpdateGoal(
+      goalId: existing?.id,
       name: draft.name,
       kind: draft.kind,
       targetAmount: draft.targetAmount,
       linkedAccountId: draft.linkedAccountId,
+      categoryId: draft.categoryId,
+      deadlineMillis: draft.deadlineMillis,
     );
     if (!mounted) {
       return;
@@ -396,18 +412,22 @@ class _LedgerScreenState extends State<LedgerScreen> {
     }
   }
 
-  Future<void> _addRecurring() async {
+  Future<void> _addRecurring() => _editRecurring(null);
+
+  Future<void> _editRecurring(UpcomingView? existing) async {
     final controller = widget.controller;
     final draft = await showDialog<RecurringDraft>(
       context: context,
       builder: (context) => NewRecurringDialog(
         accounts: controller.overview?.accounts ?? const [],
+        existing: existing,
       ),
     );
     if (draft == null || !mounted) {
       return;
     }
     final saved = await controller.addOrUpdateRecurring(
+      recurringId: existing?.recurringId,
       title: draft.title,
       kind: draft.kind,
       amount: draft.amount,
