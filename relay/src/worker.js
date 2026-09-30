@@ -199,20 +199,46 @@ export class Mailbox {
   }
 }
 
+// The app on the web calls the relay from a browser, which enforces CORS.
+// There are no cookies or credentials to protect (the relay holds only
+// ciphertext under random identifiers), so any origin may call it.
+const CORS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, PUT, OPTIONS",
+  "access-control-allow-headers": "content-type",
+  "access-control-max-age": "86400",
+};
+
+async function route(request, env) {
+  const url = new URL(request.url);
+  const parts = url.pathname.split("/").filter(Boolean);
+  const [kind, id] = parts;
+  if (!id || !ID.test(id)) {
+    return fail(404, "not found");
+  }
+  if (kind === "g") {
+    return env.GROUP.get(env.GROUP.idFromName(id)).fetch(request);
+  }
+  if (kind === "m") {
+    return env.MAILBOX.get(env.MAILBOX.idFromName(id)).fetch(request);
+  }
+  return fail(404, "not found");
+}
+
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const parts = url.pathname.split("/").filter(Boolean);
-    const [kind, id] = parts;
-    if (!id || !ID.test(id)) {
-      return fail(404, "not found");
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS });
     }
-    if (kind === "g") {
-      return env.GROUP.get(env.GROUP.idFromName(id)).fetch(request);
+    const response = await route(request, env);
+    if (response.webSocket) {
+      // An upgrade response must reach the client untouched.
+      return response;
     }
-    if (kind === "m") {
-      return env.MAILBOX.get(env.MAILBOX.idFromName(id)).fetch(request);
+    const withCors = new Response(response.body, response);
+    for (const [name, value] of Object.entries(CORS)) {
+      withCors.headers.set(name, value);
     }
-    return fail(404, "not found");
+    return withCors;
   },
 };

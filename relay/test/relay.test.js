@@ -205,3 +205,37 @@ describe("mailbox", () => {
     }
   });
 });
+
+describe("cors (the web app calls the relay from a browser)", () => {
+  test("preflight requests are answered without touching a group", async () => {
+    const response = await call(`/g/${freshGroup()}/append`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://app.example",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "content-type",
+      },
+    });
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get("access-control-allow-origin"), "*");
+    assert.match(response.headers.get("access-control-allow-methods"), /POST/);
+    assert.match(response.headers.get("access-control-allow-headers"), /content-type/i);
+  });
+
+  test("every kind of response carries the allow-origin header", async () => {
+    const id = freshGroup();
+    const ok = await post(`/g/${id}/append`, { expected_tail: 0, blob: b64("a") });
+    const conflict = await post(`/g/${id}/append`, { expected_tail: 0, blob: b64("b") });
+    const bad = await post(`/g/${id}/append`, { expected_tail: -1, blob: b64("c") });
+    const read = await call(`/g/${id}?after=0`);
+    const missing = await call("/nope");
+    const mailbox = await post(`/m/${freshGroup()}/take`, {});
+    for (const response of [ok, conflict, bad, read, missing, mailbox]) {
+      assert.equal(response.headers.get("access-control-allow-origin"), "*");
+    }
+    assert.deepEqual(
+      [ok.status, conflict.status, bad.status, read.status, missing.status, mailbox.status],
+      [200, 409, 400, 200, 404, 404],
+    );
+  });
+});
