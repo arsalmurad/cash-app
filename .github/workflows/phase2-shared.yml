@@ -2,6 +2,15 @@ name: Phase 2 Shared Layer
 
 on:
   workflow_dispatch:
+  # Cheap enough to run on every change to the shared layer, and lets a new
+  # branch be checked before this workflow exists on the default branch
+  # (workflow_dispatch only finds workflows already merged there).
+  pull_request:
+    paths:
+      - "rust/**"
+      - "relay/**"
+      - "scripts/verify_relay.sh"
+      - ".github/workflows/phase2-shared.yml"
 
 permissions:
   contents: read
