@@ -8,6 +8,10 @@
 //! read. Ordering is the caller's job (the relay's totally ordered log);
 //! this crate only needs each member to process the stream in that order.
 
+mod recovery;
+
+pub use recovery::{RecoveryError, RecoveryKey};
+
 use std::collections::HashSet;
 use std::fmt::Debug;
 
