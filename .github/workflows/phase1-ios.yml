@@ -71,6 +71,9 @@ jobs:
           xcrun simctl bootstatus "$device_id" -b
 
       - name: Run personal ledger integration test
+        # A healthy run takes minutes; a hang on this runner (seen after
+        # "Xcode build done" with no output) should fail in 20, not 45.
+        timeout-minutes: 20
         working-directory: app
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
@@ -81,6 +84,9 @@ jobs:
       # The shared layer through the real bridge: two devices, MLS, and an
       # in-memory relay (integration_test/household_test.dart).
       - name: Run household integration test
+        # A healthy run takes minutes; a hang on this runner (seen after
+        # "Xcode build done" with no output) should fail in 20, not 45.
+        timeout-minutes: 20
         working-directory: app
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
