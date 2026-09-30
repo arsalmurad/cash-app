@@ -57,7 +57,32 @@ The Dart half is checked three ways:
   rejected. Fixed with a history backfill (see `docs/DECISIONS.md`), with
   Rust tests for batching, restart of the inviter mid-backfill, and removal.
 
-CI for the app-level work is recorded in "CI results" below.
+CI for the app-level work (branch `claude/stoic-brahmagupta-1wwxwq`):
+
+- **Android emulator**, `ed2f636`:
+  [run 36771485671](https://github.com/arsalmurad/cash-app/actions/runs/36771485671)
+  passed: the ledger integration test and the two-device household scenario
+  through the real bridge.
+- **iOS simulator**, `0e7a706`:
+  [run 36779072179](https://github.com/arsalmurad/cash-app/actions/runs/36779072179):
+  the ledger integration test and the household scenario both passed. Two
+  earlier runs on this code hung after "Xcode build done" with no test output
+  (the runner flake recorded earlier in this repo); iOS steps now time out
+  after 20 minutes.
+- **Web**, `02e9826`:
+  [run 36770316184](https://github.com/arsalmurad/cash-app/actions/runs/36770316184)
+  passed with MLS compiled into the wasm bundle and the Household screen in
+  the app. This checks that it builds and the personal ledger still runs; it
+  does not drive the household flows in a browser.
+- An earlier Android run (36768664768) failed right after creating an
+  account in the existing ledger test, with no relevant change in that
+  commit; the integration test now waits for asynchronous bridge results
+  before asserting, and the same flow passed in the run above. The cause was
+  not proven to be timing.
+- `Phase 2 Shared Layer` (Rust workspace, worker tests, Rust engine against
+  the worker) passed on `cf1459d`; the later Rust commits (backfill) and the
+  CORS change were verified locally but are covered by that workflow only
+  once it runs on the PR's final head.
 
 ## Not done
 
