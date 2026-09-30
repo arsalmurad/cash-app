@@ -2159,6 +2159,8 @@ name = "rust_lib_cash_app"
 version = "0.1.0"
 dependencies = [
  "cash_core",
+ "cash_crypto",
+ "cash_sync",
  "flutter_rust_bridge",
 ]
 
