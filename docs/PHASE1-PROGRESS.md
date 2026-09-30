@@ -1,6 +1,7 @@
 # Phase 1 progress
 
-Updated 2026-09-30. Phase 1 is in progress; its complete exit test has not passed.
+Updated 2026-09-30. Phase 1's exit test has passed (see "Phase 1 exit test" below).
+The "Remaining work" list at the bottom is follow-up polish, not a gate.
 
 ## Web runtime verification
 
@@ -31,6 +32,32 @@ Verified evidence:
   `flutter analyze` is clean.
 - Not covered on web: the account-creation, transfer, and category-dropdown
   steps that `integration_test/ledger_test.dart` exercises on iOS/Android.
+
+## Phase 1 exit test
+
+Checked against `expense-app-build-brief.md` section 5 on `main` at
+`9a338a2` (content identical to `claude/category-rename` at `4ff94ec`; the
+CI runs below are on `1d843d4`, and the only later change is this
+documentation).
+
+| Exit-test item | Evidence | How verified |
+| --- | --- | --- |
+| 1,000 events, two random orders, same balances | `rust/core/tests/phase1_acceptance.rs::one_thousand_events_fold_identically_in_different_arrival_orders` | Run locally, passed |
+| Mid-run FX change leaves historical balances unmoved | `frozen_fx_keeps_historical_balances_stable_after_rate_changes` | Run locally, passed |
+| Zero-decimal currency round-trips without drift | `zero_decimal_currency_round_trips_without_drift` (core); the `from_decimal_rate` tests cover zero-decimal exponents | Run locally, passed |
+| Snapshot at 500 + fold 501-1,000 equals full fold | `snapshot_at_five_hundred_matches_a_full_fold` (and `a_late_event_invalidates_instead_of_corrupting_a_snapshot`) | Run locally, passed |
+| No floating-point type in the money path | `rust/core/tests/money_path_lint.rs` greps `rust/core/src` for `f32`/`f64` | Run locally, passed; `rust/api/src` also has no `f32`/`f64` (grep, no test enforces it) |
+| Builds and runs on iOS, Android, and web from a clean checkout | iOS [36763102377](https://github.com/arsalmurad/cash-app/actions/runs/36763102377), Android [36763105604](https://github.com/arsalmurad/cash-app/actions/runs/36763105604), Web [36763109906](https://github.com/arsalmurad/cash-app/actions/runs/36763109906) | CI runs check out the repository fresh and ran the integration test (iOS simulator, Android emulator) and the Chrome/wasm runtime script (web); all passed |
+
+Caveats, stated plainly:
+
+- "Runs" on iOS and Android means a simulator/emulator in CI, not a physical
+  device. Web runs in the CI runner's Chrome.
+- The web check is the CDP script, which covers record, reload-persistence
+  and the balance; it does not cover accounts, transfers, categories, or the
+  foreign-currency flow that the iOS/Android integration test covers.
+- The repository visibility decision in brief section 8 ("revisit at the
+  Phase 1 exit test") is left to the owner; nothing was changed.
 
 ## Multi-currency entry and conversion display
 
@@ -990,62 +1017,29 @@ calls don't go through `WorkerPool` at all) and remain fully green.
 
 ## Remaining work
 
-Ledger events now persist locally and survive a restart, each device keeps a
-stable actor ID, categories (with icons, and titles that auto-assign on
-repeat) are built, multiple accounts plus transfers between them are built,
-search/filter is built, budgets and goals are built, CSV import/export is
-built, recurring transactions with upcoming occurrences are built, and a
-biometric lock is built — every one of these confirmed on real iOS hardware
-(most recently run 36274318774, whose commit tree covers everything through
-the biometric lock; see each section above for the specific run that
-verified it). Still open before Phase 1's exit test can be called complete:
+Follow-up polish; none of it blocks the exit test. Verified state: every
+feature in the brief's Phase 1 scope is built, and iOS, Android, and web
+pass in CI (see "Phase 1 exit test").
 
-- Android runtime verification is done: `phase1-android.yml` passed end
-  to end on a real KVM-accelerated emulator (see the "Android and web CI
-  infrastructure" section above,
-  [run 36455584025](https://github.com/arsalmurad/cash-app/actions/runs/36455584025)).
-  Web runtime verification hit a genuine, documented upstream
-  `flutter_rust_bridge` limitation (see "Web: root cause found, not
-  fixed" above) rather than a CI configuration problem: the web build,
-  WASM compilation, and app launch all work, but the first Rust bridge
-  call panics inside `flutter_rust_bridge`'s Web Worker thread pool
-  (browsers can't clone a `WebAssembly.Memory` object via `postMessage`),
-  regardless of build mode. The one known fix (switching every Rust-bridge
-  call from async to sync dispatch) was attempted in full and verified on
-  real CI on all three platforms: it broke iOS (a 45-minute hang, real
-  regression) and didn't even fix web (the call silently no-ops instead of
-  panicking, worse than before) — see "Web: root cause found, not fixed"
-  above for the full evidence — so it was reverted. Android and iOS are
-  both fully verified on real hardware/emulator; web is not, and there is
-  currently no known fix that doesn't regress another platform.
 - The web `EventStore`'s append is read-decode-concatenate-reencode-write
-  over the whole log (see `event_store_web.dart`), which is O(log size) per
-  write; fine at this milestone's scale, worth revisiting (e.g. IndexedDB
-  with one record per frame) if local history grows large.
-- Categories can be renamed and re-iconed from the new "Manage categories"
-  screen (see the "Category rename" section above), but not deleted — the
-  Rust core has no delete operation for categories, only upsert.
-- Account currency is fixed at creation (no display-currency conversion
-  toggle yet); the net balance card sums accounts' reporting-currency
-  equivalents but never shows the same amount converted between two
-  currencies side by side.
-- The biometric lock has no "require lock after N minutes" grace period —
-  it re-locks on every single background/resume cycle, which may be
-  stricter than some users want; also untested against a device with no
-  biometrics enrolled but a passcode set (device-credential fallback).
-- Budgets, goals, and recurring rules can now be edited from the UI (see
-  "Budget, goal, and recurring-rule rename" above), but not deleted — like
-  categories, the Rust core has no delete operation, only upsert. Goals
-  still have no UI to set a category or deadline, and recurring rules
-  still have no UI to set a category (editing preserves an existing value
-  it can't show, but can't set one on a rule/goal that never had it).
-- Recurring rules have no "skip this occurrence" action; the only way past
-  a due occurrence is to record it (or edit the rule's start date).
-- CSV export/import uses the clipboard rather than a native file
-  picker/file-save integration (see `docs/DECISIONS.md`); import also only
-  recognizes expense/income rows, not transfers.
-- Snapshot/compaction (`cash_core::Snapshot`) exists and is tested at the
-  core level but is not yet wired into the persisted log or the bridge; the
-  log currently replays from event zero on every load.
+  over the whole log (`event_store_web.dart`): O(log size) per write. Fine
+  at this scale; revisit (e.g. IndexedDB, one record per frame) if history
+  grows large.
+- Categories, budgets, goals, and recurring rules can be created and
+  edited but not deleted: the Rust core has only upsert for them.
+- No UI for a goal's category/deadline or a recurring rule's category.
+- The biometric lock has no grace period (it re-locks on every
+  background/resume) and is untested on a device with no biometrics
+  enrolled but a passcode set. Recurring rules have no "skip this
+  occurrence"; the only way past a due one is to record it or edit the
+  start date.
+- CSV import/export goes through the clipboard rather than a native file
+  picker, and has no exchange-rate column (foreign-currency rows fail with
+  a clear per-line error); import only recognizes expense/income rows, not
+  transfers.
+- `Snapshot` compaction exists and is tested in the core but is not wired
+  into the persisted log or the bridge.
+- Account currency is fixed at creation; there is no rate editing on an
+  existing entry. The log replays from event zero on every load.
 
 Household sharing and all server/cloud features remain outside Phase 1.
