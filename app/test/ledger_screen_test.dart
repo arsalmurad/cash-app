@@ -46,6 +46,49 @@ void main() {
     },
   );
 
+  testWidgets('a foreign-currency account also shows its reporting value', (
+    tester,
+  ) async {
+    const overview = LedgerOverview(
+      balanceLabel: 'USD 110.00',
+      accounts: [
+        AccountView(
+          id: 'euro',
+          name: 'Euro',
+          currencyCode: 'EUR',
+          balanceLabel: 'EUR 100.00',
+          reportingBalanceLabel: 'USD 110.00',
+        ),
+        AccountView(
+          id: 'everyday',
+          name: 'Everyday',
+          currencyCode: 'USD',
+          balanceLabel: 'USD 0.00',
+        ),
+      ],
+      transactions: [],
+      transfers: [],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OverviewPane(
+            overview: overview,
+            categories: const [],
+            onAdd: () {},
+            onAddAccount: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('EUR 100.00'), findsOneWidget);
+    expect(find.text('≈ USD 110.00'), findsOneWidget);
+    // Only the foreign account gets a conversion line.
+    expect(find.textContaining('≈'), findsOneWidget);
+  });
+
   testWidgets('transaction tile shows its category name and icon', (
     tester,
   ) async {

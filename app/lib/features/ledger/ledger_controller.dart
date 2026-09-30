@@ -48,6 +48,9 @@ class LedgerController extends ChangeNotifier {
   String? errorMessage;
   int _sequence = 0;
   static const String _reportingCurrencyCode = 'USD';
+
+  /// The currency every entry is also valued in, at a rate frozen on the entry.
+  String get reportingCurrencyCode => _reportingCurrencyCode;
   static const int _upcomingHorizonDays = 14;
 
   /// Diagnostics from the most recent [initialize] load, mainly for tests:
@@ -67,7 +70,7 @@ class LedgerController extends ChangeNotifier {
       final ledgerLogBytes = await _ledgerStore.readLog();
       final ledger = await loadPersonalLedger(
         actorId: actorId,
-        reportingCurrencyCode: 'USD',
+        reportingCurrencyCode: _reportingCurrencyCode,
         logBytes: ledgerLogBytes,
       );
       final report = await loadReport(ledger: ledger);
@@ -220,6 +223,29 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// The exact rate to freeze on an entry in [account]'s currency. Accounts
+  /// in the reporting currency always use 1:1; any other currency needs the
+  /// user's typed [rate] (never guessed or carried over from another entry).
+  Future<FxRatio> _resolveRate(AccountView account, String? rate) async {
+    if (account.currencyCode == _reportingCurrencyCode) {
+      return FxRatio(
+        numerator: PlatformInt64Util.from(1),
+        denominator: PlatformInt64Util.from(1),
+      );
+    }
+    if (rate == null || rate.trim().isEmpty) {
+      throw _EntryInputError(
+        'Enter the ${account.currencyCode} to $_reportingCurrencyCode '
+        'exchange rate',
+      );
+    }
+    return fxRateFromDecimal(
+      rate: rate,
+      sourceCurrencyCode: account.currencyCode,
+      targetCurrencyCode: _reportingCurrencyCode,
+    );
+  }
+
   Future<bool> record({
     required String title,
     required String amount,
@@ -227,6 +253,7 @@ class LedgerController extends ChangeNotifier {
     required String accountId,
     String? categoryId,
     String? recurringId,
+    String? rate,
   }) async {
     final ledger = _ledger;
     final account = _findAccount(accountId);
@@ -237,6 +264,7 @@ class LedgerController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
+      final fx = await _resolveRate(account, rate);
       final now = DateTime.now();
       _sequence += 1;
       await _mutateLedger(
@@ -247,8 +275,8 @@ class LedgerController extends ChangeNotifier {
           kind: kind,
           amount: amount,
           currencyCode: account.currencyCode,
-          fxNumerator: PlatformInt64Util.from(1),
-          fxDenominator: PlatformInt64Util.from(1),
+          fxNumerator: fx.numerator,
+          fxDenominator: fx.denominator,
           title: title.trim(),
           categoryId: categoryId,
           recurringId: recurringId,
@@ -306,6 +334,8 @@ class LedgerController extends ChangeNotifier {
     required String sentAmount,
     String? receivedAmount,
     String title = 'Transfer',
+    String? sentRate,
+    String? receivedRate,
   }) async {
     final ledger = _ledger;
     final fromAccount = _findAccount(fromAccountId);
@@ -325,6 +355,8 @@ class LedgerController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
+      final sentFx = await _resolveRate(fromAccount, sentRate);
+      final receivedFx = await _resolveRate(toAccount, receivedRate);
       final now = DateTime.now();
       _sequence += 1;
       await _mutateLedger(
@@ -335,12 +367,12 @@ class LedgerController extends ChangeNotifier {
           toAccountId: toAccountId,
           sentAmount: sentAmount,
           sentCurrencyCode: fromAccount.currencyCode,
-          sentFxNumerator: PlatformInt64Util.from(1),
-          sentFxDenominator: PlatformInt64Util.from(1),
+          sentFxNumerator: sentFx.numerator,
+          sentFxDenominator: sentFx.denominator,
           receivedAmount: resolvedReceivedAmount,
           receivedCurrencyCode: toAccount.currencyCode,
-          receivedFxNumerator: PlatformInt64Util.from(1),
-          receivedFxDenominator: PlatformInt64Util.from(1),
+          receivedFxNumerator: receivedFx.numerator,
+          receivedFxDenominator: receivedFx.denominator,
           title: title.trim(),
           wallClockMillis: PlatformInt64Util.from(now.millisecondsSinceEpoch),
         ),
@@ -475,8 +507,9 @@ class LedgerController extends ChangeNotifier {
 
   /// Records an upcoming occurrence as a real transaction, tagged with its
   /// recurring rule so [_refreshUpcoming] advances past it next time.
-  Future<bool> recordUpcoming(UpcomingView occurrence) async {
+  Future<bool> recordUpcoming(UpcomingView occurrence, {String? rate}) async {
     return record(
+      rate: rate,
       title: occurrence.title,
       amount: _amountFromLabel(occurrence.amountLabel),
       kind: occurrence.isExpense ? EntryKind.expense : EntryKind.income,
@@ -538,7 +571,9 @@ class LedgerController extends ChangeNotifier {
       if (saved) {
         imported += 1;
       } else {
-        errors.add('line ${row.lineNumber}: ${errorMessage ?? "could not save"}');
+        errors.add(
+          'line ${row.lineNumber}: ${errorMessage ?? "could not save"}',
+        );
       }
     }
     return CsvImportSummary(imported: imported, errors: errors);
@@ -562,7 +597,9 @@ class LedgerController extends ChangeNotifier {
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
-    return slug.isEmpty ? 'category-${DateTime.now().microsecondsSinceEpoch}' : slug;
+    return slug.isEmpty
+        ? 'category-${DateTime.now().microsecondsSinceEpoch}'
+        : slug;
   }
 
   /// Runs a ledger mutation and durably persists its appended event frame
@@ -657,4 +694,15 @@ class LedgerController extends ChangeNotifier {
       horizonDays: _upcomingHorizonDays,
     );
   }
+}
+
+/// A problem with what the user typed, reported as-is (without the
+/// "Exception:" prefix a bare [Exception] would add) in the snackbar.
+class _EntryInputError implements Exception {
+  const _EntryInputError(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }

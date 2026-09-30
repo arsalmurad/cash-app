@@ -11,6 +11,7 @@ import 'budgets_pane.dart';
 import 'categories_screen.dart';
 import 'category_presets.dart';
 import 'csv_import_export.dart';
+import 'exchange_rate_dialog.dart';
 import 'goals_pane.dart';
 import 'ledger_controller.dart';
 import '../lock/lock_settings_dialog.dart';
@@ -159,14 +160,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
                               _ => _add,
                             },
                       icon: const Icon(Icons.add_rounded),
-                      label: Text(
-                        switch (selectedIndex) {
-                          2 => 'Add budget',
-                          3 => 'Add goal',
-                          4 => 'Add recurring',
-                          _ => 'Add',
-                        },
-                      ),
+                      label: Text(switch (selectedIndex) {
+                        2 => 'Add budget',
+                        3 => 'Add goal',
+                        4 => 'Add recurring',
+                        _ => 'Add',
+                      }),
                     ),
             );
           },
@@ -234,6 +233,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
       showDragHandle: false,
       builder: (context) => AddTransactionSheet(
         accounts: controller.overview?.accounts ?? const [],
+        reportingCurrencyCode: controller.reportingCurrencyCode,
         categories: controller.categories,
         onSuggestCategory: controller.suggestCategoryFor,
         onAddCategory: (name, iconKey) =>
@@ -250,6 +250,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
         kind: draft.kind,
         accountId: draft.accountId,
         categoryId: draft.categoryId,
+        rate: draft.rate,
       ),
       TransferDraft() => await controller.transfer(
         fromAccountId: draft.fromAccountId,
@@ -257,6 +258,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
         sentAmount: draft.sentAmount,
         receivedAmount: draft.receivedAmount,
         title: draft.title,
+        sentRate: draft.sentRate,
+        receivedRate: draft.receivedRate,
       ),
     };
     if (!mounted) {
@@ -299,7 +302,9 @@ class _LedgerScreenState extends State<LedgerScreen> {
     if (!saved) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.controller.errorMessage ?? 'Could not save budget'),
+          content: Text(
+            widget.controller.errorMessage ?? 'Could not save budget',
+          ),
         ),
       );
     }
@@ -406,7 +411,9 @@ class _LedgerScreenState extends State<LedgerScreen> {
     if (!saved) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.controller.errorMessage ?? 'Could not save goal'),
+          content: Text(
+            widget.controller.errorMessage ?? 'Could not save goal',
+          ),
         ),
       );
     }
@@ -451,7 +458,28 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   Future<void> _recordUpcoming(UpcomingView occurrence) async {
-    final saved = await widget.controller.recordUpcoming(occurrence);
+    String? rate;
+    final account = widget.controller.overview?.accounts
+        .where((account) => account.id == occurrence.accountId)
+        .firstOrNull;
+    final reportingCurrency = widget.controller.reportingCurrencyCode;
+    if (account != null && account.currencyCode != reportingCurrency) {
+      // The rule carries no rate (it would go stale); ask for today's.
+      rate = await showDialog<String>(
+        context: context,
+        builder: (context) => ExchangeRateDialog(
+          sourceCurrencyCode: account.currencyCode,
+          reportingCurrencyCode: reportingCurrency,
+        ),
+      );
+      if (rate == null || !mounted) {
+        return;
+      }
+    }
+    final saved = await widget.controller.recordUpcoming(
+      occurrence,
+      rate: rate,
+    );
     if (!mounted) {
       return;
     }
@@ -570,10 +598,8 @@ class OverviewPane extends StatelessWidget {
                 ...overview.transactions
                     .take(5)
                     .map(
-                      (transaction) => TransactionTile(
-                        transaction,
-                        categories: categories,
-                      ),
+                      (transaction) =>
+                          TransactionTile(transaction, categories: categories),
                     ),
             ],
           ),
@@ -638,7 +664,8 @@ class _ActivityPaneState extends State<ActivityPane> {
                 ],
                 if (!somethingToShow)
                   const _ActivityEmpty()
-                else if (filteredTransactions.isEmpty && filteredTransfers.isEmpty)
+                else if (filteredTransactions.isEmpty &&
+                    filteredTransfers.isEmpty)
                   const _NoMatchingActivity()
                 else ...[
                   ...filteredTransactions.map(
@@ -728,7 +755,10 @@ class _ActivitySearchAndFiltersState extends State<_ActivitySearchAndFilters> {
                 hint: const Text('All accounts'),
                 underline: const SizedBox.shrink(),
                 items: [
-                  const DropdownMenuItem(value: null, child: Text('All accounts')),
+                  const DropdownMenuItem(
+                    value: null,
+                    child: Text('All accounts'),
+                  ),
                   for (final account in accounts)
                     DropdownMenuItem(
                       value: account.id,
@@ -827,9 +857,20 @@ class _AccountsCard extends StatelessWidget {
                 leading: const CircleAvatar(child: Icon(Icons.wallet_outlined)),
                 title: Text(account.name),
                 subtitle: Text(account.currencyCode),
-                trailing: Text(
-                  account.balanceLabel,
-                  style: Theme.of(context).textTheme.labelLarge,
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      account.balanceLabel,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    if (account.reportingBalanceLabel != null)
+                      Text(
+                        '≈ ${account.reportingBalanceLabel}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
                 ),
               ),
           ],
@@ -916,7 +957,11 @@ class _NewAccountDialogState extends State<_NewAccountDialog> {
 }
 
 class TransactionTile extends StatelessWidget {
-  const TransactionTile(this.transaction, {this.categories = const [], super.key});
+  const TransactionTile(
+    this.transaction, {
+    this.categories = const [],
+    super.key,
+  });
 
   final TransactionView transaction;
   final List<CategoryView> categories;

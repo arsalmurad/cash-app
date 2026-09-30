@@ -123,5 +123,48 @@ void main() {
     expect(find.text('USD -512.34'), findsOneWidget);
     expect(find.text('USD -612.34'), findsOneWidget);
     expect(find.text('USD 100.00'), findsOneWidget);
+
+    // A foreign-currency account: the entry freezes the typed rate, the
+    // account shows its reporting-currency value, and both survive a restart.
+    await tester.tap(find.widgetWithIcon(IconButton, Icons.add_rounded));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'Euro');
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('EUR').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('accountDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Euro').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Hotel');
+    await tester.enterText(find.byType(TextFormField).at(1), '80.00');
+    await tester.enterText(find.byKey(const Key('rateField')), '1.0875');
+    await tester.ensureVisible(
+      find.widgetWithText(FilledButton, 'Add transaction'),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
+    await tester.pumpAndSettle();
+
+    // 80.00 EUR at 1.0875 = 87.00 USD, added to the -512.34 net balance.
+    expect(find.text('EUR -80.00'), findsOneWidget);
+    expect(find.text('≈ USD -87.00'), findsOneWidget);
+    expect(find.text('USD -599.34'), findsOneWidget);
+
+    restartedController = LedgerController();
+    await restartedController.initialize();
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: restartedController)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('EUR -80.00'), findsOneWidget);
+    expect(find.text('≈ USD -87.00'), findsOneWidget);
+    expect(find.text('USD -599.34'), findsOneWidget);
   });
 }

@@ -23,6 +23,7 @@ class TransactionDraft extends EntryDraft {
     required this.kind,
     required this.accountId,
     this.categoryId,
+    this.rate,
   });
 
   final String title;
@@ -30,6 +31,10 @@ class TransactionDraft extends EntryDraft {
   final EntryKind kind;
   final String accountId;
   final String? categoryId;
+
+  /// Reporting-currency units per one unit of the account's currency, as
+  /// typed. Only set when the account isn't in the reporting currency.
+  final String? rate;
 }
 
 class TransferDraft extends EntryDraft {
@@ -39,6 +44,8 @@ class TransferDraft extends EntryDraft {
     required this.sentAmount,
     this.receivedAmount,
     required this.title,
+    this.sentRate,
+    this.receivedRate,
   });
 
   final String fromAccountId;
@@ -49,6 +56,11 @@ class TransferDraft extends EntryDraft {
   /// currency; see `LedgerController.transfer`.
   final String? receivedAmount;
   final String title;
+
+  /// Typed rate for each leg; only set for a leg whose account isn't in the
+  /// reporting currency.
+  final String? sentRate;
+  final String? receivedRate;
 }
 
 enum _EntryMode { expense, income, transfer }
@@ -56,6 +68,7 @@ enum _EntryMode { expense, income, transfer }
 class AddTransactionSheet extends StatefulWidget {
   const AddTransactionSheet({
     required this.accounts,
+    required this.reportingCurrencyCode,
     required this.categories,
     required this.onSuggestCategory,
     required this.onAddCategory,
@@ -63,6 +76,10 @@ class AddTransactionSheet extends StatefulWidget {
   });
 
   final List<AccountView> accounts;
+
+  /// The ledger's reporting currency. Entries on accounts in any other
+  /// currency need an exchange rate to it, frozen on the entry.
+  final String reportingCurrencyCode;
   final List<CategoryView> categories;
   final Future<String?> Function(String title) onSuggestCategory;
   final Future<CategoryView?> Function(String name, String iconKey)
@@ -77,6 +94,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final titleController = TextEditingController();
   final amountController = TextEditingController();
   final receivedAmountController = TextEditingController();
+  final rateController = TextEditingController();
+  final sentRateController = TextEditingController();
+  final receivedRateController = TextEditingController();
   _EntryMode mode = _EntryMode.expense;
   String? categoryId;
   bool categoryManuallyChosen = false;
@@ -112,6 +132,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     titleController.dispose();
     amountController.dispose();
     receivedAmountController.dispose();
+    rateController.dispose();
+    sentRateController.dispose();
+    receivedRateController.dispose();
     super.dispose();
   }
 
@@ -141,6 +164,43 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       }
     }
     return null;
+  }
+
+  bool _needsRate(String? accountId) {
+    final account = _accountById(accountId);
+    return account != null &&
+        account.currencyCode != widget.reportingCurrencyCode;
+  }
+
+  /// A rate field for [accountId]'s currency, or no widgets when that
+  /// account is already in the reporting currency.
+  List<Widget> _rateField({
+    required Key key,
+    required TextEditingController controller,
+    required String? accountId,
+  }) {
+    if (!_needsRate(accountId)) {
+      return const [];
+    }
+    final currency = _accountById(accountId)!.currencyCode;
+    return [
+      const SizedBox(height: 12),
+      TextFormField(
+        key: key,
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: 'Exchange rate',
+          helperText:
+              '${widget.reportingCurrencyCode} per 1 $currency, frozen on '
+              'this entry',
+          hintText: '1.0000',
+        ),
+        validator: (value) => value == null || value.trim().isEmpty
+            ? 'Enter the exchange rate'
+            : null,
+      ),
+    ];
   }
 
   bool get _transferCrossesCurrencies {
@@ -259,6 +319,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         ],
         onChanged: (value) => setState(() => accountId = value),
       ),
+      ..._rateField(
+        key: const Key('rateField'),
+        controller: rateController,
+        accountId: accountId,
+      ),
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         key: const Key('categoryDropdown'),
@@ -338,6 +403,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         validator: (value) =>
             value == null || value.trim().isEmpty ? 'Enter an amount' : null,
       ),
+      ..._rateField(
+        key: const Key('sentRateField'),
+        controller: sentRateController,
+        accountId: fromAccountId,
+      ),
       if (_transferCrossesCurrencies) ...[
         const SizedBox(height: 12),
         TextFormField(
@@ -353,6 +423,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               : null,
         ),
       ],
+      ..._rateField(
+        key: const Key('receivedRateField'),
+        controller: receivedRateController,
+        accountId: toAccountId,
+      ),
       const SizedBox(height: 12),
       TextFormField(
         controller: titleController,
@@ -408,6 +483,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
           title: titleController.text.trim().isEmpty
               ? 'Transfer'
               : titleController.text.trim(),
+          sentRate: _needsRate(fromAccountId)
+              ? sentRateController.text.trim()
+              : null,
+          receivedRate: _needsRate(toAccountId)
+              ? receivedRateController.text.trim()
+              : null,
         ),
       );
       return;
@@ -423,6 +504,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         kind: mode == _EntryMode.income ? EntryKind.income : EntryKind.expense,
         accountId: accountId!,
         categoryId: categoryId,
+        rate: _needsRate(accountId) ? rateController.text.trim() : null,
       ),
     );
   }
