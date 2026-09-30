@@ -120,3 +120,43 @@ fn damaged_saved_state_is_rejected() {
     trailing.push(0);
     assert!(Peer::import(&trailing).is_err());
 }
+
+#[test]
+fn a_lost_device_is_restored_from_the_sealed_backup_and_the_written_phrase() {
+    use cash_crypto::RecoveryKey;
+
+    let (mut relay, _, mut alice, mut bob) = pair();
+    alice.write(1, account()).unwrap();
+    alice.write(2, expense("rent", 90_000)).unwrap();
+    alice.sync(&mut relay).unwrap();
+    bob.sync(&mut relay).unwrap();
+
+    // Bob writes the phrase down and the app stores a sealed backup in the
+    // cloud. Then the phone is lost: only the phrase and the backup remain.
+    let phrase = RecoveryKey::generate();
+    let written_down = phrase.phrase();
+    let backup = phrase.seal(&bob.export().unwrap()).unwrap();
+    assert!(!backup.windows(9).any(|window| window == b"bob-phone"));
+    drop(bob);
+
+    // Meanwhile the household keeps going.
+    alice.write(3, expense("groceries", 8_000)).unwrap();
+    alice.sync(&mut relay).unwrap();
+
+    // On a new phone: type the phrase, open the backup, carry on.
+    let key = RecoveryKey::from_phrase(&written_down).unwrap();
+    let mut bob = Peer::import(&key.open(&backup).unwrap()).unwrap();
+    bob.sync(&mut relay).unwrap();
+    bob.write(4, expense("coffee", 450)).unwrap();
+    bob.sync(&mut relay).unwrap();
+    alice.sync(&mut relay).unwrap();
+
+    assert_eq!(bob.state().ledger.transactions.len(), 3);
+    assert_eq!(
+        alice.state().canonical_bytes(),
+        bob.state().canonical_bytes()
+    );
+
+    // A wrong phrase opens nothing.
+    assert!(RecoveryKey::generate().open(&backup).is_err());
+}
