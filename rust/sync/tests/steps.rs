@@ -161,16 +161,55 @@ fn a_rejected_commit_is_discarded_and_the_group_keeps_working() {
 }
 
 #[test]
-fn a_staged_commit_blocks_reads_and_writes_until_it_is_resolved() {
+fn a_staged_commit_allows_reconciliation_but_blocks_new_mutations() {
     let (log, mut alice, _bob) = household();
     let carol = Peer::new("carol-tablet", usd()).unwrap();
-    alice.begin_invite(&carol.key_package().unwrap()).unwrap();
+    let invite = alice.begin_invite(&carol.key_package().unwrap()).unwrap();
 
-    assert!(alice.next_outgoing().unwrap_err().0.contains("pending"));
-    assert!(alice.ingest(&log.after(alice.cursor())).is_err());
+    assert_eq!(alice.next_outgoing().unwrap(), Some(invite.commit));
+    assert!(alice.ingest(&log.after(alice.cursor())).is_ok());
     assert!(alice.begin_removal("bob-phone").is_err());
     alice.commit_rejected().unwrap();
     assert!(alice.next_outgoing().unwrap().is_none());
+}
+
+#[test]
+fn malformed_log_evidence_does_not_discard_a_pending_commit() {
+    let (_, mut alice, _) = household();
+    let carol = Peer::new("carol", usd()).unwrap();
+    let invite = alice.begin_invite(&carol.key_package().unwrap()).unwrap();
+    assert!(
+        alice
+            .ingest(&[(alice.cursor() + 1, b"garbage".to_vec())])
+            .is_err()
+    );
+    assert_eq!(alice.next_outgoing().unwrap(), Some(invite.commit));
+}
+
+#[test]
+fn a_commit_ack_cannot_skip_its_reserved_slot() {
+    let (_, mut alice, _) = household();
+    let pending = alice.begin_removal("bob-phone").unwrap();
+    assert!(alice.commit_accepted(pending.expected_tail + 2).is_err());
+    assert_eq!(alice.next_outgoing().unwrap(), Some(pending));
+}
+
+#[test]
+fn a_removal_with_a_lost_reply_survives_restart_and_rotates_keys() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    let pending = alice.begin_removal("bob-phone").unwrap();
+    let saved = alice.export().unwrap();
+    log.append(pending.expected_tail, pending.blob).unwrap();
+    alice = Peer::import(&saved).unwrap();
+    alice.ingest(&log.after(alice.cursor())).unwrap();
+    alice.write(2, expense("after removal", 100)).unwrap();
+    flush(&mut alice, &mut log);
+    bob.ingest(&log.after(bob.cursor())).unwrap();
+    assert!(!bob.is_member());
+    assert!(bob.try_decrypt(log.0.last().unwrap()).is_err());
 }
 
 #[test]
@@ -210,15 +249,62 @@ fn ingest_skips_what_it_has_seen_and_refuses_a_gap() {
 }
 
 #[test]
-fn staged_state_survives_nothing_but_a_clean_export_is_refused_while_staged() {
+fn a_staged_commit_survives_restart_before_submission() {
     let (_, mut alice, _) = household();
     let carol = Peer::new("carol-tablet", usd()).unwrap();
-    alice.begin_invite(&carol.key_package().unwrap()).unwrap();
-    // Exporting mid-commit would persist a half-applied group; make the
-    // caller resolve it first.
-    assert!(alice.export().is_err());
+    let invite = alice.begin_invite(&carol.key_package().unwrap()).unwrap();
+    alice = Peer::import(&alice.export().unwrap()).unwrap();
+    assert_eq!(alice.next_outgoing().unwrap(), Some(invite.commit));
     alice.commit_rejected().unwrap();
     assert!(alice.export().is_ok());
+}
+
+#[test]
+fn a_lost_commit_ack_is_resolved_from_the_log_after_restart() {
+    let (mut log, mut alice, mut bob) = household();
+    let mut carol = Peer::new("carol", usd()).unwrap();
+    let group = alice.group_id().unwrap().to_owned();
+    let invite = alice.begin_invite(&carol.key_package().unwrap()).unwrap();
+    let saved = alice.export().unwrap();
+    let sequence = log
+        .append(invite.commit.expected_tail, invite.commit.blob)
+        .unwrap();
+    // Response lost: restore the exact pre-submit journal, not a merged epoch.
+    alice = Peer::import(&saved).unwrap();
+    alice.ingest(&log.after(alice.cursor())).unwrap();
+    carol.join(&group, &invite.welcome, sequence).unwrap();
+    alice.write(1, account()).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    flush(&mut carol, &mut log);
+    assert_eq!(
+        alice.state().canonical_bytes(),
+        bob.state().canonical_bytes()
+    );
+    assert_eq!(
+        alice.state().canonical_bytes(),
+        carol.state().canonical_bytes()
+    );
+}
+
+#[test]
+fn a_competing_frame_resolves_a_saved_unaccepted_commit() {
+    let (mut log, mut alice, mut bob) = household();
+    let carol = Peer::new("carol", usd()).unwrap();
+    alice.begin_invite(&carol.key_package().unwrap()).unwrap();
+    let saved = alice.export().unwrap();
+    bob.write(1, account()).unwrap();
+    flush(&mut bob, &mut log);
+    alice = Peer::import(&saved).unwrap();
+    alice.ingest(&log.after(alice.cursor())).unwrap();
+    alice.write(2, expense("after conflict", 100)).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    assert_eq!(
+        alice.state().canonical_bytes(),
+        bob.state().canonical_bytes()
+    );
+    assert_eq!(alice.member_keys().unwrap().len(), 2);
 }
 
 /// Adds `joiner` to an existing household the way the app does, returning

@@ -1,5 +1,14 @@
 # Decisions
 
+## 2026-10-01 — Journal pending MLS commits rather than guessing after timeout
+
+Peer state v3 persists the exact staged commit and OpenMLS pending group state,
+while retaining v2 signed-state import and read-only v1 archives. Ordered-log
+ingestion confirms an exact matching commit or rejects it only after a valid
+competing frame, restoring the pending journal when evidence is malformed;
+guessing rejection from an unavailable relay was rejected because its append
+may already have succeeded. App invitation delivery still needs its own durable
+journal and retry path before the household durability gate is complete.
 ## 2026-10-01 — Serialize household operations and fail closed on uncertain saves
 
 Household writes, synchronization and configuration changes now share one queue;
