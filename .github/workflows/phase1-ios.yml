@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Record runner environment
         run: |
@@ -47,9 +47,9 @@ jobs:
           flutter config --no-analytics
           flutter --version
           flutter precache --ios
-          flutter pub get
-          flutter analyze
-          flutter test test
+          flutter --no-version-check pub get --enforce-lockfile
+          flutter --no-version-check analyze --no-pub
+          flutter --no-version-check test --no-pub test
 
       - name: Boot an available iPhone simulator
         id: simulator
