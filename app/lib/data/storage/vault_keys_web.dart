@@ -13,6 +13,7 @@ VaultKeys createVaultKeys() => BrowserVaultKeys();
 class BrowserVaultKeys implements VaultKeys {
   static String? _phrase;
   static Completer<JSAny?>? _release;
+  static Future<void> _released = Future<void>.value();
   @override
   bool get requiresUnlock => true;
   @override
@@ -20,6 +21,9 @@ class BrowserVaultKeys implements VaultKeys {
 
   @override
   Future<void> write(String phrase) async {
+    // Completing the lease callback releases the OS/browser lock on a later
+    // task. Wait for that completion before an immediate lock/unlock retry.
+    if (_release == null) await _released;
     if (_release == null) {
       final acquired = Completer<bool>();
       try {
@@ -36,13 +40,11 @@ class BrowserVaultKeys implements VaultKeys {
             return _release!.future.toJS;
           }).toJS,
         );
-        unawaited(
-          promise.toDart.then<void>(
-            (_) {},
-            onError: (Object _, StackTrace _) {
-              if (!acquired.isCompleted) acquired.complete(false);
-            },
-          ),
+        _released = promise.toDart.then<void>(
+          (_) {},
+          onError: (Object _, StackTrace _) {
+            if (!acquired.isCompleted) acquired.complete(false);
+          },
         );
       } catch (_) {
         throw StateError(
