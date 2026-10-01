@@ -105,6 +105,10 @@ Independently passed on the Windows host for this change:
   the real-bridge two-device household scenario passed.
 - `npm test` in `relay/`: all 12 tests passed in actual workerd/Miniflare after
   correcting file-URL conversion in the Windows worker launchers.
+- With that worker listening at `http://127.0.0.1:8787`,
+  `RELAY_URL=http://127.0.0.1:8787 cargo test --manifest-path rust/Cargo.toml
+  -p cash_sync --features http --test http_relay --locked -- --ignored
+  --test-threads=1`: both relay-contract and real-worker three-peer tests passed.
 
 These are not new iOS, Android or production WASM runtime claims. A forwarded
 proof authenticates its originating key, not when it held membership: the
