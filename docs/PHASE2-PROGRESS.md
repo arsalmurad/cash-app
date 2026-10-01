@@ -141,10 +141,29 @@ tests passed against a freshly restarted workerd with the updated mailbox code.
 Commands are the same workspace/HTTP commands recorded above. The native bridge
 was rebuilt again at the committed revision before the focused household runs.
 
-**Still open:** welcome retrieval is currently single-use before the receiver's
-durable save; a lost retrieval response or failed join save can strand that
-invite. It needs an acknowledged retrieval protocol. Working journals still
-contain unsealed private keys, and the full durability/security gate is open.
+GitHub checks passed at `a848ca6` after fixing an existing probabilistic BIP-39
+checksum assertion (a reordered phrase can also have a valid checksum):
+[Rust/worker run](https://github.com/arsalmurad/cash-app/actions/runs/36887960667)
+and [app/Chrome run](https://github.com/arsalmurad/cash-app/actions/runs/36887965972).
+This was merged as PR #10; backup authentication itself was unchanged.
+
+## Acknowledged welcome retrieval (2026-10-01)
+
+The app now reads a welcome without consuming it, saves joined keys and receipt
+intent together, and only then acknowledges it. A lost read or acknowledgement
+reply can be retried, including after restart; a failed atomic save leaves either
+the original join identity or complete joined state, both recoverable. Sealed
+backups include outstanding acknowledgements, and an empty acknowledgement does
+not poison a later delivery. The legacy `/take` endpoint remains for old clients;
+new durable app joins use `GET /m/{id}` and `POST /m/{id}/ack`.
+
+Independently passed: 171 Windows app tests through the existing rebuilt bridge,
+clean analyzer, 13 workerd tests, 13 Rust sync unit tests with the HTTP feature,
+and both HTTP relay-contract/three-peer checks against fresh current workerd.
+The four receiver restart cases cover lost read replies, lost ack replies, and
+save failures before or after the complete joined snapshot reached storage.
+No new mobile or production WASM runtime is claimed. Working journals still
+contain unsealed private keys; the full durability/security gate remains open.
 
 ## Not done
 
@@ -153,8 +172,8 @@ native bridge on 2026-10-01: failures before/after a complete atomic save refuse
 queued and later writes; restart reflects the bytes actually saved; a failed
 sender-ratchet save sends no ciphertext; 20 simultaneous writes and fixed-clock
 restart retain distinct transaction IDs. All 154 host app tests passed.
-These checks do not yet cover crash-safe membership commits or invitation
-delivery, and do not close the full durability gate.
+Those initial checks are now supplemented by membership/delivery/retrieval
+journals above, but do not alone close the full durability gate.
 
 - **Deployment.** The worker has only run in workerd under miniflare. Nobody
   has deployed it to Cloudflare; that needs an account and credentials (an

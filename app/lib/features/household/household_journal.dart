@@ -14,12 +14,14 @@ class HouseholdJournal {
     this.pending,
     this.lastCode,
     this.lastRequest,
+    this.pendingAck,
   });
   final Uint8List state;
   final String? relayUrl;
   final PendingInvitation? pending;
   final String? lastCode;
   final String? lastRequest;
+  final String? pendingAck;
 
   Uint8List encode() => Uint8List.fromList([
     ...utf8.encode(_magic),
@@ -30,6 +32,7 @@ class HouseholdJournal {
         'pending': pending?.toJson(),
         'lastCode': lastCode,
         'lastRequest': lastRequest,
+        'pendingAck': pendingAck,
       }),
     ),
   ]);
@@ -48,6 +51,11 @@ class HouseholdJournal {
         utf8.decode(bytes.sublist(marker.length)),
       ) as Map<String, dynamic>;
       final relay = json['relay'] as String?;
+      final pendingAck = json['pendingAck'] as String?;
+      if (pendingAck != null &&
+          !RegExp(r'^[0-9a-f]{32}$').hasMatch(pendingAck)) {
+        throw const FormatException();
+      }
       if (relay != null) {
         final uri = Uri.parse(relay);
         if (!['http', 'https'].contains(uri.scheme) || uri.host.isEmpty) {
@@ -64,6 +72,7 @@ class HouseholdJournal {
               ),
         lastCode: json['lastCode'] as String?,
         lastRequest: json['lastRequest'] as String?,
+        pendingAck: pendingAck,
       );
     } catch (_) {
       throw const FormatException(

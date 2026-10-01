@@ -75,6 +75,25 @@ class _FaultRelay implements RelayClient {
   @override
   Future<RelayMailboxItem?> takeMailbox(String mailbox) =>
       inner.takeMailbox(mailbox);
+
+  @override
+  Future<RelayMailboxItem?> peekMailbox(String mailbox) async {
+    final item = await inner.peekMailbox(mailbox);
+    if (failure == 'peek-reply') {
+      failure = null;
+      throw const RelayUnavailable('welcome reply lost');
+    }
+    return item;
+  }
+
+  @override
+  Future<void> acknowledgeMailbox(String mailbox) async {
+    await inner.acknowledgeMailbox(mailbox);
+    if (failure == 'ack-reply') {
+      failure = null;
+      throw const RelayUnavailable('acknowledgement reply lost');
+    }
+  }
 }
 
 void main() {
@@ -255,6 +274,63 @@ void main() {
           );
         },
       );
+
+      for (final failure in [
+        'peek-reply',
+        'ack-reply',
+        'join-save',
+        'join-save-full',
+      ]) {
+        test('welcome survives $failure and receiver restart', () async {
+          final relay = _FaultRelay();
+          final alice = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await alice.initialize();
+          await alice.setRelayUrl('https://relay.test');
+          await alice.createHousehold();
+          final state = _Store();
+          final config = _Store();
+          HouseholdController bob() => HouseholdController(
+            stateStore: state,
+            configStore: config,
+            relayFactory: (_) => relay,
+          );
+          final first = bob();
+          await first.initialize();
+          final code = (await alice.invite(
+            (await first.prepareJoinRequest())!,
+          ))!;
+          if (failure.startsWith('join-save')) {
+            state
+              ..fail = true
+              ..saveBeforeFailure = failure.endsWith('full');
+          } else {
+            relay.failure = failure;
+          }
+          expect(await first.acceptInvite(code), isFalse);
+          state.fail = false;
+          final restart = bob();
+          await restart.initialize();
+          if (restart.isMember) {
+            expect(await restart.syncNow(), isTrue);
+          } else {
+            expect(await restart.acceptInvite(code), isTrue);
+          }
+          expect(restart.isMember, isTrue);
+          expect(
+            await alice.addExpense(
+              title: 'After recovered join',
+              amount: '8.00',
+            ),
+            isTrue,
+          );
+          expect(await restart.syncNow(), isTrue);
+          expect(restart.overview!.balanceLabel, alice.overview!.balanceLabel);
+        });
+      }
 
       for (final saved in [false, true]) {
         test('uncertain save ($saved) stops queued and later writes', () async {

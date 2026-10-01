@@ -38,6 +38,32 @@ fn body(response: ureq::Response) -> Result<Value, RelayError> {
     response.into_json().map_err(unavailable)
 }
 
+fn mailbox_reply(
+    response: Result<ureq::Response, ureq::Error>,
+) -> Result<Option<MailboxItem>, RelayError> {
+    match response {
+        Ok(response) => {
+            let item = body(response)?;
+            Ok(Some(MailboxItem {
+                group: item["group"]
+                    .as_str()
+                    .ok_or_else(|| unavailable("item had no group"))?
+                    .to_owned(),
+                joined_after: item["joined_after"]
+                    .as_u64()
+                    .ok_or_else(|| unavailable("item had no joined_after"))?,
+                welcome: decode(
+                    item["welcome"]
+                        .as_str()
+                        .ok_or_else(|| unavailable("item had no welcome"))?,
+                )?,
+            }))
+        }
+        Err(ureq::Error::Status(404, _)) => Ok(None),
+        Err(error) => Err(unavailable(error)),
+    }
+}
+
 impl Relay for HttpRelay {
     fn append(
         &mut self,
@@ -107,29 +133,24 @@ impl Relay for HttpRelay {
     }
 
     fn take_mailbox(&mut self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError> {
+        mailbox_reply(
+            self.agent
+                .post(&self.url(&format!("/m/{mailbox}/take")))
+                .send_json(json!({})),
+        )
+    }
+
+    fn peek_mailbox(&self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError> {
+        mailbox_reply(self.agent.get(&self.url(&format!("/m/{mailbox}"))).call())
+    }
+
+    fn acknowledge_mailbox(&mut self, mailbox: &str) -> Result<(), RelayError> {
         match self
             .agent
-            .post(&self.url(&format!("/m/{mailbox}/take")))
+            .post(&self.url(&format!("/m/{mailbox}/ack")))
             .send_json(json!({}))
         {
-            Ok(response) => {
-                let item = body(response)?;
-                Ok(Some(MailboxItem {
-                    group: item["group"]
-                        .as_str()
-                        .ok_or_else(|| unavailable("item had no group"))?
-                        .to_owned(),
-                    joined_after: item["joined_after"]
-                        .as_u64()
-                        .ok_or_else(|| unavailable("item had no joined_after"))?,
-                    welcome: decode(
-                        item["welcome"]
-                            .as_str()
-                            .ok_or_else(|| unavailable("item had no welcome"))?,
-                    )?,
-                }))
-            }
-            Err(ureq::Error::Status(404, _)) => Ok(None),
+            Ok(_) | Err(ureq::Error::Status(404, _)) => Ok(()),
             Err(error) => Err(unavailable(error)),
         }
     }

@@ -209,6 +209,25 @@ describe("mailbox", () => {
       assert.equal(response.status, 400);
     }
   });
+
+  test("welcome retrieval retries until an idempotent acknowledgement", async () => {
+    const id = freshGroup();
+    const item = { group, joined_after: 1, welcome };
+    const put = () => call(`/m/${id}`, {
+      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(item),
+    });
+    assert.equal((await put()).status, 200);
+    for (let retry = 0; retry < 3; retry++) {
+      const read = await call(`/m/${id}`);
+      assert.equal(read.status, 200);
+      assert.deepEqual(await read.json(), item);
+    }
+    assert.equal((await post(`/m/${id}/ack`, {})).status, 200);
+    assert.equal((await post(`/m/${id}/ack`, {})).status, 200);
+    assert.equal((await call(`/m/${id}`)).status, 404);
+    assert.equal((await put()).status, 200);
+    assert.equal((await call(`/m/${id}`)).status, 404, 'delivery retry cannot undo acknowledgement');
+  });
 });
 
 describe("cors (the web app calls the relay from a browser)", () => {
