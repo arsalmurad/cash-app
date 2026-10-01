@@ -1,5 +1,14 @@
 # Decisions
 
+## 2026-10-01 — Acknowledge a welcome only after the receiver saves its keys
+
+Retryable mailbox reads replace destructive collection in the app, and joined
+keys plus receipt intent are saved atomically before an idempotent acknowledgement
+consumes the welcome. Lost read/ack replies and failed saves therefore resume
+after restart, without weakening expiry or reactivating a consumed mailbox.
+The legacy destructive endpoint remains for compatibility, not for durable app
+joining; mailbox identifiers remain bearer capabilities until relay auth lands.
+
 ## 2026-10-01 — Recovery checksums detect typos, backup authentication proves the key
 
 CI exposed a random test that assumed swapping any two recovery words must

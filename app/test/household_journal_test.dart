@@ -33,6 +33,7 @@ void main() {
       pending: pending,
       lastCode: 'previous',
       lastRequest: 'request',
+      pendingAck: 'fedcba9876543210fedcba9876543210',
     );
     final restored = HouseholdJournal.decode(journal.encode());
     expect(restored.encode(), journal.encode());

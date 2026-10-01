@@ -51,6 +51,7 @@ class HouseholdController extends ChangeNotifier {
   Future<void> _operationQueue = Future<void>.value();
   bool _writesDisabled = false;
   PendingInvitation? _pendingInvitation;
+  String? _pendingMailboxAck;
   String? lastInviteCode;
   String? _lastInviteRequest;
   bool get hasPendingInvitation => _pendingInvitation != null;
@@ -99,7 +100,8 @@ class HouseholdController extends ChangeNotifier {
   Future<bool> setRelayUrl(String url) => _run(() async {
     final trimmed = url.trim().replaceAll(RegExp(r'/+$'), '');
     final uri = Uri.tryParse(trimmed);
-    if (_pendingInvitation != null && trimmed != relayUrl) {
+    if ((_pendingInvitation != null || _pendingMailboxAck != null) &&
+        trimmed != relayUrl) {
       throw const FormatException(
         'Finish the pending invitation before changing relays.',
       );
@@ -202,6 +204,7 @@ class HouseholdController extends ChangeNotifier {
         pending: _pendingInvitation,
         lastCode: lastInviteCode,
         lastRequest: _lastInviteRequest,
+        pendingAck: _pendingMailboxAck,
       ).encode();
 
   Future<void> _loadSaved(Uint8List bytes) async {
@@ -214,6 +217,7 @@ class HouseholdController extends ChangeNotifier {
     _pendingInvitation = saved.pending;
     lastInviteCode = saved.lastCode;
     _lastInviteRequest = saved.lastRequest;
+    _pendingMailboxAck = saved.pendingAck;
   }
 
   Future<void> _saveConfig(String url) async {
@@ -388,10 +392,16 @@ class HouseholdController extends ChangeNotifier {
     final invite = decodeInvite(inviteCode);
     final household = _requireHousehold();
     if (isMember) {
+      if (_pendingMailboxAck == invite.mailbox &&
+          relayUrl == invite.relayUrl &&
+          overview!.groupId == invite.group) {
+        await _sync();
+        return;
+      }
       throw const FormatException('This device is already in a household.');
     }
     final relay = _relayFactory(invite.relayUrl);
-    final item = await relay.takeMailbox(invite.mailbox);
+    final item = await relay.peekMailbox(invite.mailbox);
     if (item == null) {
       throw const FormatException(
         'That invite was already used or has expired.',
@@ -408,6 +418,7 @@ class HouseholdController extends ChangeNotifier {
     );
     relayUrl = invite.relayUrl;
     _relay = relay;
+    _pendingMailboxAck = invite.mailbox;
     await _saveConfig(invite.relayUrl);
     await _persist();
     await _refresh();
@@ -427,6 +438,7 @@ class HouseholdController extends ChangeNotifier {
       _household = null;
       overview = null;
       _pendingInvitation = null;
+      _pendingMailboxAck = null;
       lastInviteCode = null;
       _lastInviteRequest = null;
       _writesDisabled = false;
@@ -562,6 +574,13 @@ class HouseholdController extends ChangeNotifier {
       return;
     }
     try {
+      if (_pendingMailboxAck != null) {
+        // The joined keys and receipt intent were saved atomically before
+        // this acknowledgement can consume the welcome.
+        await relay.acknowledgeMailbox(_pendingMailboxAck!);
+        _pendingMailboxAck = null;
+        await _persist();
+      }
       var conflicts = 0;
       while (true) {
         await _catchUp(relay, household);

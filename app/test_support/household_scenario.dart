@@ -54,6 +54,14 @@ class _SwitchableRelay implements RelayClient {
   @override
   Future<RelayMailboxItem?> takeMailbox(String mailbox) =>
       _guard(() => _inner.takeMailbox(mailbox));
+
+  @override
+  Future<RelayMailboxItem?> peekMailbox(String mailbox) =>
+      _guard(() => _inner.peekMailbox(mailbox));
+
+  @override
+  Future<void> acknowledgeMailbox(String mailbox) =>
+      _guard(() => _inner.acknowledgeMailbox(mailbox));
 }
 
 class _Device {
