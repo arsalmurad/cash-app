@@ -32,7 +32,7 @@ the running worker, all steps successful).
 | Three peers, two offline for part of the run, 1,000 interleaved events including concurrent edits to one expense and an edit-versus-void | `rust/sync/tests/three_peers.rs::three_peers_two_offline_a_thousand_events_converge_byte_identically` (1,000+ events asserted; conflicts and rejections asserted non-empty) | In-memory reference relay. The same engine also converges a smaller scripted run through the real worker (`rust/sync/tests/http_relay.rs`) |
 | On reconnection all three fold to byte-identical balances | Same test: every peer's `canonical_bytes` equals an independent fold of every event written | Peers are in one process, not three devices |
 | A removed member cannot decrypt any epoch after removal | `a_removed_member_cannot_read_anything_after_removal`; `rust/crypto/tests/group.rs::a_removed_member_cannot_decrypt_any_later_epoch` (also covers a second rotation after removal) | |
-| Relay storage inspected directly contains no plaintext field, amount, or member name | Same three-peer test scans every byte string the relay holds for event IDs, actor IDs, titles, account names, and member names. Checked to fail when handshakes are sent in plaintext | Scans `MemoryRelay`'s storage. The worker stores each blob verbatim and never parses it, but its Durable Object storage was not dumped and scanned. Amounts are not searched for (a short binary needle would match ciphertext by chance); they sit inside the same encrypted payloads |
+| Relay storage inspected directly contains no plaintext field, amount, or member name | In-memory scan plus the actual Durable Object storage audit below, using production storage methods and real Rust peers | Local workerd, not a deployed Cloudflare account; synthetic fixtures and meaningful integer amount marker avoid short-needle false positives |
 | Multi-currency group with a mid-run FX change keeps historical balances | `rust/core/tests/shared_acceptance.rs::a_multi_currency_shared_ledger_keeps_historical_balances_after_an_fx_change` | Tested on the fold directly; the three-peer run uses EUR entries at one rate |
 
 ## App-level evidence
@@ -164,6 +164,25 @@ The four receiver restart cases cover lost read replies, lost ack replies, and
 save failures before or after the complete joined snapshot reached storage.
 No new mobile or production WASM runtime is claimed. Working journals still
 contain unsealed private keys; the full durability/security gate remains open.
+
+## Actual worker storage audit (2026-10-01)
+
+`CARGO=C:/Users/ME/.cargo/bin/cargo.exe node test/storage-audit.mjs` in `relay/`
+passed on Windows with the pinned Node 24.19.0/Miniflare 4.20260730.0/workerd
+1.20260730.1. It runs the real Rust three-peer HTTP scenario, enumerates every
+actual Durable Object record through a test-only subclass, and checks both
+stored values and decoded ciphertext against synthetic member/account/title,
+event/actor ID, canonical-event and integer amount needles (both byte orders).
+The storage schema is also asserted to contain only log/ciphertext/mailbox
+metadata. All 27 log records and both welcome mailboxes passed; deliberately
+injecting plaintext into a record made the scanner reject it.
+
+The storage reader is a separately injected module under `relay/test/`, never
+part of the deployment worker or its configuration. This closes the local real
+worker storage gate, not production deployment, metadata hiding or at-rest key
+protection. Windows workerd emitted a connection-reset diagnostic but all audit
+assertions and the process exit status passed. CI now runs `npm run test:storage`
+after the already-built HTTP peer checks, reusing their dependencies and cache.
 
 ## Not done
 

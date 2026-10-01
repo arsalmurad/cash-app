@@ -49,6 +49,10 @@ jobs:
       - name: Relay worker and cross-implementation check
         run: scripts/verify_relay.sh
 
+      - name: Inspect actual worker storage for plaintext
+        working-directory: relay
+        run: npm run test:storage
+
       - name: Record Phase 2 result
         shell: bash
         run: |
@@ -58,4 +62,5 @@ jobs:
             echo "- cargo test --workspace (three-peer exit scenario, MLS, shared fold): passed"
             echo "- Relay worker tests in workerd: passed"
             echo "- Rust sync engine against the running worker: passed"
+            echo "- Actual workerd storage scan and plaintext-injection negative control: passed"
           } | tee -a "$GITHUB_STEP_SUMMARY"
