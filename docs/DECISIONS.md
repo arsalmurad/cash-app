@@ -1,5 +1,13 @@
 # Decisions
 
+## 2026-10-01 — Recovery checksums detect typos, backup authentication proves the key
+
+CI exposed a random test that assumed swapping any two recovery words must
+invalidate the BIP-39 checksum; some changed phrases also have valid checksums.
+The test now distinguishes invalid phrases from a valid but different key,
+with a deterministic wrong-key backup-authentication check rather than a
+probabilistic checksum assertion. No encryption or recovery encoding changed.
+
 ## 2026-10-01 — Invitation delivery retries must not overwrite or resurrect
 
 Mailbox PUT is now atomically idempotent for exactly the same encrypted item,
