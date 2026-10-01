@@ -54,4 +54,4 @@ jobs:
 
       - name: Test browser storage in Chrome
         working-directory: app
-        run: flutter --no-version-check test --no-pub --platform chrome test/event_store_web_test.dart
+        run: flutter --no-version-check test --no-pub --platform chrome test/event_store_web_test.dart test/vault_keys_web_test.dart

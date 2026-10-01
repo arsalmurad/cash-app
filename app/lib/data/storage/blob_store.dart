@@ -6,10 +6,8 @@ import 'blob_store_io.dart' if (dart.library.js_interop) 'blob_store_web.dart';
 /// [EventStore]'s append-only logs: a household's saved state, which changes
 /// with every message and must always be read back complete or not at all.
 ///
-/// The value holds private keys. Native platforms keep it in a file private
-/// to the app; the browser keeps it in `localStorage`, which any script on
-/// the page can read. Both are weaker than the platform keychain, which is a
-/// known gap recorded in `docs/PHASE2-PROGRESS.md`.
+/// This primitive does not encrypt values. Secret state must be wrapped in
+/// [SecretBlobStore] before using a native file or browser localStorage.
 abstract class BlobStore {
   factory BlobStore(String name) => createBlobStore(name);
 
