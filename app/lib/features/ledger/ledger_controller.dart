@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
-    show PlatformInt64, PlatformInt64Util;
+    show PlatformInt64, PlatformInt64Util, Uint8List;
 
 import '../../data/rust/api/budgets.dart';
 import '../../data/rust/api/categories.dart';
@@ -47,6 +47,8 @@ class LedgerController extends ChangeNotifier {
   bool isLoading = true;
   String? errorMessage;
   int _sequence = 0;
+  Future<void> _mutationQueue = Future<void>.value();
+  bool _writesDisabled = false;
   static const String _reportingCurrencyCode = 'USD';
 
   /// The currency every entry is also valued in, at a rate frozen on the entry.
@@ -61,6 +63,7 @@ class LedgerController extends ChangeNotifier {
 
   Future<void> initialize() async {
     try {
+      _ensureWritable();
       var actorId = await _identity.readActorId();
       if (actorId == null) {
         actorId = generateActorId();
@@ -167,6 +170,7 @@ class LedgerController extends ChangeNotifier {
       await _refreshGoalProgress();
       await _refreshUpcoming();
     } catch (error) {
+      _disableWrites();
       errorMessage = error.toString();
     } finally {
       isLoading = false;
@@ -640,37 +644,81 @@ class LedgerController extends ChangeNotifier {
         : slug;
   }
 
-  /// Runs a ledger mutation and durably persists its appended event frame
-  /// before updating [overview]. If the process dies before
-  /// [EventStore.appendFrame] returns, the mutation was never durable and the
-  /// next launch simply won't see it — there is no half-applied state to
-  /// reconcile.
-  Future<void> _mutateLedger(Future<LedgerMutation> Function() mutation) async {
-    final result = await mutation();
-    await _ledgerStore.appendFrame(result.appendedFrame);
-    overview = result.overview;
-    await _refreshBudgetProgress();
-    await _refreshGoalProgress();
-    await _refreshUpcoming();
+  void _ensureWritable() {
+    if (_writesDisabled) {
+      throw StateError(
+        'Restart the app to reload saved data before continuing.',
+      );
+    }
   }
+
+  void _disableWrites() {
+    _writesDisabled = true;
+    // Rust mutations precede their append. These books may contain an event
+    // whose durability is unknown; never consult or mutate them again.
+    // Keep the last confirmed display values available to the user.
+    _ledger = null;
+    _categoryBook = null;
+    _budgetBook = null;
+    _goalBook = null;
+    _recurringBook = null;
+  }
+
+  Future<void> _runMutation(Future<void> Function() action) {
+    final next = _mutationQueue.then<void>((_) async {
+      _ensureWritable();
+      await action();
+    });
+    // Invalid input must not poison the queue, but queued actions still check
+    // the fail-closed flag before touching any captured Rust handle.
+    _mutationQueue = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
+  Future<void> _saveFrame(EventStore store, Uint8List frame) async {
+    try {
+      await store.appendFrame(frame);
+    } catch (error) {
+      _disableWrites();
+      throw StateError(
+        'Save could not be confirmed. Restart the app and check saved data '
+        'before retrying, to avoid duplicates. ($error)',
+      );
+    }
+  }
+
+  /// Serialize mutation, durable append, and display refresh as one operation.
+  /// A failed append may have written nothing, a torn frame, or a complete
+  /// frame. Stop further writes and let startup recover the durable truth.
+  Future<void> _mutateLedger(Future<LedgerMutation> Function() mutation) =>
+      _runMutation(() async {
+        final result = await mutation();
+        await _saveFrame(_ledgerStore, result.appendedFrame);
+        overview = result.overview;
+        await _refreshBudgetProgress();
+        await _refreshGoalProgress();
+        await _refreshUpcoming();
+      });
 
   /// Same durability protocol as [_mutateLedger], for the categories log.
   Future<void> _mutateCategories(
     Future<CategoryMutation> Function() mutation,
-  ) async {
+  ) => _runMutation(() async {
     final result = await mutation();
-    await _categoryStore.appendFrame(result.appendedFrame);
+    await _saveFrame(_categoryStore, result.appendedFrame);
     categories = result.categories;
-  }
+  });
 
   /// Same durability protocol as [_mutateLedger], for the budgets log.
-  Future<void> _mutateBudgets(
-    Future<BudgetMutation> Function() mutation,
-  ) async {
-    final result = await mutation();
-    await _budgetStore.appendFrame(result.appendedFrame);
-    await _refreshBudgetProgress();
-  }
+  Future<void> _mutateBudgets(Future<BudgetMutation> Function() mutation) =>
+      _runMutation(() async {
+        final result = await mutation();
+        await _saveFrame(_budgetStore, result.appendedFrame);
+        await _refreshBudgetProgress();
+      });
 
   /// Recomputes every budget's progress against the ledger's current state.
   /// Called after any ledger mutation (an expense changes spend totals) and
@@ -689,11 +737,12 @@ class LedgerController extends ChangeNotifier {
   }
 
   /// Same durability protocol as [_mutateLedger], for the goals log.
-  Future<void> _mutateGoals(Future<GoalMutation> Function() mutation) async {
-    final result = await mutation();
-    await _goalStore.appendFrame(result.appendedFrame);
-    await _refreshGoalProgress();
-  }
+  Future<void> _mutateGoals(Future<GoalMutation> Function() mutation) =>
+      _runMutation(() async {
+        final result = await mutation();
+        await _saveFrame(_goalStore, result.appendedFrame);
+        await _refreshGoalProgress();
+      });
 
   /// Recomputes every goal's progress against the ledger's current state.
   /// Called after any ledger mutation (an expense or a linked account's
@@ -710,11 +759,11 @@ class LedgerController extends ChangeNotifier {
   /// Same durability protocol as [_mutateLedger], for the recurring-rule log.
   Future<void> _mutateRecurring(
     Future<RecurringMutation> Function() mutation,
-  ) async {
+  ) => _runMutation(() async {
     final result = await mutation();
-    await _recurringStore.appendFrame(result.appendedFrame);
+    await _saveFrame(_recurringStore, result.appendedFrame);
     await _refreshUpcoming();
-  }
+  });
 
   /// Recomputes every recurring rule's next occurrence. Called after any
   /// ledger mutation (recording an occurrence advances its rule) and after
