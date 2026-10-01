@@ -295,7 +295,11 @@ The run found and fixed an accessibility issue: generated phrases and copyable
 codes were visible but exposed as empty textboxes in Chrome's accessibility
 tree. Explicit read-only semantic labels preserve pointer selection/copying;
 13 focused widget tests and analyzer passed. This is not a full WCAG or
-VoiceOver/NVDA audit. The iOS simulator retry is still pending; Android's
+VoiceOver/NVDA audit. The aggregate iOS simulator run subsequently passed in
+[run 36922253563](https://github.com/arsalmurad/cash-app/actions/runs/36922253563)
+at `2cf81b4`: personal runtime, protected household recovery runtime, and unsigned
+release build. Earlier simulator timeouts remain recorded as failed attempts,
+not successful runs. This result predates the SQLite storage change. Android's
 protected native household scenario and release APK passed in
 [run 36913443159](https://github.com/arsalmurad/cash-app/actions/runs/36913443159)
 at recovery revision `e5bf1e2`, before the accessibility-only UI change.

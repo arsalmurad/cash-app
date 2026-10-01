@@ -43,7 +43,7 @@ compaction.
 ## Persistence
 
 The ledger core has no storage or platform dependency (see Boundaries below),
-so persistence is a codec plus a place to put bytes, not a schema.
+so persistence wraps event-codec bytes rather than mutable financial rows.
 
 - `rust/core` defines a durable log frame format: one event per frame,
   length-prefixed and checksummed, so a frame is self-describing and a torn
@@ -60,16 +60,13 @@ so persistence is a codec plus a place to put bytes, not a schema.
   drift from "restore". `add_account`/`record_transaction` return the
   frame for the event they just appended only when the ledger accepted it,
   so a rejected write can never reach durable storage.
-- Native file access is not available from Rust running as WASM in a
-  browser, so the app (Dart), not the core, owns *where* the bytes live:
-  `app/lib/data/storage/event_store_io.dart` appends to a plain file in the
-  OS-sandboxed app support directory on iOS/Android/desktop, and
-  `event_store_web.dart` base64-encodes the log into `window.localStorage`
-  for Flutter web, since a page has no filesystem. Both implement the same
-  `EventStore` interface, selected at compile time the same way the
-  generated `frb_generated.io.dart`/`frb_generated.web.dart` bridge files
-  already are, so everything above the storage layer — including the Rust
-  ledger — stays platform-agnostic.
+- `rust/storage` owns SQLite transactions, append-only frame storage,
+  document tombstones and checked revisions. Native devices use an app-support
+  SQLite file. Browser callers run synchronous Rust SQLite and save its complete
+  image to localStorage under an exclusive Web Lock; this is not OPFS and has
+  whole-database copy/quota limitations. The Dart adapters transport paths or
+  bytes, not SQL. Legacy adapters remain import readers rather than the default
+  stores. See `SQLITE-STORAGE.md` for migration, durability and protection limits.
 - The actor ID is generated once on first launch, persisted next to the
   event log, and reused on every later launch. It must never change once
   events exist: the total order and idempotency both key on it, and the

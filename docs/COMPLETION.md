@@ -53,8 +53,9 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   no private ledger or readable financial fields may reach the relay.
 - [ ] Review personal UX coverage against the stated Cashew quality bar, not
   just widget presence; fix functional gaps and verify phone/tablet/web layouts.
-- [ ] Pin reproducible CI environments (including WASM nightly) and resolve
-  relevant compatibility warnings without discarding known-working caches.
+- [x] Pin reproducible CI environments, including explicit WASM nightly,
+  action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
+  remain recorded rather than hidden or upgraded without verification.
 - [ ] Run final acceptance checks on the final source revision for iOS, Android,
   and production web/WASM; record commands, runtime, results and artifact paths.
 - [ ] Finish concise setup, recovery, security-limit and verification docs, with

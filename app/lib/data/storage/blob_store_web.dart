@@ -4,8 +4,9 @@ import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 
 import 'blob_store.dart';
+import 'sqlite_store.dart';
 
-BlobStore createBlobStore(String name) => WebBlobStore(name);
+BlobStore createBlobStore(String name) => SqliteBlobStore(name);
 
 /// Browser blob storage in `window.localStorage`, base64-encoded.
 /// `Storage.setItem` commits a whole value atomically in every mainstream

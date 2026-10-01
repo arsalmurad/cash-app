@@ -9,6 +9,7 @@ import 'package:private_ledger/data/rust/api/goals.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/data/rust/api/recurring.dart';
 import 'package:private_ledger/data/rust/frb_generated.dart';
+import 'package:private_ledger/data/storage/event_store_io.dart';
 import 'package:private_ledger/features/ledger/ledger_controller.dart';
 
 class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
@@ -55,7 +56,7 @@ Future<void> _writePlans(LedgerController controller, String label) async {
 void main() {
   final libraryPath = Platform.environment['RUST_LIB_PATH'];
   test(
-    'new entries survive restart after recovery from a torn frame',
+    'new entries survive SQLite migration of legacy torn logs',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ledger-recovery-',
@@ -68,7 +69,14 @@ void main() {
       });
       await RustLib.init(externalLibrary: ExternalLibrary.open(libraryPath!));
 
-      final original = LedgerController();
+      final original = LedgerController(
+        identity: IoDeviceIdentity(),
+        ledgerStore: IoEventStore('ledger'),
+        categoryStore: IoEventStore('categories'),
+        budgetStore: IoEventStore('budgets'),
+        goalStore: IoEventStore('goals'),
+        recurringStore: IoEventStore('recurring'),
+      );
       addTearDown(original.dispose);
       await original.initialize();
       expect(original.errorMessage, isNull);
@@ -90,12 +98,14 @@ void main() {
           .where((file) => file.path.endsWith('.log'))
           .toList();
       expect(logs.length, 5); // all five durable logs
+      final legacyBytes = <String, Uint8List>{};
       for (final file in logs) {
         await file.writeAsBytes(
           Uint8List.fromList([1, 0, 0]),
           mode: FileMode.append,
           flush: true,
         );
+        legacyBytes[file.path] = await file.readAsBytes();
       }
 
       final recovered = LedgerController();
@@ -147,11 +157,14 @@ void main() {
         restarted.upcoming.map((item) => item.title),
         containsAll(['Before crash recurring', 'After crash recurring']),
       );
+      // The source logs remain recoverable. Torn originals are additionally
+      // archived inside SQLite by the transaction tested in cash_storage.
+      for (final file in logs) {
+        expect(await file.readAsBytes(), legacyBytes[file.path]);
+      }
       expect(
-        directory.listSync().whereType<File>().where(
-          (file) => file.path.contains('.recovery-'),
-        ),
-        hasLength(5),
+        await File('${directory.path}/cash-app.v1.sqlite').exists(),
+        isTrue,
       );
     },
     skip: libraryPath == null
