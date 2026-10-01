@@ -26,8 +26,19 @@ Future<Household> householdNew({
 Future<Household> householdRestore({required List<int> saved}) =>
     RustLib.instance.api.crateApiSharedHouseholdRestore(saved: saved);
 
+/// Import signed history from a backup after a replacement identity has joined
+/// the original household. Old sender keys and delivery intent are not reused.
+/// Returns false without importing while the old signing key is still a member.
+Future<bool> householdMergeRecoveryHistory({
+  required Household household,
+  required List<int> saved,
+}) => RustLib.instance.api.crateApiSharedHouseholdMergeRecoveryHistory(
+  household: household,
+  saved: saved,
+);
+
 /// Everything needed to resume after a restart, including private keys:
-/// store it like a password. Fails while a commit is pending.
+/// store it like a password. Includes an exact pending-commit journal.
 Future<Uint8List> householdExport({required Household household}) =>
     RustLib.instance.api.crateApiSharedHouseholdExport(household: household);
 

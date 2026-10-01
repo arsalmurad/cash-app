@@ -221,6 +221,45 @@ void main() {
   });
 
   group('HouseholdSetupPane', () {
+    testWidgets(
+      'recovered history is read-only and a joined replacement can finish',
+      (tester) async {
+        var synced = 0;
+        await tester.pumpWidget(
+          _host(
+            HouseholdSetupPane(
+              relayUrl: 'https://relay.example',
+              busy: false,
+              onSaveRelay: (_) async {},
+              onCreate: () {},
+              onJoin: () {},
+              onRestore: () {},
+              recoveryOverview: _overview(transactions: const [_dinner]),
+              recoveryJoined: true,
+              onFinishRecovery: () => synced++,
+            ),
+          ),
+        );
+        expect(find.text('Backup history saved'), findsOneWidget);
+        expect(
+          tester
+              .widget<FilledButton>(find.byKey(const Key('create')))
+              .onPressed,
+          isNull,
+        );
+        await tester.tap(find.byType(ExpansionTile));
+        await tester.pumpAndSettle();
+        expect(find.text('Dinner'), findsOneWidget);
+        expect(find.byType(PopupMenuButton), findsNothing);
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('join')),
+          250,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.byKey(const Key('join')));
+        expect(synced, 1);
+      },
+    );
     testWidgets('saves the relay address and offers create, join, restore', (
       tester,
     ) async {

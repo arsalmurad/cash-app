@@ -598,6 +598,57 @@ impl Peer {
         self.member.public_key()
     }
 
+    /// Recover authenticated history only, never an old MLS sender ratchet.
+    /// The replacement must first be freshly invited to the same household.
+    /// Validate every proof before changing state; preserve its original author.
+    pub fn merge_recovery_history(&mut self, saved: &[u8]) -> Result<bool, SyncError> {
+        self.ensure_not_staged()?;
+        let archive = Self::import(saved)?;
+        if !self.is_member()
+            || archive.legacy_unverified
+            || self.group.is_none()
+            || self.group != archive.group
+        {
+            return Err(SyncError(
+                "Join the original household with a fresh invite before recovering signed history."
+                    .to_owned(),
+            ));
+        }
+        // Even an empty archive must refer to this cryptographic MLS group,
+        // not just a relay ID supplied by the invitation's text.
+        if self.member.group_identifier() != archive.member.group_identifier() {
+            return Err(SyncError(
+                "The backup belongs to another cryptographic household.".to_owned(),
+            ));
+        }
+        if self.public_key() == archive.public_key() {
+            return Err(SyncError("Remove the old device before inviting its replacement; recovery must use fresh keys.".to_owned()));
+        }
+        for proof in archive.proofs.values() {
+            proof.verify(&self.member)?;
+        }
+        // A correctly joined fresh identity can wait durably for retirement
+        // rather than consume and then discard its single-use welcome.
+        if self
+            .member_keys()?
+            .iter()
+            .any(|(_, key)| key == &archive.public_key())
+        {
+            return Ok(false);
+        }
+        let mut ids = Vec::new();
+        for (id, proof) in archive.proofs {
+            if !self.known.contains(&id) {
+                ids.push(id);
+                self.observe(proof);
+            }
+        }
+        if !ids.is_empty() {
+            self.outbox.push_back(Outbound::Backfill { ids, offset: 0 });
+        }
+        Ok(true)
+    }
+
     /// Starts a new household group with this peer as its only member,
     /// returning the group's random ID.
     pub fn found_group(&mut self) -> Result<String, SyncError> {

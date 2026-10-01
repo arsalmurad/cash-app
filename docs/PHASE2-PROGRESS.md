@@ -1,6 +1,6 @@
 # Phase 2 progress
 
-Updated 2026-10-01. Phase 2 (the shared layer, brief section 6) is in
+Updated 2026-10-02. Phase 2 (the shared layer, brief section 6) is in
 progress: the cryptographic and sync core, bridge, and household UI exist,
 with the runtime evidence and remaining limitations listed below. The relay
 is **not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
@@ -218,6 +218,54 @@ or guarantee protection from copying an old MLS backup and forking its identity.
 Android automatic backup/transfer is disabled; use explicit encrypted household
 backups and personal export instead. No new production WASM runtime is claimed.
 
+### Protected-store platform evidence
+
+PR #13 merged as `494253c`. The browser-release fix was independently verified
+by [Linux app/Chrome run](https://github.com/arsalmurad/cash-app/actions/runs/36907999062)
+at `0d4c68d`. Mobile checks at `99c7887` (identical native source; the subsequent
+change only fixes browser lease release) passed actual secure storage/file
+write, new-provider readback and ciphertext inspection in the household scenario:
+[iOS simulator and unsigned release](https://github.com/arsalmurad/cash-app/actions/runs/36907364313)
+and [Android emulator and release APK](https://github.com/arsalmurad/cash-app/actions/runs/36907370476).
+Android's first attempt failed downloading an emulator archive before boot; the
+retry passed. These are runtime checks, not just compilation or plugin mocks.
+
+## Fresh-key backup recovery (2026-10-02, platform checks pending)
+
+A new regression reproduced a stale-backup failure after the original device
+sent messages: OpenMLS identified its own newer private message, whose plaintext
+is unavailable to the restored snapshot. Skipping it would lose history and
+still risk rewinding the sender ratchet. Working-journal restart is unchanged;
+explicit backup restoration now recovers an encrypted history archive and a
+fresh identity, never resumes old messaging keys or outstanding old invitations.
+
+Another household member removes the old signing key and invites the replacement.
+The Rust merge checks both relay and cryptographic MLS group identity, validates
+every original signature before mutation, preserves original authors/conflicts,
+and queues missing saved events as authenticated backfill. A correctly joined
+replacement can wait through restart if removal happens after invitation; it
+cannot share changes or alter membership before recovery finishes. Wrong-group
+welcomes roll back the unused replacement identity without consuming its mailbox.
+Journal v2 carries the archive and rejects silent downgrade; v1/raw Rust state
+remain readable. A household with no other available member retains its backup
+as a read-only archive rather than pretending old messaging keys are safe.
+
+Independently passed: three new Rust recovery tests; the locked full Rust
+workspace suite, including three-peer 1,000-event convergence (142.80 s); and
+187 Windows app tests through the rebuilt bridge with clean analyzer. The
+real-bridge recovery test covers an early invitation, newer old-device sends,
+restart while waiting, denied premature publication, and later convergence and
+old-device removal. Separate read-only archive UI checks and mobile protected
+file/keychain scenarios are being verified; no new production WASM claim.
+
+Commands: `cargo test --manifest-path rust/Cargo.toml --workspace --locked`,
+`cargo build --manifest-path rust/Cargo.toml -p rust_lib_cash_app --locked`, and
+the same app commands listed above. Full mobile household tests now use sealed
+app-private files and distinct OS keys for the simulated devices, recreating
+storage/key providers on restart; they no longer substitute in-memory working
+journals. The relay in that mobile scenario remains in memory and the browser
+HTTP/production-app gate stays open.
+
 ## Not done
 
 Household save-safety changes were independently exercised through the rebuilt
@@ -233,10 +281,9 @@ journals above, but do not alone close the full durability gate.
   owner action), and the app has no default relay address: the user enters
   one. No authentication, rate limiting, abuse controls, or log retention
   policy exist yet; a public relay needs them.
-- **Secrets at rest verification.** Working journals are now sealed as described
-  above, but the new native keychain/keystore and actual-browser lock flows must
-  pass their platform checks before closing the gate. Stale recovery after later
-  sends and duplicate restored sender identities also need explicit coverage.
+- **Recovery after later sends.** At-rest platform checks passed above. Stale
+  backup recovery and duplicate restored sender identities require the separate
+  fresh-membership recovery checks, not just successful decryption of a backup.
 - **Historical membership policy.** Origin keys and live MLS senders are now
   authenticated as described above; signatures are not historical membership
   attestations. Current members still control publication of forwarded history.

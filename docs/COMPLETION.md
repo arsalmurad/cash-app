@@ -1,6 +1,6 @@
 # Completion tracker
 
-Updated 2026-10-01. The active objective is to finish the private prototype
+Updated 2026-10-02. The active objective is to finish the private prototype
 against `expense-app-build-brief.md`, not merely merge individual milestones.
 Unchecked work is not a completion claim. Keep this file current as gates pass.
 
@@ -29,8 +29,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   remain explicit in `PHASE2-PROGRESS.md`.
 - [ ] Make household mutations, membership commits, persistence and network
   retries safe under storage failures, concurrency and interrupted invitations.
-- [ ] Protect the working household private-key state at rest on native and web;
-  keep recovery and wrong-phrase handling independently tested.
+- [x] Protect the working household private-key state at rest on native and web;
+  PR #13, `494253c`: real OS secure-storage/file checks on iOS and Android,
+  Chrome RAM-only/exclusive-lock checks, and 185 host app tests passed.
+  Production household WASM and stale-backup recovery remain separate gates.
 - [ ] Drive the complete household scenario in the production web/WASM app,
   including browser-to-worker CORS, restart, offline edits, recovery and removal.
 - [x] Inspect real workerd Durable Object records for ciphertext-only contents,

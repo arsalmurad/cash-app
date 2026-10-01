@@ -290,13 +290,16 @@ void main() {
           ),
           isTrue,
         );
-        expect(restored.isMember, isTrue);
+        expect(restored.isMember, isFalse);
+        expect(restored.needsRecoveryInvite, isTrue);
+        expect(restored.recoveryOverview!.isMember, isTrue);
         expect(keys.phrase, newPhrase);
         await restored.lockBrowserVault();
         final fresh = controller(blob, keys);
         await fresh.initialize();
         expect(await fresh.unlockBrowserVault(newPhrase), isTrue);
-        expect(fresh.isMember, isTrue);
+        expect(fresh.isMember, isFalse);
+        expect(fresh.needsRecoveryInvite, isTrue);
       },
     );
   }, skip: libraryPath == null ? 'set RUST_LIB_PATH to the native bridge' : false);

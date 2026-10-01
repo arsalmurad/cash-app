@@ -7,6 +7,36 @@ import 'package:private_ledger/data/storage/blob_store.dart';
 import 'package:private_ledger/data/storage/secret_blob_store.dart';
 import 'package:private_ledger/data/storage/vault_keys_native.dart';
 
+import 'household_scenario.dart';
+
+/// The full real-bridge household scenario, now with sealed app-private files
+/// and real OS keys for every simulated device; restart recreates both stores.
+Future<void> runProtectedNativeHouseholdScenario() async {
+  final namespace =
+      'protected-household-${DateTime.now().microsecondsSinceEpoch}';
+  final scopes = <String>{};
+  try {
+    await runHouseholdScenario(
+      stateFactory: (scope) {
+        scopes.add(scope);
+        return SecretBlobStore(
+          BlobStore('$namespace-$scope'),
+          keys: NativeVaultKeys(key: 'cash-app.test.$namespace.$scope'),
+        );
+      },
+      configFactory: (scope) => BlobStore('$namespace-$scope-config'),
+    );
+  } finally {
+    for (final scope in scopes) {
+      await BlobStore('$namespace-$scope').delete();
+      await BlobStore('$namespace-$scope-config').delete();
+      await const FlutterSecureStorage().delete(
+        key: 'cash-app.test.$namespace.$scope',
+      );
+    }
+  }
+}
+
 /// Actual OS keychain/keystore and app-private file, not plugin mocks. RustLib
 /// must already be initialized. Deletes only this uniquely named test material.
 Future<void> runNativeVaultScenario() async {

@@ -162,7 +162,7 @@ void main() {
       }
 
       test(
-        'a sealed backup retains pending delivery and its relay address',
+        'recovery retires old delivery intent; the original journal can resume',
         () async {
           final relay = _FaultRelay();
           final original = HouseholdController(
@@ -194,8 +194,16 @@ void main() {
             isTrue,
           );
           expect(replacement.relayUrl, 'https://relay.test');
-          expect(replacement.lastInviteCode, isNotNull);
-          expect(await bob.acceptInvite(replacement.lastInviteCode!), isTrue);
+          expect(replacement.lastInviteCode, isNull);
+          expect(replacement.hasPendingInvitation, isFalse);
+          expect(replacement.needsRecoveryInvite, isTrue);
+          final delivered = (await original.resumeInvitation())!;
+          expect(await bob.acceptInvite(delivered), isTrue);
+          expect(await bob.removeMember(original.overview!.memberId), isTrue);
+          final fresh = (await bob.invite(
+            (await replacement.prepareJoinRequest())!,
+          ))!;
+          expect(await replacement.acceptInvite(fresh), isTrue);
         },
       );
 
@@ -250,6 +258,16 @@ void main() {
           await original.initialize();
           await original.setRelayUrl('https://relay.test');
           await original.createHousehold();
+          final other = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await other.initialize();
+          final otherInvite = (await original.invite(
+            (await other.prepareJoinRequest())!,
+          ))!;
+          await other.acceptInvite(otherInvite);
           final backup = (await original.createBackup())!;
           final broken = _Store()..value = Uint8List.fromList([1, 2, 3]);
           final replacement = HouseholdController(
@@ -269,11 +287,80 @@ void main() {
             isTrue,
           );
           expect(
+            await replacement.addExpense(title: 'Unsafe', amount: '1.00'),
+            isFalse,
+          );
+          expect(await other.removeMember(original.overview!.memberId), isTrue);
+          final fresh = (await other.invite(
+            (await replacement.prepareJoinRequest())!,
+          ))!;
+          expect(await replacement.acceptInvite(fresh), isTrue);
+          expect(
             await replacement.addExpense(title: 'Recovered', amount: '1.00'),
             isTrue,
           );
         },
       );
+
+      test('an early recovery invite waits durably for retirement without publishing', () async {
+        final relay = _FaultRelay();
+        HouseholdController device(_Store state) => HouseholdController(
+          stateStore: state,
+          configStore: _Store(),
+          relayFactory: (_) => relay,
+        );
+        final alice = device(_Store());
+        final bob = device(_Store());
+        await alice.initialize();
+        await bob.initialize();
+        await alice.setRelayUrl('https://relay.test');
+        await alice.createHousehold();
+        final invite = (await alice.invite((await bob.prepareJoinRequest())!))!;
+        await bob.acceptInvite(invite);
+        final oldId = bob.overview!.memberId;
+        final backup = (await bob.createBackup())!;
+        await bob.addExpense(title: 'Sent after backup', amount: '2.00');
+        await alice.syncNow();
+        final state = _Store();
+        final first = device(state);
+        await first.initialize();
+        expect(await first.restoreBackup(backup.phrase, backup.backup), isTrue);
+        expect(first.isMember, isFalse);
+        final fresh = (await alice.invite(
+          (await first.prepareJoinRequest())!,
+        ))!;
+        expect(await first.acceptInvite(fresh), isFalse);
+        expect(first.needsRecoveryInvite, isTrue);
+        expect(first.errorMessage, contains('remove the old device'));
+        expect(
+          await first.addExpense(title: 'Must not send', amount: '9.00'),
+          isFalse,
+        );
+        expect(
+          await first.invite((await device(_Store()).prepareJoinRequest())!),
+          isNull,
+        );
+        final restarted = device(state);
+        await restarted.initialize();
+        expect(restarted.needsRecoveryInvite, isTrue);
+        expect(await restarted.syncNow(), isFalse);
+        expect(await alice.removeMember(oldId), isTrue);
+        expect(await restarted.syncNow(), isTrue);
+        expect(restarted.needsRecoveryInvite, isFalse);
+        expect(
+          restarted.overview!.transactions.single.title,
+          'Sent after backup',
+        );
+        expect(
+          await restarted.addExpense(title: 'Fresh ratchet', amount: '1.00'),
+          isTrue,
+        );
+        expect(await alice.syncNow(), isTrue);
+        expect(alice.overview!.balanceLabel, restarted.overview!.balanceLabel);
+        expect(await bob.syncNow(), isTrue);
+        expect(bob.isMember, isFalse);
+        expect(bob.overview!.transactions.length, 1);
+      });
 
       for (final failure in [
         'peek-reply',
