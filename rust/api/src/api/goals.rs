@@ -158,7 +158,7 @@ pub fn upsert_goal(
     }
 
     let mut data = lock(book)?;
-    let timestamp = data.next_timestamp(wall_clock_millis);
+    let timestamp = data.next_timestamp(wall_clock_millis)?;
     let event_id = format!(
         "{}-{:016x}-{:08x}",
         data.actor_id, timestamp.physical_millis, timestamp.logical
@@ -295,17 +295,13 @@ fn lock(book: &GoalBook) -> Result<MutexGuard<'_, GoalBookData>, String> {
 }
 
 impl GoalBookData {
-    fn next_timestamp(&mut self, wall_clock_millis: i64) -> HybridTimestamp {
-        let timestamp = if wall_clock_millis > self.last_timestamp.physical_millis {
-            HybridTimestamp::new(wall_clock_millis, 0)
-        } else {
-            HybridTimestamp::new(
-                self.last_timestamp.physical_millis,
-                self.last_timestamp.logical.saturating_add(1),
-            )
-        };
+    fn next_timestamp(&mut self, wall_clock_millis: i64) -> Result<HybridTimestamp, String> {
+        let timestamp = self
+            .last_timestamp
+            .checked_next(wall_clock_millis)
+            .ok_or_else(|| "hybrid clock exhausted".to_owned())?;
         self.last_timestamp = timestamp;
-        timestamp
+        Ok(timestamp)
     }
 }
 
@@ -313,6 +309,18 @@ impl GoalBookData {
 mod tests {
     use super::*;
     use crate::api::ledger::{EntryKind, LedgerMutation, add_account, load_personal_ledger, record_transaction};
+
+    #[test]
+    fn book_clock_carries_and_refuses_exhaustion() {
+        let book = new_book("device-a");
+        let mut data = book.data.lock().unwrap();
+        data.last_timestamp = HybridTimestamp::new(100, u32::MAX);
+        assert_eq!(data.next_timestamp(1).unwrap(), HybridTimestamp::new(101, 0));
+        let exhausted = HybridTimestamp::new(i64::MAX, u32::MAX);
+        data.last_timestamp = exhausted;
+        assert!(data.next_timestamp(1).is_err());
+        assert_eq!(data.last_timestamp, exhausted);
+    }
 
     fn new_book(actor_id: &str) -> GoalBook {
         load_goal_book(actor_id.to_owned(), Vec::new()).unwrap()
