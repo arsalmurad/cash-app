@@ -12,6 +12,7 @@
 //! a writer whose view is stale simply loses the compare-and-swap, catches
 //! up, and retries. No peer needs to see another directly.
 
+mod authenticated_history;
 #[cfg(feature = "http")]
 mod http;
 mod ids;

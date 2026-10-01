@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { Miniflare } from "miniflare";
+import { fileURLToPath } from "node:url";
 
 const group = "0123456789abcdef0123456789abcdef";
 const b64 = (text) => Buffer.from(text).toString("base64");
@@ -10,7 +11,7 @@ let mf;
 before(async () => {
   mf = new Miniflare({
     modules: true,
-    scriptPath: new URL("../src/worker.js", import.meta.url).pathname,
+    scriptPath: fileURLToPath(new URL("../src/worker.js", import.meta.url)),
     durableObjects: { GROUP: "GroupLog", MAILBOX: "Mailbox" },
     compatibilityDate: "2026-07-01",
   });

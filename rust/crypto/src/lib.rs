@@ -19,6 +19,7 @@ use openmls::prelude::tls_codec::Serialize as _;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
+use openmls_traits::{crypto::OpenMlsCrypto, signatures::Signer};
 use sha2::{Digest, Sha256};
 
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -49,6 +50,13 @@ pub enum Received {
     Removed,
     /// This member's own earlier message, echoed back by the relay.
     Own,
+}
+
+/// The identity OpenMLS authenticated, never an application-provided actor ID.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthenticatedSender {
+    pub identity: String,
+    pub public_key: Vec<u8>,
 }
 
 /// A commit that adds one member, plus the welcome only that member needs.
@@ -98,6 +106,19 @@ impl<'a> ExportReader<'a> {
 
 fn digest(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
+}
+
+/// Self-certifying event-author identity. A caller-chosen member label must
+/// never let one signing key impersonate another event author.
+pub fn author_id(public_key: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"cash-app author identity v1\0");
+    hasher.update(public_key);
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 impl Member {
@@ -261,6 +282,47 @@ impl Member {
         self.signer.public().to_vec()
     }
 
+    fn history_payload(&self, payload: &[u8]) -> Result<Vec<u8>, Error> {
+        let mut bytes = b"cash-app authenticated history v1\0".to_vec();
+        write_field(&mut bytes, self.group()?.group_id().as_slice());
+        write_field(&mut bytes, payload);
+        Ok(bytes)
+    }
+
+    /// Sign immutable history with the existing MLS Ed25519 identity. Domain
+    /// separation and the cryptographic group ID prevent cross-protocol and
+    /// cross-household replay. This signature survives forwarding and removal.
+    pub fn sign_history(&self, payload: &[u8]) -> Result<Vec<u8>, Error> {
+        if !self.is_active() {
+            return Err(Error(
+                "only an active member can sign new history".to_owned(),
+            ));
+        }
+        self.signer
+            .sign(&self.history_payload(payload)?)
+            .map_err(fail)
+    }
+
+    /// Verify an original author's proof, including after that author leaves.
+    /// Authorization and binding this key to an actor remain the sync layer's
+    /// responsibility; a valid signature alone does not establish membership.
+    pub fn verify_history(
+        &self,
+        public_key: &[u8],
+        payload: &[u8],
+        signature: &[u8],
+    ) -> Result<(), Error> {
+        self.provider
+            .crypto()
+            .verify_signature(
+                CIPHERSUITE.signature_algorithm(),
+                &self.history_payload(payload)?,
+                public_key,
+                signature,
+            )
+            .map_err(fail)
+    }
+
     /// A fresh single-use key package for someone to add this member with.
     pub fn key_package(&self) -> Result<Vec<u8>, Error> {
         let bundle = KeyPackage::builder()
@@ -369,6 +431,16 @@ impl Member {
             .group
             .as_mut()
             .ok_or_else(|| Error("this member is not in a group".to_owned()))?;
+        let identity = BasicCredential::try_from(key_package.leaf_node().credential().clone())
+            .map_err(fail)?;
+        if group.members().any(|member| {
+            BasicCredential::try_from(member.credential)
+                .is_ok_and(|existing| existing.identity() == identity.identity())
+        }) {
+            return Err(Error(
+                "a member with this identity already belongs to the household".to_owned(),
+            ));
+        }
         let (commit, welcome, _) = group
             .add_members(&self.provider, &self.signer, &[key_package])
             .map_err(fail)?;
@@ -441,8 +513,18 @@ impl Member {
     /// fed in stream order; an entry from an epoch this member has already
     /// left (for instance, after being removed) fails.
     pub fn receive(&mut self, bytes: &[u8]) -> Result<Received, Error> {
+        self.receive_authenticated(bytes)
+            .map(|(received, _)| received)
+    }
+
+    /// Process a stream entry and retain the MLS-authenticated application
+    /// sender. Commits and own-message echoes have no application sender.
+    pub fn receive_authenticated(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<(Received, Option<AuthenticatedSender>), Error> {
         if self.sent.contains(&digest(bytes)) {
-            return Ok(Received::Own);
+            return Ok((Received::Own, None));
         }
         let group = self
             .group
@@ -455,20 +537,55 @@ impl Member {
                 message.try_into_protocol_message().map_err(fail)?,
             )
             .map_err(fail)?;
+        let sender = if matches!(
+            processed.content(),
+            ProcessedMessageContent::ApplicationMessage(_)
+        ) {
+            // The transport feeds the totally ordered stream. Do not resolve a
+            // past epoch's leaf index against the current epoch's ratchet tree.
+            if processed.epoch() != group.epoch() {
+                return Err(Error(
+                    "application message is not in the current epoch".to_owned(),
+                ));
+            }
+            let Sender::Member(index) = processed.sender() else {
+                return Err(Error("application sender is not a group member".to_owned()));
+            };
+            let member = group
+                .members()
+                .find(|member| member.index == *index)
+                .ok_or_else(|| {
+                    Error("authenticated sender is missing from the group".to_owned())
+                })?;
+            if &member.credential != processed.credential() {
+                return Err(Error("authenticated sender credential mismatch".to_owned()));
+            }
+            let credential =
+                BasicCredential::try_from(processed.credential().clone()).map_err(fail)?;
+            Some(AuthenticatedSender {
+                identity: String::from_utf8(credential.identity().to_vec()).map_err(fail)?,
+                public_key: member.signature_key,
+            })
+        } else {
+            None
+        };
         match processed.into_content() {
             ProcessedMessageContent::ApplicationMessage(message) => {
-                Ok(Received::Application(message.into_bytes()))
+                Ok((Received::Application(message.into_bytes()), sender))
             }
             ProcessedMessageContent::StagedCommitMessage(staged) => {
                 group
                     .merge_staged_commit(&self.provider, *staged)
                     .map_err(fail)?;
                 if group.is_active() {
-                    Ok(Received::Commit {
-                        epoch: group.epoch().as_u64(),
-                    })
+                    Ok((
+                        Received::Commit {
+                            epoch: group.epoch().as_u64(),
+                        },
+                        None,
+                    ))
                 } else {
-                    Ok(Received::Removed)
+                    Ok((Received::Removed, None))
                 }
             }
             _ => Err(Error("unsupported MLS message type".to_owned())),

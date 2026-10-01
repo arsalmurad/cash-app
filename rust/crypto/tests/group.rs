@@ -1,5 +1,67 @@
 use cash_crypto::{Member, Received, safety_number};
 
+#[test]
+fn application_sender_is_the_authenticated_mls_signer() {
+    let (mut alice, mut bob, _) = three();
+    let ciphertext = bob.encrypt(b"signed event").unwrap();
+    let (received, sender) = alice.receive_authenticated(&ciphertext).unwrap();
+    assert_eq!(received, Received::Application(b"signed event".to_vec()));
+    let sender = sender.unwrap();
+    assert_eq!(sender.identity, "bob");
+    assert_eq!(sender.public_key, bob.public_key());
+}
+
+#[test]
+fn an_invite_cannot_reuse_an_existing_members_identity() {
+    let (mut alice, _, _) = three();
+    let impostor = Member::new("bob").unwrap();
+    assert!(alice.add(&impostor.key_package().unwrap()).is_err());
+    assert_eq!(alice.member_names().unwrap(), ["alice", "bob", "carol"]);
+    assert!(alice.encrypt(b"still usable").is_ok());
+}
+
+#[test]
+fn detached_history_signatures_survive_removal_and_restart_but_reject_tampering() {
+    let (mut alice, bob, mut carol) = three();
+    let payload = b"original immutable event";
+    let signature = bob.sign_history(payload).unwrap();
+    let key = bob.public_key();
+    alice.verify_history(&key, payload, &signature).unwrap();
+    assert!(
+        alice
+            .verify_history(&key, b"changed event", &signature)
+            .is_err()
+    );
+    assert!(
+        alice
+            .verify_history(&carol.public_key(), payload, &signature)
+            .is_err()
+    );
+    let mut corrupt = signature.clone();
+    corrupt[0] ^= 1;
+    assert!(alice.verify_history(&key, payload, &corrupt).is_err());
+    let commit = alice.remove("bob").unwrap();
+    alice.confirm_commit().unwrap();
+    carol.receive(&commit).unwrap();
+    let restored = Member::import(&carol.export().unwrap()).unwrap();
+    restored.verify_history(&key, payload, &signature).unwrap();
+}
+
+#[test]
+fn history_signatures_cannot_be_replayed_into_a_different_household() {
+    let (alice, _, _) = three();
+    let signature = alice.sign_history(b"event").unwrap();
+    let mut other = Member::new("other").unwrap();
+    other.create_group().unwrap();
+    assert!(
+        other
+            .verify_history(&alice.public_key(), b"event", &signature)
+            .is_err()
+    );
+    let unjoined = Member::new("unjoined").unwrap();
+    assert!(unjoined.sign_history(b"event").is_err());
+}
+
 /// Adds `joiner` to `adder`'s group and brings every `others` member up to
 /// the new epoch, the way the relay's ordered log would.
 fn add(adder: &mut Member, joiner: &mut Member, others: &mut [&mut Member]) {

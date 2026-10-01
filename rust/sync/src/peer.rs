@@ -1,28 +1,30 @@
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 
+use crate::authenticated_history::SignedEvent;
 use cash_core::{
     Currency, EditField, Event, EventId, EventKind, HybridTimestamp, SharedEvent, SharedState,
     decode_shared_event, encode_shared_event, fold_shared,
 };
-use cash_crypto::{Member, Received};
+use cash_crypto::{Member, Received, author_id};
 
 use crate::ids::random_id;
 use crate::relay::{MailboxItem, Relay, RelayError};
 
-const EXPORT_MAGIC: &[u8] = b"cash-app peer v1\0";
+const EXPORT_MAGIC: &[u8] = b"cash-app peer v2\0";
+const LEGACY_EXPORT_MAGIC: &[u8] = b"cash-app peer v1\0";
 
-fn write_field(bytes: &mut Vec<u8>, field: &[u8]) {
+pub(crate) fn write_field(bytes: &mut Vec<u8>, field: &[u8]) {
     bytes.extend_from_slice(&(field.len() as u64).to_be_bytes());
     bytes.extend_from_slice(field);
 }
 
-struct Reader<'a> {
-    bytes: &'a [u8],
+pub(crate) struct Reader<'a> {
+    pub(crate) bytes: &'a [u8],
 }
 
 impl<'a> Reader<'a> {
-    fn take(&mut self, len: usize) -> Option<&'a [u8]> {
+    pub(crate) fn take(&mut self, len: usize) -> Option<&'a [u8]> {
         if self.bytes.len() < len {
             return None;
         }
@@ -39,7 +41,7 @@ impl<'a> Reader<'a> {
         Some(u32::from_be_bytes(self.take(4)?.try_into().ok()?))
     }
 
-    fn field(&mut self) -> Option<&'a [u8]> {
+    pub(crate) fn field(&mut self) -> Option<&'a [u8]> {
         let len = usize::try_from(self.u64()?).ok()?;
         self.take(len)
     }
@@ -57,38 +59,41 @@ enum Outbound {
     Backfill { ids: Vec<EventId>, offset: usize },
 }
 
-const PAYLOAD_EVENT: u8 = 1;
-const PAYLOAD_BATCH: u8 = 2;
+const PAYLOAD_EVENT: u8 = 3;
+const PAYLOAD_BATCH: u8 = 4;
 const MAX_BATCH_EVENTS: usize = 200;
 const MAX_BATCH_BYTES: usize = 48 * 1024;
 
-fn encode_event_payload(event: &SharedEvent) -> Vec<u8> {
+fn encode_event_payload(event: &SignedEvent) -> Vec<u8> {
     let mut bytes = vec![PAYLOAD_EVENT];
-    bytes.extend_from_slice(&encode_shared_event(event));
+    bytes.extend_from_slice(&event.encode());
     bytes
 }
 
-fn encode_batch_payload(events: &[&SharedEvent]) -> Vec<u8> {
+fn encode_batch_payload(events: &[&SignedEvent]) -> Vec<u8> {
     let mut bytes = vec![PAYLOAD_BATCH];
     bytes.extend_from_slice(&(events.len() as u64).to_be_bytes());
     for event in events {
-        write_field(&mut bytes, &encode_shared_event(event));
+        write_field(&mut bytes, &event.encode());
     }
     bytes
 }
 
 /// Decodes an application payload into the events it carries; `None` for
 /// anything that is not a payload this version understands.
-fn decode_payload(bytes: &[u8]) -> Option<Vec<SharedEvent>> {
+fn decode_payload(bytes: &[u8]) -> Option<Vec<SignedEvent>> {
     let (tag, rest) = bytes.split_first()?;
     match *tag {
-        PAYLOAD_EVENT => Some(vec![decode_shared_event(rest)?]),
+        PAYLOAD_EVENT => Some(vec![SignedEvent::decode(rest)?]),
         PAYLOAD_BATCH => {
             let mut reader = Reader { bytes: rest };
             let count = reader.u64()?;
+            if count > MAX_BATCH_EVENTS as u64 || bytes.len() > 65 * 1024 {
+                return None;
+            }
             let mut events = Vec::new();
             for _ in 0..count {
-                events.push(decode_shared_event(reader.field()?)?);
+                events.push(SignedEvent::decode(reader.field()?)?);
             }
             reader.bytes.is_empty().then_some(events)
         }
@@ -97,10 +102,10 @@ fn decode_payload(bytes: &[u8]) -> Option<Vec<SharedEvent>> {
 }
 
 /// How many events, starting at `offset`, fit in one backfill message.
-fn batch_len(events: &[&SharedEvent]) -> usize {
+fn batch_len(events: &[&SignedEvent]) -> usize {
     let mut size = 0;
     for (index, event) in events.iter().enumerate() {
-        size += encode_shared_event(event).len() + 8;
+        size += event.encode().len() + 8;
         if index >= MAX_BATCH_EVENTS || (index > 0 && size > MAX_BATCH_BYTES) {
             return index;
         }
@@ -170,6 +175,8 @@ pub struct Peer {
     cursor: u64,
     last_timestamp: HybridTimestamp,
     events: Vec<SharedEvent>,
+    proofs: BTreeMap<EventId, SignedEvent>,
+    legacy_unverified: bool,
     known: BTreeSet<EventId>,
     outbox: VecDeque<Outbound>,
     removed: bool,
@@ -179,6 +186,158 @@ pub struct Peer {
     /// The staged commit adds a member (rather than removes one), so
     /// accepting it owes them a history backfill.
     staged_adds_member: bool,
+}
+
+#[cfg(test)]
+mod authorship_tests {
+    use super::*;
+    use crate::authenticated_history::SignedEvent;
+    use cash_core::AccountId;
+    use cash_crypto::author_id;
+
+    fn household() -> (Peer, Member) {
+        let mut alice = Peer::new("alice", Currency::from_code("USD").unwrap()).unwrap();
+        alice.found_group().unwrap();
+        let mut bob = Member::new("bob").unwrap();
+        let invite = alice.begin_invite(&bob.key_package().unwrap()).unwrap();
+        alice.commit_accepted(1).unwrap();
+        bob.join(&invite.welcome).unwrap();
+        (alice, bob)
+    }
+
+    fn event(actor: &str) -> SharedEvent {
+        SharedEvent {
+            event: Event::new(
+                format!("{actor}-event"),
+                actor,
+                1,
+                0,
+                EventKind::AccountOpened {
+                    account_id: AccountId::new("joint"),
+                    name: "Joint".to_owned(),
+                    currency: Currency::from_code("USD").unwrap(),
+                },
+            ),
+            base: None,
+        }
+    }
+
+    #[test]
+    fn unsigned_legacy_frames_cannot_enter_authenticated_history() {
+        let (mut alice, mut bob) = household();
+        let mut payload = vec![1];
+        payload.extend_from_slice(&encode_shared_event(&event("alice")));
+        let frame = bob.encrypt(&payload).unwrap();
+        alice.ingest(&[(2, frame)]).unwrap();
+        assert!(alice.state().ledger.accounts.is_empty());
+        assert_eq!(alice.cursor(), 2);
+    }
+
+    #[test]
+    fn a_valid_author_proof_cannot_be_substituted_for_the_live_sender() {
+        let (mut alice, mut bob) = household();
+        let proof =
+            SignedEvent::sign(&alice.member, event(&author_id(&alice.public_key()))).unwrap();
+        let mut payload = vec![3];
+        payload.extend_from_slice(&proof.encode());
+        let frame = bob.encrypt(&payload).unwrap();
+        alice.ingest(&[(2, frame)]).unwrap();
+        assert!(alice.state().ledger.accounts.is_empty());
+    }
+
+    #[test]
+    fn valid_original_proofs_can_be_forwarded_but_tampered_batches_are_atomic() {
+        let (mut alice, mut bob) = household();
+        let proof =
+            SignedEvent::sign(&alice.member, event(&author_id(&alice.public_key()))).unwrap();
+        let mut corrupt = proof.clone();
+        corrupt.signature[0] ^= 1;
+        let mut payload = vec![4];
+        payload.extend_from_slice(&2_u64.to_be_bytes());
+        write_field(&mut payload, &proof.encode());
+        write_field(&mut payload, &corrupt.encode());
+        alice
+            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        assert!(alice.state().ledger.accounts.is_empty());
+        let mut payload = vec![4];
+        payload.extend_from_slice(&1_u64.to_be_bytes());
+        write_field(&mut payload, &proof.encode());
+        alice
+            .ingest(&[(3, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        assert_eq!(alice.state().ledger.accounts.len(), 1);
+    }
+
+    #[test]
+    fn legacy_unsigned_state_is_viewable_and_exportable_but_cannot_mutate_or_sync() {
+        let (mut alice, _) = household();
+        let old = event("alice");
+        alice.events.push(old.clone());
+        alice.known.insert(old.event.id.clone());
+        alice.legacy_unverified = true;
+        let archive = alice.export().unwrap();
+        assert!(archive.starts_with(LEGACY_EXPORT_MAGIC));
+        let mut restored = Peer::import(&archive).unwrap();
+        assert!(restored.legacy_unverified());
+        assert_eq!(
+            restored.state().canonical_bytes(),
+            alice.state().canonical_bytes()
+        );
+        assert_eq!(restored.export().unwrap(), archive);
+        assert!(restored.write(2, old.event.kind.clone()).is_err());
+        assert!(restored.ingest(&[]).is_err());
+        assert!(restored.next_outgoing().is_err());
+        assert!(restored.key_package().is_err());
+        assert!(restored.found_group().is_err());
+    }
+
+    #[test]
+    fn conflicting_authenticated_event_ids_survive_restart_and_backfill() {
+        let (mut alice, mut bob) = household();
+        let mut original = event(&author_id(&bob.public_key()));
+        let first = SignedEvent::sign(&bob, original.clone()).unwrap();
+        original.event.timestamp.physical_millis = 2;
+        let second = SignedEvent::sign(&bob, original).unwrap();
+        for (index, proof) in [first, second].iter().enumerate() {
+            let mut payload = vec![PAYLOAD_EVENT];
+            payload.extend_from_slice(&proof.encode());
+            alice
+                .ingest(&[(2 + index as u64, bob.encrypt(&payload).unwrap())])
+                .unwrap();
+        }
+        assert_eq!(alice.state().rejected.len(), 1);
+        let mut alice = Peer::import(&alice.export().unwrap()).unwrap();
+        assert_eq!(alice.state().rejected.len(), 1);
+        let mut carol = Peer::new("carol", Currency::from_code("USD").unwrap()).unwrap();
+        let invite = alice.begin_invite(&carol.key_package().unwrap()).unwrap();
+        alice.commit_accepted(4).unwrap();
+        carol
+            .join(alice.group_id().unwrap(), &invite.welcome, 4)
+            .unwrap();
+        while let Some(outgoing) = alice.next_outgoing().unwrap() {
+            let sequence = alice.cursor() + 1;
+            carol.ingest(&[(sequence, outgoing.blob)]).unwrap();
+            alice.outgoing_accepted(sequence).unwrap();
+        }
+        assert_eq!(
+            alice.state().canonical_bytes(),
+            carol.state().canonical_bytes()
+        );
+    }
+
+    #[test]
+    fn restored_signing_identities_still_generate_distinct_event_ids_at_the_same_clock() {
+        let (alice, _) = household();
+        let archive = alice.export().unwrap();
+        let mut first = Peer::import(&archive).unwrap();
+        let mut second = Peer::import(&archive).unwrap();
+        let kind = event("unused").event.kind;
+        let a = first.write(1, kind.clone()).unwrap();
+        let b = second.write(1, kind).unwrap();
+        assert_eq!(a.event.timestamp, b.event.timestamp);
+        assert_ne!(a.event.id, b.event.id);
+    }
 }
 
 impl Peer {
@@ -194,6 +353,8 @@ impl Peer {
             cursor: 0,
             last_timestamp: HybridTimestamp::new(0, 0),
             events: Vec::new(),
+            proofs: BTreeMap::new(),
+            legacy_unverified: false,
             known: BTreeSet::new(),
             outbox: VecDeque::new(),
             removed: false,
@@ -212,7 +373,11 @@ impl Peer {
             ));
         }
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(EXPORT_MAGIC);
+        bytes.extend_from_slice(if self.legacy_unverified {
+            LEGACY_EXPORT_MAGIC
+        } else {
+            EXPORT_MAGIC
+        });
         write_field(&mut bytes, self.member_id.as_bytes());
         write_field(&mut bytes, self.reporting_currency.code().as_bytes());
         match &self.group {
@@ -227,8 +392,17 @@ impl Peer {
         bytes.extend_from_slice(&self.last_timestamp.logical.to_be_bytes());
         bytes.push(u8::from(self.removed));
         bytes.extend_from_slice(&(self.events.len() as u64).to_be_bytes());
-        for event in &self.events {
-            write_field(&mut bytes, &encode_shared_event(event));
+        if self.legacy_unverified {
+            for event in &self.events {
+                write_field(&mut bytes, &encode_shared_event(event));
+            }
+        } else {
+            if self.proofs.len() != self.events.len() {
+                return Err(SyncError("authenticated history is incomplete".to_owned()));
+            }
+            for proof in self.proofs.values() {
+                write_field(&mut bytes, &proof.encode());
+            }
         }
         bytes.extend_from_slice(&(self.outbox.len() as u64).to_be_bytes());
         for item in &self.outbox {
@@ -255,9 +429,14 @@ impl Peer {
     pub fn import(bytes: &[u8]) -> Result<Self, SyncError> {
         let malformed = || SyncError("malformed peer state".to_owned());
         let mut reader = Reader { bytes };
-        if reader.take(EXPORT_MAGIC.len()) != Some(EXPORT_MAGIC) {
+        let magic = reader.take(EXPORT_MAGIC.len()).ok_or_else(malformed)?;
+        let legacy_unverified = if magic == LEGACY_EXPORT_MAGIC {
+            true
+        } else if magic == EXPORT_MAGIC {
+            false
+        } else {
             return Err(malformed());
-        }
+        };
         let text = |bytes: &[u8]| String::from_utf8(bytes.to_vec()).map_err(|_| malformed());
         let member_id = text(reader.field().ok_or_else(malformed)?)?;
         let currency = text(reader.field().ok_or_else(malformed)?)?;
@@ -277,11 +456,22 @@ impl Peer {
         };
         let mut events = Vec::new();
         let mut known = BTreeSet::new();
+        let mut proofs = BTreeMap::new();
         for _ in 0..reader.u64().ok_or_else(malformed)? {
-            let shared =
-                decode_shared_event(reader.field().ok_or_else(malformed)?).ok_or_else(malformed)?;
-            known.insert(shared.event.id.clone());
-            events.push(shared);
+            let encoded = reader.field().ok_or_else(malformed)?;
+            if legacy_unverified {
+                let shared = decode_shared_event(encoded).ok_or_else(malformed)?;
+                known.insert(shared.event.id.clone());
+                events.push(shared);
+            } else {
+                let proof = SignedEvent::decode(encoded).ok_or_else(malformed)?;
+                let id = proof.proof_id();
+                if !known.insert(id.clone()) {
+                    return Err(malformed());
+                }
+                events.push(proof.shared.clone());
+                proofs.insert(id, proof);
+            }
         }
         let mut outbox = VecDeque::new();
         for _ in 0..reader.u64().ok_or_else(malformed)? {
@@ -314,6 +504,9 @@ impl Peer {
         if !reader.bytes.is_empty() {
             return Err(malformed());
         }
+        for proof in proofs.values() {
+            proof.verify(&member)?;
+        }
         Ok(Self {
             member,
             member_id,
@@ -322,6 +515,8 @@ impl Peer {
             cursor,
             last_timestamp: HybridTimestamp::new(physical, logical),
             events,
+            proofs,
+            legacy_unverified,
             known,
             outbox,
             removed,
@@ -343,8 +538,15 @@ impl Peer {
         &self.member_id
     }
 
+    /// Old unsigned histories remain locally viewable/exportable, never
+    /// silently re-signed as authenticated history or sent to another peer.
+    pub fn legacy_unverified(&self) -> bool {
+        self.legacy_unverified
+    }
+
     /// A fresh single-use key package for someone to invite this peer with.
     pub fn key_package(&self) -> Result<Vec<u8>, SyncError> {
+        self.ensure_not_staged()?;
         Ok(self.member.key_package()?)
     }
 
@@ -365,6 +567,12 @@ impl Peer {
     /// Starts a new household group with this peer as its only member,
     /// returning the group's random ID.
     pub fn found_group(&mut self) -> Result<String, SyncError> {
+        self.ensure_not_staged()?;
+        if self.group.is_some() {
+            return Err(SyncError(
+                "archive or leave the existing household before creating another".to_owned(),
+            ));
+        }
         self.member.create_group()?;
         let group = random_id();
         self.group = Some(group.clone());
@@ -388,6 +596,9 @@ impl Peer {
     }
 
     fn ensure_not_staged(&self) -> Result<(), SyncError> {
+        if self.legacy_unverified {
+            return Err(SyncError("This household has unsigned legacy history. Keep an archive and create a new household before sharing further.".to_owned()));
+        }
         if self.staged {
             Err(SyncError(
                 "a commit is pending; accept or reject it first".to_owned(),
@@ -419,13 +630,27 @@ impl Peer {
                     self.cursor
                 )));
             }
-            match self.member.receive(frame)? {
+            let (received, sender) = self.member.receive_authenticated(frame)?;
+            match received {
                 Received::Application(bytes) => {
                     // A frame that decrypts but carries no shared events came
                     // from a buggy or hostile member; skip it rather than
                     // stall everyone behind it.
-                    for shared in decode_payload(&bytes).unwrap_or_default() {
-                        self.observe(shared);
+                    if let Some(proofs) = decode_payload(&bytes) {
+                        let live = bytes.first() == Some(&PAYLOAD_EVENT);
+                        let valid = proofs.iter().all(|proof| {
+                            proof.verify(&self.member).is_ok()
+                                && (!live
+                                    || sender.as_ref().is_some_and(|sender| {
+                                        sender.public_key == proof.public_key
+                                    }))
+                        });
+                        // Validate the whole batch before changing the fold.
+                        if valid {
+                            for proof in proofs {
+                                self.observe(proof);
+                            }
+                        }
                     }
                 }
                 Received::Commit { .. } | Received::Own => {}
@@ -485,14 +710,13 @@ impl Peer {
         Ok(())
     }
 
-    fn event(&self, id: &EventId) -> Result<&SharedEvent, SyncError> {
-        self.events
-            .iter()
-            .rfind(|shared| shared.event.id == *id)
+    fn event(&self, id: &EventId) -> Result<&SignedEvent, SyncError> {
+        self.proofs
+            .get(id)
             .ok_or_else(|| SyncError(format!("queued event {} is missing", id.as_str())))
     }
 
-    fn events_named(&self, ids: &[EventId]) -> Result<Vec<&SharedEvent>, SyncError> {
+    fn events_named(&self, ids: &[EventId]) -> Result<Vec<&SignedEvent>, SyncError> {
         ids.iter().map(|id| self.event(id)).collect()
     }
 
@@ -537,12 +761,9 @@ impl Peer {
         if self.staged_adds_member && !self.events.is_empty() {
             // Sorted into the total order so the new member's first batches
             // are the oldest history.
-            let mut ordered: Vec<_> = self.events.iter().collect();
-            ordered.sort_by_key(|shared| shared.event.order_key());
-            let ids = ordered
-                .into_iter()
-                .map(|shared| shared.event.id.clone())
-                .collect();
+            let mut ordered: Vec<_> = self.proofs.iter().collect();
+            ordered.sort_by_key(|(id, proof)| (proof.shared.event.order_key(), (*id).clone()));
+            let ids = ordered.into_iter().map(|(id, _)| id.clone()).collect();
             self.outbox.push_back(Outbound::Backfill { ids, offset: 0 });
         }
         self.staged_adds_member = false;
@@ -567,6 +788,10 @@ impl Peer {
         welcome: &[u8],
         joined_after: u64,
     ) -> Result<(), SyncError> {
+        self.ensure_not_staged()?;
+        if self.group.is_some() {
+            return Err(SyncError("this peer already has a household".to_owned()));
+        }
         self.member.join(welcome)?;
         self.group = Some(group.to_owned());
         self.cursor = joined_after;
@@ -664,6 +889,7 @@ impl Peer {
         wall_clock_millis: i64,
         kind: EventKind,
     ) -> Result<SharedEvent, SyncError> {
+        self.ensure_not_staged()?;
         if !self.is_member() {
             return Err(SyncError("this peer is not in the group".to_owned()));
         }
@@ -675,26 +901,25 @@ impl Peer {
                 self.last_timestamp.logical.saturating_add(1),
             )
         };
-        self.last_timestamp = timestamp;
-        let id = format!(
-            "{}-{:016x}-{:08x}",
-            self.member_id, timestamp.physical_millis, timestamp.logical
-        );
+        let actor = author_id(&self.member.public_key());
+        // Restoring a backup on a second device must not reproduce event IDs
+        // when both copies happen to write at the same hybrid timestamp.
+        let id = format!("{actor}-{}", random_id());
         let base = self.base_for(&kind);
         let event = SharedEvent {
             event: Event::new(
                 id,
-                self.member_id.clone(),
+                actor,
                 timestamp.physical_millis,
                 timestamp.logical,
                 kind,
             ),
             base,
         };
-        self.known.insert(event.event.id.clone());
-        self.events.push(event.clone());
-        self.outbox
-            .push_back(Outbound::Event(event.event.id.clone()));
+        let proof = SignedEvent::sign(&self.member, event.clone())?;
+        let id = proof.proof_id();
+        self.observe(proof);
+        self.outbox.push_back(Outbound::Event(id));
         Ok(event)
     }
 
@@ -747,10 +972,12 @@ impl Peer {
         self.ingest(&entries)
     }
 
-    fn observe(&mut self, shared: SharedEvent) {
-        self.last_timestamp = self.last_timestamp.max(shared.event.timestamp);
-        if self.known.insert(shared.event.id.clone()) {
-            self.events.push(shared);
+    fn observe(&mut self, proof: SignedEvent) {
+        self.last_timestamp = self.last_timestamp.max(proof.shared.event.timestamp);
+        let id = proof.proof_id();
+        if self.known.insert(id.clone()) {
+            self.events.push(proof.shared.clone());
+            self.proofs.insert(id, proof);
         }
     }
 
