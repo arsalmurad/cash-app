@@ -38,6 +38,10 @@ pub trait Relay {
 
     /// Removes and returns a mailbox's item (a welcome is single-use).
     fn take_mailbox(&mut self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError>;
+
+    /// Read without consumption; durable clients acknowledge only after save.
+    fn peek_mailbox(&self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError>;
+    fn acknowledge_mailbox(&mut self, mailbox: &str) -> Result<(), RelayError>;
 }
 
 /// The reference relay: in memory, used by tests and as the behavioural
@@ -129,6 +133,21 @@ impl Relay for MemoryRelay {
         }
         Ok(Some(item.clone()))
     }
+
+    fn peek_mailbox(&self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError> {
+        Ok(if self.consumed_mailboxes.contains(mailbox) {
+            None
+        } else {
+            self.mailboxes.get(mailbox).cloned()
+        })
+    }
+
+    fn acknowledge_mailbox(&mut self, mailbox: &str) -> Result<(), RelayError> {
+        if self.mailboxes.contains_key(mailbox) {
+            self.consumed_mailboxes.insert(mailbox.to_owned());
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -180,5 +199,23 @@ mod tests {
         let mut changed = item;
         changed.joined_after += 1;
         assert!(relay.put_mailbox("m", changed).is_err());
+    }
+
+    #[test]
+    fn welcome_reads_are_repeatable_until_idempotently_acknowledged() {
+        let mut relay = MemoryRelay::default();
+        let item = MailboxItem {
+            group: "g".to_owned(),
+            joined_after: 1,
+            welcome: b"encrypted".to_vec(),
+        };
+        relay.acknowledge_mailbox("m").unwrap(); // Empty acknowledgements do not poison future delivery.
+        relay.put_mailbox("m", item.clone()).unwrap();
+        assert_eq!(relay.peek_mailbox("m").unwrap(), Some(item.clone()));
+        assert_eq!(relay.peek_mailbox("m").unwrap(), Some(item.clone()));
+        relay.acknowledge_mailbox("m").unwrap();
+        relay.acknowledge_mailbox("m").unwrap();
+        relay.put_mailbox("m", item).unwrap();
+        assert_eq!(relay.peek_mailbox("m").unwrap(), None);
     }
 }

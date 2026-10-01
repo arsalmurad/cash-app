@@ -35,8 +35,8 @@ class RelayConflict implements Exception {
   String toString() => 'The relay log moved on (now at entry $tail).';
 }
 
-/// The relay could not be reached or answered nonsense. Nothing the caller
-/// can rely on changed; a request may have succeeded before its reply was lost.
+/// The relay could not be reached or answered nonsense. A request may have
+/// succeeded before its reply was lost: this does not prove rejection.
 class RelayUnavailable implements Exception {
   const RelayUnavailable(this.message);
 
@@ -65,6 +65,12 @@ abstract class RelayClient {
 
   /// The mailbox's item, once; `null` if empty or already taken.
   Future<RelayMailboxItem?> takeMailbox(String mailbox);
+
+  /// Read without consuming: repeat safely after a lost response.
+  Future<RelayMailboxItem?> peekMailbox(String mailbox);
+
+  /// Only after joined keys are durably saved; retries are idempotent.
+  Future<void> acknowledgeMailbox(String mailbox);
 }
 
 /// Talks to the Cloudflare Worker over HTTP.
@@ -200,6 +206,24 @@ class HttpRelayClient implements RelayClient {
   @override
   Future<RelayMailboxItem?> takeMailbox(String mailbox) async {
     final response = await _send(() => _client.post(_uri('/m/$mailbox/take')));
+    return _mailboxReply(response);
+  }
+
+  @override
+  Future<RelayMailboxItem?> peekMailbox(String mailbox) async =>
+      _mailboxReply(await _send(() => _client.get(_uri('/m/$mailbox'))));
+
+  @override
+  Future<void> acknowledgeMailbox(String mailbox) async {
+    final response = await _send(() => _client.post(_uri('/m/$mailbox/ack')));
+    if (response.statusCode != 200 && response.statusCode != 404) {
+      throw RelayUnavailable(
+        'could not acknowledge the welcome (${response.statusCode})',
+      );
+    }
+  }
+
+  RelayMailboxItem? _mailboxReply(http.Response response) {
     if (response.statusCode == 404) {
       return null;
     }
@@ -275,5 +299,14 @@ class MemoryRelayClient implements RelayClient {
     final item = _mailboxes[mailbox];
     if (item == null || !_consumedMailboxes.add(mailbox)) return null;
     return item;
+  }
+
+  @override
+  Future<RelayMailboxItem?> peekMailbox(String mailbox) async =>
+      _consumedMailboxes.contains(mailbox) ? null : _mailboxes[mailbox];
+
+  @override
+  Future<void> acknowledgeMailbox(String mailbox) async {
+    if (_mailboxes.containsKey(mailbox)) _consumedMailboxes.add(mailbox);
   }
 }

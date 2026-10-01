@@ -12,6 +12,8 @@
 //   GET  /g/{group}/ws       -> WebSocket; receives {"tail": n} after each append
 //   PUT  /m/{mailbox}        {"group", "joined_after", "welcome": "<base64>"}
 //   POST /m/{mailbox}/take   -> the item once, then 404
+//   GET  /m/{mailbox}        -> retryable encrypted welcome until acknowledged
+//   POST /m/{mailbox}/ack    -> consume after the receiver saves; idempotent
 
 const ID = /^[0-9a-f]{32}$/;
 const MAX_BLOB_BYTES = 256 * 1024;
@@ -186,6 +188,19 @@ export class Mailbox {
         return "created";
       });
       if (result === "conflict") return fail(409, "mailbox already holds an item");
+      return json({ ok: true });
+    }
+    if (request.method === "GET") {
+      const item = await this.state.storage.transaction(async (txn) => {
+        if (await txn.get("consumed")) return undefined;
+        return txn.get("item");
+      });
+      return item === undefined ? fail(404, "empty mailbox") : json(item);
+    }
+    if (request.method === "POST" && url.pathname.endsWith("/ack")) {
+      await this.state.storage.transaction(async (txn) => {
+        if ((await txn.get("item")) !== undefined) await txn.put("consumed", true);
+      });
       return json({ ok: true });
     }
     if (request.method === "POST" && url.pathname.endsWith("/take")) {

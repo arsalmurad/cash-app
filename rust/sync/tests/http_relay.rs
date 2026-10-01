@@ -64,6 +64,27 @@ fn the_worker_honours_the_relay_contract() {
     relay.put_mailbox(mailbox, item.clone()).unwrap();
     assert_eq!(relay.take_mailbox(mailbox).unwrap(), Some(item));
     assert_eq!(relay.take_mailbox(mailbox).unwrap(), None);
+    let acknowledged_mailbox = "00000000000000000000000000000003";
+    let item = MailboxItem {
+        group: group.to_owned(),
+        joined_after: 2,
+        welcome: b"retryable encrypted welcome".to_vec(),
+    };
+    relay
+        .put_mailbox(acknowledged_mailbox, item.clone())
+        .unwrap();
+    assert_eq!(
+        relay.peek_mailbox(acknowledged_mailbox).unwrap(),
+        Some(item.clone())
+    );
+    assert_eq!(
+        relay.peek_mailbox(acknowledged_mailbox).unwrap(),
+        Some(item.clone())
+    );
+    relay.acknowledge_mailbox(acknowledged_mailbox).unwrap();
+    relay.acknowledge_mailbox(acknowledged_mailbox).unwrap();
+    relay.put_mailbox(acknowledged_mailbox, item).unwrap();
+    assert_eq!(relay.peek_mailbox(acknowledged_mailbox).unwrap(), None);
 }
 
 #[test]

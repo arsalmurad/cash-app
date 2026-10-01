@@ -192,6 +192,20 @@ void main() {
   );
 
   group('MemoryRelayClient (the test double must obey the same contract)', () {
+    test(
+      'retrieval is repeatable until an idempotent acknowledgement',
+      () async {
+        final relay = MemoryRelayClient();
+        await relay.acknowledgeMailbox(_mailbox);
+        await relay.putMailbox(_mailbox, _group, 1, Uint8List.fromList([7]));
+        expect((await relay.peekMailbox(_mailbox))!.welcome, [7]);
+        expect((await relay.peekMailbox(_mailbox))!.welcome, [7]);
+        await relay.acknowledgeMailbox(_mailbox);
+        await relay.acknowledgeMailbox(_mailbox);
+        await relay.putMailbox(_mailbox, _group, 1, Uint8List.fromList([7]));
+        expect(await relay.peekMailbox(_mailbox), isNull);
+      },
+    );
     test('is an ordered compare-and-swap log', () async {
       final relay = MemoryRelayClient();
       expect(await relay.append(_group, 0, Uint8List.fromList([1])), 1);
@@ -218,5 +232,26 @@ void main() {
         throwsA(isA<RelayUnavailable>()),
       );
     });
+  });
+
+  test('HTTP retrieval uses GET and a separate POST acknowledgement', () async {
+    final methods = <String>[];
+    final client = HttpRelayClient(
+      'https://relay.test',
+      MockClient((request) async {
+        methods.add('${request.method} ${request.url.path}');
+        if (request.method == 'GET') {
+          return _json(200, {
+            'group': _group,
+            'joined_after': 1,
+            'welcome': base64.encode([7]),
+          });
+        }
+        return _json(200, {'ok': true});
+      }),
+    );
+    expect((await client.peekMailbox(_mailbox))!.welcome, [7]);
+    await client.acknowledgeMailbox(_mailbox);
+    expect(methods, ['GET /m/$_mailbox', 'POST /m/$_mailbox/ack']);
   });
 }
