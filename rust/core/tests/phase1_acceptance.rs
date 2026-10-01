@@ -181,6 +181,33 @@ fn snapshot_at_five_hundred_matches_a_full_fold() {
 }
 
 #[test]
+fn snapshot_replays_are_idempotent_but_changed_content_is_rejected() {
+    let original = account_event("same-id", "alice", 0, "cash", usd());
+    let snapshot = Snapshot::from_events(usd(), [original.clone()]).unwrap();
+    assert_eq!(snapshot.clone().fold_forward([original]).unwrap(), snapshot);
+    let conflicting = account_event("same-id", "alice", 0, "other", usd());
+    assert!(snapshot.fold_forward([conflicting]).is_err());
+}
+
+#[test]
+fn snapshot_validates_events_added_by_fold_forward_too() {
+    let original = account_event("first", "alice", 0, "cash", usd());
+    let next = account_event("second", "bob", 1, "savings", usd());
+    let snapshot = Snapshot::from_events(usd(), [original])
+        .unwrap()
+        .fold_forward([next.clone()])
+        .unwrap();
+    assert_eq!(snapshot.clone().fold_forward([next]).unwrap(), snapshot);
+    let conflicting = account_event("second", "bob", 1, "other", usd());
+    assert!(matches!(
+        snapshot.fold_forward([conflicting]),
+        Err(SnapshotError::Fold(
+            cash_core::FoldError::ConflictingDuplicateEvent(_)
+        ))
+    ));
+}
+
+#[test]
 fn a_late_event_invalidates_instead_of_corrupting_a_snapshot() {
     let events = thousand_events();
     let snapshot = Snapshot::from_events(usd(), events[..500].to_vec()).unwrap();
