@@ -752,3 +752,14 @@ peer restart, and all four personal books; the initial personal carry regression
 failed before the fix. The locked full Rust acceptance suite passed, including
 three-peer 1,000-event convergence (112.56 s); all 48 bridge unit tests passed.
 
+## 2026-10-02 — Rust-owned SQLite, with a single-threaded browser boundary
+
+The locked SQLite requirement is implemented in `rust/storage`, keeping event
+frames immutable and revisions transactional instead of introducing financial
+CRUD rows. Native files use bundled SQLite; browser persistence serializes an
+in-memory database under an origin Web Lock because the pinned SQLite/WASM
+binding must remain on one synchronous caller thread, not the bridge worker
+pool. Whole-image copies, quota, retained legacy data and mobile verification
+status are explicit in `SQLITE-STORAGE.md`; no OPFS or encrypted-private-ledger
+claim is made.
+

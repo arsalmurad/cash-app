@@ -4,3 +4,4 @@ pub mod goals;
 pub mod ledger;
 pub mod recurring;
 pub mod shared;
+pub mod storage;

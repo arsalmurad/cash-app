@@ -4,10 +4,11 @@ import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 
 import 'event_store.dart';
+import 'sqlite_store.dart';
 
-EventStore createEventStore(String name) => IoEventStore(name);
+EventStore createEventStore(String name) => SqliteEventStore(name);
 
-DeviceIdentity createDeviceIdentity() => IoDeviceIdentity();
+DeviceIdentity createDeviceIdentity() => SqliteDeviceIdentity();
 
 /// Native-platform durable log storage: each named log is a plain file in
 /// the app's sandboxed support directory (`path_provider`'s
