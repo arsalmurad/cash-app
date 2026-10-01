@@ -52,6 +52,28 @@ class WebEventStore implements EventStore {
       ..setRange(existing.length, existing.length + frame.length, frame);
     _storage.setItem(_logKey, base64Encode(combined));
   }
+
+  @override
+  Future<void> recoverPrefix(
+    int validLength, {
+    required int expectedLength,
+  }) async {
+    if (validLength < 0 || validLength > expectedLength) {
+      throw ArgumentError.value(validLength, 'validLength');
+    }
+    final original = await readLog();
+    if (original.length != expectedLength) {
+      throw StateError('Log changed during recovery');
+    }
+    if (validLength == expectedLength) return;
+    // Both writes are synchronous. If archiving fails (e.g. quota exceeded),
+    // leave the original untouched and fail initialization.
+    _storage.setItem(
+      '$_logKey.recovery-${DateTime.now().microsecondsSinceEpoch}',
+      base64Encode(original),
+    );
+    _storage.setItem(_logKey, base64Encode(original.sublist(0, validLength)));
+  }
 }
 
 /// Browser actor ID storage, alongside the event log(s).

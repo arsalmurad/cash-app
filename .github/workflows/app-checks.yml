@@ -1,0 +1,57 @@
+name: App checks
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "app/**"
+      - "rust/**"
+      - ".github/workflows/app-checks.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install pinned toolchains
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          git clone --branch 3.47.5 --depth 1 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Restore build and package caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+            ~/.pub-cache
+          key: app-checks-${{ runner.os }}-rust1.98.1-flutter3.47.5-${{ hashFiles('rust/Cargo.lock', 'app/pubspec.lock') }}
+
+      - name: Build native bridge (not mobile or WASM)
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.1
+        run: cargo build --manifest-path rust/Cargo.toml -p rust_lib_cash_app --locked
+
+      - name: Analyze and test app with real Rust bridge
+        working-directory: app
+        env:
+          RUST_LIB_PATH: ${{ github.workspace }}/rust/target/debug/librust_lib_cash_app.so
+        run: |
+          flutter --no-version-check pub get --enforce-lockfile
+          flutter --no-version-check analyze --no-pub
+          flutter --no-version-check test --no-pub
+
+      - name: Test browser storage in Chrome
+        working-directory: app
+        run: flutter --no-version-check test --no-pub --platform chrome test/event_store_web_test.dart
