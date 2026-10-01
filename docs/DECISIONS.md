@@ -763,3 +763,12 @@ pool. Whole-image copies, quota, retained legacy data and mobile verification
 status are explicit in `SQLITE-STORAGE.md`; no OPFS or encrypted-private-ledger
 claim is made.
 
+## 2026-10-02 — Snapshot replay checks immutable content, not only IDs
+
+A regression test reproduced a snapshot accepting changed content under an
+already included event ID, unlike the full fold. Snapshots now retain exact
+included events and reject conflicting replays, including events added by
+`fold_forward`; byte-identical replay remains idempotent. This is correctness
+metadata, not safe pruning: original history remains necessary until peer
+frontier acknowledgement and late-event recovery are wired into persistence.
+
