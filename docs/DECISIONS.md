@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-10-01 — Preserve authorship through household history forwarding
+
+Retain OpenMLS-authenticated sender metadata and use domain-separated,
+group-bound detached signatures from the existing pinned Ed25519 identity for
+immutable history. Checking every event against the current transport sender
+was rejected because inviters must forward other members' historical events;
+signatures alone still require actor binding and authorization in the sync layer.
+The primitive tests cover changed data/keys/signatures, cross-household replay,
+restart, and historical verification after removal. APIs were checked against
+the pinned source and [OpenMLS ProcessedMessage documentation](https://docs.rs/openmls/0.9.0/openmls/framing/struct.ProcessedMessage.html)
+and [Signer documentation](https://docs.rs/openmls_traits/0.6.0/openmls_traits/signatures/trait.Signer.html).
+
 ## 2026-09-24 — Keep Phase 0 isolated
 
 The OpenMLS experiment will live in `mls_spike/`, as the build brief specifies,
