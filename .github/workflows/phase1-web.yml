@@ -13,12 +13,12 @@ concurrency:
 jobs:
   web-wasm:
     name: Personal ledger on Flutter web/WASM
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Record runner environment
         run: |
@@ -28,9 +28,9 @@ jobs:
       # scripts/verify_web_runtime.mjs uses Node's global WebSocket, which is
       # only stable from Node 22.
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5, Node 24
         with:
-          node-version: 22
+          node-version: 24.19.0
 
       - name: Install pinned Rust toolchain
         run: |
@@ -39,28 +39,37 @@ jobs:
           rustc --version
           cargo --version
 
-      # `flutter_rust_bridge_codegen build-web` always builds with a
-      # nightly toolchain regardless of the project's own pinned stable
-      # Rust (it needs unstable `-Z build-std` to produce a
-      # thread-capable WASM binary) — this matches what
-      # docs/PHASE0-RESULT.md already found for the Phase 0 spike, and is
-      # not something this project's own code controls.
+      # FRB needs build-std and atomics, but its documented CLI override allows
+      # the exact known-working nightly rather than the moving nightly alias.
       - name: Install nightly Rust toolchain for the WASM build
         run: |
-          rustup toolchain install nightly --profile minimal
-          rustup component add rust-src --toolchain nightly
-          rustup target add wasm32-unknown-unknown --toolchain nightly
-          rustup run nightly rustc --version
+          rustup toolchain install nightly-2026-09-24 --profile minimal
+          rustup component add rust-src --toolchain nightly-2026-09-24
+          rustup target add wasm32-unknown-unknown --toolchain nightly-2026-09-24
+          rustup run nightly-2026-09-24 rustc --version
+
+      - name: Restore compiler and package caches
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/wasm-pack
+            ~/.cargo/bin/wasm-bindgen
+            ~/.cargo/bin/flutter_rust_bridge_codegen
+            rust/target
+            ~/.pub-cache
+          key: wasm-${{ runner.os }}-rust1.98.1-nightly2026-09-24-frb2.13.0-${{ hashFiles('rust/Cargo.lock', 'app/pubspec.lock') }}
 
       - name: Install wasm-pack, wasm-bindgen-cli, and flutter_rust_bridge_codegen
         run: |
-          cargo install wasm-pack --version 0.15.0
+          wasm-pack --version 2>/dev/null | grep -qx 'wasm-pack 0.15.0' || cargo install wasm-pack --version 0.15.0 --locked --force
           # Installed explicitly, with a clean environment, so wasm-pack's
           # own attempt to auto-install it (which inherits the wasm-only
           # RUSTFLAGS wasm-pack sets for the *target* build and wrongly
           # applies them to this *host* build too) is skipped entirely.
-          env -u RUSTFLAGS -u RUSTUP_TOOLCHAIN cargo install wasm-bindgen-cli --version 0.2.129
-          cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked
+          wasm-bindgen --version 2>/dev/null | grep -qx 'wasm-bindgen 0.2.129' || env -u RUSTFLAGS -u RUSTUP_TOOLCHAIN cargo install wasm-bindgen-cli --version 0.2.129 --locked --force
+          flutter_rust_bridge_codegen --version 2>/dev/null | grep -qx 'flutter_rust_bridge_codegen 2.13.0' || cargo install flutter_rust_bridge_codegen --version 2.13.0 --locked --force
 
       - name: Install pinned Flutter SDK
         run: |
@@ -74,14 +83,14 @@ jobs:
           flutter config --no-analytics
           flutter --version
           flutter precache --web
-          flutter pub get
-          flutter analyze
-          flutter test test
+          flutter --no-version-check pub get --enforce-lockfile
+          flutter --no-version-check analyze --no-pub
+          flutter --no-version-check test --no-pub test
 
       - name: Build the Rust core to WASM
         working-directory: app
         run: |
-          flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release
+          flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release --wasm-pack-rustup-toolchain nightly-2026-09-24
 
       # --no-web-resources-cdn bundles CanvasKit/skwasm into build/web
       # instead of fetching them from Google's CDN at load time, so the
