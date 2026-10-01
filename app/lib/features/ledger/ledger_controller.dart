@@ -74,6 +74,11 @@ class LedgerController extends ChangeNotifier {
         logBytes: ledgerLogBytes,
       );
       final report = await loadReport(ledger: ledger);
+      await _repairTail(
+        _ledgerStore,
+        ledgerLogBytes.length,
+        report.truncatedBytes,
+      );
       _ledger = ledger;
       overview = report.overview;
       recoveredEventCount = report.recoveredEventCount.toInt();
@@ -85,6 +90,11 @@ class LedgerController extends ChangeNotifier {
         logBytes: categoryLogBytes,
       );
       final categoryReport = await categoryLoadReport(book: categoryBook);
+      await _repairTail(
+        _categoryStore,
+        categoryLogBytes.length,
+        categoryReport.truncatedBytes,
+      );
       _categoryBook = categoryBook;
       categories = categoryReport.categories;
 
@@ -119,7 +129,12 @@ class LedgerController extends ChangeNotifier {
         actorId: actorId,
         logBytes: budgetLogBytes,
       );
-      await budgetLoadReport(book: budgetBook);
+      final budgetReport = await budgetLoadReport(book: budgetBook);
+      await _repairTail(
+        _budgetStore,
+        budgetLogBytes.length,
+        budgetReport.truncatedBytes,
+      );
       _budgetBook = budgetBook;
 
       final goalLogBytes = await _goalStore.readLog();
@@ -127,7 +142,12 @@ class LedgerController extends ChangeNotifier {
         actorId: actorId,
         logBytes: goalLogBytes,
       );
-      await goalLoadReport(book: goalBook);
+      final goalReport = await goalLoadReport(book: goalBook);
+      await _repairTail(
+        _goalStore,
+        goalLogBytes.length,
+        goalReport.truncatedBytes,
+      );
       _goalBook = goalBook;
 
       final recurringLogBytes = await _recurringStore.readLog();
@@ -135,7 +155,12 @@ class LedgerController extends ChangeNotifier {
         actorId: actorId,
         logBytes: recurringLogBytes,
       );
-      await recurringLoadReport(book: recurringBook);
+      final recurringReport = await recurringLoadReport(book: recurringBook);
+      await _repairTail(
+        _recurringStore,
+        recurringLogBytes.length,
+        recurringReport.truncatedBytes,
+      );
       _recurringBook = recurringBook;
 
       await _refreshBudgetProgress();
@@ -146,6 +171,19 @@ class LedgerController extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> _repairTail(
+    EventStore store,
+    int length,
+    BigInt discarded,
+  ) async {
+    if (discarded != BigInt.zero) {
+      await store.recoverPrefix(
+        length - discarded.toInt(),
+        expectedLength: length,
+      );
     }
   }
 

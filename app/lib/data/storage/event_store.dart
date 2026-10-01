@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
-import 'event_store_io.dart' if (dart.library.js_interop) 'event_store_web.dart';
+import 'event_store_io.dart'
+    if (dart.library.js_interop) 'event_store_web.dart';
 
 /// Durable storage for one append-only durable log — the financial ledger's
 /// event log, or the categories last-writer-wins log, each identified by
@@ -25,6 +26,11 @@ abstract class EventStore {
   /// crash before this returns is expected to lose only that one write,
   /// never corrupt what was already persisted.
   Future<void> appendFrame(Uint8List frame);
+
+  /// During startup only, retain the codec-validated prefix and archive the
+  /// original log before removing its unreadable tail. Reject a changed length
+  /// rather than discarding writes made since recovery read the log.
+  Future<void> recoverPrefix(int validLength, {required int expectedLength});
 }
 
 /// The device's stable actor ID, shared by every durable log on this
