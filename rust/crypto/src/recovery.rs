@@ -7,8 +7,9 @@
 //! the backup together and the data is gone, which is the point.
 //!
 //! The phrase is the standard BIP-39 encoding of 32 random bytes, so the
-//! word list is a known, reviewed one and a mistyped word is caught by the
-//! checksum. The encryption key is derived from those bytes with HKDF, so
+//! word list is a known, reviewed one and the checksum catches most typos.
+//! A different valid phrase still cannot authenticate this key's backup.
+//! The encryption key is derived from those bytes with HKDF, so
 //! the phrase is never used as a key directly.
 
 use bip39::{Language, Mnemonic};
@@ -64,7 +65,8 @@ impl RecoveryKey {
     }
 
     /// Parses a phrase a person typed: case and extra whitespace are
-    /// forgiven; a wrong, missing, or reordered word is not.
+    /// forgiven; invalid word counts/checksums are refused. Some typos can
+    /// form another valid phrase; backup authentication rejects that key.
     pub fn from_phrase(phrase: &str) -> Result<Self, RecoveryError> {
         let normalized = phrase
             .split_whitespace()

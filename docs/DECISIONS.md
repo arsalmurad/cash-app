@@ -1,5 +1,30 @@
 # Decisions
 
+## 2026-10-01 — Recovery checksums detect typos, backup authentication proves the key
+
+CI exposed a random test that assumed swapping any two recovery words must
+invalidate the BIP-39 checksum; some changed phrases also have valid checksums.
+The test now distinguishes invalid phrases from a valid but different key,
+with a deterministic wrong-key backup-authentication check rather than a
+probabilistic checksum assertion. No encryption or recovery encoding changed.
+
+## 2026-10-01 — Invitation delivery retries must not overwrite or resurrect
+
+Mailbox PUT is now atomically idempotent for exactly the same encrypted item,
+but rejects changed contents and retains a consumed marker until original expiry.
+Retries do not extend expiry or make a consumed welcome available again; client
+delivery journals also refuse retries past their original seven-day lifetime.
+This resolves indeterminate PUT replies, not interrupted single-use retrieval.
+
+## 2026-10-01 — Journal pending MLS commits rather than guessing after timeout
+
+Peer state v3 persists the exact staged commit and OpenMLS pending group state,
+while retaining v2 signed-state import and read-only v1 archives. Ordered-log
+ingestion confirms an exact matching commit or rejects it only after a valid
+competing frame, restoring the pending journal when evidence is malformed;
+guessing rejection from an unavailable relay was rejected because its append
+may already have succeeded. App invitation delivery still needs its own durable
+journal and retry path before the household durability gate is complete.
 ## 2026-10-01 — Serialize household operations and fail closed on uncertain saves
 
 Household writes, synchronization and configuration changes now share one queue;

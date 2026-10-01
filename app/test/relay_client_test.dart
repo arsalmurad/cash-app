@@ -207,9 +207,16 @@ void main() {
 
     test('hands a mailbox item out exactly once', () async {
       final relay = MemoryRelayClient();
+      expect(await relay.takeMailbox(_mailbox), isNull);
+      await relay.putMailbox(_mailbox, _group, 1, Uint8List.fromList([7]));
       await relay.putMailbox(_mailbox, _group, 1, Uint8List.fromList([7]));
       expect((await relay.takeMailbox(_mailbox))!.welcome, [7]);
+      await relay.putMailbox(_mailbox, _group, 1, Uint8List.fromList([7]));
       expect(await relay.takeMailbox(_mailbox), isNull);
+      await expectLater(
+        relay.putMailbox(_mailbox, _group, 2, Uint8List.fromList([7])),
+        throwsA(isA<RelayUnavailable>()),
+      );
     });
   });
 }

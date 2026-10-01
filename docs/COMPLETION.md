@@ -21,10 +21,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
 
 ## Remaining gates
 
-- [ ] Authenticate original authors through live messages **and forwarded
+- [x] Authenticate original authors through live messages **and forwarded
   history**, including tampering, impersonation, replay, restart, removed
-  authors' historical events, and explicit legacy-data handling. In progress
-  on `codex/authenticated-history`; crypto primitives alone do not close it.
+  authors' historical events, and explicit legacy-data handling. PR #8,
+  `d27bdf1`, passed locked Rust, real-worker and native-bridge scenarios plus
+  GitHub Rust/worker and app/Chrome checks; historical membership limitations
+  remain explicit in `PHASE2-PROGRESS.md`.
 - [ ] Make household mutations, membership commits, persistence and network
   retries safe under storage failures, concurrency and interrupted invitations.
 - [ ] Protect the working household private-key state at rest on native and web;
