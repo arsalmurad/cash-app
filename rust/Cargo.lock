@@ -249,6 +249,7 @@ dependencies = [
  "openmls",
  "openmls_basic_credential",
  "openmls_rust_crypto",
+ "openmls_traits",
  "sha2 0.10.9",
 ]
 
@@ -261,6 +262,7 @@ dependencies = [
  "cash_crypto",
  "getrandom 0.2.17",
  "serde_json",
+ "sha2 0.10.9",
  "ureq",
 ]
 
