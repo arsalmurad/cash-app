@@ -2,9 +2,78 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:private_ledger/data/rust/api/categories.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/features/ledger/csv_transactions.dart';
+import 'package:private_ledger/features/ledger/ledger_controller.dart';
+
+class _RecordingController extends LedgerController {
+  int writes = 0;
+  @override
+  Future<bool> record({
+    required String title,
+    required String amount,
+    required EntryKind kind,
+    required String accountId,
+    String? categoryId,
+    String? recurringId,
+    String? rate,
+  }) async {
+    writes += 1;
+    return true;
+  }
+}
 
 void main() {
+  test('malformed CSV is reported before importing any rows', () async {
+    final controller = _RecordingController()
+      ..overview = const LedgerOverview(
+        balanceLabel: 'USD 0.00',
+        accounts: [
+          AccountView(
+            id: 'everyday',
+            name: 'Everyday',
+            currencyCode: 'USD',
+            balanceLabel: 'USD 0.00',
+          ),
+        ],
+        transactions: [],
+        transfers: [],
+      );
+    final summary = await controller.importTransactionsCsv(
+      'Coffee,4.50,expense,Everyday,\n"unfinished',
+    );
+    expect(summary.imported, 0);
+    expect(summary.errors.single, contains('unfinished'));
+    expect(controller.writes, 0);
+    final valid = await controller.importTransactionsCsv(
+      'Coffee,4.50,expense,Everyday,\n',
+    );
+    expect(valid.imported, 1);
+    expect(controller.writes, 1);
+    controller.dispose();
+  });
   group('parseCsv', () {
+    test(
+      'rejects unfinished or misplaced quotes rather than changing fields',
+      () {
+        for (final csv in ['"unfinished', 'ab"cd,1', '"closed"extra,1']) {
+          expect(() => parseCsv(csv), throwsFormatException);
+        }
+      },
+    );
+
+    test('preserves empty quoted fields and embedded carriage returns', () {
+      expect(parseCsv('""'), [
+        [''],
+      ]);
+      expect(parseCsv(encodeCsvRow(['a\rb', ''])), [
+        ['a\rb', ''],
+      ]);
+      expect(parseCsv('a,b\rc,d\r\ne,f'), [
+        ['a', 'b'],
+        ['c', 'd'],
+        ['e', 'f'],
+      ]);
+    });
+
     test('splits plain rows on commas and newlines', () {
       final rows = parseCsv('a,b,c\n1,2,3\n');
       expect(rows, [

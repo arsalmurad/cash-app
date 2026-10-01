@@ -591,11 +591,18 @@ class LedgerController extends ChangeNotifier {
     if (currentOverview == null) {
       return const CsvImportSummary(imported: 0, errors: ['ledger not loaded']);
     }
-    final rows = parseTransactionsCsv(
-      csvText,
-      accounts: currentOverview.accounts,
-      categories: categories,
-    );
+    final List<CsvImportRow> rows;
+    try {
+      rows = parseTransactionsCsv(
+        csvText,
+        accounts: currentOverview.accounts,
+        categories: categories,
+      );
+    } on FormatException catch (error) {
+      // Parse the entire file before the first mutation. Malformed quoting
+      // cannot silently alter a title/account or leave a partial import.
+      return CsvImportSummary(imported: 0, errors: [error.message]);
+    }
     var imported = 0;
     final errors = <String>[];
     for (final row in rows) {
