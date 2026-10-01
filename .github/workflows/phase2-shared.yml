@@ -16,18 +16,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: phase2-shared
+  group: phase2-shared-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   shared-layer:
     name: MLS, sync engine, and relay worker
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install pinned Rust toolchain
         run: |
@@ -36,13 +36,23 @@ jobs:
           rustc --version
 
       - name: Install Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5, Node 24
         with:
-          node-version: 22
+          node-version: 24.19.0
+
+      - name: Restore Rust and relay caches
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+            ~/.npm
+          key: shared-${{ runner.os }}-rust1.98.1-node24.19.0-${{ hashFiles('rust/Cargo.lock', 'relay/package-lock.json') }}
 
       - name: Rust workspace tests (core, crypto, sync)
         working-directory: rust
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       # Runs the worker's own tests in workerd (via miniflare), then the
       # real Rust sync engine against that running worker.

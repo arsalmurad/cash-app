@@ -24,4 +24,4 @@ done
 
 cd "$root/rust"
 RELAY_URL="http://127.0.0.1:$port" \
-  cargo test -p cash_sync --features http --test http_relay -- --ignored --test-threads=1
+  cargo test -p cash_sync --locked --features http --test http_relay -- --ignored --test-threads=1
