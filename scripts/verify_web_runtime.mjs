@@ -125,6 +125,13 @@ try {
   await waitForLabel(cdp, 'Rent');
   await waitForLabel(cdp, 'Groceries');
   console.log('Verified after second reload: Rent + Groceries | USD -512.34');
+  if (process.env.WEB_CSV === '1') {
+    const { runCsvWebScenario } = await import('./csv_web_scenario.mjs');
+    await runCsvWebScenario(cdp, {
+      debugPort, repoRoot, connectCdp, openApp, evaluate,
+      waitFor, waitForLabel, clickLabel, focusLabel, delay,
+    });
+  }
   if (process.env.WEB_HOUSEHOLD === '1') {
     const { runHouseholdWebScenario } = await import('./household_web_scenario.mjs');
     await runHouseholdWebScenario(cdp, {
