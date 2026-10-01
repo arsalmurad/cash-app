@@ -10,6 +10,10 @@ use cash_core::{
 };
 use cash_sync::{HttpRelay, MailboxItem, Peer, Relay, RelayError};
 
+const PRIVACY_AMOUNT: i64 = 1_234_567_890_123;
+const PRIVACY_ACCOUNT: &str = "PRIVATE_ACCOUNT_SENTINEL_DO_NOT_STORE";
+const PRIVACY_TRANSACTION: &str = "PRIVATE_EXPENSE_SENTINEL_DO_NOT_STORE";
+
 fn usd() -> Currency {
     Currency::from_code("USD").unwrap()
 }
@@ -112,7 +116,7 @@ fn three_peers_converge_through_the_real_worker() {
         &mut peers[0],
         EventKind::AccountOpened {
             account_id: AccountId::new("joint"),
-            name: "Joint".to_owned(),
+            name: PRIVACY_ACCOUNT.to_owned(),
             currency: usd(),
         },
     );
@@ -123,6 +127,7 @@ fn three_peers_converge_through_the_real_worker() {
 
     // Bob and Carol edit the same expense without seeing each other.
     write(&mut peers[0], expense("dinner", 4_000));
+    write(&mut peers[0], expense(PRIVACY_TRANSACTION, PRIVACY_AMOUNT));
     for peer in &mut peers {
         peer.sync(&mut relay).unwrap();
     }
@@ -151,4 +156,38 @@ fn three_peers_converge_through_the_real_worker() {
             .edit_head(&TransactionId::new("dinner"), EditField::Amount),
         reference.edit_head(&TransactionId::new("dinner"), EditField::Amount)
     );
+    if std::env::var_os("CASH_RELAY_STORAGE_AUDIT").is_some() {
+        // Synthetic fixtures only: no private keys, production data or blobs.
+        let mut needles: Vec<Vec<u8>> = [
+            "alice-laptop",
+            "bob-phone",
+            "carol-tablet",
+            PRIVACY_ACCOUNT,
+            PRIVACY_TRANSACTION,
+            "Secret dinner",
+        ]
+        .iter()
+        .map(|value| value.as_bytes().to_vec())
+        .collect();
+        needles.push(PRIVACY_AMOUNT.to_be_bytes().to_vec());
+        needles.push(PRIVACY_AMOUNT.to_le_bytes().to_vec());
+        for shared in &written {
+            needles.push(shared.event.id.as_str().as_bytes().to_vec());
+            needles.push(shared.event.actor_id.as_str().as_bytes().to_vec());
+            needles.push(cash_core::encode_shared_event(shared));
+        }
+        let needles: Vec<_> = needles
+            .iter()
+            .map(|bytes| {
+                bytes
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>()
+            })
+            .collect();
+        println!(
+            "STORAGE_AUDIT_MANIFEST:{}",
+            serde_json::json!({"group": group, "needles": needles})
+        );
+    }
 }
