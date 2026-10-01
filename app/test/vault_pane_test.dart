@@ -6,6 +6,7 @@ void main() {
   testWidgets('setup requires private phrase confirmation before adoption', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     String? adopted;
     await tester.pumpWidget(
       MaterialApp(
@@ -24,6 +25,10 @@ void main() {
     expect(find.byKey(const Key('vaultUnlock')), findsNothing);
     await tester.tap(find.text('Create unlock phrase'));
     await tester.pumpAndSettle();
+    expect(
+      find.bySemanticsLabel('a generated synthetic phrase'),
+      findsOneWidget,
+    );
     expect(adopted, isNull);
     expect(
       tester
@@ -37,6 +42,7 @@ void main() {
     await tester.tap(find.byKey(const Key('vaultUnlock')));
     await tester.pumpAndSettle();
     expect(adopted, 'a generated synthetic phrase');
+    semantics.dispose();
   });
 
   testWidgets('unlock obscures input and exposes independent backup recovery', (

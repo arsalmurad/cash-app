@@ -19,9 +19,13 @@ class _CopyBlock extends StatelessWidget {
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: SelectableText(
-            text,
-            style: const TextStyle(fontFamily: 'monospace'),
+          child: Semantics(
+            label: text,
+            excludeSemantics: true,
+            child: SelectableText(
+              text,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
           ),
         ),
         const SizedBox(height: 8),

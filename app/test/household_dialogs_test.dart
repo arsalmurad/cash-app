@@ -220,6 +220,7 @@ void main() {
   testWidgets('BackupDialog shows all 24 words and the backup code', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final phrase = List.generate(
       24,
       (i) => 'word${String.fromCharCode(97 + i)}',
@@ -231,7 +232,10 @@ void main() {
     );
     expect(find.text(phrase), findsOneWidget);
     expect(find.text('cashbk1:SEALED'), findsOneWidget);
+    expect(find.bySemanticsLabel(phrase), findsOneWidget);
+    expect(find.bySemanticsLabel('cashbk1:SEALED'), findsOneWidget);
     expect(find.textContaining('Write these 24 words'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('RestoreDialog sends the phrase and backup, closing on success', (

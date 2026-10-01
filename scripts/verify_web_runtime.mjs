@@ -7,7 +7,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname, extname, join, normalize } from 'node:path';
+import { dirname, extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -29,7 +29,7 @@ const server = createServer((request, response) => {
   const requestPath = decodeURIComponent(new URL(request.url, 'http://local').pathname);
   const relative = requestPath === '/' ? 'index.html' : requestPath.slice(1);
   const filePath = normalize(join(webRoot, relative));
-  if (!filePath.startsWith(normalize(webRoot)) || !existsSync(filePath)) {
+  if (!filePath.startsWith(normalize(webRoot) + sep) || !existsSync(filePath)) {
     response.writeHead(404).end('Not found');
     return;
   }
@@ -46,8 +46,10 @@ const debugPort = await reservePort();
 const profileRoot = join(repoRoot, 'app', '.dart_tool');
 for (const entry of readdirSync(profileRoot)) {
   if (!entry.startsWith('private-ledger-chrome-')) continue;
+  const ownedProfile = normalize(join(profileRoot, entry));
+  if (!ownedProfile.startsWith(normalize(profileRoot) + sep)) throw new Error('Unsafe profile path');
   try {
-    rmSync(join(profileRoot, entry), { recursive: true, force: true });
+    rmSync(ownedProfile, { recursive: true, force: true });
   } catch (_) {
     // A just-exited Chrome process can briefly retain a Windows file lock.
   }
@@ -123,6 +125,13 @@ try {
   await waitForLabel(cdp, 'Rent');
   await waitForLabel(cdp, 'Groceries');
   console.log('Verified after second reload: Rent + Groceries | USD -512.34');
+  if (process.env.WEB_HOUSEHOLD === '1') {
+    const { runHouseholdWebScenario } = await import('./household_web_scenario.mjs');
+    await runHouseholdWebScenario(cdp, {
+      appUrl, debugPort, repoRoot, connectCdp, waitForPage, openApp,
+      evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay,
+    });
+  }
   console.log('Web runtime verification passed.');
 } catch (error) {
   if (cdp) {
@@ -205,14 +214,14 @@ async function reservePort() {
   return port;
 }
 
-async function waitForPage(port, expectedUrl) {
+async function waitForPage(port, expectedUrl, targetId) {
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       const pages = await response.json();
       const page = pages.find(
-        (entry) => entry.type === 'page' && entry.url.startsWith(expectedUrl),
+        (entry) => entry.type === 'page' && entry.url.startsWith(expectedUrl) && (!targetId || entry.id === targetId),
       );
       if (page) return page;
     } catch (_) {
@@ -265,12 +274,23 @@ async function connectCdp(url) {
     if (message.error) reject(new Error(JSON.stringify(message.error)));
     else resolve(message.result);
   });
+  socket.addEventListener('close', () => {
+    for (const { reject } of pending.values()) reject(new Error('Chrome connection closed'));
+    pending.clear();
+  });
   return {
     events,
     send(method, params = {}) {
       const id = ++nextId;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
+        const timeout = setTimeout(() => {
+          pending.delete(id);
+          reject(new Error(`Chrome command timed out: ${method}`));
+        }, 30_000);
+        pending.set(id, {
+          resolve: (value) => { clearTimeout(timeout); resolve(value); },
+          reject: (error) => { clearTimeout(timeout); reject(error); },
+        });
         socket.send(JSON.stringify({ id, method, params }));
       });
     },
@@ -293,12 +313,15 @@ async function evaluate(cdp, expression) {
 }
 
 async function semanticLabels(cdp) {
-  return evaluate(
+  const labels = await evaluate(
     cdp,
     `[...document.querySelectorAll('flt-semantics-host *')]
       .map((element) => element.getAttribute('aria-label') ?? element.textContent?.trim())
       .filter(Boolean)`,
   );
+  return labels.map((label) =>
+    /cash(?:kp|inv|bk)1:/.test(label) || /^(?:[a-z]+ ){23}[a-z]+$/.test(label)
+      ? '[synthetic copy code or phrase]' : label);
 }
 
 async function waitForLabel(cdp, label) {
@@ -312,6 +335,12 @@ async function waitForLabel(cdp, label) {
 }
 
 async function clickLabel(cdp, label, role) {
+  await waitForLabel(cdp, label);
+  if (role === 'button') {
+    await waitFor(cdp, `[...document.querySelectorAll('flt-semantics-host [role="button"]')].some(e =>
+      (e.getAttribute('aria-label') ?? e.textContent?.trim()) === ${JSON.stringify(label)} &&
+      e.getAttribute('aria-disabled') !== 'true')`);
+  }
   const clicked = await evaluate(
     cdp,
     `(() => {
@@ -329,6 +358,7 @@ async function clickLabel(cdp, label, role) {
 }
 
 async function focusLabel(cdp, label) {
+  await waitForLabel(cdp, label);
   const focused = await evaluate(
     cdp,
     `(() => {
