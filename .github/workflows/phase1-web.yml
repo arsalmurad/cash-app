@@ -89,7 +89,13 @@ jobs:
 
       - name: Build the Rust core to WASM
         working-directory: app
+        env:
+          CC_wasm32_unknown_unknown: clang
+          AR_wasm32_unknown_unknown: llvm-ar
+          CFLAGS_wasm32_unknown_unknown: "-matomics -mbulk-memory"
         run: |
+          clang --version
+          llvm-ar --version
           flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release --wasm-pack-rustup-toolchain nightly-2026-09-24
 
       # --no-web-resources-cdn bundles CanvasKit/skwasm into build/web

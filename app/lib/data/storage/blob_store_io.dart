@@ -4,8 +4,9 @@ import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 
 import 'blob_store.dart';
+import 'sqlite_store.dart';
 
-BlobStore createBlobStore(String name) => IoBlobStore(name);
+BlobStore createBlobStore(String name) => SqliteBlobStore(name);
 
 /// Native blob storage: one file per name in the app's private support
 /// directory, replaced by writing a temporary file and renaming it over the

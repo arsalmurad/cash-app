@@ -4,10 +4,11 @@ import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 
 import 'event_store.dart';
+import 'sqlite_store.dart';
 
-EventStore createEventStore(String name) => WebEventStore(name);
+EventStore createEventStore(String name) => SqliteEventStore(name);
 
-DeviceIdentity createDeviceIdentity() => WebDeviceIdentity();
+DeviceIdentity createDeviceIdentity() => SqliteDeviceIdentity();
 
 /// Browser durable log storage. A web page has no filesystem, so this backs
 /// each named log with `window.localStorage` instead of the plain file

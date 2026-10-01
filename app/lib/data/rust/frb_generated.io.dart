@@ -9,6 +9,7 @@ import 'api/goals.dart';
 import 'api/ledger.dart';
 import 'api/recurring.dart';
 import 'api/shared.dart';
+import 'api/storage.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -174,6 +175,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   OutgoingEntry dco_decode_box_autoadd_outgoing_entry(dynamic raw);
 
   @protected
+  StorageRequest dco_decode_box_autoadd_storage_request(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_32(dynamic raw);
 
   @protected
@@ -293,6 +297,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
 
   @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
   OutgoingEntry dco_decode_outgoing_entry(dynamic raw);
 
   @protected
@@ -318,6 +325,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StagedInvite dco_decode_staged_invite(dynamic raw);
+
+  @protected
+  StorageOperation dco_decode_storage_operation(dynamic raw);
+
+  @protected
+  StorageRequest dco_decode_storage_request(dynamic raw);
+
+  @protected
+  StorageResponse dco_decode_storage_response(dynamic raw);
 
   @protected
   TransactionView dco_decode_transaction_view(dynamic raw);
@@ -469,6 +485,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  StorageRequest sse_decode_box_autoadd_storage_request(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
@@ -604,6 +625,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
 
   @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
   OutgoingEntry sse_decode_outgoing_entry(SseDeserializer deserializer);
 
   @protected
@@ -635,6 +659,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StagedInvite sse_decode_staged_invite(SseDeserializer deserializer);
+
+  @protected
+  StorageOperation sse_decode_storage_operation(SseDeserializer deserializer);
+
+  @protected
+  StorageRequest sse_decode_storage_request(SseDeserializer deserializer);
+
+  @protected
+  StorageResponse sse_decode_storage_response(SseDeserializer deserializer);
 
   @protected
   TransactionView sse_decode_transaction_view(SseDeserializer deserializer);
@@ -804,6 +837,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_outgoing_entry(
     OutgoingEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_storage_request(
+    StorageRequest self,
     SseSerializer serializer,
   );
 
@@ -991,6 +1030,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_outgoing_entry(OutgoingEntry self, SseSerializer serializer);
 
   @protected
@@ -1028,6 +1073,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_staged_invite(StagedInvite self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_storage_operation(
+    StorageOperation self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_storage_request(
+    StorageRequest self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_storage_response(
+    StorageResponse self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_transaction_view(
