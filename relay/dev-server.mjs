@@ -1,11 +1,12 @@
 // Runs the relay locally in workerd (via miniflare) for development and for
 // scripts/verify_relay.sh. Usage: node dev-server.mjs [port]
 import { Miniflare } from "miniflare";
+import { fileURLToPath } from "node:url";
 
 const port = Number(process.argv[2] ?? process.env.PORT ?? 8787);
 const mf = new Miniflare({
   modules: true,
-  scriptPath: new URL("./src/worker.js", import.meta.url).pathname,
+  scriptPath: fileURLToPath(new URL("./src/worker.js", import.meta.url)),
   durableObjects: { GROUP: "GroupLog", MAILBOX: "Mailbox" },
   compatibilityDate: "2026-07-01",
   host: "127.0.0.1",
