@@ -197,10 +197,13 @@ transaction goes through the exact same validation and durable-persistence
 path as one entered by hand; a row that fails to parse or fails the
 ledger's own validation is skipped and reported, never silently dropped.
 
-There is no native file picker or file-save integration: export copies CSV
-text to the clipboard and shows it for review, and import reads pasted CSV
-text, both through `Clipboard`/`TextField` from the Flutter SDK alone. See
-`docs/DECISIONS.md` for why.
+The pinned `file_picker` adapter offers explicit file selection/save alongside
+clipboard/paste. It bounds streamed imports to 5 MB, rejects invalid UTF-8 and
+strips a UTF-8 BOM before review; choosing a file alone does not mutate the
+ledger. Native save/cancellation and browser download requests have distinct
+results. CSV is readable transaction data, excludes transfers, and is not an
+encrypted full backup. Selecting an OS/cloud-provider location is the user's
+own export action, not app-managed synchronization.
 
 ## Recurring transactions and upcoming occurrences
 
@@ -255,11 +258,13 @@ be picked up and read without unlocking again.
   policy. It has no UI, storage, network, or wall-clock dependency.
 - `rust/api`: thin `flutter_rust_bridge` surface. Added when the first personal
   app vertical slice is connected.
+- `rust/storage`: SQLite transactions and checked persistence revisions;
+  the deterministic domain core remains storage-independent.
 - `rust/crypto`: MLS wrapper promoted from the proven Phase 0 spike when Phase
   2 begins; it is not part of the Phase 1 personal app.
 - `app`: Flutter Material 3 UI organized by feature. It receives presentation
   models through the bridge and does not implement ledger rules. `app/lib/data`
   holds the generated bridge bindings and the `EventStore` persistence layer
-  (native file vs. browser storage) described above; both stay data plumbing,
+  (Rust SQLite path vs. locked browser image) described above; both stay data plumbing,
   never a second copy of ledger rules.
 

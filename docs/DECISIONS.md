@@ -791,3 +791,24 @@ instead of interpreting altered fields or saving a partial prefix. All 18
 CSV parsing/dialog checks passed, including a valid first row followed by a
 malformed row causing no writes.
 
+## 2026-10-02 — Explicit CSV files, not just clipboard text
+
+Pin `file_picker` 13.1.0 and its resolved platform implementations to offer file
+import/save on the existing iOS 15+, Android and web targets; the Flutter-owned
+`file_selector` was considered but does not expose save-location selection on
+mobile/web ([maintainer API](https://pub.dev/packages/file_picker),
+[file_selector support table](https://pub.dev/packages/file_selector)). Streamed
+UTF-8 reads are bounded to 5 MB, preserve Unicode and strip a BOM; the user
+reviews text before choosing Import. Plaintext/partial-backup limits are shown.
+The pinned web implementation requests a download and returns null, so its
+result is not treated as either cancellation or proof of a completed save.
+
+All 202 app tests passed before the added narrow-phone/1.5x-text layout test;
+that test and seven file/dialog checks then passed, with clean static analysis.
+An independent production Chrome/WASM journey selected a real synthetic BOM/
+Unicode CSV through the browser file dialog, verified no SQLite change before
+Import, reloaded the persisted transaction, and read back the actual downloaded
+CSV bytes. Mobile native file-dialog interaction and non-Latin offline font
+coverage remain separate verification/UX work; plugin compatibility is not a
+claim that those dialogs have been exercised on a phone.
+
