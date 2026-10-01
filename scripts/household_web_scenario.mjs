@@ -208,7 +208,7 @@ export async function runHouseholdWebScenario(alice, api) {
     assert(requests.some(event => event.params.request.method === 'GET'));
     for (const event of requests) {
       const body = event.params.request.postData ?? '';
-      for (const title of ['Groceries', 'Rent', 'Browser shared dinner', 'Sent after browser backup']) {
+      for (const title of ['Groceries', 'Rent', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup']) {
         assert(!body.includes(title), 'Relay request leaked a readable financial title');
       }
     }
