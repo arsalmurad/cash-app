@@ -177,14 +177,18 @@ describe("mailbox", () => {
 
   test("a mailbox holding an item cannot be overwritten", async () => {
     const id = freshGroup();
-    const put = () =>
+    const put = (joined_after = 1) =>
       call(`/m/${id}`, {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ group, joined_after: 1, welcome }),
+        body: JSON.stringify({ group, joined_after, welcome }),
       });
     assert.equal((await put()).status, 200);
-    assert.equal((await put()).status, 409);
+    assert.equal((await put()).status, 200, 'an exact retry is idempotent');
+    assert.equal((await put(2)).status, 409, 'different data cannot overwrite');
+    assert.equal((await post(`/m/${id}/take`, {})).status, 200);
+    assert.equal((await put()).status, 200, 'a lost delivery reply may be retried');
+    assert.equal((await post(`/m/${id}/take`, {})).status, 404, 'retry does not resurrect a consumed welcome');
   });
 
   test("invalid items are rejected", async () => {

@@ -169,23 +169,32 @@ export class Mailbox {
       ) {
         return fail(400, "invalid mailbox item");
       }
-      if ((await this.state.storage.get("item")) !== undefined) {
-        return fail(409, "mailbox already holds an item");
-      }
-      await this.state.storage.put("item", {
+      const item = {
         group: body.group,
         joined_after: body.joined_after,
         welcome: body.welcome,
+      };
+      const result = await this.state.storage.transaction(async (txn) => {
+        const stored = await txn.get("item");
+        if (stored !== undefined) {
+          return stored.group === item.group &&
+            stored.joined_after === item.joined_after &&
+            stored.welcome === item.welcome ? "retry" : "conflict";
+        }
+        await txn.put("item", item);
+        await txn.setAlarm(Date.now() + MAILBOX_TTL_MS);
+        return "created";
       });
-      await this.state.storage.setAlarm(Date.now() + MAILBOX_TTL_MS);
+      if (result === "conflict") return fail(409, "mailbox already holds an item");
       return json({ ok: true });
     }
     if (request.method === "POST" && url.pathname.endsWith("/take")) {
       const item = await this.state.storage.transaction(async (txn) => {
         const stored = await txn.get("item");
-        if (stored !== undefined) {
-          await txn.delete("item");
-        }
+        if (stored === undefined || await txn.get("consumed")) return undefined;
+        // Keep opaque contents until the original expiry so an exact PUT
+        // retry can succeed without recreating an already consumed welcome.
+        await txn.put("consumed", true);
         return stored;
       });
       return item === undefined ? fail(404, "empty mailbox") : json(item);

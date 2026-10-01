@@ -1,5 +1,13 @@
 # Decisions
 
+## 2026-10-01 — Invitation delivery retries must not overwrite or resurrect
+
+Mailbox PUT is now atomically idempotent for exactly the same encrypted item,
+but rejects changed contents and retains a consumed marker until original expiry.
+Retries do not extend expiry or make a consumed welcome available again; client
+delivery journals also refuse retries past their original seven-day lifetime.
+This resolves indeterminate PUT replies, not interrupted single-use retrieval.
+
 ## 2026-10-01 — Journal pending MLS commits rather than guessing after timeout
 
 Peer state v3 persists the exact staged commit and OpenMLS pending group state,
