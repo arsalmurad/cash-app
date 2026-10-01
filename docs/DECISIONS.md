@@ -739,3 +739,16 @@ invitation waits durably for retirement without publishing; otherwise a stale
 or cloned snapshot could reuse the old sender ratchet, and its own later
 ciphertext cannot recover the missing plaintext.
 
+## 2026-10-02 — Checked hybrid-clock advancement
+
+Every personal book and shared peer now uses the core's checked clock step.
+A logical `u32::MAX` carries into the next physical millisecond instead of
+saturating and reusing a timestamp/personal event ID. Exhausting both fields
+returns an error before changing the clock, history, proof set or outbox.
+An authenticated incoming event can reach this boundary, so it is not treated
+as an impossible local-only counter. Existing on-disk and wire formats remain
+unchanged. Tests cover skew, carry, terminal exhaustion, observed signed history,
+peer restart, and all four personal books; the initial personal carry regression
+failed before the fix. The locked full Rust acceptance suite passed, including
+three-peer 1,000-event convergence (112.56 s); all 48 bridge unit tests passed.
+

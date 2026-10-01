@@ -180,7 +180,7 @@ pub fn add_account(
             name,
             currency,
         },
-    );
+    )?;
     data.append_and_mutation(event)
 }
 
@@ -243,7 +243,7 @@ pub fn record_transaction(
             category_id,
             recurring_id,
         },
-    );
+    )?;
     data.append_and_mutation(event)
 }
 
@@ -315,7 +315,7 @@ pub fn record_transfer(
             received_reporting_fx: received_fx,
             title,
         },
-    );
+    )?;
     data.append_and_mutation(event)
 }
 
@@ -370,27 +370,23 @@ fn lock(ledger: &PersonalLedger) -> Result<MutexGuard<'_, LedgerData>, String> {
 }
 
 impl LedgerData {
-    fn next_event(&mut self, wall_clock_millis: i64, kind: EventKind) -> Event {
-        let timestamp = if wall_clock_millis > self.last_timestamp.physical_millis {
-            HybridTimestamp::new(wall_clock_millis, 0)
-        } else {
-            HybridTimestamp::new(
-                self.last_timestamp.physical_millis,
-                self.last_timestamp.logical.saturating_add(1),
-            )
-        };
+    fn next_event(&mut self, wall_clock_millis: i64, kind: EventKind) -> Result<Event, String> {
+        let timestamp = self
+            .last_timestamp
+            .checked_next(wall_clock_millis)
+            .ok_or_else(|| "hybrid clock exhausted".to_owned())?;
         self.last_timestamp = timestamp;
         let id = format!(
             "{}-{:016x}-{:08x}",
             self.actor_id, timestamp.physical_millis, timestamp.logical
         );
-        Event::new(
+        Ok(Event::new(
             id,
             self.actor_id.clone(),
             timestamp.physical_millis,
             timestamp.logical,
             kind,
-        )
+        ))
     }
 
     fn overview(&self) -> Result<LedgerOverview, String> {
@@ -746,6 +742,28 @@ mod tests {
         let advanced_timestamp = restarted.data.lock().unwrap().last_timestamp;
         assert!(advanced_timestamp > persisted_timestamp);
         assert_eq!(mutation.overview.accounts.len(), 2);
+    }
+
+    #[test]
+    fn logical_clock_overflow_carries_without_reusing_an_event_id() {
+        let ledger = new_ledger("device-a");
+        ledger.data.lock().unwrap().last_timestamp = HybridTimestamp::new(100, u32::MAX);
+        add_account(&ledger, "checking".into(), "Checking".into(), "USD".into(), 1).unwrap();
+        assert_eq!(ledger.data.lock().unwrap().last_timestamp, HybridTimestamp::new(101, 0));
+        add_account(&ledger, "savings".into(), "Savings".into(), "USD".into(), 1).unwrap();
+        assert_eq!(get_overview(&ledger).unwrap().accounts.len(), 2);
+    }
+
+    #[test]
+    fn exhausted_clock_rejects_without_changing_the_ledger() {
+        let ledger = new_ledger("device-a");
+        let last = HybridTimestamp::new(i64::MAX, u32::MAX);
+        ledger.data.lock().unwrap().last_timestamp = last;
+        let result = add_account(&ledger, "checking".into(), "Checking".into(), "USD".into(), 1);
+        assert!(result.is_err());
+        let data = ledger.data.lock().unwrap();
+        assert_eq!(data.last_timestamp, last);
+        assert!(data.events.is_empty());
     }
 
     #[test]

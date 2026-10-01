@@ -224,6 +224,37 @@ mod authorship_tests {
     }
 
     #[test]
+    fn observed_clock_overflow_carries_and_restart_preserves_causality() {
+        let (mut alice, mut bob) = household();
+        let mut incoming = event(&author_id(&bob.public_key()));
+        incoming.event.timestamp = HybridTimestamp::new(100, u32::MAX);
+        let proof = SignedEvent::sign(&bob, incoming).unwrap();
+        let mut payload = vec![3];
+        payload.extend_from_slice(&proof.encode());
+        alice.ingest(&[(2, bob.encrypt(&payload).unwrap())]).unwrap();
+        let written = alice.write(1, event("unused").event.kind).unwrap();
+        assert_eq!(written.event.timestamp, HybridTimestamp::new(101, 0));
+        let mut restarted = Peer::import(&alice.export().unwrap()).unwrap();
+        let next = restarted.write(1, event("unused").event.kind).unwrap();
+        assert_eq!(next.event.timestamp, HybridTimestamp::new(101, 1));
+        assert_ne!(written.event.id, next.event.id);
+    }
+
+    #[test]
+    fn exhausted_observed_clock_refuses_a_write_without_mutation() {
+        let (mut alice, mut bob) = household();
+        let mut incoming = event(&author_id(&bob.public_key()));
+        incoming.event.timestamp = HybridTimestamp::new(i64::MAX, u32::MAX);
+        let proof = SignedEvent::sign(&bob, incoming).unwrap();
+        let mut payload = vec![3];
+        payload.extend_from_slice(&proof.encode());
+        alice.ingest(&[(2, bob.encrypt(&payload).unwrap())]).unwrap();
+        let saved = alice.export().unwrap();
+        assert!(alice.write(1, event("unused").event.kind).is_err());
+        assert_eq!(alice.export().unwrap(), saved);
+    }
+
+    #[test]
     fn unsigned_legacy_frames_cannot_enter_authenticated_history() {
         let (mut alice, mut bob) = household();
         let mut payload = vec![1];
@@ -1026,14 +1057,10 @@ impl Peer {
         if !self.is_member() {
             return Err(SyncError("this peer is not in the group".to_owned()));
         }
-        let timestamp = if wall_clock_millis > self.last_timestamp.physical_millis {
-            HybridTimestamp::new(wall_clock_millis, 0)
-        } else {
-            HybridTimestamp::new(
-                self.last_timestamp.physical_millis,
-                self.last_timestamp.logical.saturating_add(1),
-            )
-        };
+        let timestamp = self
+            .last_timestamp
+            .checked_next(wall_clock_millis)
+            .ok_or_else(|| SyncError("hybrid clock exhausted".to_owned()))?;
         let actor = author_id(&self.member.public_key());
         // Restoring a backup on a second device must not reproduce event IDs
         // when both copies happen to write at the same hybrid timestamp.
