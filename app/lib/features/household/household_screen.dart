@@ -110,9 +110,17 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
   }
 
   Future<void> _invite() async {
+    if (controller.hasPendingInvitation) {
+      if (await controller.resumeInvitation() == null) {
+        _reportFailure('The pending invitation could not be completed');
+        return;
+      }
+      if (!mounted) return;
+    }
     await showDialog<void>(
       context: context,
       builder: (context) => InviteDialog(
+        initialInvite: controller.lastInviteCode,
         createInvite: (request) async {
           final invite = await controller.invite(request);
           if (invite == null) {

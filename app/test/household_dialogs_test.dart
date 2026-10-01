@@ -128,6 +128,23 @@ void main() {
     expect(find.textContaining('once'), findsWidgets);
   });
 
+  testWidgets('InviteDialog recovers the last code and permits a new request', (
+    tester,
+  ) async {
+    await _open<void>(
+      tester,
+      InviteDialog(
+        initialInvite: 'cashinv1:RECOVERED',
+        createInvite: (_) async => null,
+      ),
+      (_) {},
+    );
+    expect(find.text('cashinv1:RECOVERED'), findsOneWidget);
+    await tester.tap(find.text('Invite someone else'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('requestField')), findsOneWidget);
+  });
+
   testWidgets('InviteDialog shows nothing to copy when inviting fails', (
     tester,
   ) async {

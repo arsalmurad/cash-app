@@ -159,9 +159,14 @@ class _JoinDialogState extends State<JoinDialog> {
 /// For an existing member: paste the newcomer's join request, get the
 /// invite to send back.
 class InviteDialog extends StatefulWidget {
-  const InviteDialog({required this.createInvite, super.key});
+  const InviteDialog({
+    required this.createInvite,
+    this.initialInvite,
+    super.key,
+  });
 
   final Future<String?> Function(String joinRequest) createInvite;
+  final String? initialInvite;
 
   @override
   State<InviteDialog> createState() => _InviteDialogState();
@@ -172,6 +177,12 @@ class _InviteDialogState extends State<InviteDialog> {
   String? invite;
   bool working = false;
   String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    invite = widget.initialInvite;
+  }
 
   @override
   void dispose() {
@@ -240,6 +251,11 @@ class _InviteDialogState extends State<InviteDialog> {
         ),
       ),
       actions: [
+        if (created != null)
+          TextButton(
+            onPressed: working ? null : () => setState(() => invite = null),
+            child: const Text('Invite someone else'),
+          ),
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(created == null ? 'Cancel' : 'Done'),
