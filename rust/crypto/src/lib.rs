@@ -108,6 +108,19 @@ fn digest(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }
 
+/// Self-certifying event-author identity. A caller-chosen member label must
+/// never let one signing key impersonate another event author.
+pub fn author_id(public_key: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"cash-app author identity v1\0");
+    hasher.update(public_key);
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
 impl Member {
     /// `name` is the member's display name inside the group's credential.
     pub fn new(name: &str) -> Result<Self, Error> {
@@ -418,6 +431,16 @@ impl Member {
             .group
             .as_mut()
             .ok_or_else(|| Error("this member is not in a group".to_owned()))?;
+        let identity = BasicCredential::try_from(key_package.leaf_node().credential().clone())
+            .map_err(fail)?;
+        if group.members().any(|member| {
+            BasicCredential::try_from(member.credential)
+                .is_ok_and(|existing| existing.identity() == identity.identity())
+        }) {
+            return Err(Error(
+                "a member with this identity already belongs to the household".to_owned(),
+            ));
+        }
         let (commit, welcome, _) = group
             .add_members(&self.provider, &self.signer, &[key_package])
             .map_err(fail)?;
