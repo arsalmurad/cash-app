@@ -8,6 +8,8 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
 import '../../data/rust/api/ledger.dart' show EntryKind;
 import '../../data/rust/api/shared.dart';
 import '../../data/storage/blob_store.dart';
+import '../../data/storage/secret_blob_store.dart';
+import '../../data/storage/vault_keys.dart';
 import 'invite_codes.dart';
 import 'household_journal.dart';
 import 'relay_client.dart';
@@ -24,7 +26,7 @@ class HouseholdController extends ChangeNotifier {
     RelayClient Function(String url)? relayFactory,
     int Function()? clockMillis,
     String Function()? newMemberId,
-  }) : _stateStore = stateStore ?? BlobStore('household'),
+  }) : _stateStore = stateStore ?? SecretBlobStore(BlobStore('household')),
        _configStore = configStore ?? BlobStore('household-config'),
        _relayFactory = relayFactory ?? HttpRelayClient.new,
        _clockMillis =
@@ -55,6 +57,12 @@ class HouseholdController extends ChangeNotifier {
   String? lastInviteCode;
   String? _lastInviteRequest;
   bool get hasPendingInvitation => _pendingInvitation != null;
+  bool needsVaultUnlock = false;
+  bool vaultHasCiphertext = false;
+  bool get canLockVault =>
+      _stateStore is SecretBlobStore &&
+      _stateStore.keys.requiresUnlock &&
+      !needsVaultUnlock;
   static const _uncertainSaveMessage =
       'The household save could not be confirmed. Restart and check the '
       'household before retrying; the last change may already be saved.';
@@ -73,9 +81,11 @@ class HouseholdController extends ChangeNotifier {
     ).join();
   }
 
-  Future<void> initialize() => _enqueue(() async {
+  Future<void> initialize() => _enqueue(_initialize);
+
+  Future<void> _initialize() async {
     try {
-      _ensureWritable();
+      if (_writesDisabled) throw const FormatException(_uncertainSaveMessage);
       final config = await _configStore.read();
       if (config != null && config.isNotEmpty) {
         relayUrl = String.fromCharCodes(config);
@@ -85,7 +95,31 @@ class HouseholdController extends ChangeNotifier {
       if (saved != null) {
         await _loadSaved(saved);
         overview = await householdOverview(household: _household!);
+        final store = _stateStore;
+        if (store is SecretBlobStore && store.needsMigration) {
+          await _persist(); // Validate legacy Rust state before replacing it.
+        }
       }
+      needsVaultUnlock = false;
+      errorMessage = null;
+    } on VaultLocked catch (error) {
+      needsVaultUnlock = true;
+      vaultHasCiphertext = error.hasCiphertext;
+      _household = null;
+      overview = null;
+      errorMessage = null;
+    } on VaultCannotOpen catch (error) {
+      final store = _stateStore;
+      if (store is SecretBlobStore && store.keys.requiresUnlock) {
+        store.keys.lock();
+        needsVaultUnlock = true;
+        vaultHasCiphertext = true;
+        _household = null;
+        overview = null;
+      } else {
+        _disableWrites();
+      }
+      errorMessage = error.toString();
     } catch (error) {
       _disableWrites();
       errorMessage = error.toString();
@@ -93,6 +127,53 @@ class HouseholdController extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
     }
+  }
+
+  SecretBlobStore _browserVault() {
+    final store = _stateStore;
+    if (store is! SecretBlobStore || !store.keys.requiresUnlock) {
+      throw const FormatException(
+        'This device uses its operating system secure storage.',
+      );
+    }
+    return store;
+  }
+
+  Future<String?> generateBrowserUnlockPhrase() async {
+    String? phrase;
+    final ok = await _run(() async {
+      _browserVault();
+      phrase = await recoveryGeneratePhrase();
+    }, allowRecovery: true);
+    return ok ? phrase : null;
+  }
+
+  Future<bool> unlockBrowserVault(String phrase) => _run(() async {
+    if (_writesDisabled) throw const FormatException(_uncertainSaveMessage);
+    final store = _browserVault();
+    // Validate the phrase before holding the tab lease or touching saved state.
+    await recoverySeal(phrase: phrase, plaintext: Uint8List(0));
+    await store.keys.write(phrase);
+    needsVaultUnlock = false;
+    await _initialize();
+    if (needsVaultUnlock || _writesDisabled) {
+      throw FormatException(
+        errorMessage ?? 'The household could not be unlocked.',
+      );
+    }
+  }, allowRecovery: true);
+
+  Future<bool> lockBrowserVault() => _run(() async {
+    final store = _browserVault();
+    store.keys.lock();
+    _household = null;
+    overview = null;
+    _pendingInvitation = null;
+    _pendingMailboxAck = null;
+    lastInviteCode = null;
+    _lastInviteRequest = null;
+    needsVaultUnlock = true;
+    vaultHasCiphertext = true;
   });
 
   /// Sets the relay address (an `http(s)` URL). The relay sees only
@@ -131,6 +212,11 @@ class HouseholdController extends ChangeNotifier {
 
   void _ensureWritable() {
     if (_writesDisabled) throw const FormatException(_uncertainSaveMessage);
+    if (needsVaultUnlock) {
+      throw const FormatException(
+        'Unlock the household on this browser first.',
+      );
+    }
   }
 
   void _disableWrites() {
@@ -468,25 +554,42 @@ class HouseholdController extends ChangeNotifier {
   /// device. The old device must be treated as gone: two devices with the
   /// same member identity would fork it.
   Future<bool> restoreBackup(String phrase, String backupCode) =>
-      _run(() async {
-        if (isMember) {
-          throw const FormatException('This device is already in a household.');
-        }
-        final plaintext = await recoveryOpen(
-          phrase: phrase,
-          sealed: decodeBackup(backupCode),
-        );
-        await _loadSaved(plaintext);
-        _writesDisabled = false;
-        await _persist();
-        await _refresh();
-        if (_relay == null && relayUrl != null) {
-          _relay = _relayFactory(relayUrl!);
-        }
-        if (_relay != null) {
-          await _sync();
-        }
-      }, allowRecovery: true);
+      _restoreBackup(phrase, backupCode);
+
+  Future<bool> restoreBackupWithNewUnlock(
+    String phrase,
+    String backupCode,
+    String unlockPhrase,
+  ) => _restoreBackup(phrase, backupCode, unlockPhrase: unlockPhrase);
+
+  Future<bool> _restoreBackup(
+    String phrase,
+    String backupCode, {
+    String? unlockPhrase,
+  }) => _run(() async {
+    if (isMember) {
+      throw const FormatException('This device is already in a household.');
+    }
+    final plaintext = await recoveryOpen(
+      phrase: phrase,
+      sealed: decodeBackup(backupCode),
+    );
+    await _loadSaved(plaintext);
+    if (unlockPhrase != null) {
+      await recoverySeal(phrase: unlockPhrase, plaintext: Uint8List(0));
+      await _browserVault().keys.write(unlockPhrase);
+      needsVaultUnlock = false;
+    }
+    _writesDisabled = false;
+    await _persist();
+    await _refresh();
+    if (_relay == null && relayUrl != null) {
+      _relay = _relayFactory(relayUrl!);
+    }
+    if (_relay != null) {
+      await _sync();
+    }
+  }, allowRecovery: true);
 
   // --- Shared expenses --------------------------------------------------
 
