@@ -78,7 +78,7 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
         run: >-
-          flutter test integration_test/ledger_test.dart
+          flutter --no-version-check test --no-pub --verbose integration_test/ledger_test.dart
           -d "${{ steps.simulator.outputs.udid }}"
 
       # The shared layer through the real bridge: two devices, MLS, and an
@@ -91,14 +91,14 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
         run: >-
-          flutter test integration_test/household_test.dart
+          flutter --no-version-check test --no-pub --verbose integration_test/household_test.dart
           -d "${{ steps.simulator.outputs.udid }}"
 
       - name: Build unsigned iOS release
         working-directory: app
         env:
           RUSTUP_TOOLCHAIN: 1.98.1
-        run: flutter build ios --release --no-codesign
+        run: flutter --no-version-check build ios --release --no-codesign --no-pub
 
       - name: Record Phase 1 iOS result
         shell: bash
@@ -111,9 +111,22 @@ jobs:
             echo "## Phase 1 iOS result"
             echo
             echo "- Personal ledger integration test: passed"
+            echo "- Protected native household/recovery integration test: passed"
             echo "- Unsigned release build: passed"
             echo "- Runner.app bytes: $app_bytes"
           } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Diagnose simulator launch failures
+        if: failure() && steps.simulator.outputs.udid != ''
+        timeout-minutes: 2
+        env:
+          SIMULATOR_UDID: ${{ steps.simulator.outputs.udid }}
+        run: |
+          xcrun simctl list devices booted
+          xcrun simctl spawn "$SIMULATOR_UDID" launchctl list | grep -E 'Runner|UIKitApplication' || true
+          xcrun simctl spawn "$SIMULATOR_UDID" log show --style compact --last 5m \
+            --predicate 'process == "Runner" OR process == "SpringBoard"' | tail -n 100 || true
+          find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -name 'Runner*' -print || true
 
       - name: Shut down simulator
         if: always() && steps.simulator.outputs.udid != ''
