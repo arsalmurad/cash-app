@@ -7,6 +7,7 @@ import 'household_controller.dart';
 import 'household_dialogs.dart';
 import 'household_pane.dart';
 import 'household_setup_pane.dart';
+import 'vault_pane.dart';
 
 enum _MenuAction { backup, leave }
 
@@ -102,6 +103,53 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
           final restored = await controller.restoreBackup(phrase, backup);
           if (!restored) {
             _reportFailure("Couldn't restore");
+          }
+          return restored;
+        },
+      ),
+    );
+  }
+
+  Future<void> _restoreLockedVault() async {
+    final phrase = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: SizedBox(
+          width: 520,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: VaultPane(
+                  hasCiphertext: false,
+                  generatePhrase: controller.generateBrowserUnlockPhrase,
+                  unlock: (phrase) async {
+                    Navigator.pop(dialogContext, phrase);
+                    return true;
+                  },
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (phrase == null || !mounted) return;
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => RestoreDialog(
+        restore: (backupPhrase, backup) async {
+          final restored = await controller.restoreBackupWithNewUnlock(
+            backupPhrase,
+            backup,
+            phrase,
+          );
+          if (!restored) {
+            _reportFailure("Couldn't restore the encrypted backup");
           }
           return restored;
         },
@@ -270,6 +318,14 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
           appBar: AppBar(
             title: const Text('Household'),
             actions: [
+              if (controller.canLockVault)
+                IconButton(
+                  tooltip: 'Lock household in this browser',
+                  icon: const Icon(Icons.lock_outline),
+                  onPressed: controller.isBusy
+                      ? null
+                      : controller.lockBrowserVault,
+                ),
               if (inHousehold)
                 PopupMenuButton<_MenuAction>(
                   tooltip: 'Household options',
@@ -295,6 +351,14 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
             children: [
               if (controller.isLoading)
                 const Center(child: CircularProgressIndicator())
+              else if (controller.needsVaultUnlock)
+                VaultPane(
+                  hasCiphertext: controller.vaultHasCiphertext,
+                  generatePhrase: controller.generateBrowserUnlockPhrase,
+                  unlock: controller.unlockBrowserVault,
+                  error: controller.errorMessage,
+                  recover: _restoreLockedVault,
+                )
               else if (inHousehold)
                 HouseholdPane(
                   overview: overview,
@@ -327,7 +391,8 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                 ),
             ],
           ),
-          floatingActionButton: inHousehold && overview.isMember
+          floatingActionButton:
+              inHousehold && overview.isMember && !controller.needsVaultUnlock
               ? FloatingActionButton.extended(
                   onPressed: controller.isBusy ? null : _addExpense,
                   icon: const Icon(Icons.add_rounded),

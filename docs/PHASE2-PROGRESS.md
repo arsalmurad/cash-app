@@ -184,6 +184,40 @@ protection. Windows workerd emitted a connection-reset diagnostic but all audit
 assertions and the process exit status passed. CI now runs `npm run test:storage`
 after the already-built HTTP peer checks, reusing their dependencies and cache.
 
+## Protected working journals (2026-10-01, mobile/browser checks pending)
+
+The default household store now seals its whole atomic journal using the
+existing Rust AEAD and a purpose-bound plaintext domain. Native clients put only
+a fresh random wrapping phrase in OS secure storage, with key readback and no
+silent reset. Browser clients persist ciphertext only and keep a user-saved
+24-word unlock phrase in RAM; reopening requires the phrase, and an exclusive
+Web Lock prevents two tabs using one MLS sender state simultaneously. This
+phrase is separate from the sealed recovery backup's independently generated
+phrase. Correctly authenticated backup recovery can adopt a new browser key.
+
+Independently passed on Windows: 185 app tests with the real Rust bridge and
+clean analyzer. Eleven new real-AEAD tests cover concealed bytes, wrong/missing
+keys, tampering, purpose substitution, failed/unconfirmed key saves, concurrent
+initial key creation, uncertain blob saves, validated legacy migration, browser
+lock/reload/wrong-phrase retry, and independent backup recovery. Two widget
+checks require phrase-saving confirmation and exercise obscured unlock input
+and recovery; one OS-plugin mock contract is explicitly not an OS runtime test.
+
+Commands: with `RUST_LIB_PATH` set to the existing rebuilt Windows bridge,
+`flutter --no-version-check test --no-pub --reporter failures-only` and
+`flutter --no-version-check analyze --no-pub`, in `app/`.
+`integration_test/household_test.dart` now includes a real OS secure-key write,
+fresh-provider reread, ciphertext-file inspection and scoped test-data cleanup
+on mobile. The Chrome-only test checks RAM-only keys and an independent frame's
+exclusive-lock rejection. Those new mobile and browser checks remain pending;
+the overall at-rest gate is not yet marked complete.
+
+Encryption does not hide relay metadata, secure a compromised unlocked device
+or page, encrypt the separate personal ledger, erase old plaintext remnants,
+or guarantee protection from copying an old MLS backup and forking its identity.
+Android automatic backup/transfer is disabled; use explicit encrypted household
+backups and personal export instead. No new production WASM runtime is claimed.
+
 ## Not done
 
 Household save-safety changes were independently exercised through the rebuilt
@@ -199,10 +233,10 @@ journals above, but do not alone close the full durability gate.
   owner action), and the app has no default relay address: the user enters
   one. No authentication, rate limiting, abuse controls, or log retention
   policy exist yet; a public relay needs them.
-- **Secrets at rest.** The saved household state (MLS private keys) lives in
-  an app-private file natively and in `localStorage` on the web, not the
-  platform keychain. The recovery backup is sealed, but the working copy is
-  not.
+- **Secrets at rest verification.** Working journals are now sealed as described
+  above, but the new native keychain/keystore and actual-browser lock flows must
+  pass their platform checks before closing the gate. Stale recovery after later
+  sends and duplicate restored sender identities also need explicit coverage.
 - **Historical membership policy.** Origin keys and live MLS senders are now
   authenticated as described above; signatures are not historical membership
   attestations. Current members still control publication of forwarded history.
