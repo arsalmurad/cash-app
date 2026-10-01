@@ -36,10 +36,16 @@ class IoEventStore implements EventStore {
   @override
   Future<void> appendFrame(Uint8List frame) async {
     final file = await _logFile();
-    final sink = file.openWrite(mode: FileMode.append);
-    sink.add(frame);
-    await sink.flush();
-    await sink.close();
+    final handle = await file.open(mode: FileMode.append);
+    try {
+      await handle.setPosition(await handle.length());
+      await handle.writeFrom(frame);
+      // IOSink.flush only drains its stream buffer. RandomAccessFile.flush
+      // asks the OS to flush the file before the controller confirms a save.
+      await handle.flush();
+    } finally {
+      await handle.close();
+    }
   }
 
   @override

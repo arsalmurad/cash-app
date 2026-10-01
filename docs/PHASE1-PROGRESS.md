@@ -32,12 +32,39 @@ Windows host: Flutter's test server returned HTTP 404 for cached
 `/canvaskit/chromium/canvaskit.js` and `.wasm` files. The files exist; inspection
 of the pinned SDK indicates a Windows path-separator mismatch in
 `_localCanvasKitHandler`. The runner was stopped; this is **not a browser pass**.
-The new workflow runs those tests on Linux. No pinned SDK source was modified.
+Linux CI passed the full app suite and both Chrome storage tests in
+[App checks run 36864521352](https://github.com/arsalmurad/cash-app/actions/runs/36864521352),
+on `2d29a7c` (merged as `2107d52`, PR #6). No pinned SDK source was modified.
 
-Remaining correctness follow-up: mutations currently change the in-memory Rust
-book before the frame append completes. A storage failure needs rollback or a
-fail-closed reload so a failed write cannot leak into later app state. This
-recovery fix does not address that separate failure mode.
+## Failed-save safety (2026-10-01)
+
+Rust mutations precede the frame append, so failed storage writes previously
+left uncommitted events inside live books. Later successful writes could then
+display balances or categories that would disappear after restart. The real
+bridge regression reproduced this for all five logs and overlapping writes.
+
+The controller now serializes mutation -> append -> display refresh across
+all personal logs. An append error discards every live Rust handle, preserves
+the last confirmed display values, and blocks subsequent and already queued
+writes until app restart. Failed initialization also discards partially loaded
+handles. Invalid user input does not disable valid writes. Native appends use
+`RandomAccessFile.flush` before reporting success and close the handle even
+when writing fails, rather than relying on `IOSink.flush` alone.
+
+An error after a full frame was written is deliberately treated as an
+**uncertain save**, not proof that nothing reached disk. The user is asked to
+restart and check saved data before retrying, to avoid duplicate entries.
+Startup keeps a complete valid frame, or repairs a torn tail using the
+previous recovery fix. No saved history is rolled back by guesswork.
+
+Windows verification uses the pinned toolchains and the existing debug DLL
+with `RUST_LIB_PATH`. `test/failed_save_host_test.dart` passes 19 real-bridge
+cases: five logs times three failure positions (before bytes, torn frame,
+complete frame), failed and successful overlapping writes, invalid input,
+and partially loaded initialization. No Rust source or generated bridge
+changed; no platform rebuild or relay deployment is needed for this fix.
+The full `flutter --no-version-check test --no-pub` suite passed 150 tests
+on Windows, and `flutter --no-version-check analyze --no-pub` is clean.
 
 ## Web runtime verification
 
