@@ -84,7 +84,14 @@ class _VaultPaneState extends State<VaultPane> {
             child: const Text('Create unlock phrase'),
           )
         else ...[
-          SelectableText(generated!, key: const Key('generatedVaultPhrase')),
+          Semantics(
+            label: generated!,
+            excludeSemantics: true,
+            child: SelectableText(
+              generated!,
+              key: const Key('generatedVaultPhrase'),
+            ),
+          ),
           TextButton.icon(
             onPressed: () => Clipboard.setData(ClipboardData(text: generated!)),
             icon: const Icon(Icons.copy),

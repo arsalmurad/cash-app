@@ -33,8 +33,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   PR #13, `494253c`: real OS secure-storage/file checks on iOS and Android,
   Chrome RAM-only/exclusive-lock checks, and 185 host app tests passed.
   Production household WASM and stale-backup recovery remain separate gates.
-- [ ] Drive the complete household scenario in the production web/WASM app,
+- [x] Drive the complete household scenario in the production web/WASM app,
   including browser-to-worker CORS, restart, offline edits, recovery and removal.
+  Independently passed 2026-10-02 on Windows Chrome against the release app and
+  real local workerd relay; details and commands are in `PHASE2-PROGRESS.md`.
 - [x] Inspect real workerd Durable Object records for ciphertext-only contents,
   with original production storage methods, real encrypted Rust peers, and a
   plaintext-injection negative control: 27 log records and welcome mailboxes
