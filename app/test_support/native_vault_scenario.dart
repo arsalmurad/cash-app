@@ -1,15 +1,17 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:private_ledger/data/storage/blob_store.dart';
 import 'package:private_ledger/data/storage/secret_blob_store.dart';
 import 'package:private_ledger/data/storage/vault_keys_native.dart';
 
 import 'household_scenario.dart';
 
-/// The full real-bridge household scenario, now with sealed app-private files
+/// The full real-bridge household scenario with sealed SQLite documents
 /// and real OS keys for every simulated device; restart recreates both stores.
 Future<void> runProtectedNativeHouseholdScenario() async {
   final namespace =
@@ -54,6 +56,14 @@ Future<void> runNativeVaultScenario() async {
     final raw = utf8.decode((await blob.read())!, allowMalformed: true);
     expect(raw, isNot(contains('synthetic-private-household-material')));
     expect(raw, isNot(contains((await keys.read())!)));
+    final directory = await getApplicationSupportDirectory();
+    final database = await File('${directory.path}/cash-app.v1.sqlite')
+        .readAsBytes();
+    final physical = latin1.decode(database);
+    expect(physical, startsWith('SQLite format 3\u0000'));
+    expect(physical, contains('cash-app sealed vault v1\u0000'));
+    expect(physical, isNot(contains('synthetic-private-household-material')));
+    expect(physical, isNot(contains((await keys.read())!)));
     keys.lock();
     final restarted = SecretBlobStore(
       blob,

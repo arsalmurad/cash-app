@@ -145,12 +145,13 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickLabel(bob, 'Unlock household', 'button');
     await waitForLabel(bob, 'USD -40.00');
     const saved = await evaluate(bob, `(() => {
-      const bytes = atob(localStorage.getItem('private_ledger.blob.household.v1'));
-      return { sealed: bytes.startsWith('cash-app sealed vault v1\\0'),
+      const bytes = atob(localStorage.getItem('private_ledger.sqlite.v1'));
+      return { sqlite: bytes.startsWith('SQLite format 3\\0'),
+        sealed: bytes.includes('cash-app sealed vault v1\\0'),
         containsTitle: bytes.includes('Browser shared dinner'),
         containsPhrase: Object.values(localStorage).some(v => v.includes(${JSON.stringify(bobPhrase)})) };
     })()`);
-    assert.deepEqual(saved, { sealed: true, containsTitle: false, containsPhrase: false });
+    assert.deepEqual(saved, { sqlite: true, sealed: true, containsTitle: false, containsPhrase: false });
     console.log('Verified household: reload requires the RAM-only phrase and restores sealed history.');
 
     await bob.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
