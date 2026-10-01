@@ -266,6 +266,40 @@ storage/key providers on restart; they no longer substitute in-memory working
 journals. The relay in that mobile scenario remains in memory and the browser
 HTTP/production-app gate stays open.
 
+## 2026-10-02 — Production browser household acceptance
+
+Independently passed on Windows Chrome 154.0.8037.58 using the normal `lib/main.dart` production
+Flutter/WASM release, three isolated Chrome storage contexts, and the original
+relay worker running in local workerd/Miniflare. No application debug hook,
+injected ledger state, real user data, or public deployment was used.
+
+Commands (from `app`, with the existing pinned tools on PATH):
+`flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release
+--wasm-pack-rustup-toolchain nightly` (the installed alias manifest is dated
+2026-09-24), then `flutter --no-version-check build web --wasm
+--no-web-resources-cdn --no-pub`. From the repository root, set
+`WEB_HOUSEHOLD=1` and run `node scripts/verify_web_runtime.mjs` (Node 24.19.0).
+CI uses the explicit `nightly-2026-09-24` override instead of the alias.
+
+The rendered UI passed join/invite through real browser HTTP/CORS, shared
+expense delivery, reload with a required RAM-only unlock phrase, sealed
+localStorage inspection, offline concurrent amount edits with visible conflict,
+stale backup recovery after later old-device sends with a fresh identity,
+old-key removal and future-message exclusion, and private-ledger isolation.
+Both surviving members converged to USD -51.00. Captured HTTP bodies contained
+none of the synthetic financial titles; direct Durable Object storage auditing
+remains the separate evidence above. Screenshot:
+`app/.dart_tool/household-web-pass.png` (local, ignored synthetic artifact).
+
+The run found and fixed an accessibility issue: generated phrases and copyable
+codes were visible but exposed as empty textboxes in Chrome's accessibility
+tree. Explicit read-only semantic labels preserve pointer selection/copying;
+13 focused widget tests and analyzer passed. This is not a full WCAG or
+VoiceOver/NVDA audit. The iOS simulator retry is still pending; Android's
+protected native household scenario and release APK passed in
+[run 36913443159](https://github.com/arsalmurad/cash-app/actions/runs/36913443159)
+at recovery revision `e5bf1e2`, before the accessibility-only UI change.
+
 ## Not done
 
 Household save-safety changes were independently exercised through the rebuilt
@@ -287,11 +321,9 @@ journals above, but do not alone close the full durability gate.
 - **Historical membership policy.** Origin keys and live MLS senders are now
   authenticated as described above; signatures are not historical membership
   attestations. Current members still control publication of forwarded history.
-- **Web.** The web build compiles MLS into its wasm bundle and passed the
-  existing web runtime check, but the household flows have not been driven
-  in a browser (the CDP script only covers the personal ledger), and the
-  worker's CORS support is tested only with preflight and header
-  assertions, not from a real browser page.
+- **Web deployment.** Production browser household flows passed against a
+  real local worker above; the authenticated public deployment, other browsers,
+  and final-revision cross-platform acceptance remain separate gates.
 - **On-device coverage of edge cases.** Push notifications (the worker
   exposes WebSocket tail notifications; the app polls every 30 s instead),
   multiple households per device, display names inside the encrypted stream

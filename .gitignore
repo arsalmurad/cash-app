@@ -5,3 +5,4 @@
 /mls_spike/.flutter-plugins-dependencies
 /rust/target/
 /relay/node_modules/
+/.wrangler/
