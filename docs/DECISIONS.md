@@ -707,3 +707,24 @@ choices, each with the option rejected:
   (web), not the platform keychain; the relay has no authentication or rate
   limiting.
 
+## 2026-10-01 — Seal working household journals before storing them
+
+- The existing Rust recovery AEAD seals the whole atomic household journal,
+  with an authenticated purpose prefix; its independent random wrapping phrase
+  is the only value stored through pinned `flutter_secure_storage` 11.2.0.
+  Native storage uses the OS keychain/keystore, disables Android reset-on-error
+  and automatic backup/transfer, and reads back new keys before saving ciphertext
+  ([maintainer documentation](https://pub.dev/packages/flutter_secure_storage)).
+- Web households require a user-saved random 24-word unlock phrase kept only in
+  memory and an exclusive origin Web Lock until locking or closing the page;
+  persisting a browser encryption key beside its ciphertext would not protect
+  the saved MLS secrets. Legacy bytes are validated before migration, and a
+  separately authenticated recovery backup can replace a lost browser key;
+  this does not protect an unlocked page from malicious same-origin scripts,
+  erase forensic remnants, or stop someone cloning a recovery backup.
+
+The older September entries above describe the state at those dates; signed
+origin history, durable invitations and protected working state supersede
+their corresponding implementation limits, with verification recorded in
+`PHASE2-PROGRESS.md`.
+
