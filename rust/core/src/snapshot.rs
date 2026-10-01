@@ -12,6 +12,9 @@ pub struct Snapshot {
     /// Retained until peers acknowledge the frontier; used for idempotency and
     /// to distinguish a replay from a genuinely late event.
     pub included_event_ids: BTreeSet<EventId>,
+    /// Exact source events are retained until compaction is safe. An ID alone
+    /// cannot distinguish an idempotent replay from conflicting immutable data.
+    included_events: BTreeMap<EventId, Event>,
     pub maximum_order: Option<OrderKey>,
 }
 
@@ -24,6 +27,7 @@ impl Snapshot {
         let mut state = LedgerState::empty(reporting_currency);
         let mut causal_frontier: BTreeMap<ActorId, HybridTimestamp> = BTreeMap::new();
         let mut included_event_ids = BTreeSet::new();
+        let mut included_events = BTreeMap::new();
         let mut maximum_order = None;
 
         for event in &events {
@@ -33,6 +37,7 @@ impl Snapshot {
                 .and_modify(|timestamp| *timestamp = (*timestamp).max(event.timestamp))
                 .or_insert(event.timestamp);
             included_event_ids.insert(event.id.clone());
+            included_events.insert(event.id.clone(), event.clone());
             maximum_order = Some(event.order_key());
         }
 
@@ -40,6 +45,7 @@ impl Snapshot {
             state,
             causal_frontier,
             included_event_ids,
+            included_events,
             maximum_order,
         })
     }
@@ -50,7 +56,10 @@ impl Snapshot {
     ) -> Result<Self, SnapshotError> {
         let events = validate_deduplicate_and_sort(events)?;
         for event in &events {
-            if self.included_event_ids.contains(&event.id) {
+            if let Some(included) = self.included_events.get(&event.id) {
+                if included != event {
+                    return Err(FoldError::ConflictingDuplicateEvent(event.id.clone()).into());
+                }
                 continue;
             }
             if self
@@ -69,6 +78,7 @@ impl Snapshot {
                 .and_modify(|timestamp| *timestamp = (*timestamp).max(event.timestamp))
                 .or_insert(event.timestamp);
             self.included_event_ids.insert(event.id.clone());
+            self.included_events.insert(event.id.clone(), event.clone());
             self.maximum_order = Some(event.order_key());
         }
         Ok(self)
