@@ -9,12 +9,16 @@ List<List<String>> parseCsv(String text) {
   var row = <String>[];
   final field = StringBuffer();
   var inQuotes = false;
+  var afterQuote = false;
+  var fieldStarted = false;
   var i = 0;
   var sawAnyField = false;
 
   void endField() {
     row.add(field.toString());
     field.clear();
+    afterQuote = false;
+    fieldStarted = false;
     sawAnyField = true;
   }
 
@@ -35,6 +39,7 @@ List<List<String>> parseCsv(String text) {
           continue;
         }
         inQuotes = false;
+        afterQuote = true;
         i += 1;
         continue;
       }
@@ -42,24 +47,45 @@ List<List<String>> parseCsv(String text) {
       i += 1;
       continue;
     }
+    if (afterQuote && char != ',' && char != '\r' && char != '\n') {
+      throw FormatException(
+        'Unexpected text after a closing CSV quote',
+        text,
+        i,
+      );
+    }
     switch (char) {
       case '"':
+        if (fieldStarted) {
+          throw FormatException('A CSV quote must start a field', text, i);
+        }
+        fieldStarted = true;
         inQuotes = true;
         i += 1;
       case ',':
         endField();
         i += 1;
       case '\r':
+        endRow();
         i += 1;
+        if (i < text.length && text[i] == '\n') i += 1;
       case '\n':
         endRow();
         i += 1;
       default:
+        fieldStarted = true;
         field.write(char);
         i += 1;
     }
   }
-  if (field.isNotEmpty || sawAnyField) {
+  if (inQuotes) {
+    throw FormatException(
+      'The CSV contains an unfinished quoted field',
+      text,
+      i,
+    );
+  }
+  if (fieldStarted || field.isNotEmpty || sawAnyField) {
     endRow();
   }
   return rows;
@@ -67,14 +93,18 @@ List<List<String>> parseCsv(String text) {
 
 String encodeCsvField(String value) {
   final needsQuoting =
-      value.contains(',') || value.contains('"') || value.contains('\n');
+      value.contains(',') ||
+      value.contains('"') ||
+      value.contains('\n') ||
+      value.contains('\r');
   if (!needsQuoting) {
     return value;
   }
   return '"${value.replaceAll('"', '""')}"';
 }
 
-String encodeCsvRow(List<String> fields) => fields.map(encodeCsvField).join(',');
+String encodeCsvRow(List<String> fields) =>
+    fields.map(encodeCsvField).join(',');
 
 const csvColumns = ['title', 'amount', 'kind', 'account', 'category'];
 
@@ -87,7 +117,9 @@ String buildTransactionsCsv({
   required List<AccountView> accounts,
   required List<CategoryView> categories,
 }) {
-  final accountNames = {for (final account in accounts) account.id: account.name};
+  final accountNames = {
+    for (final account in accounts) account.id: account.name,
+  };
   final categoryNames = {
     for (final category in categories) category.id: category.name,
   };
@@ -102,7 +134,8 @@ String buildTransactionsCsv({
         accountNames[transaction.accountId] ?? transaction.accountId,
         transaction.categoryId == null
             ? ''
-            : (categoryNames[transaction.categoryId] ?? transaction.categoryId!),
+            : (categoryNames[transaction.categoryId] ??
+                  transaction.categoryId!),
       ]),
     );
     buffer.write('\n');
@@ -173,12 +206,15 @@ List<CsvImportRow> parseTransactionsCsv(
   };
   final categoryIds = {for (final category in categories) category.id};
 
-  final rows = parseCsv(csvText).where((row) => row.any((f) => f.trim().isNotEmpty)).toList();
+  final rows = parseCsv(csvText)
+      .where((row) => row.any((f) => f.trim().isNotEmpty))
+      .toList();
   if (rows.isEmpty) {
     return const [];
   }
   var startIndex = 0;
-  if (rows.first.isNotEmpty && rows.first.first.trim().toLowerCase() == 'title') {
+  if (rows.first.isNotEmpty &&
+      rows.first.first.trim().toLowerCase() == 'title') {
     startIndex = 1;
   }
 
@@ -206,7 +242,9 @@ List<CsvImportRow> parseTransactionsCsv(
       continue;
     }
     if (amount.isEmpty) {
-      results.add(CsvImportRow(lineNumber: lineNumber, error: 'missing amount'));
+      results.add(
+        CsvImportRow(lineNumber: lineNumber, error: 'missing amount'),
+      );
       continue;
     }
     bool isExpense;
