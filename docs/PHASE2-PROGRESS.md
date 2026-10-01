@@ -1,9 +1,9 @@
 # Phase 2 progress
 
 Updated 2026-09-30. Phase 2 (the shared layer, brief section 6) is in
-progress: the cryptographic and sync core is built and verified locally, but
-it is **not yet reachable from the app** (no bridge, no UI) and the relay is
-**not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
+progress: the cryptographic and sync core, bridge, and household UI exist,
+with the runtime evidence and remaining limitations listed below. The relay
+is **not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
 "Shared layer").
 
 ## What exists
