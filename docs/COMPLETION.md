@@ -44,9 +44,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
 - [ ] Establish an authenticated, abuse-controlled, bounded-retention relay on
   the free-plan deployment path. Do not purchase services or expose a public
   unauthenticated relay. Account authorization may require the owner.
-- [ ] Reconcile the locked Rust-side SQLite storage requirement with the current
-  Dart file/localStorage event-store implementation, preserving durable history
-  and platform compatibility; record and test the resulting architecture.
+- [x] Rust-side SQLite stores immutable frames and sealed household documents;
+  checked revisions, migration, recovery and process-interruption checks passed.
+  PR #18 merged after native host, iOS, Android and production WASM acceptance.
+  Browser whole-image/quota and protection limits remain in `SQLITE-STORAGE.md`.
 - [ ] Wire safe snapshot/compaction or peer-snapshot recovery into actual shared
   persistence, preserving causal frontiers and offline peers' acknowledgements.
 - [ ] Check explicit opt-in publication boundaries and chosen shared analytics;
