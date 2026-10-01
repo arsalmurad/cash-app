@@ -119,6 +119,14 @@ gates in `COMPLETION.md`.
 
 ## Not done
 
+Household save-safety changes were independently exercised through the rebuilt
+native bridge on 2026-10-01: failures before/after a complete atomic save refuse
+queued and later writes; restart reflects the bytes actually saved; a failed
+sender-ratchet save sends no ciphertext; 20 simultaneous writes and fixed-clock
+restart retain distinct transaction IDs. All 154 host app tests passed.
+These checks do not yet cover crash-safe membership commits or invitation
+delivery, and do not close the full durability gate.
+
 - **Deployment.** The worker has only run in workerd under miniflare. Nobody
   has deployed it to Cloudflare; that needs an account and credentials (an
   owner action), and the app has no default relay address: the user enters
