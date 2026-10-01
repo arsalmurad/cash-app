@@ -772,3 +772,11 @@ included events and reject conflicting replays, including events added by
 metadata, not safe pruning: original history remains necessary until peer
 frontier acknowledgement and late-event recovery are wired into persistence.
 
+## 2026-10-02 — Bundle the adaptive controls' Cupertino icon font
+
+The release web build requested CupertinoIcons but no corresponding font asset
+was declared. Pin the already cached `cupertino_icons` 1.0.9 package rather than
+leaving adaptive framework controls with missing glyphs. The asset test passed,
+and the production release now bundles the tree-shaken 1,472-byte font without
+the missing-family warning; no Flutter/Rust toolchain change was required.
+
