@@ -1,7 +1,8 @@
 # Rust-owned local SQLite storage
 
-Implemented 2026-10-02. Mobile runtime acceptance for this change is pending;
-earlier mobile results do not verify this storage implementation.
+Implemented and independently verified on native host, iOS, Android and
+production Chrome/WASM on 2026-10-02. Evidence below refers to this change,
+not earlier platforms' pre-SQLite results.
 
 The default event, document and actor-identity stores now call `cash_storage`
 through synchronous Rust bridge operations. Dart transports a path or bytes;
@@ -69,4 +70,23 @@ default native adapters, five real codec-log migrations/repair and restart,
 immutable identity, legacy retention and damaged-file rejection. The production
 Chrome journey also passed personal persistence, encrypted household restart,
 offline conflict, stale-backup fresh-key recovery and old-member exclusion with
-SQLite storage. The final revised source is being rechecked before mobile CI.
+SQLite storage. The final revised local build passed again with Node 24.19.0
+and Windows Chrome 154.0.8037.58 using `WEB_HOUSEHOLD=1 node
+scripts/verify_web_runtime.mjs`; all 193 host app tests and the locked full
+Rust workspace passed, including 1,000-event convergence (149.36 s).
+
+GitHub acceptance at `e781123` passed the actual iOS personal and protected
+household scenarios plus unsigned release in
+[run 36928645995](https://github.com/arsalmurad/cash-app/actions/runs/36928645995),
+and Android runtime scenarios/release APK in
+[run 36928641803](https://github.com/arsalmurad/cash-app/actions/runs/36928641803).
+The mobile vault scenario checks physical SQLite bytes for the sealed marker
+and absence of its synthetic plaintext and wrapping phrase.
+
+Ubuntu's initial WASM attempt failed because unversioned `llvm-ar` was absent;
+Clang was installed. The CI-only `2c87295` change locates an existing LLVM
+archive tool (versioned PATH or installed Android NDK), without changing app or
+Rust source. Production WASM/personal/household runtime then passed in
+[run 36929693238](https://github.com/arsalmurad/cash-app/actions/runs/36929693238).
+Linux real-bridge app/Chrome and Rust/real-worker storage audit also passed at
+that revision. These are not proof of a deployed relay or final future revisions.
