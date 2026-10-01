@@ -33,8 +33,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   keep recovery and wrong-phrase handling independently tested.
 - [ ] Drive the complete household scenario in the production web/WASM app,
   including browser-to-worker CORS, restart, offline edits, recovery and removal.
-- [ ] Inspect the real worker's stored records for ciphertext-only contents,
-  rather than relying solely on the in-memory relay privacy scan.
+- [x] Inspect real workerd Durable Object records for ciphertext-only contents,
+  with original production storage methods, real encrypted Rust peers, and a
+  plaintext-injection negative control: 27 log records and welcome mailboxes
+  passed locally; the deployment itself remains unverified and unauthorized.
 - [ ] Establish an authenticated, abuse-controlled, bounded-retention relay on
   the free-plan deployment path. Do not purchase services or expose a public
   unauthenticated relay. Account authorization may require the owner.
