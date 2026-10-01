@@ -1,5 +1,14 @@
 # Decisions
 
+## 2026-10-01 — Serialize household operations and fail closed on uncertain saves
+
+Household writes, synchronization and configuration changes now share one queue;
+an uncertain blob save drops the live Rust handle and requires restart while
+preserving the last confirmed view. Sender ratchet state is saved before a relay
+append, preventing a crash after sending from restoring an earlier encryption
+generation; membership-commit and invitation journals remain a separate gate.
+Transaction IDs use secure randomness rather than a restartable clock/counter.
+
 ## 2026-10-01 — Signed history keeps original proofs, not the forwarder's identity
 
 Shared event actors are now self-certifying hashes of their signing public key,
