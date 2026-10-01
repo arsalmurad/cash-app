@@ -27,11 +27,11 @@ void main() {
           }
         }
         expect(web.document.cookie, isNot(contains(phrase)));
-        Future<bool> available() async {
+        Future<bool> available({bool waitForRelease = false}) async {
           final result = await iframe.contentWindow!.navigator.locks
               .request(
                 'cash-app.household.vault.v1',
-                web.LockOptions(ifAvailable: true),
+                web.LockOptions(ifAvailable: !waitForRelease),
                 ((web.Lock? lock) => Future<JSAny?>.value(
                   (lock != null).toJS,
                 ).toJS).toJS,
@@ -43,7 +43,9 @@ void main() {
         expect(await available(), isFalse);
         keys.lock();
         expect(await keys.read(), isNull);
-        expect(await available(), isTrue);
+        expect(await available(waitForRelease: true), isTrue);
+        await keys.write(phrase);
+        expect(await available(), isFalse);
       } finally {
         keys.lock();
         iframe.remove();
