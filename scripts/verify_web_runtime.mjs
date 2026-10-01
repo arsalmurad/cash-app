@@ -84,6 +84,10 @@ try {
   cdp = await connectCdp(page.webSocketDebuggerUrl);
   await cdp.send('Runtime.enable');
   await cdp.send('Page.enable');
+  if (process.env.WEB_OFFLINE_FONTS === '1') {
+    await cdp.send('Network.enable');
+    await cdp.send('Network.setBlockedURLs', { urls: ['*://fonts.gstatic.com/*', '*://fonts.googleapis.com/*'] });
+  }
   await openApp(cdp);
   await waitForLabel(cdp, 'Private Ledger');
   await waitForLabel(cdp, 'USD 0.00');

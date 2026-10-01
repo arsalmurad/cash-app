@@ -59,6 +59,7 @@ ThemeData _theme(Brightness brightness) {
   );
   return ThemeData(
     useMaterial3: true,
+    fontFamilyFallback: const ['NotoSansArabic', 'NotoEmoji'],
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     cardTheme: CardThemeData(
