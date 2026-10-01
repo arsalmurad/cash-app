@@ -67,7 +67,10 @@ class _ExportCsvDialogState extends State<ExportCsvDialog> {
               const SizedBox(height: 12),
               SelectableText(
                 widget.csv,
-                style: const TextStyle(fontFamily: 'monospace'),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontFamilyFallback: ['NotoSansArabic', 'NotoEmoji'],
+                ),
               ),
               if (_message != null)
                 Padding(
@@ -191,7 +194,10 @@ class _ImportCsvDialogState extends State<ImportCsvDialog> {
                   hintText: 'title,amount,kind,account,category\nGroceries,12.34,expense,Everyday,Food',
                   border: OutlineInputBorder(),
                 ),
-                style: const TextStyle(fontFamily: 'monospace'),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontFamilyFallback: ['NotoSansArabic', 'NotoEmoji'],
+                ),
               ),
             ],
           ),

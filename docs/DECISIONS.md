@@ -812,3 +812,26 @@ CSV bytes. Mobile native file-dialog interaction and non-Latin offline font
 coverage remain separate verification/UX work; plugin compatibility is not a
 claim that those dialogs have been exercised on a phone.
 
+## 2026-10-02 — Offline Arabic/Urdu and emoji titles
+
+Bundle pinned Noto Sans Arabic and monochrome Noto Emoji assets with their
+upstream OFL notices; no SDK upgrade or dynamic font CSS is needed. Apply the
+fallback families to the app theme and CSV's explicit monospace styles. Keep
+unsupported-script fallback URLs on the app origin, not a third-party CDN.
+Asset hashes and language limits are in `app/assets/fonts/README.md`.
+
+Seven focused font/CSV dialog tests and static analysis passed. The release
+WASM build passed; Windows Chrome 154.0.8037.58 selected a real UTF-8 CSV,
+preserved review-before-import and reload persistence, and downloaded exact
+Unicode CSV bytes with both Google font domains blocked. Command:
+`WEB_CSV=1 WEB_OFFLINE_FONTS=1 WEB_CSV_LINE_ENDINGS=LF node scripts/verify_web_runtime.mjs`.
+The captured overview renders the Urdu title and tea emoji without missing
+glyph boxes. This is coverage for this mixed-script fixture, not all Unicode.
+
+The otherwise identical CRLF fixture triggers the pinned skwasm renderer's
+missing-character warning without any fallback-font request. LF succeeds.
+Keep CRLF preservation separately tested rather than changing quoted text or
+silencing warnings globally. CI now includes both cases, but its new offline
+font step has not yet been independently run on GitHub. Further cloud runs
+await confirmation of a $0 Actions spending cap.
+

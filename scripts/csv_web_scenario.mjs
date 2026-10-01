@@ -11,8 +11,9 @@ export async function runCsvWebScenario(page, api) {
   const directory = mkdtempSync(join(root, 'csv-browser-test-'));
   const fixture = join(directory, 'selected.csv');
   const title = 'Browser CSV, چائے 🍵';
-  writeFileSync(fixture, '\uFEFFtitle,amount,kind,account,category\r\n' +
-    `"${title}",1.23,expense,Everyday,\r\n`, 'utf8');
+  const lineEnd = process.env.WEB_CSV_LINE_ENDINGS === 'LF' ? '\n' : '\r\n';
+  writeFileSync(fixture, '\uFEFFtitle,amount,kind,account,category' + lineEnd +
+    `"${title}",1.23,expense,Everyday,${lineEnd}`, 'utf8');
   const version = await (await fetch(`http://127.0.0.1:${debugPort}/json/version`)).json();
   const browser = await connectCdp(version.webSocketDebuggerUrl);
 
@@ -82,6 +83,17 @@ export async function runCsvWebScenario(page, api) {
     assert.ok(exported.includes('Rent,500.00,expense,Everyday,'));
     await waitForLabel(page, 'Download requested. Check your browser’s downloads.');
     await clickLabel(page, 'Close', 'button');
+    if (process.env.WEB_OFFLINE_FONTS === '1') {
+      const warnings = page.events.filter(e => e.method === 'Runtime.consoleAPICalled')
+        .flatMap(e => e.params.args ?? []).map(arg => arg.value)
+        .filter(value => typeof value === 'string' && /Noto fonts|fallback font|Failed to parse font/i.test(value));
+      const fallbackRequests = page.events.filter(e => e.method === 'Network.requestWillBeSent')
+        .map(e => e.params.request.url).filter(url => /font-fallback|fonts\.gstatic|fonts\.googleapis/.test(url));
+      assert.deepEqual(warnings, [], `Unicode titles must render without a remote fallback font: ${JSON.stringify(fallbackRequests)}`);
+      assert.deepEqual(fallbackRequests, [], 'Covered titles must not request remote or local fallback fonts');
+    }
+    const screenshot = await page.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(root, 'csv-browser-pass.png'), Buffer.from(screenshot.data, 'base64'));
     console.log('Verified CSV: selected UTF-8 file, review before import, persisted Unicode transaction and actual downloaded bytes.');
   } finally {
     await page.send('Page.setInterceptFileChooserDialog', { enabled: false }).catch(() => {});
