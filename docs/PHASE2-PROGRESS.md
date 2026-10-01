@@ -117,6 +117,29 @@ authorized member forwarding a collaborator's signed history or sharing
 plaintext out of band. Durability, recovery and relay authorization are separate
 gates in `COMPLETION.md`.
 
+## Membership and delivery recovery (2026-10-01)
+
+Peer v3 exports include the exact pending commit and OpenMLS staged state.
+Signed v2 imports retain their ledger, and v1 remains a read-only archive.
+An exact commit in its reserved ordered-log slot resolves a lost acknowledgement;
+a valid competing frame rejects it, while malformed evidence preserves the
+journal. Focused Rust checks pass 16 step and 6 restart tests, including removal
+after a lost reply and wrong-slot acknowledgement rejection.
+
+The app saves its Rust state, relay address, pending encrypted welcome, mailbox
+and original commit together in one atomic journal before sending. Confirmed
+membership is persisted before mailbox delivery; exact mailbox PUT retries are
+idempotent and do not resurrect a consumed welcome. The last invite can be
+copied again after restart, and sealed backups include pending delivery and its
+relay address. All 165 Windows app tests passed through the rebuilt native
+bridge, with clean analyzer output; 12 workerd tests passed for the updated
+mailbox contract. No new mobile or production WASM runtime is claimed here.
+
+**Still open:** welcome retrieval is currently single-use before the receiver's
+durable save; a lost retrieval response or failed join save can strand that
+invite. It needs an acknowledged retrieval protocol. Working journals still
+contain unsealed private keys, and the full durability/security gate is open.
+
 ## Not done
 
 Household save-safety changes were independently exercised through the rebuilt

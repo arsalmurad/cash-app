@@ -917,10 +917,9 @@ impl Peer {
                     return Ok(mailbox);
                 }
                 Err(RelayError::Conflict { .. }) => self.commit_rejected()?,
-                Err(error) => {
-                    self.commit_rejected()?;
-                    return Err(error.into());
-                }
+                // Unavailability is indeterminate: retain the staged commit
+                // for ordered-log reconciliation, never guess rejection.
+                Err(error) => return Err(error.into()),
             }
         }
         Err(SyncError(
@@ -955,10 +954,7 @@ impl Peer {
             match relay.append(&group, commit.expected_tail, commit.blob) {
                 Ok(sequence) => return self.commit_accepted(sequence),
                 Err(RelayError::Conflict { .. }) => self.commit_rejected()?,
-                Err(error) => {
-                    self.commit_rejected()?;
-                    return Err(error.into());
-                }
+                Err(error) => return Err(error.into()),
             }
         }
         Err(SyncError(

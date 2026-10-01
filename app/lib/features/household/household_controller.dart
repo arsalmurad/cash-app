@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
@@ -8,6 +9,7 @@ import '../../data/rust/api/ledger.dart' show EntryKind;
 import '../../data/rust/api/shared.dart';
 import '../../data/storage/blob_store.dart';
 import 'invite_codes.dart';
+import 'household_journal.dart';
 import 'relay_client.dart';
 
 /// Runs the household layer: owns the network (the Rust core does no I/O),
@@ -48,6 +50,10 @@ class HouseholdController extends ChangeNotifier {
   bool isLoading = true;
   Future<void> _operationQueue = Future<void>.value();
   bool _writesDisabled = false;
+  PendingInvitation? _pendingInvitation;
+  String? lastInviteCode;
+  String? _lastInviteRequest;
+  bool get hasPendingInvitation => _pendingInvitation != null;
   static const _uncertainSaveMessage =
       'The household save could not be confirmed. Restart and check the '
       'household before retrying; the last change may already be saved.';
@@ -76,7 +82,7 @@ class HouseholdController extends ChangeNotifier {
       }
       final saved = await _stateStore.read();
       if (saved != null) {
-        _household = await householdRestore(saved: saved);
+        await _loadSaved(saved);
         overview = await householdOverview(household: _household!);
       }
     } catch (error) {
@@ -93,6 +99,11 @@ class HouseholdController extends ChangeNotifier {
   Future<bool> setRelayUrl(String url) => _run(() async {
     final trimmed = url.trim().replaceAll(RegExp(r'/+$'), '');
     final uri = Uri.tryParse(trimmed);
+    if (_pendingInvitation != null && trimmed != relayUrl) {
+      throw const FormatException(
+        'Finish the pending invitation before changing relays.',
+      );
+    }
     if (uri == null ||
         !(uri.scheme == 'https' || uri.scheme == 'http') ||
         uri.host.isEmpty) {
@@ -125,12 +136,15 @@ class HouseholdController extends ChangeNotifier {
     _household = null;
   }
 
-  Future<bool> _run(Future<void> Function() action) => _enqueue(() async {
+  Future<bool> _run(
+    Future<void> Function() action, {
+    bool allowRecovery = false,
+  }) => _enqueue(() async {
     isBusy = true;
     errorMessage = null;
     notifyListeners();
     try {
-      _ensureWritable();
+      if (!allowRecovery) _ensureWritable();
       await action();
       return true;
     } on RelayUnavailable catch (error) {
@@ -171,8 +185,8 @@ class HouseholdController extends ChangeNotifier {
 
   /// A failed save may already be durable. Drop the live handle rather than
   /// allowing later writes to publish or persist unconfirmed mutations.
-  Future<void> _persist() async {
-    final bytes = await householdExport(household: _requireHousehold());
+  Future<void> _persist({String? relayOverride}) async {
+    final bytes = await _savedBytes(relayOverride: relayOverride);
     try {
       await _stateStore.write(bytes);
     } catch (_) {
@@ -181,7 +195,32 @@ class HouseholdController extends ChangeNotifier {
     }
   }
 
+  Future<Uint8List> _savedBytes({String? relayOverride}) async =>
+      HouseholdJournal(
+        state: await householdExport(household: _requireHousehold()),
+        relayUrl: relayOverride ?? relayUrl,
+        pending: _pendingInvitation,
+        lastCode: lastInviteCode,
+        lastRequest: _lastInviteRequest,
+      ).encode();
+
+  Future<void> _loadSaved(Uint8List bytes) async {
+    final saved = HouseholdJournal.decode(bytes);
+    _household = await householdRestore(saved: saved.state);
+    if (saved.relayUrl != null) {
+      relayUrl = saved.relayUrl;
+      _relay = _relayFactory(relayUrl!);
+    }
+    _pendingInvitation = saved.pending;
+    lastInviteCode = saved.lastCode;
+    _lastInviteRequest = saved.lastRequest;
+  }
+
   Future<void> _saveConfig(String url) async {
+    if (_household != null) {
+      await _persist(relayOverride: url);
+      return;
+    }
     try {
       await _configStore.write(Uint8List.fromList(url.codeUnits));
     } catch (_) {
@@ -247,46 +286,100 @@ class HouseholdController extends ChangeNotifier {
       final relay = _requireRelay();
       final household = _requireHousehold();
       final keyPackage = decodeJoinRequest(joinRequest);
+      final request = base64.encode(keyPackage);
+      if (_pendingInvitation != null) {
+        if (_pendingInvitation!.request != request) {
+          throw const FormatException(
+            'Finish the pending invitation before adding someone else.',
+          );
+        }
+        await _sync();
+      }
+      if (_lastInviteRequest == request) {
+        code = lastInviteCode;
+        return;
+      }
       for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {
         await _catchUp(relay, household);
         final staged = await householdBeginInvite(
           household: household,
           keyPackage: keyPackage,
         );
-        final int sequence;
-        try {
-          sequence = await relay.append(
-            _groupId(),
-            staged.commit.expectedTail.toInt(),
-            staged.commit.blob,
-          );
-        } on RelayConflict {
-          await householdCommitRejected(household: household);
-          continue;
-        } catch (_) {
-          await householdCommitRejected(household: household);
-          rethrow;
-        }
-        await householdCommitAccepted(
-          household: household,
-          sequence: PlatformInt64Util.from(sequence),
-        );
-        final mailbox = _randomId();
-        await relay.putMailbox(mailbox, _groupId(), sequence, staged.welcome);
-        await _persist();
-        await _refresh();
-        code = encodeInvite(
-          HouseholdInvite(
+        _pendingInvitation = PendingInvitation(
+          invite: HouseholdInvite(
             relayUrl: relayUrl!,
             group: _groupId(),
-            mailbox: mailbox,
+            mailbox: _randomId(),
           ),
+          expectedTail: staged.commit.expectedTail.toInt(),
+          commit: staged.commit.blob,
+          welcome: staged.welcome,
+          keyPackage: keyPackage,
+          createdMillis: DateTime.now().millisecondsSinceEpoch,
         );
-        return;
+        lastInviteCode = null;
+        _lastInviteRequest = null;
+        // Both the pending MLS state and encrypted welcome precede network I/O.
+        await _persist();
+        await _refresh();
+        await _sync();
+        if (_lastInviteRequest == request) {
+          code = lastInviteCode;
+          return;
+        }
       }
       throw const RelayUnavailable('the relay stayed busy; try again');
     });
     return ok ? code : null;
+  }
+
+  Future<String?> resumeInvitation() async {
+    final pending = _pendingInvitation;
+    if (pending == null) return lastInviteCode;
+    return invite(encodeJoinRequest(pending.keyPackage));
+  }
+
+  Future<void> _finishInvitation(RelayClient relay) async {
+    final pending = _pendingInvitation;
+    if (pending == null) return;
+    if (!pending.committed) {
+      final entries = await relay.readAfter(
+        pending.invite.group,
+        pending.expectedTail,
+      );
+      if (entries.isEmpty) {
+        throw const RelayUnavailable('invitation commit is still pending');
+      }
+      final first = entries.first;
+      if (first.sequence != pending.expectedTail + 1) {
+        throw const RelayUnavailable('invitation log slot is missing');
+      }
+      if (!listEquals(first.blob, pending.commit)) {
+        _pendingInvitation = null; // Rust ingestion rejected this losing slot.
+        await _persist();
+        return;
+      }
+      pending.committed = true;
+      await _persist();
+    }
+    if (pending.expired) {
+      // Do not recreate a mailbox after its original seven-day retention.
+      _pendingInvitation = null;
+      await _persist();
+      throw const FormatException(
+        'The pending invite expired. Remove that member and request a fresh join code.',
+      );
+    }
+    await relay.putMailbox(
+      pending.invite.mailbox,
+      pending.invite.group,
+      pending.expectedTail + 1,
+      pending.welcome,
+    );
+    lastInviteCode = pending.code;
+    _lastInviteRequest = pending.request;
+    _pendingInvitation = null;
+    await _persist();
   }
 
   /// Joins using an invite code, after [prepareJoinRequest] produced the
@@ -333,7 +426,11 @@ class HouseholdController extends ChangeNotifier {
       }
       _household = null;
       overview = null;
-    });
+      _pendingInvitation = null;
+      lastInviteCode = null;
+      _lastInviteRequest = null;
+      _writesDisabled = false;
+    }, allowRecovery: true);
   }
 
   // --- Recovery ---------------------------------------------------------
@@ -345,11 +442,10 @@ class HouseholdController extends ChangeNotifier {
   Future<({String phrase, String backup})?> createBackup() async {
     ({String phrase, String backup})? result;
     final ok = await _run(() async {
-      final household = _requireHousehold();
       final phrase = await recoveryGeneratePhrase();
       final sealed = await recoverySeal(
         phrase: phrase,
-        plaintext: await householdExport(household: household),
+        plaintext: await _savedBytes(),
       );
       result = (phrase: phrase, backup: encodeBackup(sealed));
     });
@@ -368,7 +464,8 @@ class HouseholdController extends ChangeNotifier {
           phrase: phrase,
           sealed: decodeBackup(backupCode),
         );
-        _household = await householdRestore(saved: plaintext);
+        await _loadSaved(plaintext);
+        _writesDisabled = false;
         await _persist();
         await _refresh();
         if (_relay == null && relayUrl != null) {
@@ -377,7 +474,7 @@ class HouseholdController extends ChangeNotifier {
         if (_relay != null) {
           await _sync();
         }
-      });
+      }, allowRecovery: true);
 
   // --- Shared expenses --------------------------------------------------
 
@@ -492,6 +589,7 @@ class HouseholdController extends ChangeNotifier {
           }
         }
       }
+      await _finishInvitation(relay);
     } finally {
       // Whatever happened, keep what was learned and what is still queued.
       if (!_writesDisabled) {
@@ -508,31 +606,17 @@ class HouseholdController extends ChangeNotifier {
     final household = _requireHousehold();
     for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {
       await _catchUp(relay, household);
-      final commit = await householdBeginRemoval(
-        household: household,
-        memberId: memberId,
-      );
-      final int sequence;
-      try {
-        sequence = await relay.append(
-          _groupId(),
-          commit.expectedTail.toInt(),
-          commit.blob,
-        );
-      } on RelayConflict {
-        await householdCommitRejected(household: household);
-        continue;
-      } catch (_) {
-        await householdCommitRejected(household: household);
-        rethrow;
-      }
-      await householdCommitAccepted(
-        household: household,
-        sequence: PlatformInt64Util.from(sequence),
-      );
+      await householdBeginRemoval(household: household, memberId: memberId);
+      // The Rust journal retains this exact commit across a lost response.
       await _persist();
       await _refresh();
-      return;
+      await _sync();
+      if (!overview!.memberIds.contains(memberId)) {
+        lastInviteCode = null;
+        _lastInviteRequest = null;
+        await _persist();
+        return;
+      }
     }
     throw const RelayUnavailable('the relay stayed busy; try again');
   });
