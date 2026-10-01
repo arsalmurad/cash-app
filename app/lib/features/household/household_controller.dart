@@ -46,7 +46,11 @@ class HouseholdController extends ChangeNotifier {
   bool isBusy = false;
   String? errorMessage;
   bool isLoading = true;
-  int _sequence = 0;
+  Future<void> _operationQueue = Future<void>.value();
+  bool _writesDisabled = false;
+  static const _uncertainSaveMessage =
+      'The household save could not be confirmed. Restart and check the '
+      'household before retrying; the last change may already be saved.';
 
   bool get isMember => overview?.isMember ?? false;
 
@@ -62,8 +66,9 @@ class HouseholdController extends ChangeNotifier {
     ).join();
   }
 
-  Future<void> initialize() async {
+  Future<void> initialize() => _enqueue(() async {
     try {
+      _ensureWritable();
       final config = await _configStore.read();
       if (config != null && config.isNotEmpty) {
         relayUrl = String.fromCharCodes(config);
@@ -75,54 +80,73 @@ class HouseholdController extends ChangeNotifier {
         overview = await householdOverview(household: _household!);
       }
     } catch (error) {
+      _disableWrites();
       errorMessage = error.toString();
     } finally {
       isLoading = false;
       notifyListeners();
     }
-  }
+  });
 
   /// Sets the relay address (an `http(s)` URL). The relay sees only
   /// ciphertext, but it is still the one place everyone's traffic passes.
-  Future<bool> setRelayUrl(String url) async {
+  Future<bool> setRelayUrl(String url) => _run(() async {
     final trimmed = url.trim().replaceAll(RegExp(r'/+$'), '');
     final uri = Uri.tryParse(trimmed);
     if (uri == null ||
         !(uri.scheme == 'https' || uri.scheme == 'http') ||
         uri.host.isEmpty) {
-      errorMessage = 'Enter a relay address starting with https://';
-      notifyListeners();
-      return false;
+      throw const FormatException(
+        'Enter a relay address starting with https://',
+      );
     }
-    await _configStore.write(Uint8List.fromList(trimmed.codeUnits));
+    await _saveConfig(trimmed);
     relayUrl = trimmed;
     _relay = _relayFactory(trimmed);
     errorMessage = null;
     notifyListeners();
-    return true;
+  });
+
+  Future<T> _enqueue<T>(Future<T> Function() action) {
+    final next = _operationQueue.then((_) => action());
+    _operationQueue = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
   }
 
-  Future<bool> _run(Future<void> Function() action) async {
+  void _ensureWritable() {
+    if (_writesDisabled) throw const FormatException(_uncertainSaveMessage);
+  }
+
+  void _disableWrites() {
+    _writesDisabled = true;
+    _household = null;
+  }
+
+  Future<bool> _run(Future<void> Function() action) => _enqueue(() async {
     isBusy = true;
     errorMessage = null;
     notifyListeners();
     try {
+      _ensureWritable();
       await action();
       return true;
     } on RelayUnavailable catch (error) {
-      errorMessage = error.toString();
+      errorMessage = _writesDisabled ? _uncertainSaveMessage : error.toString();
       return false;
     } on FormatException catch (error) {
-      errorMessage = error.message;
+      errorMessage = _writesDisabled ? _uncertainSaveMessage : error.message;
       return false;
     } catch (error) {
-      errorMessage = error.toString();
+      errorMessage = _writesDisabled ? _uncertainSaveMessage : error.toString();
       return false;
     } finally {
       isBusy = false;
       notifyListeners();
     }
-  }
+  });
 
   RelayClient _requireRelay() {
     final relay = _relay;
@@ -133,6 +157,7 @@ class HouseholdController extends ChangeNotifier {
   }
 
   Household _requireHousehold() {
+    _ensureWritable();
     final household = _household;
     if (household == null) {
       throw const FormatException('There is no household on this device.');
@@ -144,12 +169,25 @@ class HouseholdController extends ChangeNotifier {
     overview = await householdOverview(household: _requireHousehold());
   }
 
-  /// Saves the secret state. Called after every change so a crash loses at
-  /// most the call in flight.
+  /// A failed save may already be durable. Drop the live handle rather than
+  /// allowing later writes to publish or persist unconfirmed mutations.
   Future<void> _persist() async {
-    await _stateStore.write(
-      await householdExport(household: _requireHousehold()),
-    );
+    final bytes = await householdExport(household: _requireHousehold());
+    try {
+      await _stateStore.write(bytes);
+    } catch (_) {
+      _disableWrites();
+      rethrow;
+    }
+  }
+
+  Future<void> _saveConfig(String url) async {
+    try {
+      await _configStore.write(Uint8List.fromList(url.codeUnits));
+    } catch (_) {
+      _disableWrites();
+      rethrow;
+    }
   }
 
   Future<void> _ensureIdentity() async {
@@ -164,8 +202,7 @@ class HouseholdController extends ChangeNotifier {
   }
 
   String _newId(String prefix) {
-    _sequence += 1;
-    return '$prefix-${_clockMillis()}-$_sequence';
+    return '$prefix-${_randomId()}';
   }
 
   // --- Founding and joining ---------------------------------------------
@@ -278,7 +315,7 @@ class HouseholdController extends ChangeNotifier {
     );
     relayUrl = invite.relayUrl;
     _relay = relay;
-    await _configStore.write(Uint8List.fromList(invite.relayUrl.codeUnits));
+    await _saveConfig(invite.relayUrl);
     await _persist();
     await _refresh();
     await _sync();
@@ -287,11 +324,16 @@ class HouseholdController extends ChangeNotifier {
   /// Forgets the household on this device (the others keep theirs). The
   /// identity is discarded too: rejoining needs a fresh invite.
   Future<void> forgetHousehold() async {
-    await _stateStore.delete();
-    _household = null;
-    overview = null;
-    errorMessage = null;
-    notifyListeners();
+    await _run(() async {
+      try {
+        await _stateStore.delete();
+      } catch (_) {
+        _disableWrites();
+        rethrow;
+      }
+      _household = null;
+      overview = null;
+    });
   }
 
   // --- Recovery ---------------------------------------------------------
@@ -380,17 +422,12 @@ class HouseholdController extends ChangeNotifier {
 
   /// Applies a local write, saves it, then tries to send it. A failed send
   /// is reported but the write is kept and retried by the next sync.
-  Future<bool> _write(Future<void> Function() write) async {
-    final written = await _run(() async {
-      await write();
-      await _persist();
-      await _refresh();
-    });
-    if (!written) {
-      return false;
-    }
-    return syncNow();
-  }
+  Future<bool> _write(Future<void> Function() write) => _run(() async {
+    await write();
+    await _persist();
+    await _refresh();
+    await _sync();
+  });
 
   // --- Sync -------------------------------------------------------------
 
@@ -435,6 +472,9 @@ class HouseholdController extends ChangeNotifier {
         if (next == null) {
           break;
         }
+        // Encryption advances the sender ratchet: save it before any bytes
+        // reach the relay, including an append whose response may be lost.
+        await _persist();
         try {
           final sequence = await relay.append(
             _groupId(),
@@ -454,8 +494,10 @@ class HouseholdController extends ChangeNotifier {
       }
     } finally {
       // Whatever happened, keep what was learned and what is still queued.
-      await _persist();
-      await _refresh();
+      if (!_writesDisabled) {
+        await _persist();
+        await _refresh();
+      }
     }
   }
 
@@ -495,7 +537,7 @@ class HouseholdController extends ChangeNotifier {
     throw const RelayUnavailable('the relay stayed busy; try again');
   });
 
-  Future<String?> safetyNumberWith(String memberId) async {
+  Future<String?> safetyNumberWith(String memberId) => _enqueue(() async {
     try {
       return await householdSafetyNumber(
         household: _requireHousehold(),
@@ -506,5 +548,5 @@ class HouseholdController extends ChangeNotifier {
       notifyListeners();
       return null;
     }
-  }
+  });
 }
