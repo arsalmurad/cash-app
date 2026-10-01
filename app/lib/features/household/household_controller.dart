@@ -54,6 +54,9 @@ class HouseholdController extends ChangeNotifier {
   bool _writesDisabled = false;
   PendingInvitation? _pendingInvitation;
   String? _pendingMailboxAck;
+  Uint8List? _recoveryState;
+  HouseholdOverview? recoveryOverview;
+  bool get needsRecoveryInvite => _recoveryState != null;
   String? lastInviteCode;
   String? _lastInviteRequest;
   bool get hasPendingInvitation => _pendingInvitation != null;
@@ -170,11 +173,13 @@ class HouseholdController extends ChangeNotifier {
     overview = null;
     _pendingInvitation = null;
     _pendingMailboxAck = null;
+    _recoveryState = null;
+    recoveryOverview = null;
     lastInviteCode = null;
     _lastInviteRequest = null;
     needsVaultUnlock = true;
     vaultHasCiphertext = true;
-  });
+  }, allowRecovery: true);
 
   /// Sets the relay address (an `http(s)` URL). The relay sees only
   /// ciphertext, but it is still the one place everyone's traffic passes.
@@ -291,6 +296,7 @@ class HouseholdController extends ChangeNotifier {
         lastCode: lastInviteCode,
         lastRequest: _lastInviteRequest,
         pendingAck: _pendingMailboxAck,
+        recoveryState: _recoveryState,
       ).encode();
 
   Future<void> _loadSaved(Uint8List bytes) async {
@@ -304,6 +310,13 @@ class HouseholdController extends ChangeNotifier {
     lastInviteCode = saved.lastCode;
     _lastInviteRequest = saved.lastRequest;
     _pendingMailboxAck = saved.pendingAck;
+    _recoveryState = saved.recoveryState;
+    if (_recoveryState != null) {
+      final archived = await householdRestore(saved: _recoveryState!);
+      recoveryOverview = await householdOverview(household: archived);
+    } else {
+      recoveryOverview = null;
+    }
   }
 
   Future<void> _saveConfig(String url) async {
@@ -337,6 +350,11 @@ class HouseholdController extends ChangeNotifier {
   // --- Founding and joining ---------------------------------------------
 
   Future<bool> createHousehold() => _run(() async {
+    if (needsRecoveryInvite) {
+      throw const FormatException(
+        'Join the original household with a fresh invite to recover its history.',
+      );
+    }
     _requireRelay();
     await _ensureIdentity();
     final household = _requireHousehold();
@@ -359,6 +377,11 @@ class HouseholdController extends ChangeNotifier {
   Future<String?> prepareJoinRequest() async {
     String? code;
     final ok = await _run(() async {
+      if (needsRecoveryInvite && overview?.groupId != null) {
+        throw const FormatException(
+          'This replacement has joined. Remove the old device, then sync to finish recovery.',
+        );
+      }
       await _ensureIdentity();
       final household = _requireHousehold();
       final keyPackage = await householdKeyPackage(household: household);
@@ -373,6 +396,11 @@ class HouseholdController extends ChangeNotifier {
   Future<String?> invite(String joinRequest) async {
     String? code;
     final ok = await _run(() async {
+      if (needsRecoveryInvite) {
+        throw const FormatException(
+          'Finish recovery before inviting another member.',
+        );
+      }
       final relay = _requireRelay();
       final household = _requireHousehold();
       final keyPackage = decodeJoinRequest(joinRequest);
@@ -476,6 +504,11 @@ class HouseholdController extends ChangeNotifier {
   /// request it answers. Adopts the relay address the invite carries.
   Future<bool> acceptInvite(String inviteCode) => _run(() async {
     final invite = decodeInvite(inviteCode);
+    if (needsRecoveryInvite && invite.group != recoveryOverview!.groupId) {
+      throw const FormatException(
+        'This backup belongs to another household. Ask the original household for a fresh invite.',
+      );
+    }
     final household = _requireHousehold();
     if (isMember) {
       if (_pendingMailboxAck == invite.mailbox &&
@@ -496,12 +529,30 @@ class HouseholdController extends ChangeNotifier {
     if (item.group != invite.group) {
       throw const FormatException('That invite does not match its welcome.');
     }
-    await householdJoin(
-      household: household,
-      groupId: item.group,
-      welcome: item.welcome,
-      joinedAfter: PlatformInt64Util.from(item.joinedAfter),
-    );
+    final beforeJoin = await householdExport(household: household);
+    try {
+      await householdJoin(
+        household: household,
+        groupId: item.group,
+        welcome: item.welcome,
+        joinedAfter: PlatformInt64Util.from(item.joinedAfter),
+      );
+      if (_recoveryState != null) {
+        final recovered = await householdMergeRecoveryHistory(
+          household: household,
+          saved: _recoveryState!,
+        );
+        if (recovered) {
+          _recoveryState = null;
+          recoveryOverview = null;
+        }
+      }
+    } catch (_) {
+      // A wrong/too-early welcome must not strand the fresh identity in RAM
+      // while its durable state is still unjoined. The mailbox remains unread.
+      _household = await householdRestore(saved: beforeJoin);
+      rethrow;
+    }
     relayUrl = invite.relayUrl;
     _relay = relay;
     _pendingMailboxAck = invite.mailbox;
@@ -525,6 +576,8 @@ class HouseholdController extends ChangeNotifier {
       overview = null;
       _pendingInvitation = null;
       _pendingMailboxAck = null;
+      _recoveryState = null;
+      recoveryOverview = null;
       lastInviteCode = null;
       _lastInviteRequest = null;
       _writesDisabled = false;
@@ -552,7 +605,9 @@ class HouseholdController extends ChangeNotifier {
 
   /// Restores a household from a backup and its phrase, for a replacement
   /// device. The old device must be treated as gone: two devices with the
-  /// same member identity would fork it.
+  /// same member identity would fork it. Recovery never resumes old sender
+  /// ratchets: another household member must remove the old device and invite
+  /// this fresh identity. The backup history remains a protected archive.
   Future<bool> restoreBackup(String phrase, String backupCode) =>
       _restoreBackup(phrase, backupCode);
 
@@ -575,6 +630,22 @@ class HouseholdController extends ChangeNotifier {
       sealed: decodeBackup(backupCode),
     );
     await _loadSaved(plaintext);
+    final archiveBytes =
+        _recoveryState ?? await householdExport(household: _household!);
+    final archived = await householdRestore(saved: archiveBytes);
+    final archivedOverview = await householdOverview(household: archived);
+    // Fresh signing/leaf keys and an opaque new label, regardless of test or
+    // application identity factories. Never restore the old sender ratchet.
+    _household = await householdNew(
+      memberId: _randomId(),
+      reportingCurrencyCode: reportingCurrency,
+    );
+    _recoveryState = archivedOverview.groupId == null ? null : archiveBytes;
+    recoveryOverview = _recoveryState == null ? null : archivedOverview;
+    _pendingInvitation = null;
+    _pendingMailboxAck = null;
+    lastInviteCode = null;
+    _lastInviteRequest = null;
     if (unlockPhrase != null) {
       await recoverySeal(phrase: unlockPhrase, plaintext: Uint8List(0));
       await _browserVault().keys.write(unlockPhrase);
@@ -586,9 +657,7 @@ class HouseholdController extends ChangeNotifier {
     if (_relay == null && relayUrl != null) {
       _relay = _relayFactory(relayUrl!);
     }
-    if (_relay != null) {
-      await _sync();
-    }
+    // No automatic sync: the replacement has no group until a fresh invite.
   }, allowRecovery: true);
 
   // --- Shared expenses --------------------------------------------------
@@ -635,6 +704,9 @@ class HouseholdController extends ChangeNotifier {
   /// Applies a local write, saves it, then tries to send it. A failed send
   /// is reported but the write is kept and retried by the next sync.
   Future<bool> _write(Future<void> Function() write) => _run(() async {
+    if (needsRecoveryInvite) {
+      throw const FormatException('Finish recovery before sharing changes.');
+    }
     await write();
     await _persist();
     await _refresh();
@@ -687,6 +759,19 @@ class HouseholdController extends ChangeNotifier {
       var conflicts = 0;
       while (true) {
         await _catchUp(relay, household);
+        if (_recoveryState != null) {
+          final recovered = await householdMergeRecoveryHistory(
+            household: household,
+            saved: _recoveryState!,
+          );
+          if (!recovered) {
+            throw const FormatException(
+              'This replacement has joined. Ask a household member to remove the old device, then sync to finish recovery.',
+            );
+          }
+          _recoveryState = null;
+          recoveryOverview = null;
+        }
         final next = await householdNextOutgoing(household: household);
         if (next == null) {
           break;
@@ -724,6 +809,11 @@ class HouseholdController extends ChangeNotifier {
   // --- Members ----------------------------------------------------------
 
   Future<bool> removeMember(String memberId) => _run(() async {
+    if (needsRecoveryInvite) {
+      throw const FormatException(
+        'Finish recovery before changing membership.',
+      );
+    }
     final relay = _requireRelay();
     final household = _requireHousehold();
     for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {

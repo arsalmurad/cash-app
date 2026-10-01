@@ -282,6 +282,13 @@ impl Member {
         self.signer.public().to_vec()
     }
 
+    /// Public cryptographic group binding, not an epoch secret or relay ID.
+    pub fn group_identifier(&self) -> Option<Vec<u8>> {
+        self.group
+            .as_ref()
+            .map(|group| group.group_id().as_slice().to_vec())
+    }
+
     fn history_payload(&self, payload: &[u8]) -> Result<Vec<u8>, Error> {
         let mut bytes = b"cash-app authenticated history v1\0".to_vec();
         write_field(&mut bytes, self.group()?.group_id().as_slice());

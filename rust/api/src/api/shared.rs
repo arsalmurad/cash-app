@@ -130,8 +130,20 @@ pub fn household_restore(saved: Vec<u8>) -> Result<Household, String> {
     })
 }
 
+/// Import signed history from a backup after a replacement identity has joined
+/// the original household. Old sender keys and delivery intent are not reused.
+/// Returns false without importing while the old signing key is still a member.
+pub fn household_merge_recovery_history(
+    household: &Household,
+    saved: Vec<u8>,
+) -> Result<bool, String> {
+    lock(household)?
+        .merge_recovery_history(&saved)
+        .map_err(|error| error.to_string())
+}
+
 /// Everything needed to resume after a restart, including private keys:
-/// store it like a password. Fails while a commit is pending.
+/// store it like a password. Includes an exact pending-commit journal.
 pub fn household_export(household: &Household) -> Result<Vec<u8>, String> {
     lock(household)?.export().map_err(|error| error.to_string())
 }
@@ -598,10 +610,7 @@ mod tests {
         assert!(overview.transactions[0].is_expense);
         assert!(!overview.transactions[0].conflicted);
         assert_eq!(overview.pending_count, 0);
-        assert_eq!(
-            household_overview(&alice).unwrap().cursor,
-            overview.cursor
-        );
+        assert_eq!(household_overview(&alice).unwrap().cursor, overview.cursor);
     }
 
     #[test]
@@ -676,8 +685,14 @@ mod tests {
     #[test]
     fn a_foreign_currency_entry_shows_its_reporting_value() {
         let (mut log, alice, bob) = pair();
-        household_open_account(&alice, "eur".to_owned(), "Euro".to_owned(), "EUR".to_owned(), 1)
-            .unwrap();
+        household_open_account(
+            &alice,
+            "eur".to_owned(),
+            "Euro".to_owned(),
+            "EUR".to_owned(),
+            1,
+        )
+        .unwrap();
         household_record_transaction(
             &alice,
             "hotel".to_owned(),

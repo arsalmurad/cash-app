@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../data/rust/api/shared.dart' show HouseholdOverview;
+import 'household_pane.dart' show memberLabel;
+
 /// Shown when this device is in no household: choose the relay, then create
 /// a household, join one by invite, or restore from a backup.
 class HouseholdSetupPane extends StatefulWidget {
@@ -10,6 +13,9 @@ class HouseholdSetupPane extends StatefulWidget {
     required this.onCreate,
     required this.onJoin,
     required this.onRestore,
+    this.recoveryOverview,
+    this.recoveryJoined = false,
+    this.onFinishRecovery,
     super.key,
   });
 
@@ -19,6 +25,9 @@ class HouseholdSetupPane extends StatefulWidget {
   final VoidCallback onCreate;
   final VoidCallback onJoin;
   final VoidCallback onRestore;
+  final HouseholdOverview? recoveryOverview;
+  final bool recoveryJoined;
+  final VoidCallback? onFinishRecovery;
 
   @override
   State<HouseholdSetupPane> createState() => _HouseholdSetupPaneState();
@@ -41,6 +50,28 @@ class _HouseholdSetupPaneState extends State<HouseholdSetupPane> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (widget.recoveryOverview case final recovered?) ...[
+          Text('Backup history saved', style: theme.textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            'Ask a household member to remove ${memberLabel(recovered.memberId)} (the old device), then invite this replacement. Your safety number will change. No messages will be sent using the old keys.',
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'If nobody can invite you, keep your encrypted backup as an archive. Forgetting this copy does not recover the old household’s messaging keys.',
+          ),
+          ExpansionTile(
+            title: Text('Saved history · ${recovered.balanceLabel}'),
+            children: [
+              for (final transaction in recovered.transactions)
+                ListTile(
+                  title: Text(transaction.title),
+                  subtitle: Text(transaction.amountLabel),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+        ],
         Text('Share expenses', style: theme.textTheme.headlineSmall),
         const SizedBox(height: 8),
         const Text(
@@ -72,7 +103,10 @@ class _HouseholdSetupPaneState extends State<HouseholdSetupPane> {
         const SizedBox(height: 24),
         FilledButton.icon(
           key: const Key('create'),
-          onPressed: widget.busy || widget.relayUrl == null
+          onPressed:
+              widget.busy ||
+                  widget.relayUrl == null ||
+                  widget.recoveryOverview != null
               ? null
               : widget.onCreate,
           icon: const Icon(Icons.home_work_outlined),
@@ -81,14 +115,24 @@ class _HouseholdSetupPaneState extends State<HouseholdSetupPane> {
         const SizedBox(height: 12),
         OutlinedButton.icon(
           key: const Key('join'),
-          onPressed: widget.busy ? null : widget.onJoin,
+          onPressed: widget.busy
+              ? null
+              : widget.recoveryJoined
+              ? widget.onFinishRecovery
+              : widget.onJoin,
           icon: const Icon(Icons.group_add_outlined),
-          label: const Text('Join a household'),
+          label: Text(
+            widget.recoveryJoined
+                ? 'Sync to finish recovery'
+                : 'Join a household',
+          ),
         ),
         const SizedBox(height: 12),
         TextButton.icon(
           key: const Key('restore'),
-          onPressed: widget.busy ? null : widget.onRestore,
+          onPressed: widget.busy || widget.recoveryOverview != null
+              ? null
+              : widget.onRestore,
           icon: const Icon(Icons.settings_backup_restore_rounded),
           label: const Text('Restore from a backup'),
         ),

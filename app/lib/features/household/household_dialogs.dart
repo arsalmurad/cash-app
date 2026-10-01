@@ -481,8 +481,10 @@ class BackupDialog extends StatelessWidget {
             _CopyBlock(text: backup),
             const SizedBox(height: 8),
             const Text(
-              'If you restore on a new phone, stop using the old one: two '
-              'devices with the same identity would split the household.',
+              'Restoring recovers saved history, not old messaging keys. '
+              'Ask another household member to remove the old device, then '
+              'invite the replacement. Its safety number will change. '
+              'Without another member, keep the backup as a read-only archive.',
             ),
           ],
         ),
@@ -550,6 +552,10 @@ class _RestoreDialogState extends State<RestoreDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Text(
+              'Your saved history will be recovered with fresh device keys. Another household member must remove the old device and invite this replacement before it can sync or send.',
+            ),
+            const SizedBox(height: 12),
             TextField(
               key: const Key('phraseField'),
               controller: phraseController,

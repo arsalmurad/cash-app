@@ -65,16 +65,24 @@ class _SwitchableRelay implements RelayClient {
 }
 
 class _Device {
-  _Device(this.name, this.relay)
-    : state = _MemoryBlobStore(),
-      config = _MemoryBlobStore() {
+  _Device(
+    this.name,
+    this.relay, {
+    BlobStore Function()? stateFactory,
+    BlobStore Function()? configFactory,
+  }) : _stateFactory = stateFactory,
+       _configFactory = configFactory,
+       state = stateFactory?.call() ?? _MemoryBlobStore(),
+       config = configFactory?.call() ?? _MemoryBlobStore() {
     controller = _controller();
   }
 
   final String name;
   final _SwitchableRelay relay;
-  final _MemoryBlobStore state;
-  final _MemoryBlobStore config;
+  final BlobStore Function()? _stateFactory;
+  final BlobStore Function()? _configFactory;
+  BlobStore state;
+  BlobStore config;
   late HouseholdController controller;
   int _clock = 1000;
 
@@ -88,6 +96,8 @@ class _Device {
 
   /// The app is killed and relaunched from nothing but its saved state.
   Future<void> restart() async {
+    if (_stateFactory != null) state = _stateFactory();
+    if (_configFactory != null) config = _configFactory();
     controller = _controller();
     await controller.initialize();
   }
@@ -95,13 +105,27 @@ class _Device {
 
 /// The whole two-device household scenario. `RustLib` must already be
 /// initialised (it refuses to initialise twice in one process).
-Future<void> runHouseholdScenario() async {
+Future<void> runHouseholdScenario({
+  BlobStore Function(String scope)? stateFactory,
+  BlobStore Function(String scope)? configFactory,
+}) async {
+  var storageIndex = 0;
+  _Device device(String name, _SwitchableRelay relay) {
+    final scope = 'device-${++storageIndex}';
+    return _Device(
+      name,
+      relay,
+      stateFactory: stateFactory == null ? null : () => stateFactory(scope),
+      configFactory: configFactory == null ? null : () => configFactory(scope),
+    );
+  }
+
   final relayStore = MemoryRelayClient();
-  final alice = _Device(
+  final alice = device(
     'aaaa0000aaaa0000aaaa0000aaaa0000',
     _SwitchableRelay(relayStore),
   );
-  final bob = _Device(
+  final bob = device(
     'bbbb1111bbbb1111bbbb1111bbbb1111',
     _SwitchableRelay(relayStore),
   );
@@ -178,7 +202,7 @@ Future<void> runHouseholdScenario() async {
   expect(backup, isNotNull);
   expect(backup!.phrase.split(' ').length, 24);
   expect(backup.backup, startsWith('cashbk1:'));
-  final replacement = _Device(bob.name, bob.relay);
+  final replacement = device(bob.name, bob.relay);
   await replacement.controller.initialize();
   expect(
     await replacement.controller.restoreBackup(
@@ -192,14 +216,32 @@ Future<void> runHouseholdScenario() async {
     await replacement.controller.restoreBackup(backup.phrase, backup.backup),
     isTrue,
   );
+  expect(replacement.controller.isMember, isFalse);
+  expect(replacement.controller.needsRecoveryInvite, isTrue);
+  expect(
+    await replacement.controller.addExpense(title: 'Unsafe', amount: '1.00'),
+    isFalse,
+  );
+  expect(await alice.controller.removeMember(bob.name), isTrue);
+  final freshRequest = (await replacement.controller.prepareJoinRequest())!;
+  final freshInvite = (await alice.controller.invite(freshRequest))!;
+  expect(await replacement.controller.acceptInvite(freshInvite), isTrue);
   expect(replacement.controller.isMember, isTrue);
+  expect(replacement.controller.overview!.memberId, isNot(bob.name));
   expect(
     replacement.controller.overview!.balanceLabel,
     bob.controller.overview!.balanceLabel,
   );
 
   // Removing Bob locks him out of everything written afterwards.
-  expect(await alice.controller.removeMember(bob.name), isTrue);
+  expect(
+    await alice.controller.removeMember(
+      replacement.controller.overview!.memberId,
+    ),
+    isTrue,
+  );
+  expect(await replacement.controller.syncNow(), isTrue);
+  expect(replacement.controller.isMember, isFalse);
   expect(await bob.controller.syncNow(), isTrue);
   expect(bob.controller.isMember, isFalse);
   final bobSees = bob.controller.overview!.transactions.length;

@@ -313,7 +313,10 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
       animation: controller,
       builder: (context, _) {
         final overview = controller.overview;
-        final inHousehold = overview != null && overview.groupId != null;
+        final inHousehold =
+            overview != null &&
+            overview.groupId != null &&
+            !controller.needsRecoveryInvite;
         return Scaffold(
           appBar: AppBar(
             title: const Text('Household'),
@@ -326,7 +329,7 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                       ? null
                       : controller.lockBrowserVault,
                 ),
-              if (inHousehold)
+              if (inHousehold || controller.needsRecoveryInvite)
                 PopupMenuButton<_MenuAction>(
                   tooltip: 'Household options',
                   onSelected: (action) => switch (action) {
@@ -334,7 +337,8 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                     _MenuAction.leave => _leave(),
                   },
                   itemBuilder: (context) => [
-                    if (overview.isMember)
+                    if ((overview?.isMember ?? false) ||
+                        controller.needsRecoveryInvite)
                       const PopupMenuItem(
                         value: _MenuAction.backup,
                         child: Text('Back up'),
@@ -383,6 +387,15 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                   onCreate: _create,
                   onJoin: _join,
                   onRestore: _restore,
+                  recoveryOverview: controller.recoveryOverview,
+                  recoveryJoined: overview?.groupId != null,
+                  onFinishRecovery: () async {
+                    if (!await controller.syncNow()) {
+                      _reportFailure(
+                        'Recovery is waiting for the old device to be removed',
+                      );
+                    }
+                  },
                 ),
               if (controller.isBusy)
                 const Align(

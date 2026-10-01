@@ -3,7 +3,8 @@ import 'dart:typed_data';
 
 import 'invite_codes.dart';
 
-const _magic = 'cash-app household journal v1\u0000';
+const _magic = 'cash-app household journal v2\u0000';
+const _legacyMagic = 'cash-app household journal v1\u0000';
 
 /// One atomic snapshot contains both the Rust keys and delivery intent.
 /// Like the Rust export, this contains secrets and needs encrypted storage.
@@ -15,6 +16,7 @@ class HouseholdJournal {
     this.lastCode,
     this.lastRequest,
     this.pendingAck,
+    this.recoveryState,
   });
   final Uint8List state;
   final String? relayUrl;
@@ -22,6 +24,7 @@ class HouseholdJournal {
   final String? lastCode;
   final String? lastRequest;
   final String? pendingAck;
+  final Uint8List? recoveryState;
 
   Uint8List encode() => Uint8List.fromList([
     ...utf8.encode(_magic),
@@ -33,12 +36,23 @@ class HouseholdJournal {
         'lastCode': lastCode,
         'lastRequest': lastRequest,
         'pendingAck': pendingAck,
+        'recoveryState': recoveryState == null
+            ? null
+            : base64.encode(recoveryState!),
       }),
     ),
   ]);
 
   static HouseholdJournal decode(Uint8List bytes) {
-    final marker = utf8.encode(_magic);
+    final current = utf8.encode(_magic);
+    final legacy = utf8.encode(_legacyMagic);
+    bool begins(List<int> marker) =>
+        bytes.length >= marker.length &&
+        !List.generate(
+          marker.length,
+          (i) => bytes[i] == marker[i],
+        ).contains(false);
+    final marker = begins(current) ? current : legacy;
     if (bytes.length < marker.length ||
         List.generate(
           marker.length,
@@ -73,6 +87,9 @@ class HouseholdJournal {
         lastCode: json['lastCode'] as String?,
         lastRequest: json['lastRequest'] as String?,
         pendingAck: pendingAck,
+        recoveryState: json['recoveryState'] == null
+            ? null
+            : base64.decode(json['recoveryState'] as String),
       );
     } catch (_) {
       throw const FormatException(
