@@ -41,6 +41,37 @@ class IoEventStore implements EventStore {
     await sink.flush();
     await sink.close();
   }
+
+  @override
+  Future<void> recoverPrefix(
+    int validLength, {
+    required int expectedLength,
+  }) async {
+    if (validLength < 0 || validLength > expectedLength) {
+      throw ArgumentError.value(validLength, 'validLength');
+    }
+    final file = await _logFile();
+    final handle = await file.open(mode: FileMode.append);
+    try {
+      if (await handle.length() != expectedLength) {
+        throw StateError('Log changed during recovery');
+      }
+      if (validLength == expectedLength) return;
+      await handle.setPosition(0);
+      final original = await handle.read(expectedLength);
+      if (original.length != expectedLength) {
+        throw StateError('Log changed during recovery');
+      }
+      final backup = File(
+        '${file.path}.recovery-${DateTime.now().microsecondsSinceEpoch}',
+      );
+      await backup.writeAsBytes(original, flush: true);
+      await handle.truncate(validLength);
+      await handle.flush();
+    } finally {
+      await handle.close();
+    }
+  }
 }
 
 /// Native-platform actor ID storage, alongside the event log files.

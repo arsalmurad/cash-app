@@ -3,6 +3,42 @@
 Updated 2026-09-30. Phase 1's exit test has passed (see "Phase 1 exit test" below).
 The "Remaining work" list at the bottom is follow-up polish, not a gate.
 
+## Takeover verification and recovery fix (2026-10-01)
+
+The merged Claude work was synchronized at `efdc9dc`. On Windows x64,
+`cargo test --manifest-path rust/Cargo.toml --workspace --locked` passed,
+including the three-peer 1,000-event convergence scenario. This does not
+exercise the feature-gated HTTP relay tests or reproduce mobile runtime checks.
+
+A real-bridge regression exposed a persistence bug: loading a torn log recovered
+its valid prefix in memory but left the unreadable tail on disk, so subsequent
+successful writes disappeared on the next restart. Startup now archives the
+original bytes before retaining the validated prefix, for all five personal
+logs (ledger, categories, budgets, goals, recurring). Backups stay alongside
+the private log as `.recovery-<timestamp>` files, or browser keys with that
+suffix. Archive failure or a changed log length fails recovery instead of
+discarding data. Backups are not automatically deleted.
+
+`RUST_LIB_PATH=rust/target/debug/rust_lib_cash_app.dll` with
+`flutter --no-version-check test --no-pub` passed 131 tests on Windows using
+the pinned Flutter 3.47.5 / Rust 1.98.1 toolchains. This includes the real
+household controller scenario and crash -> recover -> write -> restart for
+all five personal logs. The new `App checks` workflow runs these host tests
+on pull requests without rebuilding iOS, Android, or production WASM.
+
+`flutter --no-version-check analyze --no-pub` is clean. The separate browser
+storage tests compiled and launched Chrome 154, but did not execute on this
+Windows host: Flutter's test server returned HTTP 404 for cached
+`/canvaskit/chromium/canvaskit.js` and `.wasm` files. The files exist; inspection
+of the pinned SDK indicates a Windows path-separator mismatch in
+`_localCanvasKitHandler`. The runner was stopped; this is **not a browser pass**.
+The new workflow runs those tests on Linux. No pinned SDK source was modified.
+
+Remaining correctness follow-up: mutations currently change the in-memory Rust
+book before the frame append completes. A storage failure needs rollback or a
+fail-closed reload so a failed write cannot leak into later app state. This
+recovery fix does not address that separate failure mode.
+
 ## Web runtime verification
 
 Web support works; the earlier "blocked on an upstream limitation" finding
