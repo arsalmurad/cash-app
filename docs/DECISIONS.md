@@ -728,3 +728,14 @@ origin history, durable invitations and protected working state supersede
 their corresponding implementation limits, with verification recorded in
 `PHASE2-PROGRESS.md`.
 
+## 2026-10-02 — Recover signed history, never rewind MLS sender state
+
+Normal restart resumes the latest confirmed working journal; restoring an
+arbitrary older backup instead creates fresh signing/leaf keys and preserves
+the old signed history as an encrypted, read-only archive until re-invitation
+and cryptographic removal of the old key. Only the original MLS group can
+import those original proofs (including saved unsent events), and an early
+invitation waits durably for retirement without publishing; otherwise a stale
+or cloned snapshot could reuse the old sender ratchet, and its own later
+ciphertext cannot recover the missing plaintext.
+
