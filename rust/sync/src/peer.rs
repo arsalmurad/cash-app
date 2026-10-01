@@ -11,7 +11,8 @@ use cash_crypto::{Member, Received, author_id};
 use crate::ids::random_id;
 use crate::relay::{MailboxItem, Relay, RelayError};
 
-const EXPORT_MAGIC: &[u8] = b"cash-app peer v2\0";
+const EXPORT_MAGIC: &[u8] = b"cash-app peer v3\0";
+const SIGNED_V2_EXPORT_MAGIC: &[u8] = b"cash-app peer v2\0";
 const LEGACY_EXPORT_MAGIC: &[u8] = b"cash-app peer v1\0";
 
 pub(crate) fn write_field(bytes: &mut Vec<u8>, field: &[u8]) {
@@ -180,9 +181,9 @@ pub struct Peer {
     known: BTreeSet<EventId>,
     outbox: VecDeque<Outbound>,
     removed: bool,
-    /// A commit this peer created is awaiting the relay's verdict. Not
-    /// persisted: it must be resolved before the peer is exported.
+    /// A commit this peer created is awaiting the relay's verdict.
     staged: bool,
+    staged_frame: Option<Outgoing>,
     /// The staged commit adds a member (rather than removes one), so
     /// accepting it owes them a history backfill.
     staged_adds_member: bool,
@@ -359,6 +360,7 @@ impl Peer {
             outbox: VecDeque::new(),
             removed: false,
             staged: false,
+            staged_frame: None,
             staged_adds_member: false,
         })
     }
@@ -367,11 +369,6 @@ impl Peer {
     /// every event seen, the place in the relay log, and writes not yet
     /// sent. The bytes contain private keys; store them like a password.
     pub fn export(&self) -> Result<Vec<u8>, SyncError> {
-        if self.staged {
-            return Err(SyncError(
-                "a commit is pending; resolve it before exporting".to_owned(),
-            ));
-        }
         let mut bytes = Vec::new();
         bytes.extend_from_slice(if self.legacy_unverified {
             LEGACY_EXPORT_MAGIC
@@ -422,6 +419,17 @@ impl Peer {
             }
         }
         write_field(&mut bytes, &self.member.export()?);
+        if !self.legacy_unverified {
+            match &self.staged_frame {
+                None => bytes.push(0),
+                Some(frame) => {
+                    bytes.push(1);
+                    bytes.push(u8::from(self.staged_adds_member));
+                    bytes.extend_from_slice(&frame.expected_tail.to_be_bytes());
+                    write_field(&mut bytes, &frame.blob);
+                }
+            }
+        }
         Ok(bytes)
     }
 
@@ -432,7 +440,7 @@ impl Peer {
         let magic = reader.take(EXPORT_MAGIC.len()).ok_or_else(malformed)?;
         let legacy_unverified = if magic == LEGACY_EXPORT_MAGIC {
             true
-        } else if magic == EXPORT_MAGIC {
+        } else if magic == EXPORT_MAGIC || magic == SIGNED_V2_EXPORT_MAGIC {
             false
         } else {
             return Err(malformed());
@@ -501,6 +509,31 @@ impl Peer {
             }
         }
         let member = Member::import(reader.field().ok_or_else(malformed)?)?;
+        let mut staged_adds_member = false;
+        let staged_frame = if magic == EXPORT_MAGIC {
+            match reader.take(1).ok_or_else(malformed)?[0] {
+                0 => None,
+                1 => {
+                    staged_adds_member = match reader.take(1).ok_or_else(malformed)?[0] {
+                        0 => false,
+                        1 => true,
+                        _ => return Err(malformed()),
+                    };
+                    let expected_tail = reader.u64().ok_or_else(malformed)?;
+                    let blob = reader.field().ok_or_else(malformed)?.to_vec();
+                    if expected_tail != cursor || blob.is_empty() || blob.len() > 256 * 1024 {
+                        return Err(malformed());
+                    }
+                    Some(Outgoing {
+                        expected_tail,
+                        blob,
+                    })
+                }
+                _ => return Err(malformed()),
+            }
+        } else {
+            None
+        };
         if !reader.bytes.is_empty() {
             return Err(malformed());
         }
@@ -520,14 +553,15 @@ impl Peer {
             known,
             outbox,
             removed,
-            staged: false,
-            staged_adds_member: false,
+            staged: staged_frame.is_some(),
+            staged_frame,
+            staged_adds_member,
         })
     }
 
     /// How many locally written events are still waiting to be sent.
     pub fn pending_count(&self) -> usize {
-        self.outbox.len()
+        self.outbox.len() + usize::from(self.staged)
     }
 
     pub fn reporting_currency(&self) -> &Currency {
@@ -619,7 +653,9 @@ impl Peer {
     /// Processes relay entries in order. Entries already seen are skipped;
     /// a gap is an error, since MLS needs every message in sequence.
     pub fn ingest(&mut self, entries: &[(u64, Vec<u8>)]) -> Result<(), SyncError> {
-        self.ensure_not_staged()?;
+        if self.legacy_unverified {
+            self.ensure_not_staged()?;
+        }
         for (sequence, frame) in entries {
             if self.removed || *sequence <= self.cursor {
                 continue;
@@ -630,7 +666,29 @@ impl Peer {
                     self.cursor
                 )));
             }
-            let (received, sender) = self.member.receive_authenticated(frame)?;
+            let staged_before = if self.staged_frame.is_some() {
+                Some(self.export()?)
+            } else {
+                None
+            };
+            if let Some(pending) = &self.staged_frame {
+                if pending.blob == *frame {
+                    self.commit_accepted(*sequence)?;
+                    continue;
+                }
+                // Another entry won this exact compare-and-swap slot. Only
+                // this ordered-log evidence, not a lost reply, rejects it.
+                self.commit_rejected()?;
+            }
+            let (received, sender) = match self.member.receive_authenticated(frame) {
+                Ok(received) => received,
+                Err(error) => {
+                    if let Some(saved) = staged_before {
+                        *self = Self::import(&saved)?;
+                    }
+                    return Err(error.into());
+                }
+            };
             match received {
                 Received::Application(bytes) => {
                     // A frame that decrypts but carries no shared events came
@@ -665,6 +723,9 @@ impl Peer {
     /// same event is returned again until [`Peer::outgoing_accepted`], so a
     /// refused append is retried after catching up.
     pub fn next_outgoing(&mut self) -> Result<Option<Outgoing>, SyncError> {
+        if let Some(pending) = &self.staged_frame {
+            return Ok(Some(pending.clone()));
+        }
         self.ensure_not_staged()?;
         if !self.is_member() {
             return Ok(None);
@@ -691,6 +752,14 @@ impl Peer {
     /// The relay appended the entry from [`Peer::next_outgoing`] as
     /// `sequence`.
     pub fn outgoing_accepted(&mut self, sequence: u64) -> Result<(), SyncError> {
+        if self.staged {
+            return self.commit_accepted(sequence);
+        }
+        if sequence != self.cursor + 1 {
+            return Err(SyncError(
+                "outgoing acknowledgement skipped its log slot".to_owned(),
+            ));
+        }
         match self.outbox.front() {
             None => return Err(SyncError("nothing was waiting to be sent".to_owned())),
             Some(Outbound::Event(_)) => {
@@ -720,14 +789,18 @@ impl Peer {
         ids.iter().map(|id| self.event(id)).collect()
     }
 
-    /// Stages adding the holder of `key_package`. The peer must be caught
-    /// up; it then refuses everything except [`Peer::commit_accepted`] or
-    /// [`Peer::commit_rejected`].
+    /// Stages adding the holder of `key_package`. Persist the exported peer
+    /// before submitting the commit; ingestion can reconcile a lost reply
+    /// against its exact log slot, including after restart.
     pub fn begin_invite(&mut self, key_package: &[u8]) -> Result<StagedInvite, SyncError> {
         self.ensure_not_staged()?;
         let invite = self.member.add(key_package)?;
         self.staged = true;
         self.staged_adds_member = true;
+        self.staged_frame = Some(Outgoing {
+            expected_tail: self.cursor,
+            blob: invite.commit.clone(),
+        });
         Ok(StagedInvite {
             commit: Outgoing {
                 expected_tail: self.cursor,
@@ -744,6 +817,10 @@ impl Peer {
         let commit = self.member.remove(member_id)?;
         self.staged = true;
         self.staged_adds_member = false;
+        self.staged_frame = Some(Outgoing {
+            expected_tail: self.cursor,
+            blob: commit.clone(),
+        });
         Ok(Outgoing {
             expected_tail: self.cursor,
             blob: commit,
@@ -755,8 +832,14 @@ impl Peer {
         if !self.staged {
             return Err(SyncError("no commit is pending".to_owned()));
         }
+        if sequence != self.cursor + 1 {
+            return Err(SyncError(
+                "commit acknowledgement skipped its log slot".to_owned(),
+            ));
+        }
         self.member.confirm_commit()?;
         self.staged = false;
+        self.staged_frame = None;
         self.cursor = sequence;
         if self.staged_adds_member && !self.events.is_empty() {
             // Sorted into the total order so the new member's first batches
@@ -770,13 +853,16 @@ impl Peer {
         Ok(())
     }
 
-    /// The relay refused the staged commit (stale tail, or unreachable).
+    /// The relay definitively refused the staged commit (stale tail).
+    /// An unreachable relay or a lost response is not a rejection.
     pub fn commit_rejected(&mut self) -> Result<(), SyncError> {
         if !self.staged {
             return Err(SyncError("no commit is pending".to_owned()));
         }
         self.member.discard_commit()?;
         self.staged = false;
+        self.staged_frame = None;
+        self.staged_adds_member = false;
         Ok(())
     }
 
@@ -831,10 +917,9 @@ impl Peer {
                     return Ok(mailbox);
                 }
                 Err(RelayError::Conflict { .. }) => self.commit_rejected()?,
-                Err(error) => {
-                    self.commit_rejected()?;
-                    return Err(error.into());
-                }
+                // Unavailability is indeterminate: retain the staged commit
+                // for ordered-log reconciliation, never guess rejection.
+                Err(error) => return Err(error.into()),
             }
         }
         Err(SyncError(
@@ -869,10 +954,7 @@ impl Peer {
             match relay.append(&group, commit.expected_tail, commit.blob) {
                 Ok(sequence) => return self.commit_accepted(sequence),
                 Err(RelayError::Conflict { .. }) => self.commit_rejected()?,
-                Err(error) => {
-                    self.commit_rejected()?;
-                    return Err(error.into());
-                }
+                Err(error) => return Err(error.into()),
             }
         }
         Err(SyncError(

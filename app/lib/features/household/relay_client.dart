@@ -36,7 +36,7 @@ class RelayConflict implements Exception {
 }
 
 /// The relay could not be reached or answered nonsense. Nothing the caller
-/// can rely on changed; retry later.
+/// can rely on changed; a request may have succeeded before its reply was lost.
 class RelayUnavailable implements Exception {
   const RelayUnavailable(this.message);
 
@@ -226,6 +226,7 @@ class HttpRelayClient implements RelayClient {
 class MemoryRelayClient implements RelayClient {
   final Map<String, List<Uint8List>> _groups = {};
   final Map<String, RelayMailboxItem> _mailboxes = {};
+  final Set<String> _consumedMailboxes = {};
 
   @override
   Future<int> append(String group, int expectedTail, Uint8List blob) async {
@@ -253,6 +254,15 @@ class MemoryRelayClient implements RelayClient {
     int joinedAfter,
     Uint8List welcome,
   ) async {
+    final stored = _mailboxes[mailbox];
+    if (stored != null) {
+      if (stored.group == group &&
+          stored.joinedAfter == joinedAfter &&
+          base64.encode(stored.welcome) == base64.encode(welcome)) {
+        return;
+      }
+      throw const RelayUnavailable('mailbox already holds a different invite');
+    }
     _mailboxes[mailbox] = RelayMailboxItem(
       group: group,
       joinedAfter: joinedAfter,
@@ -261,6 +271,9 @@ class MemoryRelayClient implements RelayClient {
   }
 
   @override
-  Future<RelayMailboxItem?> takeMailbox(String mailbox) async =>
-      _mailboxes.remove(mailbox);
+  Future<RelayMailboxItem?> takeMailbox(String mailbox) async {
+    final item = _mailboxes[mailbox];
+    if (item == null || !_consumedMailboxes.add(mailbox)) return null;
+    return item;
+  }
 }

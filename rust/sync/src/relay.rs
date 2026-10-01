@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Why a relay call did not succeed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -7,7 +7,7 @@ pub enum RelayError {
     /// `tail` is the current length.
     Conflict { tail: u64 },
     /// The relay could not be reached or answered nonsense. Nothing was
-    /// changed that the caller can rely on; retry later.
+    /// changed that the caller can rely on; the request may have succeeded.
     Unavailable(String),
 }
 
@@ -46,6 +46,7 @@ pub trait Relay {
 pub struct MemoryRelay {
     groups: BTreeMap<String, Vec<Vec<u8>>>,
     mailboxes: BTreeMap<String, MailboxItem>,
+    consumed_mailboxes: BTreeSet<String>,
 }
 
 impl MemoryRelay {
@@ -106,12 +107,27 @@ impl Relay for MemoryRelay {
     }
 
     fn put_mailbox(&mut self, mailbox: &str, item: MailboxItem) -> Result<(), RelayError> {
+        if let Some(stored) = self.mailboxes.get(mailbox) {
+            return if *stored == item {
+                Ok(())
+            } else {
+                Err(RelayError::Unavailable(
+                    "mailbox already holds a different invite".to_owned(),
+                ))
+            };
+        }
         self.mailboxes.insert(mailbox.to_owned(), item);
         Ok(())
     }
 
     fn take_mailbox(&mut self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError> {
-        Ok(self.mailboxes.remove(mailbox))
+        let Some(item) = self.mailboxes.get(mailbox) else {
+            return Ok(None);
+        };
+        if !self.consumed_mailboxes.insert(mailbox.to_owned()) {
+            return Ok(None);
+        }
+        Ok(Some(item.clone()))
     }
 }
 
@@ -155,8 +171,14 @@ mod tests {
             joined_after: 3,
             welcome: b"w".to_vec(),
         };
-        relay.put_mailbox("m", item.clone()).unwrap();
-        assert_eq!(relay.take_mailbox("m").unwrap(), Some(item));
         assert_eq!(relay.take_mailbox("m").unwrap(), None);
+        relay.put_mailbox("m", item.clone()).unwrap();
+        relay.put_mailbox("m", item.clone()).unwrap();
+        assert_eq!(relay.take_mailbox("m").unwrap(), Some(item.clone()));
+        relay.put_mailbox("m", item.clone()).unwrap();
+        assert_eq!(relay.take_mailbox("m").unwrap(), None);
+        let mut changed = item;
+        changed.joined_after += 1;
+        assert!(relay.put_mailbox("m", changed).is_err());
     }
 }

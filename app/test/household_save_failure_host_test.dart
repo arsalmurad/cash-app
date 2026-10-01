@@ -38,6 +38,45 @@ class _Store implements BlobStore {
   Future<void> delete() async => value = null;
 }
 
+class _FaultRelay implements RelayClient {
+  final inner = MemoryRelayClient();
+  String? failure;
+  @override
+  Future<int> append(String group, int expectedTail, Uint8List blob) async {
+    final sequence = await inner.append(group, expectedTail, blob);
+    if (failure == 'append-reply') {
+      failure = null;
+      throw const RelayUnavailable('append reply lost');
+    }
+    return sequence;
+  }
+
+  @override
+  Future<List<RelayLogEntry>> readAfter(String group, int after) =>
+      inner.readAfter(group, after);
+  @override
+  Future<void> putMailbox(
+    String mailbox,
+    String group,
+    int joinedAfter,
+    Uint8List welcome,
+  ) async {
+    if (failure == 'mailbox-before') {
+      failure = null;
+      throw const RelayUnavailable('mailbox unavailable');
+    }
+    await inner.putMailbox(mailbox, group, joinedAfter, welcome);
+    if (failure == 'mailbox-reply') {
+      failure = null;
+      throw const RelayUnavailable('mailbox reply lost');
+    }
+  }
+
+  @override
+  Future<RelayMailboxItem?> takeMailbox(String mailbox) =>
+      inner.takeMailbox(mailbox);
+}
+
 void main() {
   final libraryPath = Platform.environment['RUST_LIB_PATH'];
   group(
@@ -46,6 +85,176 @@ void main() {
       setUpAll(() async {
         await RustLib.init(externalLibrary: ExternalLibrary.open(libraryPath!));
       });
+
+      for (final failure in [
+        'append-reply',
+        'mailbox-before',
+        'mailbox-reply',
+      ]) {
+        test('invitation resumes after $failure and restart', () async {
+          final relay = _FaultRelay();
+          final state = _Store();
+          final config = _Store();
+          HouseholdController alice() => HouseholdController(
+            stateStore: state,
+            configStore: config,
+            relayFactory: (_) => relay,
+          );
+          final first = alice();
+          await first.initialize();
+          await first.setRelayUrl('https://relay.test');
+          expect(await first.createHousehold(), isTrue);
+          final bob = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await bob.initialize();
+          final request = (await bob.prepareJoinRequest())!;
+          relay.failure = failure;
+          expect(await first.invite(request), isNull);
+          expect(first.hasPendingInvitation, isTrue);
+          final restarted = alice();
+          await restarted.initialize();
+          expect(restarted.hasPendingInvitation, isTrue);
+          final code = await restarted.resumeInvitation();
+          expect(code, isNotNull);
+          expect(restarted.hasPendingInvitation, isFalse);
+          expect(restarted.overview!.memberIds.length, 2);
+          expect(await bob.acceptInvite(code!), isTrue);
+          expect(
+            await restarted.addExpense(
+              title: 'Recovered invitation',
+              amount: '5.00',
+            ),
+            isTrue,
+          );
+          expect(await bob.syncNow(), isTrue);
+          expect(bob.overview!.balanceLabel, restarted.overview!.balanceLabel);
+          final afterDelivery = alice();
+          await afterDelivery.initialize();
+          expect(afterDelivery.lastInviteCode, code);
+          expect(
+            await afterDelivery.invite(request),
+            code,
+            reason: 'same request does not add a duplicate member',
+          );
+        });
+      }
+
+      test(
+        'a sealed backup retains pending delivery and its relay address',
+        () async {
+          final relay = _FaultRelay();
+          final original = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await original.initialize();
+          await original.setRelayUrl('https://relay.test');
+          await original.createHousehold();
+          final bob = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await bob.initialize();
+          final request = (await bob.prepareJoinRequest())!;
+          relay.failure = 'mailbox-before';
+          expect(await original.invite(request), isNull);
+          final backup = (await original.createBackup())!;
+          final replacement = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await replacement.initialize();
+          expect(
+            await replacement.restoreBackup(backup.phrase, backup.backup),
+            isTrue,
+          );
+          expect(replacement.relayUrl, 'https://relay.test');
+          expect(replacement.lastInviteCode, isNotNull);
+          expect(await bob.acceptInvite(replacement.lastInviteCode!), isTrue);
+        },
+      );
+
+      test(
+        'removal with a lost acknowledgement resumes after restart',
+        () async {
+          final relay = _FaultRelay();
+          final state = _Store();
+          final config = _Store();
+          HouseholdController alice() => HouseholdController(
+            stateStore: state,
+            configStore: config,
+            relayFactory: (_) => relay,
+          );
+          final first = alice();
+          await first.initialize();
+          await first.setRelayUrl('https://relay.test');
+          await first.createHousehold();
+          final bob = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await bob.initialize();
+          final code = (await first.invite((await bob.prepareJoinRequest())!))!;
+          await bob.acceptInvite(code);
+          relay.failure = 'append-reply';
+          expect(await first.removeMember(bob.overview!.memberId), isFalse);
+          final restart = alice();
+          await restart.initialize();
+          expect(await restart.syncNow(), isTrue);
+          expect(restart.overview!.memberIds.length, 1);
+          expect(
+            await restart.addExpense(title: 'After removal', amount: '7.00'),
+            isTrue,
+          );
+          await bob.syncNow();
+          expect(bob.isMember, isFalse);
+          expect(bob.overview!.transactions, isEmpty);
+        },
+      );
+
+      test(
+        'corrupt local state stays locked but a verified backup can recover it',
+        () async {
+          final relay = _FaultRelay();
+          final original = HouseholdController(
+            stateStore: _Store(),
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await original.initialize();
+          await original.setRelayUrl('https://relay.test');
+          await original.createHousehold();
+          final backup = (await original.createBackup())!;
+          final broken = _Store()..value = Uint8List.fromList([1, 2, 3]);
+          final replacement = HouseholdController(
+            stateStore: broken,
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          await replacement.initialize();
+          expect(await replacement.createHousehold(), isFalse);
+          expect(
+            await replacement.restoreBackup('wrong phrase', backup.backup),
+            isFalse,
+          );
+          expect(await replacement.createHousehold(), isFalse);
+          expect(
+            await replacement.restoreBackup(backup.phrase, backup.backup),
+            isTrue,
+          );
+          expect(
+            await replacement.addExpense(title: 'Recovered', amount: '1.00'),
+            isTrue,
+          );
+        },
+      );
 
       for (final saved in [false, true]) {
         test('uncertain save ($saved) stops queued and later writes', () async {
