@@ -780,3 +780,14 @@ leaving adaptive framework controls with missing glyphs. The asset test passed,
 and the production release now bundles the tree-shaken 1,472-byte font without
 the missing-family warning; no Flutter/Rust toolchain change was required.
 
+## 2026-10-02 — Reject malformed CSV before any ledger mutation
+
+Regression tests reproduced unfinished/misplaced quotes being accepted and
+empty quoted fields or carriage returns being lost. The parser now validates
+quote boundaries, preserves quoted CR/LF and empty fields, and handles CR,
+LF and CRLF row endings; export quotes carriage returns. Import parses the
+entire input first and returns a readable zero-import error on malformed CSV
+instead of interpreting altered fields or saving a partial prefix. All 18
+CSV parsing/dialog checks passed, including a valid first row followed by a
+malformed row causing no writes.
+
