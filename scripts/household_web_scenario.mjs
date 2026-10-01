@@ -1,0 +1,229 @@
+// Drives the unmodified production Flutter/WASM app through its rendered UI.
+// All browser contexts, storage, keys and relay records are synthetic and owned
+// by this test. No application debug hook or direct Rust/state injection.
+import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+
+export async function runHouseholdWebScenario(alice, api) {
+  const { appUrl, debugPort, repoRoot, connectCdp, waitForPage, openApp,
+    evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay } = api;
+  const { Miniflare } = createRequire(import.meta.url)('../relay/node_modules/miniflare');
+  const relay = new Miniflare({
+    modules: true, scriptPath: join(repoRoot, 'relay/src/worker.js'),
+    durableObjects: { GROUP: 'GroupLog', MAILBOX: 'Mailbox' },
+    compatibilityDate: '2026-07-01', host: '127.0.0.1', port: 0,
+  });
+  const relayUrl = String(await relay.ready).replace(/\/$/, '');
+  const version = await (await fetch(`http://127.0.0.1:${debugPort}/json/version`)).json();
+  const browser = await connectCdp(version.webSocketDebuggerUrl);
+  const peers = [];
+  const contexts = [];
+
+  async function newPeer() {
+    const { browserContextId } = await browser.send('Target.createBrowserContext');
+    contexts.push(browserContextId);
+    const { targetId } = await browser.send('Target.createTarget', { url: appUrl, browserContextId });
+    const page = await waitForPage(debugPort, appUrl, targetId);
+    const peer = await connectCdp(page.webSocketDebuggerUrl);
+    peers.push(peer);
+    await peer.send('Runtime.enable');
+    await peer.send('Page.enable');
+    await peer.send('Network.enable');
+    await openApp(peer);
+    await waitForLabel(peer, 'Private Ledger');
+    return peer;
+  }
+
+  async function textMatching(peer, pattern) {
+    const expression = `(() => {
+      const values = [...document.querySelectorAll('flt-semantics-host *, input, textarea')].flatMap(e =>
+        [e.value, e.getAttribute('aria-label'), e.getAttribute('aria-valuetext'), e.textContent,
+         e.getAttribute('data-value')]);
+      return values.filter(v => typeof v === 'string').map(v => v.trim()).find(v => new RegExp(${JSON.stringify(pattern)}).test(v));
+    })()`;
+    try {
+      await waitFor(peer, expression);
+    } catch (error) {
+      const screenshot = await peer.send('Page.captureScreenshot', { format: 'png' });
+      writeFileSync(join(repoRoot, 'app/.dart_tool/household-web-failure.png'), Buffer.from(screenshot.data, 'base64'));
+      throw error;
+    }
+    return evaluate(peer, expression);
+  }
+
+  async function fill(peer, label, value, replace = false) {
+    await focusLabel(peer, label);
+    if (replace) {
+      await evaluate(peer, `(() => {
+        const input = document.activeElement;
+        if (!input || typeof input.setSelectionRange !== 'function') throw new Error('No active editable field');
+        input.setSelectionRange(0, input.value.length);
+      })()`);
+    }
+    await peer.send('Input.insertText', { text: value });
+  }
+
+  async function openHousehold(peer) {
+    await clickLabel(peer, 'Import or export', 'button');
+    await clickLabel(peer, 'Household');
+  }
+
+  async function protect(peer) {
+    await openHousehold(peer);
+    await waitForLabel(peer, 'Protect this browser');
+    await clickLabel(peer, 'Create unlock phrase', 'button');
+    const phrase = await textMatching(peer, '^(?:[a-z]+ ){23}[a-z]+$');
+    await clickLabel(peer, 'I saved this phrase privately');
+    await clickLabel(peer, 'Encrypt and continue', 'button');
+    await waitForLabel(peer, 'Share expenses');
+    return phrase;
+  }
+
+  async function joinRequest(peer) {
+    await clickLabel(peer, 'Join a household', 'button');
+    return textMatching(peer, '^cashkp1:[A-Za-z0-9_+/=-]+$');
+  }
+
+  async function invite(request) {
+    await clickLabel(alice, 'Invite', 'button');
+    await fill(alice, 'Their join request', request);
+    await clickLabel(alice, 'Add to household', 'button');
+    const code = await textMatching(alice, '^cashinv1:[A-Za-z0-9_+/=-]+$');
+    await clickLabel(alice, 'Done', 'button');
+    return code;
+  }
+
+  async function accept(peer, code) {
+    await fill(peer, 'Invite', code);
+    await clickLabel(peer, 'Join', 'button');
+    await waitForLabel(peer, 'Shared balance');
+  }
+
+  async function expense(peer, title, amount) {
+    await clickLabel(peer, 'Add shared expense', 'button');
+    await fill(peer, 'Title', title);
+    await fill(peer, 'Amount', amount);
+    await clickLabel(peer, 'Add', 'button');
+    await waitForLabel(peer, title);
+  }
+
+  async function edit(peer, amount) {
+    await clickLabel(peer, 'Expense actions', 'button');
+    await clickLabel(peer, 'Change amount');
+    await fill(peer, 'Amount', amount, true);
+    await clickLabel(peer, 'Save', 'button');
+  }
+
+  async function sync(peer) {
+    await clickLabel(peer, 'Sync', 'button');
+    await delay(350);
+  }
+
+  try {
+    await alice.send('Network.enable');
+    await protect(alice);
+    await fill(alice, 'Relay address', relayUrl);
+    await clickLabel(alice, 'Save relay address', 'button');
+    await clickLabel(alice, 'Create a household', 'button');
+    await waitForLabel(alice, 'Shared balance');
+    const bob = await newPeer();
+    const bobPhrase = await protect(bob);
+    await accept(bob, await invite(await joinRequest(bob)));
+    console.log('Verified household: two independent browser identities joined through real HTTP/CORS.');
+
+    await expense(alice, 'Browser shared dinner', '40.00');
+    await sync(bob);
+    await waitForLabel(bob, 'USD -40.00');
+    await bob.send('Page.reload');
+    await openApp(bob);
+    await waitForLabel(bob, 'Private Ledger');
+    await openHousehold(bob);
+    await waitForLabel(bob, 'Unlock this browser');
+    await fill(bob, '24-word unlock phrase', bobPhrase);
+    await clickLabel(bob, 'Unlock household', 'button');
+    await waitForLabel(bob, 'USD -40.00');
+    const saved = await evaluate(bob, `(() => {
+      const bytes = atob(localStorage.getItem('private_ledger.blob.household.v1'));
+      return { sealed: bytes.startsWith('cash-app sealed vault v1\\0'),
+        containsTitle: bytes.includes('Browser shared dinner'),
+        containsPhrase: Object.values(localStorage).some(v => v.includes(${JSON.stringify(bobPhrase)})) };
+    })()`);
+    assert.deepEqual(saved, { sealed: true, containsTitle: false, containsPhrase: false });
+    console.log('Verified household: reload requires the RAM-only phrase and restores sealed history.');
+
+    await bob.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await edit(bob, '42.00');
+    await waitForLabel(bob, 'USD -42.00');
+    await waitForLabel(bob, 'waiting to send');
+    await edit(alice, '45.00');
+    await bob.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await sync(bob);
+    await sync(alice);
+    await waitForLabel(bob, 'Edited by two people at once');
+    await waitForLabel(alice, 'Edited by two people at once');
+    await waitForLabel(bob, 'USD -45.00');
+    await waitForLabel(alice, 'USD -45.00');
+    console.log('Verified household: offline concurrent edits converge with a visible conflict.');
+
+    await clickLabel(bob, 'Household options', 'button');
+    await clickLabel(bob, 'Back up');
+    const backupPhrase = await textMatching(bob, '^(?:[a-z]+ ){23}[a-z]+$');
+    const backup = await textMatching(bob, '^cashbk1:[A-Za-z0-9_+/=-]+$');
+    await clickLabel(bob, 'I have saved both', 'button');
+    await expense(bob, 'Sent after browser backup', '5.00');
+    await sync(alice);
+    const replacement = await newPeer();
+    await protect(replacement);
+    await clickLabel(replacement, 'Restore from a backup', 'button');
+    await fill(replacement, 'Your 24 words', backupPhrase);
+    await fill(replacement, 'Backup code', backup);
+    await clickLabel(replacement, 'Restore', 'button');
+    await waitForLabel(replacement, 'Backup history saved');
+
+    // Alice has just one other member here, so this removes the old Bob key.
+    await clickLabel(alice, 'Remove from household', 'button');
+    await clickLabel(alice, 'Remove', 'button');
+    await accept(replacement, await invite(await joinRequest(replacement)));
+    await waitForLabel(replacement, 'USD -50.00');
+    await sync(bob);
+    await waitForLabel(bob, 'You are no longer in this household');
+    await expense(alice, 'After old device retirement', '1.00');
+    await sync(replacement);
+    await waitForLabel(replacement, 'USD -51.00');
+    console.log('Verified household: a stale backup rejoins with fresh keys; the old device is removed.');
+
+    await clickLabel(replacement, 'Back', 'button');
+    await waitForLabel(replacement, 'Private Ledger');
+    await waitForLabel(replacement, 'USD 0.00');
+    const privateLeak = await evaluate(replacement, `document.body.textContent.includes('Groceries') || document.body.textContent.includes('Rent')`);
+    assert.equal(privateLeak, false);
+    await openHousehold(replacement);
+    await waitForLabel(replacement, 'After old device retirement');
+    const requests = [alice, bob, replacement].flatMap(peer => peer.events)
+      .filter(event => event.method === 'Network.requestWillBeSent' && event.params.request.url.startsWith(relayUrl));
+    assert(requests.some(event => event.params.request.method === 'POST'));
+    assert(requests.some(event => event.params.request.method === 'GET'));
+    for (const event of requests) {
+      const body = event.params.request.postData ?? '';
+      for (const title of ['Groceries', 'Rent', 'Browser shared dinner', 'Sent after browser backup']) {
+        assert(!body.includes(title), 'Relay request leaked a readable financial title');
+      }
+    }
+    const screenshot = await replacement.send('Page.captureScreenshot', { format: 'png' });
+    writeFileSync(join(repoRoot, 'app/.dart_tool/household-web-pass.png'), Buffer.from(screenshot.data, 'base64'));
+    console.log('Verified household: private ledgers stay separate; HTTP bodies contain no readable fixture titles.');
+  } catch (error) {
+    for (const [index, peer] of [alice, ...peers].entries()) {
+      const screenshot = await peer.send('Page.captureScreenshot', { format: 'png' }).catch(() => null);
+      if (screenshot) writeFileSync(join(repoRoot, `app/.dart_tool/household-web-failure-${index}.png`), Buffer.from(screenshot.data, 'base64'));
+    }
+    throw error;
+  } finally {
+    for (const peer of peers) peer.close();
+    for (const browserContextId of contexts) await browser.send('Target.disposeBrowserContext', { browserContextId }).catch(() => {});
+    browser.close();
+    await relay.dispose();
+  }
+}
