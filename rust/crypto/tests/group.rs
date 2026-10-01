@@ -12,6 +12,15 @@ fn application_sender_is_the_authenticated_mls_signer() {
 }
 
 #[test]
+fn an_invite_cannot_reuse_an_existing_members_identity() {
+    let (mut alice, _, _) = three();
+    let impostor = Member::new("bob").unwrap();
+    assert!(alice.add(&impostor.key_package().unwrap()).is_err());
+    assert_eq!(alice.member_names().unwrap(), ["alice", "bob", "carol"]);
+    assert!(alice.encrypt(b"still usable").is_ok());
+}
+
+#[test]
 fn detached_history_signatures_survive_removal_and_restart_but_reject_tampering() {
     let (mut alice, bob, mut carol) = three();
     let payload = b"original immutable event";

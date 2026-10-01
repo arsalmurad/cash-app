@@ -1,5 +1,15 @@
 # Decisions
 
+## 2026-10-01 — Signed history keeps original proofs, not the forwarder's identity
+
+Shared event actors are now self-certifying hashes of their signing public key,
+and event IDs include that actor namespace plus randomness so a restored device
+cannot accidentally reproduce an ID at the same HLC. Live envelopes must match
+the MLS sender's key; backfills retain and verify original group-bound signatures.
+Proof hashes preserve conflicting versions of an event ID, while unsigned v1
+archives remain explicitly read-only rather than being silently re-signed;
+forwarded signatures prove the originating key, not historical membership.
+
 ## 2026-10-01 — Preserve authorship through household history forwarding
 
 Retain OpenMLS-authenticated sender metadata and use domain-separated,
@@ -7,8 +17,7 @@ group-bound detached signatures from the existing pinned Ed25519 identity for
 immutable history. Checking every event against the current transport sender
 was rejected because inviters must forward other members' historical events;
 signatures alone still require actor binding and authorization in the sync layer.
-The primitive tests cover changed data/keys/signatures, cross-household replay,
-restart, and historical verification after removal. APIs were checked against
+APIs were checked against
 the pinned source and [OpenMLS ProcessedMessage documentation](https://docs.rs/openmls/0.9.0/openmls/framing/struct.ProcessedMessage.html)
 and [Signer documentation](https://docs.rs/openmls_traits/0.6.0/openmls_traits/signatures/trait.Signer.html).
 

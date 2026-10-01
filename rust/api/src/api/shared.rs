@@ -354,7 +354,7 @@ pub fn household_overview(household: &Household) -> Result<HouseholdOverview, St
         .member_keys()
         .map(|keys| keys.into_iter().map(|(name, _)| name).collect())
         .unwrap_or_default();
-    Ok(overview_from_state(
+    let mut overview = overview_from_state(
         &state,
         peer.member_id().to_owned(),
         peer.group_id().map(str::to_owned),
@@ -362,7 +362,14 @@ pub fn household_overview(household: &Household) -> Result<HouseholdOverview, St
         peer.cursor(),
         peer.pending_count(),
         member_ids,
-    ))
+    );
+    if peer.legacy_unverified() {
+        overview.rejected.push(RejectedView {
+            event_id: "legacy-unverified-history".to_owned(),
+            reason: "Unsigned legacy household history: view/export only. Keep an archive and create a new household before sharing further.".to_owned(),
+        });
+    }
+    Ok(overview)
 }
 
 /// The safety number shared between this device and `member_id`: read it

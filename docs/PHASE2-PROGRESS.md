@@ -1,6 +1,6 @@
 # Phase 2 progress
 
-Updated 2026-09-30. Phase 2 (the shared layer, brief section 6) is in
+Updated 2026-10-01. Phase 2 (the shared layer, brief section 6) is in
 progress: the cryptographic and sync core, bridge, and household UI exist,
 with the runtime evidence and remaining limitations listed below. The relay
 is **not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
@@ -84,6 +84,35 @@ CI for the app-level work (branch `claude/stoic-brahmagupta-1wwxwq`):
   against the worker) passed on the final head `a466b75`:
   [run 36781383594](https://github.com/arsalmurad/cash-app/actions/runs/36781383594).
 
+## Authenticated history verification (2026-10-01)
+
+Original event proofs now carry group-bound signatures using the existing MLS
+identity. Actors are hashes of signing keys, event IDs include their actor's
+namespace plus randomness, and live messages must match the authenticated MLS
+sender. Backfills retain original signatures; proof-hash deduplication preserves
+conflicting signed versions of an event ID through restart and forwarding.
+Unsigned v1 archives remain readable/exportable but cannot write or synchronize,
+and the overview includes a visible legacy warning.
+
+Independently passed on the Windows host for this change:
+
+- `cargo test --manifest-path rust/Cargo.toml --workspace --locked`, including
+  the three-peer 1,000-event scenario, signature tampering, impersonation,
+  cross-household replay, legacy archives and conflicting-proof preservation.
+- `cargo build --manifest-path rust/Cargo.toml -p rust_lib_cash_app --locked`,
+  then `flutter --no-version-check test --no-pub test/household_host_test.dart
+  --reporter failures-only` with `RUST_LIB_PATH` pointing to that rebuilt DLL:
+  the real-bridge two-device household scenario passed.
+- `npm test` in `relay/`: all 12 tests passed in actual workerd/Miniflare after
+  correcting file-URL conversion in the Windows worker launchers.
+
+These are not new iOS, Android or production WASM runtime claims. A forwarded
+proof authenticates its originating key, not when it held membership: the
+current transport member authorizes publishing that history. It cannot stop an
+authorized member forwarding a collaborator's signed history or sharing
+plaintext out of band. Durability, recovery and relay authorization are separate
+gates in `COMPLETION.md`.
+
 ## Not done
 
 - **Deployment.** The worker has only run in workerd under miniflare. Nobody
@@ -95,10 +124,9 @@ CI for the app-level work (branch `claude/stoic-brahmagupta-1wwxwq`):
   an app-private file natively and in `localStorage` on the web, not the
   platform keychain. The recovery backup is sealed, but the working copy is
   not.
-- **Attribution inside a household.** An event's actor ID is not bound to
-  the MLS sender, so a member could write events in another member's name.
-  Fine for a household that trusts its members, not for an adversarial
-  group.
+- **Historical membership policy.** Origin keys and live MLS senders are now
+  authenticated as described above; signatures are not historical membership
+  attestations. Current members still control publication of forwarded history.
 - **Web.** The web build compiles MLS into its wasm bundle and passed the
   existing web runtime check, but the household flows have not been driven
   in a browser (the CDP script only covers the personal ledger), and the
