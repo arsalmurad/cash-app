@@ -122,6 +122,24 @@ fn damaged_saved_state_is_rejected() {
 }
 
 #[test]
+fn signed_v2_state_is_upgraded_without_changing_its_ledger() {
+    let (_, _, mut alice, _) = pair();
+    alice.write(1, account()).unwrap();
+    let canonical = alice.state().canonical_bytes();
+    let mut saved = alice.export().unwrap();
+    assert_eq!(saved.pop(), Some(0)); // v3's absent pending-commit journal.
+    saved[..b"cash-app peer v2\0".len()].copy_from_slice(b"cash-app peer v2\0");
+    let upgraded = Peer::import(&saved).unwrap();
+    assert_eq!(upgraded.state().canonical_bytes(), canonical);
+    assert!(
+        upgraded
+            .export()
+            .unwrap()
+            .starts_with(b"cash-app peer v3\0")
+    );
+}
+
+#[test]
 fn a_lost_device_is_restored_from_the_sealed_backup_and_the_written_phrase() {
     use cash_crypto::RecoveryKey;
 
