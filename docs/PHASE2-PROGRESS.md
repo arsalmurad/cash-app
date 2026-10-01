@@ -135,6 +135,12 @@ relay address. All 165 Windows app tests passed through the rebuilt native
 bridge, with clean analyzer output; 12 workerd tests passed for the updated
 mailbox contract. No new mobile or production WASM runtime is claimed here.
 
+The locked full Rust workspace suite also passed on this revision, including
+the three-peer 1,000-event scenario (93.48 s), and both HTTP contract/three-peer
+tests passed against a freshly restarted workerd with the updated mailbox code.
+Commands are the same workspace/HTTP commands recorded above. The native bridge
+was rebuilt again at the committed revision before the focused household runs.
+
 **Still open:** welcome retrieval is currently single-use before the receiver's
 durable save; a lost retrieval response or failed join save can strand that
 invite. It needs an acknowledged retrieval protocol. Working journals still
