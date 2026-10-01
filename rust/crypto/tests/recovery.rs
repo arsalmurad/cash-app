@@ -25,7 +25,8 @@ fn phrases_are_random_per_key() {
 
 #[test]
 fn a_mistyped_phrase_is_rejected_not_silently_accepted() {
-    let phrase = RecoveryKey::generate().phrase();
+    let key = RecoveryKey::generate();
+    let phrase = key.phrase();
     let words: Vec<_> = phrase.split(' ').collect();
 
     // A word not in the list.
@@ -33,12 +34,20 @@ fn a_mistyped_phrase_is_rejected_not_silently_accepted() {
     bad[5] = "zzzzzz";
     assert!(RecoveryKey::from_phrase(&bad.join(" ")).is_err());
 
-    // Two words swapped: valid words, broken checksum (unless they match).
+    // A checksum is not authentication: a reorder can also have a valid
+    // BIP-39 checksum. Even then it is a different key and cannot open this
+    // backup. Do not make CI probabilistically assume every typo is invalid.
     let mut swapped = words.clone();
     swapped.swap(0, 1);
     if swapped != words {
-        assert!(RecoveryKey::from_phrase(&swapped.join(" ")).is_err());
+        if let Ok(wrong_key) = RecoveryKey::from_phrase(&swapped.join(" ")) {
+            let sealed = key.seal(b"original private state").unwrap();
+            assert_eq!(wrong_key.open(&sealed), Err(RecoveryError::CannotOpen));
+        }
     }
+    // Deterministic invalid checksum: zero entropy needs a nonzero final
+    // checksum, so 24 occurrences of word index zero are not a valid phrase.
+    assert!(RecoveryKey::from_phrase(&vec!["abandon"; 24].join(" ")).is_err());
 
     // Too short.
     assert!(RecoveryKey::from_phrase(&words[..23].join(" ")).is_err());
@@ -63,6 +72,20 @@ fn sealed_backups_open_only_with_the_same_key() {
 
     let other = RecoveryKey::generate();
     assert_eq!(other.open(&sealed), Err(RecoveryError::CannotOpen));
+}
+
+#[test]
+fn a_different_checksum_valid_phrase_cannot_authenticate_the_original_backup() {
+    use bip39::{Language, Mnemonic};
+    let phrase = |entropy: &[u8; 32]| {
+        Mnemonic::from_entropy_in(Language::English, entropy)
+            .unwrap()
+            .to_string()
+    };
+    let original = RecoveryKey::from_phrase(&phrase(&[0; 32])).unwrap();
+    let different = RecoveryKey::from_phrase(&phrase(&[1; 32])).unwrap();
+    let sealed = original.seal(b"private keys and ledger").unwrap();
+    assert_eq!(different.open(&sealed), Err(RecoveryError::CannotOpen));
 }
 
 #[test]
