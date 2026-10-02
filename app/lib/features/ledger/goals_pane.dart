@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
-    show PlatformInt64;
+    show PlatformInt64, PlatformInt64Util;
 
 import '../../data/rust/api/goals.dart';
+import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
 
 /// Shows every goal's current progress. Progress is computed fresh by the
@@ -162,17 +163,22 @@ class GoalDraft {
   final String targetAmount;
   final String? linkedAccountId;
 
-  /// Neither this nor [deadlineMillis] has UI in this dialog yet (see
-  /// `docs/PHASE1-PROGRESS.md`'s "Remaining work"); carried through from an
-  /// edited goal's existing value so editing doesn't silently clear it.
   final String? categoryId;
   final PlatformInt64? deadlineMillis;
 }
 
 class NewGoalDialog extends StatefulWidget {
-  const NewGoalDialog({required this.accounts, this.existing, super.key});
+  const NewGoalDialog({
+    required this.accounts,
+    this.categories = const [],
+    this.reportingCurrencyCode = 'USD',
+    this.existing,
+    super.key,
+  });
 
   final List<AccountView> accounts;
+  final List<CategoryView> categories;
+  final String reportingCurrencyCode;
 
   /// When set, the dialog starts pre-filled from this goal and behaves as an
   /// edit rather than a create (see [GoalsPane.onEdit]).
@@ -198,6 +204,49 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
       ? GoalKind.save
       : (widget.existing!.isSave ? GoalKind.save : GoalKind.spend);
   String? _linkedAccountId;
+  String? _categoryId;
+  PlatformInt64? _deadlineMillis;
+
+  String get _targetCurrency {
+    if (_kind == GoalKind.spend) return widget.reportingCurrencyCode;
+    for (final account in widget.accounts) {
+      if (account.id == _linkedAccountId) return account.currencyCode;
+    }
+    return 'Choose an account';
+  }
+
+  DateTime? get _deadlineDate {
+    if (_deadlineMillis == null) return null;
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(_deadlineMillis!.toInt());
+    } on ArgumentError {
+      return null;
+    }
+  }
+
+  Future<void> _chooseDeadline() async {
+    final first = DateTime(2000);
+    final last = DateTime(2100, 12, 31);
+    final current = _deadlineDate ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: current.isBefore(first)
+          ? first
+          : current.isAfter(last)
+          ? last
+          : current,
+      firstDate: first,
+      lastDate: last,
+    );
+    if (date == null || !mounted) return;
+    // Inclusive end of the chosen calendar day in the device's time zone.
+    setState(
+      () => _deadlineMillis = PlatformInt64Util.from(
+        DateTime(date.year, date.month, date.day + 1).millisecondsSinceEpoch -
+            1,
+      ),
+    );
+  }
 
   /// A target/progress label is always `"<CODE> <amount>"`; the amount alone
   /// is what the target field edits (mirrors the same helper in
@@ -213,6 +262,8 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
     _linkedAccountId =
         widget.existing?.linkedAccountId ??
         (widget.accounts.isNotEmpty ? widget.accounts.first.id : null);
+    _categoryId = widget.existing?.categoryId;
+    _deadlineMillis = widget.existing?.deadlineMillis;
   }
 
   @override
@@ -241,6 +292,7 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<GoalKind>(
+                isExpanded: true,
                 key: const Key('goalKindDropdown'),
                 initialValue: _kind,
                 decoration: const InputDecoration(labelText: 'Kind'),
@@ -258,6 +310,7 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
                     setState(() => _kind = value ?? GoalKind.save),
               ),
               const SizedBox(height: 12),
+              Text('Target currency: $_targetCurrency'),
               TextFormField(
                 controller: _targetController,
                 decoration: const InputDecoration(labelText: 'Target amount'),
@@ -271,10 +324,17 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
               if (_kind == GoalKind.save) ...[
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   key: const Key('goalAccountDropdown'),
                   initialValue: _linkedAccountId,
                   decoration: const InputDecoration(labelText: 'Account'),
                   items: [
+                    if (_linkedAccountId != null &&
+                        !widget.accounts.any((a) => a.id == _linkedAccountId))
+                      DropdownMenuItem(
+                        value: _linkedAccountId,
+                        child: const Text('Unavailable account'),
+                      ),
                     for (final account in widget.accounts)
                       DropdownMenuItem(
                         value: account.id,
@@ -284,11 +344,69 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
                   onChanged: (value) =>
                       setState(() => _linkedAccountId = value),
                   validator: (value) =>
-                      (_kind == GoalKind.save && value == null)
+                      (_kind == GoalKind.save &&
+                          !widget.accounts.any((a) => a.id == value))
                       ? 'Choose an account'
                       : null,
                 ),
               ],
+              if (_kind == GoalKind.spend) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  key: const Key('goalCategoryDropdown'),
+                  initialValue: _categoryId,
+                  decoration: const InputDecoration(labelText: 'Category'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('All categories'),
+                    ),
+                    if (_categoryId != null &&
+                        !widget.categories.any((c) => c.id == _categoryId))
+                      DropdownMenuItem(
+                        value: _categoryId,
+                        child: const Text('Unavailable category'),
+                      ),
+                    for (final category in widget.categories)
+                      DropdownMenuItem(
+                        value: category.id,
+                        child: Text(category.name),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _categoryId = value),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  TextButton.icon(
+                    key: const Key('goalDeadlineButton'),
+                    onPressed: _chooseDeadline,
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    label: Text(
+                      _deadlineMillis == null
+                          ? 'Add deadline (optional)'
+                          : _deadlineDate == null
+                          ? 'Change saved deadline'
+                          : 'Deadline: ${_deadlineDate!.year}-${_deadlineDate!.month.toString().padLeft(2, '0')}-${_deadlineDate!.day.toString().padLeft(2, '0')}',
+                    ),
+                  ),
+                  if (_deadlineMillis != null)
+                    TextButton(
+                      key: const Key('goalClearDeadlineButton'),
+                      onPressed: () => setState(() => _deadlineMillis = null),
+                      child: const Text('Clear deadline'),
+                    ),
+                ],
+              ),
+              Text(
+                _kind == GoalKind.spend
+                    ? 'Counts expenses from when this goal was created through the deadline day.'
+                    : 'A planning date. Progress always uses the account’s current balance.',
+              ),
             ],
           ),
         ),
@@ -313,8 +431,8 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
         kind: _kind,
         targetAmount: _targetController.text.trim(),
         linkedAccountId: _kind == GoalKind.save ? _linkedAccountId : null,
-        categoryId: widget.existing?.categoryId,
-        deadlineMillis: widget.existing?.deadlineMillis,
+        categoryId: _kind == GoalKind.spend ? _categoryId : null,
+        deadlineMillis: _deadlineMillis,
       ),
     );
   }

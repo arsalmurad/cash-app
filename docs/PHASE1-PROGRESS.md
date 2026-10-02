@@ -14,6 +14,23 @@ goals before progress failed; the regressions reproduced both failures before
 the fix. A focused run with lifecycle and failed-save checks passed all 31 tests.
 Existing targets are not automatically changed; review them explicitly.
 
+Goal controls now show the target currency, allow spending-category selection
+or all categories, and allow adding/changing/clearing an optional deadline.
+Switching to saving clears the incompatible category. Editing retains the exact
+stored deadline unless explicitly changed, including unsupported date values;
+missing categories are explicit rather than silently replaced. A selected day
+means its inclusive end in the device time zone at selection; the saved instant
+does not shift with a later time-zone change. Saving deadlines are planning
+dates; spending deadlines bound the expense window from original creation.
+Six focused widget checks passed, including a 360x740 date-picker/save journey
+and category selection/clearing. The phone check initially exposed dropdown
+overflow, fixed by expanded dropdown layout. All 247 app tests and static
+analysis passed before the additional actual SQLite category/deadline check;
+that check then passed alongside the other nine focused checks. It verifies
+restart, clearing the deadline/category, recomputed USD 0/10/15 progress, and
+byte-identical retained transaction logs. No new Android/iOS/web runtime claim
+is made for these controls yet.
+
 Later sections retain earlier, revision-specific evidence; no historical iOS
 run verifies these new lifecycle calls.
 
