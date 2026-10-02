@@ -23,8 +23,16 @@ passed. The refreshed Windows native bridge then passed 17 focused app checks,
 including actual SQLite maximum-value saves, tiny-target edits and restart
 without false failed-save errors. Exact USD 92233720368547758.07 amounts remain
 unchanged; the saturated ratio is shown as `>1,000,000%` on 360x740 cards.
-Static analysis passed. Platform artifacts for this follow-up have not yet been
-rebuilt; the earlier platform runs below cover their stated revisions only.
+Static analysis passed. The combined follow-up app source `2804c03` then passed
+all 256 local app tests with the refreshed Windows native bridge. The pinned
+Rust WASM bridge rebuilt in 46.52 s (the existing atomics warning remains), and
+Flutter's production WASM build took 156.9 s. The actual Chrome personal UI
+journey passed with `WEB_PERSONAL_LIFECYCLE=1 WEB_OFFLINE_FONTS=1 node
+scripts/verify_web_runtime.mjs`: exact USD 10000000000000000.00 income/expense
+entry, persisted reload, lower-bound goal/budget displays and the exact original
+net balance after both entries. Existing category/deadline/lifecycle checks
+passed in the same run. The earlier platform runs below cover their stated
+revisions only; new Android evidence is pending and no new iOS run is claimed.
 
 Saving-target follow-up: three actual Windows native-bridge/SQLite regressions
 independently verify JPY 100/123 through entry, edit and restart, reject fractional

@@ -362,5 +362,106 @@ void main() {
       findsOneWidget,
       reason: 'Stopping a rule does not erase the recorded expense',
     );
+
+    // Valid i64 money must not break derived percentage views or saves.
+    await tester.tap(find.text('Goals'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add goal'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Large saving',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Target amount'),
+      '0.01',
+    );
+    await tester.tap(find.byKey(const Key('goalAccountDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Everyday').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await waitFor(tester, find.text('Large saving'));
+    await tester.tap(find.text('Budgets'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add budget'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Large budget',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Limit amount'),
+      '0.01',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await waitFor(tester, find.text('Large budget'));
+
+    Future<void> largeEntry(String title, {bool income = false}) async {
+      await tester.tap(find.text('Overview'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+      if (income) {
+        await tester.tap(find.text('Income'));
+        await tester.pumpAndSettle();
+      }
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Title'),
+        title,
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Amount'),
+        '10000000000000000.00',
+      );
+      await tester.tap(find.byKey(const Key('accountDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Everyday').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.widgetWithText(FilledButton, 'Add transaction'),
+      );
+      await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
+      await waitFor(tester, find.text(title));
+    }
+
+    await largeEntry('Large income', income: true);
+    expect(finalRestart.errorMessage, isNull);
+    expect(
+      finalRestart.overview!.transactions
+          .firstWhere((t) => t.title == 'Large income')
+          .amountLabel,
+      'USD 10000000000000000.00',
+    );
+    final largeRestart = LedgerController();
+    await largeRestart.initialize();
+    expect(largeRestart.errorMessage, isNull);
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: largeRestart)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Goals'));
+    await tester.pumpAndSettle();
+    expect(find.text('>1,000,000%'), findsOneWidget);
+    await largeEntry('Large expense');
+    expect(largeRestart.errorMessage, isNull);
+    expect(largeRestart.overview!.balanceLabel, 'USD -600.57');
+    expect(
+      largeRestart.overview!.transactions
+          .firstWhere((t) => t.title == 'Large expense')
+          .amountLabel,
+      'USD 10000000000000000.00',
+    );
+    final boundaryRestart = LedgerController();
+    await boundaryRestart.initialize();
+    expect(boundaryRestart.errorMessage, isNull);
+    expect(boundaryRestart.overview!.balanceLabel, 'USD -600.57');
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: boundaryRestart)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Budgets'));
+    await tester.pumpAndSettle();
+    expect(find.text('>1,000,000%'), findsOneWidget);
   });
 }
