@@ -275,6 +275,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TransactionHistoryView> dco_decode_list_transaction_history_view(
+    dynamic raw,
+  );
+
+  @protected
   List<TransactionView> dco_decode_list_transaction_view(dynamic raw);
 
   @protected
@@ -336,6 +341,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StorageResponse dco_decode_storage_response(dynamic raw);
+
+  @protected
+  TransactionHistoryView dco_decode_transaction_history_view(dynamic raw);
 
   @protected
   TransactionView dco_decode_transaction_view(dynamic raw);
@@ -595,6 +603,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TransactionHistoryView> sse_decode_list_transaction_history_view(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<TransactionView> sse_decode_list_transaction_view(
     SseDeserializer deserializer,
   );
@@ -670,6 +683,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StorageResponse sse_decode_storage_response(SseDeserializer deserializer);
+
+  @protected
+  TransactionHistoryView sse_decode_transaction_history_view(
+    SseDeserializer deserializer,
+  );
 
   @protected
   TransactionView sse_decode_transaction_view(SseDeserializer deserializer);
@@ -993,6 +1011,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_transaction_history_view(
+    List<TransactionHistoryView> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_transaction_view(
     List<TransactionView> self,
     SseSerializer serializer,
@@ -1091,6 +1115,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_storage_response(
     StorageResponse self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_transaction_history_view(
+    TransactionHistoryView self,
     SseSerializer serializer,
   );
 

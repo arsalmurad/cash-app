@@ -7,9 +7,9 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `append_and_mutation`, `folded_state`, `lock`, `next_event`, `overview_from_state`, `overview`, `reporting_balances`
+// These functions are ignored because they are not marked as `pub`: `active_transaction`, `append_and_mutation`, `check_expected_amount`, `folded_state`, `lock`, `next_event`, `overview_from_state`, `overview`, `reporting_balances`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LedgerData`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 
 /// Opens a personal ledger by replaying a durable log's bytes. Pass an empty
 /// `log_bytes` for a brand-new installation; this is the only ledger
@@ -128,6 +128,59 @@ Future<LedgerMutation> recordTransfer({
 
 Future<LedgerOverview> getOverview({required PersonalLedger ledger}) =>
     RustLib.instance.api.crateApiLedgerGetOverview(ledger: ledger);
+
+/// Corrects only the amount, retaining the entry's original currency and frozen
+/// exchange rate. An outdated selection is rejected instead of overwriting it.
+Future<LedgerMutation> adjustTransactionAmount({
+  required PersonalLedger ledger,
+  required String transactionId,
+  required String expectedAmount,
+  required String amount,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiLedgerAdjustTransactionAmount(
+  ledger: ledger,
+  transactionId: transactionId,
+  expectedAmount: expectedAmount,
+  amount: amount,
+  wallClockMillis: wallClockMillis,
+);
+
+Future<LedgerMutation> assignTransactionCategory({
+  required PersonalLedger ledger,
+  required String transactionId,
+  String? expectedCategoryId,
+  String? categoryId,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiLedgerAssignTransactionCategory(
+  ledger: ledger,
+  transactionId: transactionId,
+  expectedCategoryId: expectedCategoryId,
+  categoryId: categoryId,
+  wallClockMillis: wallClockMillis,
+);
+
+/// Excludes the entry from balances without erasing any of its history.
+Future<LedgerMutation> voidTransaction({
+  required PersonalLedger ledger,
+  required String transactionId,
+  required String expectedAmount,
+  String? expectedCategoryId,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiLedgerVoidTransaction(
+  ledger: ledger,
+  transactionId: transactionId,
+  expectedAmount: expectedAmount,
+  expectedCategoryId: expectedCategoryId,
+  wallClockMillis: wallClockMillis,
+);
+
+Future<List<TransactionHistoryView>> transactionHistory({
+  required PersonalLedger ledger,
+  required String transactionId,
+}) => RustLib.instance.api.crateApiLedgerTransactionHistory(
+  ledger: ledger,
+  transactionId: transactionId,
+);
 
 /// "Custom titles that auto-assign on repeat" (build brief §5): the category
 /// of the most recent past transaction whose title matches, trimmed and
@@ -291,6 +344,54 @@ class LoadReport {
           truncatedBytes == other.truncatedBytes;
 }
 
+/// Immutable entries in this transaction's history, in the ledger's total order.
+class TransactionHistoryView {
+  final String eventId;
+  final String actorId;
+  final PlatformInt64 physicalMillis;
+  final int logical;
+  final String action;
+  final String? amountLabel;
+  final String? reportingAmountLabel;
+  final String? categoryId;
+
+  const TransactionHistoryView({
+    required this.eventId,
+    required this.actorId,
+    required this.physicalMillis,
+    required this.logical,
+    required this.action,
+    this.amountLabel,
+    this.reportingAmountLabel,
+    this.categoryId,
+  });
+
+  @override
+  int get hashCode =>
+      eventId.hashCode ^
+      actorId.hashCode ^
+      physicalMillis.hashCode ^
+      logical.hashCode ^
+      action.hashCode ^
+      amountLabel.hashCode ^
+      reportingAmountLabel.hashCode ^
+      categoryId.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TransactionHistoryView &&
+          runtimeType == other.runtimeType &&
+          eventId == other.eventId &&
+          actorId == other.actorId &&
+          physicalMillis == other.physicalMillis &&
+          logical == other.logical &&
+          action == other.action &&
+          amountLabel == other.amountLabel &&
+          reportingAmountLabel == other.reportingAmountLabel &&
+          categoryId == other.categoryId;
+}
+
 class TransactionView {
   final String id;
   final String accountId;
@@ -298,6 +399,7 @@ class TransactionView {
   final String amountLabel;
   final bool isExpense;
   final String? categoryId;
+  final bool voided;
 
   const TransactionView({
     required this.id,
@@ -306,6 +408,7 @@ class TransactionView {
     required this.amountLabel,
     required this.isExpense,
     this.categoryId,
+    required this.voided,
   });
 
   @override
@@ -315,7 +418,8 @@ class TransactionView {
       title.hashCode ^
       amountLabel.hashCode ^
       isExpense.hashCode ^
-      categoryId.hashCode;
+      categoryId.hashCode ^
+      voided.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -327,7 +431,8 @@ class TransactionView {
           title == other.title &&
           amountLabel == other.amountLabel &&
           isExpense == other.isExpense &&
-          categoryId == other.categoryId;
+          categoryId == other.categoryId &&
+          voided == other.voided;
 }
 
 class TransferView {

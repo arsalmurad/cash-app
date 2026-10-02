@@ -13,6 +13,7 @@ const _groceries = TransactionView(
   accountId: 'everyday',
   title: 'Groceries',
   amountLabel: 'USD 12.34',
+  voided: false,
   isExpense: true,
   categoryId: 'food',
 );
@@ -22,6 +23,7 @@ const _paycheck = TransactionView(
   accountId: 'everyday',
   title: 'Paycheck',
   amountLabel: 'USD 2000.00',
+  voided: false,
   isExpense: false,
   categoryId: null,
 );
@@ -31,6 +33,7 @@ const _bus = TransactionView(
   accountId: 'savings',
   title: 'Bus fare',
   amountLabel: 'USD 2.50',
+  voided: false,
   isExpense: true,
   categoryId: 'transport',
 );
@@ -72,33 +75,28 @@ void main() {
 
   test('kind filter narrows to expense, income, or transfer', () {
     expect(
-      const ActivityFilter(
-        kind: ActivityKindFilter.expense,
-      ).applyToTransactions(_transactions, _categories),
+      const ActivityFilter(kind: ActivityKindFilter.expense)
+          .applyToTransactions(_transactions, _categories),
       [_groceries, _bus],
     );
     expect(
-      const ActivityFilter(
-        kind: ActivityKindFilter.income,
-      ).applyToTransactions(_transactions, _categories),
+      const ActivityFilter(kind: ActivityKindFilter.income)
+          .applyToTransactions(_transactions, _categories),
       [_paycheck],
     );
     expect(
-      const ActivityFilter(
-        kind: ActivityKindFilter.transfer,
-      ).applyToTransactions(_transactions, _categories),
+      const ActivityFilter(kind: ActivityKindFilter.transfer)
+          .applyToTransactions(_transactions, _categories),
       isEmpty,
     );
     expect(
-      const ActivityFilter(
-        kind: ActivityKindFilter.transfer,
-      ).applyToTransfers([_transfer]),
+      const ActivityFilter(kind: ActivityKindFilter.transfer)
+          .applyToTransfers([_transfer]),
       [_transfer],
     );
     expect(
-      const ActivityFilter(
-        kind: ActivityKindFilter.expense,
-      ).applyToTransfers([_transfer]),
+      const ActivityFilter(kind: ActivityKindFilter.expense)
+          .applyToTransfers([_transfer]),
       isEmpty,
     );
   });
@@ -110,15 +108,11 @@ void main() {
 
   test('account filter matches a transfer on either leg', () {
     expect(
-      const ActivityFilter(
-        accountId: 'everyday',
-      ).applyToTransfers([_transfer]),
+      const ActivityFilter(accountId: 'everyday').applyToTransfers([_transfer]),
       [_transfer],
     );
     expect(
-      const ActivityFilter(
-        accountId: 'savings',
-      ).applyToTransfers([_transfer]),
+      const ActivityFilter(accountId: 'savings').applyToTransfers([_transfer]),
       [_transfer],
     );
     expect(

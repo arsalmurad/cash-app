@@ -463,5 +463,72 @@ void main() {
     await tester.tap(find.text('Budgets'));
     await tester.pumpAndSettle();
     expect(find.text('>1,000,000%'), findsOneWidget);
+    await tester.tap(find.text('Activity'));
+    await tester.pumpAndSettle();
+    final hotelActions = find.byTooltip('Transaction actions: Hotel');
+    await tester.ensureVisible(hotelActions);
+    await tester.tap(hotelActions);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove transaction'));
+    await tester.pumpAndSettle();
+    final beforeCancel = await EventStore('ledger').readLog();
+    await tester.tap(find.text('Keep transaction'));
+    await tester.pumpAndSettle();
+    expect(await EventStore('ledger').readLog(), orderedEquals(beforeCancel));
+    await tester.tap(hotelActions);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Correct amount'));
+    await tester.pumpAndSettle();
+    expect(find.text('Currency: EUR'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Amount'), '85.00');
+    await tester.tap(find.text('Save correction'));
+    await waitFor(tester, find.text('−EUR 85.00'));
+    expect(boundaryRestart.overview!.balanceLabel, 'USD -606.01');
+    await tester.tap(hotelActions);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change category'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Food').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save correction'));
+    await tester.pumpAndSettle();
+    await tester.tap(hotelActions);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove transaction'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Remove transaction'));
+    await waitFor(tester, find.text('Removed from balances'));
+    expect(boundaryRestart.overview!.balanceLabel, 'USD -513.57');
+    final correctionRestart = LedgerController();
+    await correctionRestart.initialize();
+    expect(correctionRestart.errorMessage, isNull);
+    final removed = correctionRestart.overview!.transactions.firstWhere(
+      (t) => t.title == 'Hotel',
+    );
+    expect(removed.voided, isTrue);
+    expect(removed.amountLabel, 'EUR 85.00');
+    expect(correctionRestart.exportTransactionsCsv(), isNot(contains('Hotel')));
+    expect((await correctionRestart.historyFor(removed)).map((e) => e.action), [
+      'Recorded',
+      'Amount corrected',
+      'Category changed',
+      'Removed from balances',
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: correctionRestart)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Activity'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(hotelActions);
+    await tester.tap(hotelActions);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('View history'));
+    await tester.pumpAndSettle();
+    expect(find.text('Transaction history'), findsOneWidget);
+    expect(find.text('Reporting: USD 92.44'), findsOneWidget);
+    expect(find.text('Removed from balances'), findsWidgets);
   });
 }

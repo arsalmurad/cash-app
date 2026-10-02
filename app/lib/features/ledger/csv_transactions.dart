@@ -108,7 +108,8 @@ String encodeCsvRow(List<String> fields) =>
 
 const csvColumns = ['title', 'amount', 'kind', 'account', 'category'];
 
-/// Exports every non-transfer transaction as CSV. Transfers are left out:
+/// Exports active non-transfer transactions as CSV. Removed entries stay in
+/// the ledger history, not this importable export. Transfers are left out:
 /// they move money between two of this ledger's own accounts rather than
 /// describing income or an expense, so they don't fit this row shape (see
 /// `docs/DECISIONS.md`).
@@ -125,7 +126,7 @@ String buildTransactionsCsv({
   };
   final buffer = StringBuffer(encodeCsvRow(csvColumns));
   buffer.write('\n');
-  for (final transaction in transactions) {
+  for (final transaction in transactions.where((entry) => !entry.voided)) {
     buffer.write(
       encodeCsvRow([
         transaction.title,

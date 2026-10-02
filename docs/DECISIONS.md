@@ -974,3 +974,21 @@ candidate timestamp without mutating the clock, and commit it only after the
 candidate event folds successfully. This changes no stored event or bridge
 signature. All 17 personal-ledger Rust API tests passed on the Windows host.
 
+## 2026-10-02 — Personal corrections append history; removal is not erasure
+
+Expose the core's existing AmountAdjusted, CategoryAssigned and TransactionVoided
+events through the personal bridge and UI. An amount correction retains the
+original currency and frozen rational FX rate, plus the original creation time.
+Expected amount/category checks reject stale selections. Removed entries remain
+visibly marked in Activity and retain ordered original/correction events, but
+are excluded from balances, progress and importable CSV exports. Title suggestions
+use current categories of active entries, not obsolete assignments or removed
+transactions. Category history stores IDs; displayed category names are explicitly
+current names. Transfers and title changes are not covered by these actions.
+No new event variant or storage-version change is needed; generated bindings
+change to expose removal state and history. Ambiguous append failures still
+disable further writes until restart. Windows actual SQLite tests covered all
+three actions failing before/after commit and durable history reload. All 268
+Flutter host tests, 59 Rust API tests and the core acceptance suite passed;
+platform runtime results for this source are still pending.
+

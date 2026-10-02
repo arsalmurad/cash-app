@@ -195,6 +195,77 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// Reads immutable history only from a confirmed, usable ledger handle.
+  Future<List<TransactionHistoryView>> historyFor(
+    TransactionView transaction,
+  ) async {
+    final ledger = _ledger;
+    if (ledger == null) {
+      throw const _EntryInputError(
+        'Restart the app to load the saved transaction history.',
+      );
+    }
+    return transactionHistory(ledger: ledger, transactionId: transaction.id);
+  }
+
+  Future<bool> correctAmount(TransactionView transaction, String amount) =>
+      _correctTransaction(
+        (ledger) => adjustTransactionAmount(
+          ledger: ledger,
+          transactionId: transaction.id,
+          expectedAmount: _amountFromLabel(transaction.amountLabel),
+          amount: amount,
+          wallClockMillis: _nowMillis(),
+        ),
+      );
+
+  Future<bool> changeTransactionCategory(
+    TransactionView transaction,
+    String? categoryId,
+  ) => _correctTransaction((ledger) async {
+    if (categoryId != null &&
+        !categories.any((category) => category.id == categoryId)) {
+      throw const _EntryInputError(
+        'Choose an available category or Uncategorized.',
+      );
+    }
+    return assignTransactionCategory(
+      ledger: ledger,
+      transactionId: transaction.id,
+      expectedCategoryId: transaction.categoryId,
+      categoryId: categoryId,
+      wallClockMillis: _nowMillis(),
+    );
+  });
+
+  Future<bool> removeTransaction(TransactionView transaction) =>
+      _correctTransaction(
+        (ledger) => voidTransaction(
+          ledger: ledger,
+          transactionId: transaction.id,
+          expectedAmount: _amountFromLabel(transaction.amountLabel),
+          expectedCategoryId: transaction.categoryId,
+          wallClockMillis: _nowMillis(),
+        ),
+      );
+
+  Future<bool> _correctTransaction(
+    Future<LedgerMutation> Function(PersonalLedger) mutate,
+  ) async {
+    final ledger = _ledger;
+    if (ledger == null) return false;
+    errorMessage = null;
+    try {
+      await _mutateLedger(() => mutate(ledger));
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      return false;
+    } finally {
+      notifyListeners();
+    }
+  }
+
   /// "Custom titles that auto-assign on repeat": the category of the most
   /// recent past transaction with a matching title, or `null`.
   Future<String?> suggestCategoryFor(String title) async {
@@ -656,7 +727,7 @@ class LedgerController extends ChangeNotifier {
     return spaceIndex < 0 ? amountLabel : amountLabel.substring(spaceIndex + 1);
   }
 
-  /// Exports every non-transfer transaction as CSV text (see
+  /// Exports active non-transfer transactions as CSV text (see
   /// `csv_transactions.dart`); `null` when there's nothing loaded yet.
   String? exportTransactionsCsv() {
     final currentOverview = overview;

@@ -83,6 +83,20 @@ pub struct TransactionView {
     pub amount_label: String,
     pub is_expense: bool,
     pub category_id: Option<String>,
+    pub voided: bool,
+}
+
+/// Immutable entries in this transaction's history, in the ledger's total order.
+#[derive(Debug, PartialEq)]
+pub struct TransactionHistoryView {
+    pub event_id: String,
+    pub actor_id: String,
+    pub physical_millis: i64,
+    pub logical: u32,
+    pub action: String,
+    pub amount_label: Option<String>,
+    pub reporting_amount_label: Option<String>,
+    pub category_id: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -323,6 +337,178 @@ pub fn get_overview(ledger: &PersonalLedger) -> Result<LedgerOverview, String> {
     lock(ledger)?.overview()
 }
 
+/// Corrects only the amount, retaining the entry's original currency and frozen
+/// exchange rate. An outdated selection is rejected instead of overwriting it.
+pub fn adjust_transaction_amount(
+    ledger: &PersonalLedger,
+    transaction_id: String,
+    expected_amount: String,
+    amount: String,
+    wall_clock_millis: i64,
+) -> Result<LedgerMutation, String> {
+    let mut data = lock(ledger)?;
+    let transaction = data.active_transaction(&transaction_id)?;
+    check_expected_amount(&transaction.original, &expected_amount)?;
+    let minor = transaction
+        .original
+        .currency
+        .parse_major_units(&amount)
+        .map_err(|error| error.to_string())?;
+    if minor <= 0 {
+        return Err("transaction amount must be greater than zero".into());
+    }
+    let event = data.next_event(
+        wall_clock_millis,
+        EventKind::AmountAdjusted {
+            transaction_id: TransactionId::new(transaction_id),
+            original: Money::new(minor, transaction.original.currency),
+            reporting_fx: transaction.reporting_fx,
+        },
+    )?;
+    data.append_and_mutation(event)
+}
+
+pub fn assign_transaction_category(
+    ledger: &PersonalLedger,
+    transaction_id: String,
+    expected_category_id: Option<String>,
+    category_id: Option<String>,
+    wall_clock_millis: i64,
+) -> Result<LedgerMutation, String> {
+    let mut data = lock(ledger)?;
+    let transaction = data.active_transaction(&transaction_id)?;
+    if transaction.category_id != expected_category_id {
+        return Err("Transaction changed. Close this dialog and review it again.".into());
+    }
+    let event = data.next_event(
+        wall_clock_millis,
+        EventKind::CategoryAssigned {
+            transaction_id: TransactionId::new(transaction_id),
+            category_id,
+        },
+    )?;
+    data.append_and_mutation(event)
+}
+
+/// Excludes the entry from balances without erasing any of its history.
+pub fn void_transaction(
+    ledger: &PersonalLedger,
+    transaction_id: String,
+    expected_amount: String,
+    expected_category_id: Option<String>,
+    wall_clock_millis: i64,
+) -> Result<LedgerMutation, String> {
+    let mut data = lock(ledger)?;
+    let transaction = data.active_transaction(&transaction_id)?;
+    check_expected_amount(&transaction.original, &expected_amount)?;
+    if transaction.category_id != expected_category_id {
+        return Err("Transaction changed. Close this dialog and review it again.".into());
+    }
+    let event = data.next_event(
+        wall_clock_millis,
+        EventKind::TransactionVoided {
+            transaction_id: TransactionId::new(transaction_id),
+        },
+    )?;
+    data.append_and_mutation(event)
+}
+
+pub fn transaction_history(
+    ledger: &PersonalLedger,
+    transaction_id: String,
+) -> Result<Vec<TransactionHistoryView>, String> {
+    let data = lock(ledger)?;
+    let state =
+        fold(data.reporting_currency.clone(), data.events.clone()).map_err(|e| e.to_string())?;
+    if !state
+        .transactions
+        .contains_key(&TransactionId::new(&transaction_id))
+    {
+        return Err("Transaction not found.".into());
+    }
+    let mut events: Vec<&Event> = data.events.iter().collect();
+    events.sort_by_key(|event| event.order_key());
+    events
+        .into_iter()
+        .filter_map(|event| {
+            let (id, action, money, rate, category_id) = match &event.kind {
+                EventKind::TransactionRecorded {
+                    transaction_id,
+                    original,
+                    reporting_fx,
+                    category_id,
+                    ..
+                } => (
+                    transaction_id,
+                    "Recorded",
+                    Some(original),
+                    Some(reporting_fx),
+                    category_id.clone(),
+                ),
+                EventKind::AmountAdjusted {
+                    transaction_id,
+                    original,
+                    reporting_fx,
+                } => (
+                    transaction_id,
+                    "Amount corrected",
+                    Some(original),
+                    Some(reporting_fx),
+                    None,
+                ),
+                EventKind::CategoryAssigned {
+                    transaction_id,
+                    category_id,
+                } => (
+                    transaction_id,
+                    "Category changed",
+                    None,
+                    None,
+                    category_id.clone(),
+                ),
+                EventKind::TransactionVoided { transaction_id } => {
+                    (transaction_id, "Removed from balances", None, None, None)
+                }
+                _ => return None,
+            };
+            if id.as_str() != transaction_id {
+                return None;
+            }
+            Some((|| {
+                Ok(TransactionHistoryView {
+                    event_id: event.id.as_str().to_owned(),
+                    actor_id: event.actor_id.as_str().to_owned(),
+                    physical_millis: event.timestamp.physical_millis,
+                    logical: event.timestamp.logical,
+                    action: action.to_owned(),
+                    amount_label: money
+                        .map(|money| money.currency.format_minor_units(money.minor_units)),
+                    reporting_amount_label: money
+                        .zip(rate)
+                        .map(|(money, rate)| {
+                            rate.convert_minor_units(money.minor_units)
+                                .map(|minor| data.reporting_currency.format_minor_units(minor))
+                                .map_err(|error| error.to_string())
+                        })
+                        .transpose()?,
+                    category_id,
+                })
+            })())
+        })
+        .collect()
+}
+
+fn check_expected_amount(original: &Money, expected: &str) -> Result<(), String> {
+    let expected = original
+        .currency
+        .parse_major_units(expected)
+        .map_err(|error| error.to_string())?;
+    if expected != original.minor_units {
+        return Err("Transaction changed. Close this dialog and review it again.".into());
+    }
+    Ok(())
+}
+
 /// Exposes the ledger's raw folded state to sibling bridge modules that need
 /// more than `LedgerOverview` gives (e.g. `api::budgets`, which sums raw
 /// `reporting_minor` amounts by category and date rather than displaying
@@ -348,15 +534,21 @@ pub fn suggest_category_for_title(
     }
     let mut ordered: Vec<&Event> = data.events.iter().collect();
     ordered.sort_by_key(|event| event.order_key());
+    let state =
+        fold(data.reporting_currency.clone(), data.events.clone()).map_err(|e| e.to_string())?;
     let suggestion = ordered
         .into_iter()
         .rev()
         .find_map(|event| match &event.kind {
             EventKind::TransactionRecorded {
                 title: recorded_title,
-                category_id,
+                transaction_id,
                 ..
-            } if recorded_title.trim().to_lowercase() == normalized => Some(category_id.clone()),
+            } if recorded_title.trim().to_lowercase() == normalized => state
+                .transactions
+                .get(transaction_id)
+                .filter(|transaction| !transaction.voided)
+                .map(|transaction| transaction.category_id.clone()),
             _ => None,
         });
     Ok(suggestion.flatten())
@@ -370,6 +562,21 @@ fn lock(ledger: &PersonalLedger) -> Result<MutexGuard<'_, LedgerData>, String> {
 }
 
 impl LedgerData {
+    fn active_transaction(&self, id: &str) -> Result<cash_core::TransactionState, String> {
+        let state = fold(self.reporting_currency.clone(), self.events.clone())
+            .map_err(|e| e.to_string())?;
+        let transaction = state
+            .transactions
+            .get(&TransactionId::new(id))
+            .ok_or_else(|| "Transaction not found.".to_owned())?;
+        if transaction.voided {
+            return Err(
+                "This transaction was removed from balances. Its history is still available."
+                    .into(),
+            );
+        }
+        Ok(transaction.clone())
+    }
     fn next_event(&self, wall_clock_millis: i64, kind: EventKind) -> Result<Event, String> {
         let timestamp = self
             .last_timestamp
@@ -401,7 +608,10 @@ impl LedgerData {
         match self.overview() {
             Ok(overview) => {
                 self.last_timestamp = timestamp;
-                Ok(LedgerMutation { overview, appended_frame })
+                Ok(LedgerMutation {
+                    overview,
+                    appended_frame,
+                })
             }
             Err(error) => {
                 self.events.pop();
@@ -487,6 +697,7 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
                 .format_minor_units(transaction.original.minor_units),
             is_expense: transaction.kind == TransactionKind::Expense,
             category_id: transaction.category_id.clone(),
+            voided: transaction.voided,
         })
         .collect();
     let transfers = state
@@ -519,6 +730,10 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
 }
 
 #[cfg(test)]
+#[path = "ledger_corrections_tests.rs"]
+mod correction_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -527,9 +742,19 @@ mod tests {
         let ledger = new_ledger("device-a");
         add_account(&ledger, "cash".into(), "Cash".into(), "USD".into(), 1).unwrap();
         let before = lock(&ledger).unwrap().last_timestamp;
-        assert!(add_account(&ledger, "cash".into(), "Duplicate".into(), "USD".into(), i64::MAX).is_err());
+        assert!(
+            add_account(
+                &ledger,
+                "cash".into(),
+                "Duplicate".into(),
+                "USD".into(),
+                i64::MAX
+            )
+            .is_err()
+        );
         assert_eq!(lock(&ledger).unwrap().last_timestamp, before);
-        let accepted = add_account(&ledger, "other".into(), "Other".into(), "USD".into(), 2).unwrap();
+        let accepted =
+            add_account(&ledger, "other".into(), "Other".into(), "USD".into(), 2).unwrap();
         let decoded = decode_event_log(&accepted.appended_frame);
         assert_eq!(decoded.events[0].timestamp, HybridTimestamp::new(2, 0));
     }
@@ -760,8 +985,18 @@ mod tests {
     fn logical_clock_overflow_carries_without_reusing_an_event_id() {
         let ledger = new_ledger("device-a");
         ledger.data.lock().unwrap().last_timestamp = HybridTimestamp::new(100, u32::MAX);
-        add_account(&ledger, "checking".into(), "Checking".into(), "USD".into(), 1).unwrap();
-        assert_eq!(ledger.data.lock().unwrap().last_timestamp, HybridTimestamp::new(101, 0));
+        add_account(
+            &ledger,
+            "checking".into(),
+            "Checking".into(),
+            "USD".into(),
+            1,
+        )
+        .unwrap();
+        assert_eq!(
+            ledger.data.lock().unwrap().last_timestamp,
+            HybridTimestamp::new(101, 0)
+        );
         add_account(&ledger, "savings".into(), "Savings".into(), "USD".into(), 1).unwrap();
         assert_eq!(get_overview(&ledger).unwrap().accounts.len(), 2);
     }
@@ -771,7 +1006,13 @@ mod tests {
         let ledger = new_ledger("device-a");
         let last = HybridTimestamp::new(i64::MAX, u32::MAX);
         ledger.data.lock().unwrap().last_timestamp = last;
-        let result = add_account(&ledger, "checking".into(), "Checking".into(), "USD".into(), 1);
+        let result = add_account(
+            &ledger,
+            "checking".into(),
+            "Checking".into(),
+            "USD".into(),
+            1,
+        );
         assert!(result.is_err());
         let data = ledger.data.lock().unwrap();
         assert_eq!(data.last_timestamp, last);

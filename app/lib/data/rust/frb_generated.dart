@@ -75,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => -1667515674;
+  int get rustContentHash => 667556449;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -92,6 +92,22 @@ abstract class RustLibApi extends BaseApi {
     required String accountId,
     required String name,
     required String currencyCode,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  Future<LedgerMutation> crateApiLedgerAdjustTransactionAmount({
+    required PersonalLedger ledger,
+    required String transactionId,
+    required String expectedAmount,
+    required String amount,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  Future<LedgerMutation> crateApiLedgerAssignTransactionCategory({
+    required PersonalLedger ledger,
+    required String transactionId,
+    String? expectedCategoryId,
+    String? categoryId,
     required PlatformInt64 wallClockMillis,
   });
 
@@ -358,6 +374,11 @@ abstract class RustLibApi extends BaseApi {
     required String title,
   });
 
+  Future<List<TransactionHistoryView>> crateApiLedgerTransactionHistory({
+    required PersonalLedger ledger,
+    required String transactionId,
+  });
+
   Future<List<UpcomingView>> crateApiRecurringUpcomingOccurrences({
     required PersonalLedger ledger,
     required RecurringBook book,
@@ -409,6 +430,14 @@ abstract class RustLibApi extends BaseApi {
     String? categoryId,
     required RecurringFrequency frequency,
     required PlatformInt64 startMillis,
+    required PlatformInt64 wallClockMillis,
+  });
+
+  Future<LedgerMutation> crateApiLedgerVoidTransaction({
+    required PersonalLedger ledger,
+    required String transactionId,
+    required String expectedAmount,
+    String? expectedCategoryId,
     required PlatformInt64 wallClockMillis,
   });
 
@@ -521,6 +550,118 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<LedgerMutation> crateApiLedgerAdjustTransactionAmount({
+    required PersonalLedger ledger,
+    required String transactionId,
+    required String expectedAmount,
+    required String amount,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_String(transactionId, serializer);
+          sse_encode_String(expectedAmount, serializer);
+          sse_encode_String(amount, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_ledger_mutation,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerAdjustTransactionAmountConstMeta,
+        argValues: [
+          ledger,
+          transactionId,
+          expectedAmount,
+          amount,
+          wallClockMillis,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerAdjustTransactionAmountConstMeta =>
+      const TaskConstMeta(
+        debugName: "adjust_transaction_amount",
+        argNames: [
+          "ledger",
+          "transactionId",
+          "expectedAmount",
+          "amount",
+          "wallClockMillis",
+        ],
+      );
+
+  @override
+  Future<LedgerMutation> crateApiLedgerAssignTransactionCategory({
+    required PersonalLedger ledger,
+    required String transactionId,
+    String? expectedCategoryId,
+    String? categoryId,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_String(transactionId, serializer);
+          sse_encode_opt_String(expectedCategoryId, serializer);
+          sse_encode_opt_String(categoryId, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_ledger_mutation,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerAssignTransactionCategoryConstMeta,
+        argValues: [
+          ledger,
+          transactionId,
+          expectedCategoryId,
+          categoryId,
+          wallClockMillis,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerAssignTransactionCategoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "assign_transaction_category",
+        argNames: [
+          "ledger",
+          "transactionId",
+          "expectedCategoryId",
+          "categoryId",
+          "wallClockMillis",
+        ],
+      );
+
+  @override
   Future<BudgetLoadReport> crateApiBudgetsBudgetLoadReport({
     required BudgetBook book,
   }) {
@@ -535,7 +676,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 4,
             port: port_,
           );
         },
@@ -575,7 +716,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 5,
             port: port_,
           );
         },
@@ -611,7 +752,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 6,
             port: port_,
           );
         },
@@ -648,7 +789,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 7,
             port: port_,
           );
         },
@@ -684,7 +825,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 8,
             port: port_,
           );
         },
@@ -715,7 +856,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 9,
             port: port_,
           );
         },
@@ -753,7 +894,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -800,7 +941,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -854,7 +995,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 12,
             port: port_,
           );
         },
@@ -892,7 +1033,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 13,
             port: port_,
           );
         },
@@ -930,7 +1071,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 14,
             port: port_,
           );
         },
@@ -966,7 +1107,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 15,
             port: port_,
           );
         },
@@ -1002,7 +1143,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 16,
             port: port_,
           );
         },
@@ -1036,7 +1177,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 17,
             port: port_,
           );
         },
@@ -1074,7 +1215,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 18,
             port: port_,
           );
         },
@@ -1116,7 +1257,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 19,
             port: port_,
           );
         },
@@ -1152,7 +1293,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 20,
             port: port_,
           );
         },
@@ -1190,7 +1331,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 21,
             port: port_,
           );
         },
@@ -1225,7 +1366,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 22,
             port: port_,
           );
         },
@@ -1261,7 +1402,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 23,
             port: port_,
           );
         },
@@ -1305,7 +1446,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 24,
             port: port_,
           );
         },
@@ -1349,7 +1490,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 25,
             port: port_,
           );
         },
@@ -1385,7 +1526,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 26,
             port: port_,
           );
         },
@@ -1441,7 +1582,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 25,
+            funcId: 27,
             port: port_,
           );
         },
@@ -1496,7 +1637,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 26,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1532,7 +1673,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1572,7 +1713,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1602,7 +1743,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 31,
             port: port_,
           );
         },
@@ -1635,7 +1776,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1667,7 +1808,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1703,7 +1844,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1739,7 +1880,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1776,7 +1917,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1812,7 +1953,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1849,7 +1990,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1904,7 +2045,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1992,7 +2133,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 40,
             port: port_,
           );
         },
@@ -2052,7 +2193,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 41,
             port: port_,
           );
         },
@@ -2084,7 +2225,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 42,
             port: port_,
           );
         },
@@ -2118,7 +2259,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 43,
             port: port_,
           );
         },
@@ -2148,7 +2289,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 44,
             port: port_,
           );
         },
@@ -2184,7 +2325,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 45,
             port: port_,
           );
         },
@@ -2227,7 +2368,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 46,
             port: port_,
           );
         },
@@ -2267,7 +2408,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 47,
             port: port_,
           );
         },
@@ -2307,7 +2448,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 48,
             port: port_,
           );
         },
@@ -2338,7 +2479,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(path, serializer);
           sse_encode_box_autoadd_storage_request(request, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 47)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_storage_response,
@@ -2367,7 +2508,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(database, serializer);
           sse_encode_box_autoadd_storage_request(request, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 48)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_storage_response,
@@ -2405,7 +2546,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 49,
+            funcId: 51,
             port: port_,
           );
         },
@@ -2443,7 +2584,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 50,
+            funcId: 52,
             port: port_,
           );
         },
@@ -2462,6 +2603,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "suggest_category_for_title",
         argNames: ["ledger", "title"],
+      );
+
+  @override
+  Future<List<TransactionHistoryView>> crateApiLedgerTransactionHistory({
+    required PersonalLedger ledger,
+    required String transactionId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_String(transactionId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 53,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_transaction_history_view,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerTransactionHistoryConstMeta,
+        argValues: [ledger, transactionId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerTransactionHistoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "transaction_history",
+        argNames: ["ledger", "transactionId"],
       );
 
   @override
@@ -2488,7 +2667,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 51,
+            funcId: 54,
             port: port_,
           );
         },
@@ -2540,7 +2719,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 55,
             port: port_,
           );
         },
@@ -2604,7 +2783,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 56,
             port: port_,
           );
         },
@@ -2658,7 +2837,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 54,
+            funcId: 57,
             port: port_,
           );
         },
@@ -2735,7 +2914,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 55,
+            funcId: 58,
             port: port_,
           );
         },
@@ -2776,6 +2955,62 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "categoryId",
           "frequency",
           "startMillis",
+          "wallClockMillis",
+        ],
+      );
+
+  @override
+  Future<LedgerMutation> crateApiLedgerVoidTransaction({
+    required PersonalLedger ledger,
+    required String transactionId,
+    required String expectedAmount,
+    String? expectedCategoryId,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_String(transactionId, serializer);
+          sse_encode_String(expectedAmount, serializer);
+          sse_encode_opt_String(expectedCategoryId, serializer);
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 59,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_ledger_mutation,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerVoidTransactionConstMeta,
+        argValues: [
+          ledger,
+          transactionId,
+          expectedAmount,
+          expectedCategoryId,
+          wallClockMillis,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerVoidTransactionConstMeta =>
+      const TaskConstMeta(
+        debugName: "void_transaction",
+        argNames: [
+          "ledger",
+          "transactionId",
+          "expectedAmount",
+          "expectedCategoryId",
           "wallClockMillis",
         ],
       );
@@ -3332,6 +3567,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TransactionHistoryView> dco_decode_list_transaction_history_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_transaction_history_view)
+        .toList();
+  }
+
+  @protected
   List<TransactionView> dco_decode_list_transaction_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_transaction_view).toList();
@@ -3529,11 +3774,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TransactionHistoryView dco_decode_transaction_history_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return TransactionHistoryView(
+      eventId: dco_decode_String(arr[0]),
+      actorId: dco_decode_String(arr[1]),
+      physicalMillis: dco_decode_i_64(arr[2]),
+      logical: dco_decode_u_32(arr[3]),
+      action: dco_decode_String(arr[4]),
+      amountLabel: dco_decode_opt_String(arr[5]),
+      reportingAmountLabel: dco_decode_opt_String(arr[6]),
+      categoryId: dco_decode_opt_String(arr[7]),
+    );
+  }
+
+  @protected
   TransactionView dco_decode_transaction_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return TransactionView(
       id: dco_decode_String(arr[0]),
       accountId: dco_decode_String(arr[1]),
@@ -3541,6 +3804,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       amountLabel: dco_decode_String(arr[3]),
       isExpense: dco_decode_bool(arr[4]),
       categoryId: dco_decode_opt_String(arr[5]),
+      voided: dco_decode_bool(arr[6]),
     );
   }
 
@@ -4244,6 +4508,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<TransactionHistoryView> sse_decode_list_transaction_history_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <TransactionHistoryView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_transaction_history_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<TransactionView> sse_decode_list_transaction_view(
     SseDeserializer deserializer,
   ) {
@@ -4490,6 +4768,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TransactionHistoryView sse_decode_transaction_history_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_eventId = sse_decode_String(deserializer);
+    var var_actorId = sse_decode_String(deserializer);
+    var var_physicalMillis = sse_decode_i_64(deserializer);
+    var var_logical = sse_decode_u_32(deserializer);
+    var var_action = sse_decode_String(deserializer);
+    var var_amountLabel = sse_decode_opt_String(deserializer);
+    var var_reportingAmountLabel = sse_decode_opt_String(deserializer);
+    var var_categoryId = sse_decode_opt_String(deserializer);
+    return TransactionHistoryView(
+      eventId: var_eventId,
+      actorId: var_actorId,
+      physicalMillis: var_physicalMillis,
+      logical: var_logical,
+      action: var_action,
+      amountLabel: var_amountLabel,
+      reportingAmountLabel: var_reportingAmountLabel,
+      categoryId: var_categoryId,
+    );
+  }
+
+  @protected
   TransactionView sse_decode_transaction_view(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_id = sse_decode_String(deserializer);
@@ -4498,6 +4801,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_amountLabel = sse_decode_String(deserializer);
     var var_isExpense = sse_decode_bool(deserializer);
     var var_categoryId = sse_decode_opt_String(deserializer);
+    var var_voided = sse_decode_bool(deserializer);
     return TransactionView(
       id: var_id,
       accountId: var_accountId,
@@ -4505,6 +4809,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       amountLabel: var_amountLabel,
       isExpense: var_isExpense,
       categoryId: var_categoryId,
+      voided: var_voided,
     );
   }
 
@@ -5177,6 +5482,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_transaction_history_view(
+    List<TransactionHistoryView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_transaction_history_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_transaction_view(
     List<TransactionView> self,
     SseSerializer serializer,
@@ -5392,6 +5709,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_transaction_history_view(
+    TransactionHistoryView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.eventId, serializer);
+    sse_encode_String(self.actorId, serializer);
+    sse_encode_i_64(self.physicalMillis, serializer);
+    sse_encode_u_32(self.logical, serializer);
+    sse_encode_String(self.action, serializer);
+    sse_encode_opt_String(self.amountLabel, serializer);
+    sse_encode_opt_String(self.reportingAmountLabel, serializer);
+    sse_encode_opt_String(self.categoryId, serializer);
+  }
+
+  @protected
   void sse_encode_transaction_view(
     TransactionView self,
     SseSerializer serializer,
@@ -5403,6 +5736,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.amountLabel, serializer);
     sse_encode_bool(self.isExpense, serializer);
     sse_encode_opt_String(self.categoryId, serializer);
+    sse_encode_bool(self.voided, serializer);
   }
 
   @protected
