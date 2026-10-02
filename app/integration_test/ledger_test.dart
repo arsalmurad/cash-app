@@ -463,7 +463,12 @@ void main() {
     await tester.tap(find.text('Budgets'));
     await tester.pumpAndSettle();
     expect(find.text('>1,000,000%'), findsOneWidget);
-    await tester.tap(find.text('Activity'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Activity'),
+      ),
+    );
     await tester.pumpAndSettle();
     final hotelActions = find.byTooltip('Transaction actions: Hotel');
     await tester.ensureVisible(hotelActions);
@@ -520,7 +525,12 @@ void main() {
       MaterialApp(home: LedgerScreen(controller: correctionRestart)),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Activity'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationBar),
+        matching: find.text('Activity'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.ensureVisible(hotelActions);
     await tester.tap(hotelActions);
