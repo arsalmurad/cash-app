@@ -1274,5 +1274,26 @@ CSV/LF/offline-font scenario then passes in Chrome 154.0.8037.58 at actual CDP
 360×740 metrics, including the previously failed recent entries and search/
 clear/filter with unchanged saved SQLite bytes. This is a focused driver repair,
 not an independently proven universal cause of browser flakiness. Household
-verification with the pointer path and smaller relay pages remains pending.
+verification with the pointer path and smaller relay pages subsequently passes
+in a separate affected-scenario run; exact evidence is in `SHARED-SUMMARIES.md`.
+
+## 2026-10-03 — Verify saved-state receipts before designing deletion
+
+Add a local, bounded saved-archive receipt codec and conservative cutoff verifier
+to `cash_sync`. Reuse the existing group-bound Ed25519 signer with a separate
+receipt domain; do not advance MLS ratchets. Bind the epoch, cursor and digest
+of canonical state/per-actor frontiers plus exact original signed proofs, and
+require every current MLS key. Highest timestamps, equal balances, relay reads,
+stale/foreign/missing receipts and silent duplicate replacement are rejected
+as retention evidence. The minimum confirmed cursor is only a local plan.
+
+Tests written first initially fail at the absent API. Five integration tests
+and three additional unit checks then cover offline late events, membership
+changes/removal, restart, tampering/replay/unknown keys, future cursors,
+conflicting duplicates, legacy/unsent/staged refusal and bounded decoding.
+All 54 affected sync tests pass, including the existing three-peer/1,000-event
+acceptance. This does not prove OS durability: the storage caller must supply
+confirmed saved bytes. No bridge/wire format, save adapter, encrypted receipt
+transport, relay pruning authority or deletion is enabled; the open integration
+gates and proportional archive cost are explicit in `RETENTION-RECEIPTS.md`.
 

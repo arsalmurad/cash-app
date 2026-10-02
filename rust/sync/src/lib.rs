@@ -18,6 +18,7 @@ mod http;
 mod ids;
 mod peer;
 mod relay;
+mod retention;
 
 #[cfg(feature = "http")]
 pub use http::HttpRelay;

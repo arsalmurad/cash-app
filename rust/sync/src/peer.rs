@@ -2,11 +2,13 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt;
 
 use crate::authenticated_history::SignedEvent;
+use crate::retention::Receipt;
 use cash_core::{
     Currency, EditField, Event, EventId, EventKind, HybridTimestamp, SharedEvent, SharedSnapshot,
     SharedState, decode_shared_event, encode_shared_event,
 };
 use cash_crypto::{Member, Received, author_id};
+use sha2::{Digest, Sha256};
 
 use crate::ids::random_id;
 use crate::relay::{MailboxItem, Relay, RelayError};
@@ -471,6 +473,106 @@ impl Peer {
 
     pub fn public_key(&self) -> Vec<u8> {
         self.member.public_key()
+    }
+
+    fn retention_context(&self) -> Result<(Vec<u8>, u64, [u8; 32]), SyncError> {
+        self.ensure_not_staged()?;
+        if !self.is_member() || !self.outbox.is_empty() {
+            return Err(SyncError(
+                "Save and synchronize an active household before acknowledging retention."
+                    .to_owned(),
+            ));
+        }
+        // Include exact original proofs as well as state and per-actor causal
+        // frontiers. Equal balances or high-water marks alone are insufficient.
+        let mut digest = Sha256::new();
+        digest.update(b"cash-app retention checkpoint v1\0");
+        let checkpoint = self.snapshot.checkpoint_bytes();
+        digest.update((checkpoint.len() as u64).to_be_bytes());
+        digest.update(checkpoint);
+        digest.update((self.proofs.len() as u64).to_be_bytes());
+        for proof in self.proofs.values() {
+            let bytes = proof.encode();
+            digest.update((bytes.len() as u64).to_be_bytes());
+            digest.update(bytes);
+        }
+        Ok((
+            self.member
+                .group_identifier()
+                .ok_or_else(|| SyncError("no cryptographic household".to_owned()))?,
+            self.member.epoch(),
+            digest.finalize().into(),
+        ))
+    }
+
+    /// Sign a receipt from a confirmed saved archive, never from a newer live
+    /// object. The caller must first confirm its storage write: Rust cannot
+    /// infer OS durability from bytes. This only signs; no MLS ratchet advances.
+    /// Send the receipt encrypted, never the archive or its private keys.
+    pub fn saved_state_receipt(saved: &[u8]) -> Result<Vec<u8>, SyncError> {
+        let peer = Self::import(saved)?;
+        let (group, epoch, checkpoint) = peer.retention_context()?;
+        let mut receipt = Receipt {
+            group,
+            epoch,
+            cursor: peer.cursor,
+            checkpoint,
+            public_key: peer.public_key(),
+            signature: Vec::new(),
+        };
+        receipt.signature = peer.member.sign_history(&receipt.payload())?;
+        // Apply the same bounded codec contract to locally produced receipts.
+        let bytes = receipt.encode();
+        Receipt::decode(&bytes)?;
+        Ok(bytes)
+    }
+
+    /// Conservative local planning only: require a valid receipt from every
+    /// current MLS signing key for this exact authenticated checkpoint/epoch.
+    /// The result is NOT relay deletion authority. Durable receipt transport,
+    /// membership authorization and recoverable pruning must be wired first.
+    pub fn retention_cutoff(&self, receipts: &[Vec<u8>]) -> Result<u64, SyncError> {
+        let (group, epoch, checkpoint) = self.retention_context()?;
+        let members: BTreeSet<_> = self
+            .member_keys()?
+            .into_iter()
+            .map(|(_, key)| key)
+            .collect();
+        let mut seen = BTreeMap::new();
+        let mut cutoff = self.cursor;
+        for bytes in receipts {
+            let receipt = Receipt::decode(bytes)?;
+            if receipt.group != group
+                || receipt.epoch != epoch
+                || receipt.checkpoint != checkpoint
+                || receipt.cursor > self.cursor
+                || !members.contains(&receipt.public_key)
+            {
+                return Err(SyncError(
+                    "Receipt does not confirm this household's current saved checkpoint."
+                        .to_owned(),
+                ));
+            }
+            self.member.verify_history(
+                &receipt.public_key,
+                &receipt.payload(),
+                &receipt.signature,
+            )?;
+            if let Some(previous) = seen.insert(receipt.public_key, bytes)
+                && previous != bytes
+            {
+                return Err(SyncError(
+                    "Conflicting receipts from one device require a new collection.".to_owned(),
+                ));
+            }
+            cutoff = cutoff.min(receipt.cursor);
+        }
+        if seen.len() != members.len() {
+            return Err(SyncError(
+                "Wait for a saved-state receipt from every current household device.".to_owned(),
+            ));
+        }
+        Ok(cutoff)
     }
 
     /// Recover authenticated history only, never an old MLS sender ratchet.
@@ -1008,6 +1110,46 @@ mod authorship_tests {
         alice.commit_accepted(1).unwrap();
         bob.join(&invite.welcome).unwrap();
         (alice, bob)
+    }
+
+    #[test]
+    fn signed_future_cursors_and_conflicting_receipts_fail_closed() {
+        let mut peer = Peer::new("test-device", Currency::from_code("USD").unwrap()).unwrap();
+        peer.found_group().unwrap();
+        // Controlled cursor values isolate validation without a transport.
+        peer.cursor = 5;
+        let saved = peer.export().unwrap();
+        let original = Peer::saved_state_receipt(&saved).unwrap();
+        assert_eq!(Peer::saved_state_receipt(&saved).unwrap(), original);
+        let mut receipt = Receipt::decode(&original).unwrap();
+        receipt.cursor = 6;
+        receipt.signature = peer.member.sign_history(&receipt.payload()).unwrap();
+        assert!(peer.retention_cutoff(&[receipt.encode()]).is_err());
+        receipt.cursor = 0;
+        receipt.signature = peer.member.sign_history(&receipt.payload()).unwrap();
+        let earlier = receipt.encode();
+        assert_eq!(
+            peer.retention_cutoff(std::slice::from_ref(&earlier))
+                .unwrap(),
+            0
+        );
+        assert!(peer.retention_cutoff(&[original, earlier]).is_err());
+        assert_eq!(
+            peer.export().unwrap(),
+            saved,
+            "Signing/verification cannot advance the sender ratchet"
+        );
+    }
+
+    #[test]
+    fn unsigned_legacy_archives_cannot_acknowledge_retention() {
+        let mut peer = Peer::new("test-device", Currency::from_code("USD").unwrap()).unwrap();
+        peer.found_group().unwrap();
+        peer.legacy_unverified = true;
+        let legacy = peer.export().unwrap();
+        assert!(legacy.starts_with(LEGACY_EXPORT_MAGIC));
+        assert!(Peer::saved_state_receipt(&legacy).is_err());
+        assert!(peer.retention_cutoff(&[]).is_err());
     }
 
     fn event(actor: &str) -> SharedEvent {

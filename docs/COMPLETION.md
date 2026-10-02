@@ -66,6 +66,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   current native-host and production WASM checks passed. This is not pruning.
 - [ ] Finish safe shared compaction or peer-snapshot recovery with offline-peer
   acknowledgements; checkpoints retain all history and relay logs remain unbounded.
+  A saved-archive receipt/checkpoint verifier is now implemented locally in Rust;
+  see `RETENTION-RECEIPTS.md`. It requires every current MLS key and exact signed
+  history/frontiers, but has no app save/transport/pruning integration yet.
+  A locally computed cutoff is not permission to delete relay history.
 - [x] Check explicit opt-in publication boundaries and chosen shared analytics;
   no private ledger or readable financial fields may reach the relay.
   Immutable opt-in totals, nonfinancial signed summary events, compatibility
