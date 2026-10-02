@@ -5,7 +5,7 @@
 #![cfg(feature = "http")]
 
 use cash_core::{
-    AccountId, Currency, EditField, EventKind, FxRate, Money, TransactionId, TransactionKind,
+    AccountId, ChosenSummary, Currency, EditField, EventKind, FxRate, Money, TransactionId, TransactionKind,
     fold_shared,
 };
 use cash_sync::{HttpRelay, MailboxItem, Peer, Relay, RelayError};
@@ -13,6 +13,7 @@ use cash_sync::{HttpRelay, MailboxItem, Peer, Relay, RelayError};
 const PRIVACY_AMOUNT: i64 = 1_234_567_890_123;
 const PRIVACY_ACCOUNT: &str = "PRIVATE_ACCOUNT_SENTINEL_DO_NOT_STORE";
 const PRIVACY_TRANSACTION: &str = "PRIVATE_EXPENSE_SENTINEL_DO_NOT_STORE";
+const PRIVACY_SUMMARY_AMOUNT: i64 = 1_234_987_654_321;
 
 fn usd() -> Currency {
     Currency::from_code("USD").unwrap()
@@ -133,6 +134,10 @@ fn three_peers_converge_through_the_real_worker() {
     }
     write(&mut peers[1], adjust("dinner", 4_500));
     write(&mut peers[2], adjust("dinner", 4_200));
+    write(&mut peers[1], EventKind::SummaryPublished {
+        summary: ChosenSummary::new(Currency::from_code("JPY").unwrap(),
+            1_700_000_000_000, 1_702_000_000_000, None, Some(PRIVACY_SUMMARY_AMOUNT)).unwrap(),
+    });
     for index in 0..20 {
         write(
             &mut peers[index % 3],
@@ -147,6 +152,11 @@ fn three_peers_converge_through_the_real_worker() {
 
     let reference = fold_shared(usd(), written.clone());
     assert_eq!(reference.conflicts.len(), 1);
+    assert_eq!(reference.ledger.summaries.len(), 1);
+    assert_eq!(reference.ledger.reporting_balance_minor,
+        fold_shared(usd(), written.iter().filter(|shared|
+            !matches!(shared.event.kind, EventKind::SummaryPublished { .. })).cloned())
+            .ledger.reporting_balance_minor);
     for peer in &peers {
         assert_eq!(peer.state().canonical_bytes(), reference.canonical_bytes());
     }
@@ -171,6 +181,8 @@ fn three_peers_converge_through_the_real_worker() {
         .collect();
         needles.push(PRIVACY_AMOUNT.to_be_bytes().to_vec());
         needles.push(PRIVACY_AMOUNT.to_le_bytes().to_vec());
+        needles.push(PRIVACY_SUMMARY_AMOUNT.to_be_bytes().to_vec());
+        needles.push(PRIVACY_SUMMARY_AMOUNT.to_le_bytes().to_vec());
         for shared in &written {
             needles.push(shared.event.id.as_str().as_bytes().to_vec());
             needles.push(shared.event.actor_id.as_str().as_bytes().to_vec());

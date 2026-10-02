@@ -1,7 +1,7 @@
 # Chosen shared summaries
 
-Implemented 2026-10-02; current verification is local Rust and Windows native
-bridge/Flutter host. Production WASM/mobile verification remains open.
+Implemented 2026-10-02; independently verified in local Rust, Windows native
+bridge/Flutter host and production Chrome/WASM. Mobile verification remains open.
 
 ## Publication boundary
 
@@ -75,6 +75,34 @@ private prototype requires all household members to update before sharing.
   keep-private cancellation passed; affected household UI tests passed.
 - App analyzer passed after correcting four brace-formatting notices.
 
-No new iOS, Android or production WASM runtime is claimed by these checks.
+## Production browser and actual-worker checks, 2026-10-03
+
+Production app source `26f9563` was rebuilt with the pinned nightly/FRB tools:
+Rust WASM release 59.66 s; Flutter `build web --wasm --no-web-resources-cdn --no-pub`
+174.5 s. The existing atomics compatibility warning remains unchanged.
+
+`WEB_PERSONAL_LIFECYCLE=1 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_QUOTA=1 WEB_CSV=1
+WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`
+passed in actual Windows Chrome 154.0.8037.58 against the compiled release app
+and real local workerd relay. The driver creates a private USD 12.34 expense
+on Bob's independent browser, verifies default-off selection, exact preview,
+keep-private cancellation without relay POST, and explicit publication. Alice
+receives only the expense total, no income total or private title; shared balance
+stays USD 0.00. Signed summary history survives sealed reload and fresh-key
+stale-backup recovery. Existing real quota, personal corrections/recency,
+Unicode file import/download, offline conflicts, EUR/JPY FX and removal checks
+also pass. Driver-only input focus/value readiness avoids racing rendered forms;
+it does not inject app state or call debug APIs.
+
+`CARGO=C:/Users/ME/.cargo/bin/cargo.exe node test/storage-audit.mjs` in `relay/`
+passed with the actual production storage methods: 28 encrypted log records,
+including a JPY summary, and encrypted welcome mailboxes. Scanned needles include
+both byte orders of a distinctive summary amount, original publication author/
+event IDs and complete encoded summary payloads. A plaintext-injection negative
+control proves the scanner rejects a leak. Windows workerd logged WSASend #10053;
+all assertions and process exit status passed. This is local workerd inspection,
+not an authenticated public deployment or physical-network reliability claim.
+
+No new iOS or Android runtime is claimed by these checks.
 This feature does not close production authentication, retention/compaction,
 final-source platform acceptance or the whole-project completion gate.
