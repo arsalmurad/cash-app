@@ -35,7 +35,7 @@ pub use goals::{
     DecodedGoalLog, GoalBookState, GoalId, GoalKind, GoalRecord, GoalUpsert, decode_goal_log,
     encode_goal_frame, fold_goals,
 };
-pub use ledger::{AccountState, FoldError, LedgerState, TransactionState, fold};
+pub use ledger::{AccountState, FoldError, LedgerState, PublishedSummary, TransactionState, fold};
 pub use money::{Currency, FxRate, Money, MoneyError, RoundingRule};
 pub use recurring::{
     DecodedRecurringLog, RecurringBookState, RecurringFrequency, RecurringId, RecurringKind,

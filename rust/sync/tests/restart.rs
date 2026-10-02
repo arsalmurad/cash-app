@@ -47,7 +47,10 @@ fn persisted_checkpoint_is_checked_and_previous_signed_archives_remain_readable(
     alice.write(2, expense("checkpoint-rent", 123)).unwrap();
     alice.sync(&mut relay).unwrap();
     let saved = alice.export().unwrap();
-    assert!(saved.starts_with(b"cash-app peer v4\0"));
+    assert!(saved.starts_with(b"cash-app peer v5\0"));
+    let mut v4 = saved.clone();
+    v4[..b"cash-app peer v4\0".len()].copy_from_slice(b"cash-app peer v4\0");
+    assert_eq!(Peer::import(&v4).unwrap().state(), alice.state());
     let restored = Peer::import(&saved).unwrap();
     assert_eq!(restored.state(), alice.state());
     let mut damaged = saved.clone();
@@ -190,7 +193,7 @@ fn signed_v2_state_is_upgraded_without_changing_its_ledger() {
         .windows(marker.len())
         .rposition(|window| window == marker)
         .unwrap();
-    saved.truncate(offset - 8); // v4's checked checkpoint field.
+    saved.truncate(offset - 8); // v4/v5's checked checkpoint field.
     assert_eq!(saved.pop(), Some(0)); // v3's absent pending-commit journal.
     saved[..b"cash-app peer v2\0".len()].copy_from_slice(b"cash-app peer v2\0");
     let upgraded = Peer::import(&saved).unwrap();
@@ -199,7 +202,7 @@ fn signed_v2_state_is_upgraded_without_changing_its_ledger() {
         upgraded
             .export()
             .unwrap()
-            .starts_with(b"cash-app peer v4\0")
+            .starts_with(b"cash-app peer v5\0")
     );
 }
 

@@ -49,6 +49,13 @@ Future schema versions remain rejected without replacement. The local Rust
 storage suite verifies upgrade/reopen, content/revision preservation and future
 version refusal; it does not claim to have run an old application binary.
 
+The chosen-summary format raises the minimum reader to v3, upgrading v1/v2
+under the same lock without changing tables, frames, sealed documents or their
+revisions. Older SQLite readers reject v3 before unknown-frame recovery. Keep
+the same filename/browser key/lock and do not downgrade. Local migration,
+restart and future-v4 refusal tests pass; final-source platform acceptance is
+still required before claiming this change on mobile or production WASM.
+
 Legacy event logs are imported once, transactionally. The original files/keys
 remain untouched as recovery evidence; later edits to them cannot replace a
 migrated stream. A validated torn prefix can be repaired only at its observed

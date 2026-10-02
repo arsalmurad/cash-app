@@ -18,8 +18,8 @@
 use crate::bytes_io::{Reader, write_bool, write_i64, write_string, write_u32};
 use crate::frame::{DecodedFrameLog, decode_frame_log, encode_frame};
 use crate::{
-    AccountId, Currency, Event, EventKind, FxRate, Money, RoundingRule, TransactionId,
-    TransactionKind,
+    AccountId, ChosenSummary, Currency, Event, EventKind, FxRate, Money, RoundingRule,
+    TransactionId, TransactionKind,
 };
 
 const KIND_ACCOUNT_OPENED: u8 = 0;
@@ -28,6 +28,7 @@ const KIND_AMOUNT_ADJUSTED: u8 = 2;
 const KIND_CATEGORY_ASSIGNED: u8 = 3;
 const KIND_TRANSACTION_VOIDED: u8 = 4;
 const KIND_TRANSFER_RECORDED: u8 = 5;
+const KIND_SUMMARY_PUBLISHED: u8 = 6;
 
 /// The result of decoding a durable log's bytes back into events.
 pub struct DecodedLog {
@@ -84,6 +85,10 @@ pub(crate) fn decode_event(payload: &[u8]) -> Option<Event> {
 
 fn encode_kind(bytes: &mut Vec<u8>, kind: &EventKind) {
     match kind {
+        EventKind::SummaryPublished { summary } => {
+            bytes.push(KIND_SUMMARY_PUBLISHED);
+            write_summary(bytes, summary);
+        }
         EventKind::AccountOpened {
             account_id,
             name,
@@ -161,6 +166,9 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: &EventKind) {
 
 fn decode_kind(reader: &mut Reader<'_>) -> Option<EventKind> {
     match reader.read_u8()? {
+        KIND_SUMMARY_PUBLISHED => Some(EventKind::SummaryPublished {
+            summary: read_summary(reader)?,
+        }),
         KIND_ACCOUNT_OPENED => Some(EventKind::AccountOpened {
             account_id: AccountId::new(reader.read_string()?),
             name: reader.read_string()?,
@@ -210,6 +218,32 @@ fn decode_kind(reader: &mut Reader<'_>) -> Option<EventKind> {
         }),
         _ => None,
     }
+}
+
+pub(crate) fn write_summary(bytes: &mut Vec<u8>, summary: &ChosenSummary) {
+    write_string(bytes, summary.currency().code());
+    write_i64(bytes, summary.start_millis());
+    write_i64(bytes, summary.end_millis_exclusive());
+    for total in [summary.income_minor(), summary.expenses_minor()] {
+        write_bool(bytes, total.is_some());
+        if let Some(total) = total {
+            write_i64(bytes, total);
+        }
+    }
+}
+
+fn read_summary(reader: &mut Reader<'_>) -> Option<ChosenSummary> {
+    let currency = read_currency(reader)?;
+    let start = reader.read_i64()?;
+    let end = reader.read_i64()?;
+    let mut total = || -> Option<Option<i64>> {
+        Some(if reader.read_bool()? {
+            Some(reader.read_i64()?)
+        } else {
+            None
+        })
+    };
+    ChosenSummary::new(currency, start, end, total()?, total()?).ok()
 }
 
 fn write_money(bytes: &mut Vec<u8>, money: &Money) {

@@ -11,7 +11,8 @@ use cash_crypto::{Member, Received, author_id};
 use crate::ids::random_id;
 use crate::relay::{MailboxItem, Relay, RelayError};
 
-const EXPORT_MAGIC: &[u8] = b"cash-app peer v4\0";
+const EXPORT_MAGIC: &[u8] = b"cash-app peer v5\0";
+const SIGNED_V4_EXPORT_MAGIC: &[u8] = b"cash-app peer v4\0";
 const SIGNED_V3_EXPORT_MAGIC: &[u8] = b"cash-app peer v3\0";
 const SIGNED_V2_EXPORT_MAGIC: &[u8] = b"cash-app peer v2\0";
 const LEGACY_EXPORT_MAGIC: &[u8] = b"cash-app peer v1\0";
@@ -293,6 +294,7 @@ impl Peer {
         let legacy_unverified = if magic == LEGACY_EXPORT_MAGIC {
             true
         } else if magic == EXPORT_MAGIC
+            || magic == SIGNED_V4_EXPORT_MAGIC
             || magic == SIGNED_V3_EXPORT_MAGIC
             || magic == SIGNED_V2_EXPORT_MAGIC
         {
@@ -365,7 +367,10 @@ impl Peer {
         }
         let member = Member::import(reader.field().ok_or_else(malformed)?)?;
         let mut staged_adds_member = false;
-        let staged_frame = if magic == EXPORT_MAGIC || magic == SIGNED_V3_EXPORT_MAGIC {
+        let staged_frame = if magic == EXPORT_MAGIC
+            || magic == SIGNED_V4_EXPORT_MAGIC
+            || magic == SIGNED_V3_EXPORT_MAGIC
+        {
             match reader.take(1).ok_or_else(malformed)?[0] {
                 0 => None,
                 1 => {
@@ -389,7 +394,7 @@ impl Peer {
         } else {
             None
         };
-        let checkpoint = if magic == EXPORT_MAGIC {
+        let checkpoint = if magic == EXPORT_MAGIC || magic == SIGNED_V4_EXPORT_MAGIC {
             Some(reader.field().ok_or_else(malformed)?)
         } else {
             None
