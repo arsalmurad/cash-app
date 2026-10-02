@@ -117,5 +117,48 @@ export async function runPersonalLifecycleWebScenario(page, api) {
   }
   await navigate('Overview');
   await waitForLabel(page, beforeBalance);
+  // All entry is through rendered UI. This valid i64 amount exceeds the old
+  // progress * 100 intermediate range; money labels must remain exact.
+  const largeAmount = '10000000000000000.00';
+  await navigate('Goals');
+  await clickLabel(page, 'Add goal', 'button');
+  await fill('Name', 'Large saving');
+  await fill('Target amount', '0.01');
+  await clickLabel(page, 'Save', 'button');
+  await waitForLabel(page, 'Large saving');
+  await navigate('Budgets');
+  await clickLabel(page, 'Add budget', 'button');
+  await fill('Name', 'Large budget');
+  await fill('Limit amount', '0.01');
+  await clickLabel(page, 'Save', 'button');
+  await waitForLabel(page, 'Large budget');
+  await navigate('Overview');
+  await clickLabel(page, 'Add', 'button');
+  await clickLabel(page, 'Income');
+  await fill('Title', 'Large income');
+  await fill('Amount', largeAmount);
+  await clickLabel(page, 'Add transaction', 'button');
+  await waitForLabel(page, 'Large income');
+  await waitForLabel(page, `USD ${largeAmount}`);
+  await page.send('Page.reload');
+  await openApp(page);
+  await navigate('Goals');
+  await waitForLabel(page, '>1,000,000%');
+  await navigate('Overview');
+  await clickLabel(page, 'Add', 'button');
+  await fill('Title', 'Large expense');
+  await fill('Amount', largeAmount);
+  await clickLabel(page, 'Add transaction', 'button');
+  await waitForLabel(page, 'Large expense');
+  await waitForLabel(page, beforeBalance);
+  await page.send('Page.reload');
+  await openApp(page);
+  await waitForLabel(page, beforeBalance);
+  await navigate('Budgets');
+  await waitForLabel(page, '>1,000,000%');
+  await waitForLabel(page, 'Large budget');
+  await navigate('Overview');
+  await waitForLabel(page, beforeBalance);
   console.log('Verified personal controls: goal currency/category/deadline reload, cancelled edit, categorized recurring posting, USD 1.23 goal progress, explicit removal and preserved balance.');
+  console.log('Verified large money: exact income/expense entry, bounded goal/budget percentage display, durable reload and unchanged net balance.');
 }
