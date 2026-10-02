@@ -198,6 +198,14 @@ export async function runHouseholdWebScenario(alice, api) {
     assert.equal(await evaluate(alice, `document.body.textContent.includes('Private summary-only lunch')`), false);
     assert.equal(await evaluate(alice, `document.body.textContent.includes('Income total:')`), false);
     console.log('Verified household summaries: default-off selection, exact preview, keep-private cancellation, explicit sharing and no private title or balance change.');
+    await clickLabel(bob, 'Lock household in this browser', 'button');
+    await waitForLabel(bob, 'Unlock this browser');
+    assert.equal(await evaluate(bob, `document.body.textContent.includes('Expense total: USD 12.34')`), false,
+      'Locked household must not render the previous summary');
+    await fill(bob, '24-word unlock phrase', bobPhrase);
+    await clickLabel(bob, 'Unlock household', 'button');
+    await waitForLabel(bob, 'Expense total: USD 12.34');
+    console.log('Verified household summary: explicit browser lock hides the snapshot and phrase unlock restores it.');
     if (process.env.WEB_HOUSEHOLD_QUOTA === '1') {
       await runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api);
     }
@@ -214,6 +222,7 @@ export async function runHouseholdWebScenario(alice, api) {
     await fill(bob, '24-word unlock phrase', bobPhrase);
     await clickLabel(bob, 'Unlock household', 'button');
     await waitForLabel(bob, 'USD -40.00');
+    await waitForLabel(bob, 'Expense total: USD 12.34');
     const saved = await evaluate(bob, `(() => {
       const bytes = atob(localStorage.getItem('private_ledger.sqlite.v1'));
       return { sqlite: bytes.startsWith('SQLite format 3\\0'),
