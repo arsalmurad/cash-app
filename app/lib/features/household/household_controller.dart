@@ -13,6 +13,7 @@ import '../../data/storage/vault_keys.dart';
 import 'invite_codes.dart';
 import 'household_journal.dart';
 import 'relay_client.dart';
+import 'relay_config.dart';
 
 /// Runs the household layer: owns the network (the Rust core does no I/O),
 /// persists the secret state after every change, and exposes the folded
@@ -91,7 +92,7 @@ class HouseholdController extends ChangeNotifier {
       if (_writesDisabled) throw const FormatException(_uncertainSaveMessage);
       final config = await _configStore.read();
       if (config != null && config.isNotEmpty) {
-        relayUrl = String.fromCharCodes(config);
+        relayUrl = decodeRelayConfig(config);
         _relay = _relayFactory(relayUrl!);
       }
       final saved = await _stateStore.read();
@@ -325,7 +326,7 @@ class HouseholdController extends ChangeNotifier {
       return;
     }
     try {
-      await _configStore.write(Uint8List.fromList(url.codeUnits));
+      await _configStore.write(encodeRelayConfig(url));
     } catch (_) {
       _disableWrites();
       rethrow;

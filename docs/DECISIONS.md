@@ -835,3 +835,20 @@ silencing warnings globally. CI now includes both cases, but its new offline
 font step has not yet been independently run on GitHub. Further cloud runs
 await confirmation of a $0 Actions spending cap.
 
+## 2026-10-02 — Versioned UTF-8 relay configuration
+
+A controller restart regression reproduced Unicode relay paths being truncated
+by `Uint8List.fromList(url.codeUnits)`. New pre-identity configuration uses a
+versioned UTF-8 JSON envelope; legacy raw bytes retain their original byte-to-
+character interpretation, including Latin-1, without speculative conversion or
+automatic rewriting. Addresses already truncated by old versions cannot be
+reconstructed from those bytes; they need to be entered again.
+
+Unknown versions, invalid UTF-8, malformed fields and non-HTTP(S) persisted
+addresses fail closed before a network client is created, preserving original
+bytes and refusing later writes. Household journals already used UTF-8 and are
+unchanged. All 12 configuration regressions, 20 real-bridge invitation/save-
+failure/journal checks, clean analysis and the full 217-test Windows app suite
+passed with the existing `rust_lib_cash_app.dll`. No Rust rebuild or new mobile
+runtime is claimed for this Dart-only serialization change.
+
