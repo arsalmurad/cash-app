@@ -68,7 +68,8 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   protection are now implemented. Goal currency/category/deadline controls
   and recurring category selection have native-host/phone widget checks and
   production Chrome runtime evidence. Remaining functional/adaptive review
-  includes the recent-activity ordering regression. Personal amount/category
+  remains open. Recent-activity creation ordering is now verified, including
+  same-tick queues and six-entry production-browser reload. Personal amount/category
   corrections and non-erasing removal/history have actual SQLite failure/reload
   tests, production Chrome evidence and actual Android emulator runtime evidence.
   These checks do not close the whole UX gate.

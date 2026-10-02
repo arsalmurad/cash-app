@@ -1001,6 +1001,8 @@ recent rows. Order transaction and transfer views by their original recording
 event's full `(HLC physical, logical, actor, event)` key, newest first. Corrections
 do not reorder creation history. Canonical ledger state, persisted frames and
 bridge layouts are unchanged. All 61 API tests passed; actual native-bridge
-same-tick queues, restart and failure recovery also passed. Production WASM
-verification is pending; earlier Android checks cover correction source only.
+same-tick queues, restart and failure recovery also passed. All 269 Flutter host
+tests and the combined production WASM personal/CSV/household/quota journey
+subsequently passed at source `4a05a7e`; earlier Android checks cover correction
+source only.
 

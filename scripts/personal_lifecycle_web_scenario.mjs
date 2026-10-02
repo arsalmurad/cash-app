@@ -5,7 +5,9 @@ export async function runPersonalLifecycleWebScenario(page, api) {
   const { openApp, evaluate, waitFor, waitForLabel, clickLabel, focusLabel } = api;
   async function fill(label, value) {
     await focusLabel(page, label);
+    await waitFor(page, `['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)`);
     await page.send('Input.insertText', { text: value });
+    await waitFor(page, `[...document.querySelectorAll('input, textarea')].some(e => e.value === ${JSON.stringify(value)})`);
   }
   const saved = () => evaluate(page, "localStorage.getItem('private_ledger.sqlite.v1')");
   async function dropdown(label, option) {
@@ -203,4 +205,26 @@ export async function runPersonalLifecycleWebScenario(page, api) {
   }
   await clickLabel(page, 'Close', 'button');
   console.log('Verified transaction corrections: cancelled removal, amount/category changes, durable removal, preserved balance and immutable history after full reload.');
+  // More than the five-row Overview limit: every newly created entry must
+  // appear immediately despite its random ID, then remain newest after reload.
+  for (let i = 0; i < 6; i++) {
+    await clickLabel(page, 'Add', 'button');
+    await clickLabel(page, 'Income');
+    await fill('Title', `Recent entry ${i}`);
+    await fill('Amount', '1.00');
+    await clickLabel(page, 'Add transaction', 'button');
+    await waitForLabel(page, `Recent entry ${i}`);
+  }
+  const expectedMinor = BigInt(beforeBalance.slice(4).replace('.', '')) + 600n;
+  const absolute = expectedMinor < 0n ? -expectedMinor : expectedMinor;
+  const expectedRecentBalance = `USD ${expectedMinor < 0n ? '-' : ''}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`;
+  await waitForLabel(page, expectedRecentBalance);
+  await page.send('Page.reload');
+  await openApp(page);
+  await waitForLabel(page, 'Recent entry 5');
+  await waitForLabel(page, expectedRecentBalance);
+  const recentLabels = await evaluate(page,
+    `[...document.querySelectorAll('flt-semantics-host *')].map(e => e.getAttribute('aria-label') ?? e.textContent?.trim() ?? '')`);
+  assert(!recentLabels.some(label => label.includes('Recent entry 0')), 'The older sixth entry should not occupy a recent row');
+  console.log('Verified recent activity: six random-ID entries, newest immediately visible, five-row limit and ordered reload.');
 }
