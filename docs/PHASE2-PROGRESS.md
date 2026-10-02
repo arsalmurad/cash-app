@@ -10,6 +10,22 @@ is **not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
 
 ### Current sealed-storage failure checks (2026-10-02)
 
+Production Chrome quota follow-up passed with `WEB_HOUSEHOLD=1
+WEB_HOUSEHOLD_QUOTA=1 WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`.
+The app binary is the unchanged, already-built production source `2804c03`;
+this added only a driver. An unrelated owned-profile key filled localStorage
+until Chrome itself rejected a new value with QuotaExceededError. A synthetic
+large shared expense then required more SQLite pages and failed: confirmed
+database bytes stayed byte-identical, and the real local workerd tail did not
+advance. After removing only the filler, a later expense still failed until
+restart; the RAM unlock phrase reopened only confirmed state. Nothing patched
+the app APIs, inserted financial state or overwrote the app's database. The
+existing HTTP/CORS two-peer join, protected reload, offline conflict, fresh-key
+recovery/removal, EUR/JPY convergence and readable-title HTTP negative checks
+also passed. Chrome 154.0.8037.58 on Windows; not a public deployment or general
+power-loss guarantee. The manual web workflow now includes this flag, but no
+cloud job was dispatched.
+
 The portable failure scenario now runs with real Rust state against retained
 frame stores and actual Windows SQLite documents sealed by Rust AEAD. Host
 wrapping keys are explicitly an in-memory test backend, not OS secure storage.
