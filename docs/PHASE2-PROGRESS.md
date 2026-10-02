@@ -362,3 +362,13 @@ in `relay/`, on Windows with the pinned Node/Miniflare/workerd versions.
 The audit emitted a Windows WSASend disconnected warning during worker cleanup
 but exited successfully with the assertions above; it is not a deployment or
 physical-network failure-recovery claim.
+
+The cached production web build from the offline-font change also passed the
+complete household journey against this guarded worker on Windows Chrome:
+real HTTP/CORS join, RAM-only unlock after reload, offline conflict convergence,
+fresh-key stale-backup recovery, removal and private-ledger separation. The same
+run passed LF Unicode CSV import/download with font CDNs blocked:
+`WEB_HOUSEHOLD=1 WEB_CSV=1 WEB_OFFLINE_FONTS=1 WEB_CSV_LINE_ENDINGS=LF node scripts/verify_web_runtime.mjs`.
+This checks the relay guard with the existing production app; that cached build
+predates the separate UTF-8 relay-configuration change, so it is not final-
+revision acceptance for the complete current source tree.
