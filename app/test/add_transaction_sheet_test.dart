@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_ledger/data/rust/api/categories.dart';
@@ -71,6 +73,53 @@ Future<void> _openSheet(
 }
 
 void main() {
+  testWidgets('returning to a title still ignores its superseded suggestion', (
+    tester,
+  ) async {
+    final replies = <Completer<String?>>[];
+    await _openSheet(
+      tester,
+      onSuggestCategory: (title) {
+        if (title.isEmpty) return Future<String?>.value(null);
+        final reply = Completer<String?>();
+        replies.add(reply);
+        return reply.future;
+      },
+    );
+    for (final title in ['Coffee', 'Lunch', 'Coffee']) {
+      await tester.enterText(find.byType(TextFormField).first, title);
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    expect(replies, hasLength(3));
+    replies[2].complete('food');
+    await tester.pump();
+    replies[0].complete('transport');
+    replies[1].complete('transport');
+    await tester.pumpAndSettle();
+    expect(find.text('Food'), findsOneWidget);
+    expect(find.text('Transport'), findsNothing);
+  });
+  testWidgets('an older title suggestion cannot replace the current category', (
+    tester,
+  ) async {
+    final first = Completer<String?>();
+    final second = Completer<String?>();
+    await _openSheet(
+      tester,
+      onSuggestCategory: (title) =>
+          title == 'Coffee' ? first.future : second.future,
+    );
+    await tester.enterText(find.byType(TextFormField).first, 'Coffee');
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.enterText(find.byType(TextFormField).first, 'Lunch');
+    await tester.pump(const Duration(milliseconds: 500));
+    second.complete('food');
+    await tester.pump();
+    first.complete('transport');
+    await tester.pumpAndSettle();
+    expect(find.text('Food'), findsOneWidget);
+    expect(find.text('Transport'), findsNothing);
+  });
   testWidgets(
     'typing a title auto-selects its previous category after a pause',
     (tester) async {

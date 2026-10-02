@@ -101,6 +101,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   String? categoryId;
   bool categoryManuallyChosen = false;
   Timer? suggestionDebounce;
+  int suggestionGeneration = 0;
   late List<CategoryView> categories = widget.categories;
   String? accountId;
   String? fromAccountId;
@@ -139,16 +140,21 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   void _onTitleChanged() {
+    final generation = ++suggestionGeneration;
+    suggestionDebounce?.cancel();
     // "Custom titles that auto-assign on repeat": once the user has picked a
     // category themselves, stop overriding their choice.
     if (categoryManuallyChosen || mode == _EntryMode.transfer) {
       return;
     }
-    suggestionDebounce?.cancel();
     final title = titleController.text;
     suggestionDebounce = Timer(const Duration(milliseconds: 400), () async {
       final suggested = await widget.onSuggestCategory(title);
-      if (!mounted || suggested == null || categoryManuallyChosen) {
+      if (!mounted ||
+          generation != suggestionGeneration ||
+          suggested == null ||
+          categoryManuallyChosen ||
+          mode == _EntryMode.transfer) {
         return;
       }
       if (categories.any((category) => category.id == suggested)) {

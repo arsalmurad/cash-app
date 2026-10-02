@@ -1099,3 +1099,13 @@ create/join setup. An uncertain save still preserves the last confirmed member
 view and disables writes. The restart message does not promise recoverability
 or encourage creation over existing data.
 
+## 2026-10-03 — Ignore superseded automatic category suggestions
+
+Two RED widget regressions exposed older asynchronous suggestions overwriting
+the newer title's category, including Coffee → Lunch → Coffee. Track a monotonic
+request generation, cancel pending debounce work before early returns, and
+ignore superseded replies or replies while in transfer mode; matching only the
+current title would not handle the repeated-title case. All 11 affected sheet
+tests pass, including manual category choice and exact transaction/transfer
+drafts. No ledger, persistence, money representation or bridge schema changed.
+
