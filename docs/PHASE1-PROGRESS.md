@@ -42,6 +42,18 @@ keep/remove/reload transaction-preservation
 journey with remote font hosts blocked. This is local Chrome evidence, not a
 new iOS or production-relay deployment result.
 
+The same production app source, `88ca74e`, passed the expanded Android personal
+integration test on the owned read-only AOSP ATD Android 16/API 36 x86_64 emulator
+(`emulator-5580`, WHPX). Command: `flutter --no-version-check test --no-pub
+integration_test/ledger_test.dart -d emulator-5580 --reporter expanded`.
+The debug APK build took 235.2 s, install 3.7 s and runtime 89 s. Added assertions
+verify the displayed USD saving-target currency, actual deadline picker/save,
+Food recurring category selection and its retained recorded transaction category.
+The prior foreign-rate cancellation/confirmation, SQLite restart, keep/remove,
+byte-identical transaction/CSV preservation and frozen-rate USD/EUR balances
+also passed. The owned emulator was stopped after this run. This does not prove
+new iOS, release APK, physical-device or power-loss behavior.
+
 Later sections retain earlier, revision-specific evidence; no historical iOS
 run verifies these new lifecycle calls.
 
