@@ -186,6 +186,38 @@ describe("group log", () => {
     assert.deepEqual(seen, Array.from({ length: 620 }, (_, index) => index + 1));
   });
 
+  test("maximum-sized blobs have bounded pages with lossless continuation", async () => {
+    const id = freshGroup();
+    const blob = Buffer.alloc(256 * 1024, 0xa5).toString("base64");
+    for (let seq = 0; seq < 17; seq += 1) {
+      assert.equal((await post(`/g/${id}/append`, {
+        expected_tail: seq, blob,
+      })).status, 200);
+    }
+    const seen = [];
+    let after = 0;
+    for (;;) {
+      const response = await call(`/g/${id}?after=${after}`);
+      assert.equal(response.status, 200);
+      const text = await response.text();
+      assert(Buffer.byteLength(text) < 6 * 1024 * 1024,
+        "A page must not buffer hundreds of maximum-sized blobs");
+      const page = JSON.parse(text);
+      assert(page.entries.length > 0 && page.entries.length <= 16);
+      assert.equal(page.tail, 17);
+      for (const entry of page.entries) {
+        assert.equal(entry.blob, blob);
+        seen.push(entry.seq);
+      }
+      after = page.entries.at(-1).seq;
+      assert.equal(page.more, after < 17);
+      if (!page.more) break;
+    }
+    assert.deepEqual(seen, Array.from({ length: 17 }, (_, index) => index + 1));
+    const finished = await (await call(`/g/${id}?after=${after}`)).json();
+    assert.deepEqual(finished, { entries: [], tail: 17, more: false });
+  });
+
   test("malformed appends are rejected without touching the log", async () => {
     const id = freshGroup();
     const bad = [

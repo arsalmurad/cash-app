@@ -19,7 +19,10 @@ const ID = /^[0-9a-f]{32}$/;
 const MAX_BLOB_BYTES = 256 * 1024;
 const MAX_JSON_BYTES = 512 * 1024;
 const BODY_TOO_LARGE = Symbol("request body too large");
-const PAGE = 500;
+// Bound the storage read itself, not just the JSON after all values are loaded.
+// Sixteen maximum-size base64 blobs plus metadata stay below 6 MiB per page.
+// The cursor/more protocol already supports any positive page length.
+const PAGE = 16;
 const MAILBOX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const json = (body, status = 200) =>
