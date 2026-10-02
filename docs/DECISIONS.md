@@ -1260,3 +1260,19 @@ Windows WSASend #10054 during cleanup but exits 0 after all assertions; this is
 not a diagnosed network guarantee. No production memory/concurrency benchmark,
 global storage bound, pruning, authentication or deployment is claimed.
 
+## 2026-10-03 — Activate browser editors through pointer input
+
+The subsequent 360×740 run fails after corrections/reload: the Title input is
+DOM-focused but has no active input listener. Resolve the labeled field's
+rendered bounds and use ordinary Chrome pointer press/release to activate it,
+instead of calling DOM click/focus. Keep exact multiline label matching, engine
+listener readiness and keyboard Tab completion; do not remove readiness guards,
+inject events, or modify Flutter's pinned engine to hide the failure.
+
+On the same `eb09a27` release app and Rust WASM, the complete narrow personal/
+CSV/LF/offline-font scenario then passes in Chrome 154.0.8037.58 at actual CDP
+360×740 metrics, including the previously failed recent entries and search/
+clear/filter with unchanged saved SQLite bytes. This is a focused driver repair,
+not an independently proven universal cause of browser flakiness. Household
+verification with the pointer path and smaller relay pages remains pending.
+

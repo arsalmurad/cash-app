@@ -396,7 +396,7 @@ async function clickLabel(cdp, label, role) {
 
 async function focusLabel(cdp, label) {
   await waitForLabel(cdp, label);
-  const focused = await evaluate(
+  const target = await evaluate(
     cdp,
     `(() => {
       const element = [...document.querySelectorAll('flt-semantics-host *')].find(
@@ -405,12 +405,18 @@ async function focusLabel(cdp, label) {
           candidate.getAttribute('aria-label')?.split(String.fromCharCode(10)).some(line => line.trim() === ${JSON.stringify(label)})
       );
       if (!element) return false;
-      element.click();
-      element.focus();
-      return true;
+      const rect = element.getBoundingClientRect();
+      if (element.disabled || rect.width <= 0 || rect.height <= 0) return null;
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     })()`,
   );
-  if (!focused) throw new Error(`Could not focus ${label}`);
+  if (!target) throw new Error(`Could not focus ${label}`);
+  // Use browser pointer input, not DOM-only focus, so Flutter receives the
+  // ordinary field activation path even if its editor is already DOM-focused.
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed',
+    button: 'left', clickCount: 1, ...target });
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased',
+    button: 'left', clickCount: 1, ...target });
   // Flutter's semantics editor can be DOM-focused before its engine activates
   // the input listener. Do not mistake an editable DOM value for an app edit.
   // Inspect readiness through DevTools; never install or call an app hook.
