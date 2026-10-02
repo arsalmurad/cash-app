@@ -57,6 +57,7 @@ export async function runHouseholdWebScenario(alice, api) {
 
   async function fill(peer, label, value, replace = false) {
     await focusLabel(peer, label);
+    await waitFor(peer, `['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)`);
     if (replace) {
       await evaluate(peer, `(() => {
         const input = document.activeElement;
@@ -65,6 +66,7 @@ export async function runHouseholdWebScenario(alice, api) {
       })()`);
     }
     await peer.send('Input.insertText', { text: value });
+    await waitFor(peer, `document.activeElement?.value === ${JSON.stringify(value)}`);
   }
 
   async function openHousehold(peer) {
@@ -157,9 +159,45 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickLabel(alice, 'Create a household', 'button');
     await waitForLabel(alice, 'Shared balance');
     const bob = await newPeer();
+    await clickLabel(bob, 'Add', 'button');
+    await fill(bob, 'Title', 'Private summary-only lunch');
+    await fill(bob, 'Amount', '12.34');
+    await clickLabel(bob, 'Add transaction', 'button');
+    await waitForLabel(bob, 'USD -12.34');
     const bobPhrase = await protect(bob);
     await accept(bob, await invite(await joinRequest(bob)));
     console.log('Verified household: two independent browser identities joined through real HTTP/CORS.');
+    const relayEntries = () => peers.flatMap(peer => peer.events).filter(event =>
+      event.method === 'Network.requestWillBeSent' &&
+      event.params.request.url.startsWith(relayUrl) &&
+      event.params.request.method === 'POST').length;
+    await clickLabel(bob, 'Choose private totals to share', 'button');
+    await waitForLabel(bob, 'Preview totals');
+    const disabled = await evaluate(bob, `[...document.querySelectorAll('flt-semantics-host [role="button"]')]
+      .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim()) === 'Preview totals' &&
+        e.getAttribute('aria-disabled') === 'true')`);
+    assert.equal(disabled, true, 'No private total may be selected by default');
+    await clickLabel(bob, 'Expense total');
+    await clickLabel(bob, 'Preview totals', 'button');
+    await waitForLabel(bob, 'Review shared snapshot');
+    await waitForLabel(bob, 'USD 12.34');
+    const canceledBefore = relayEntries();
+    await clickLabel(bob, 'Keep private', 'button');
+    await waitForLabel(bob, 'No totals have been shared.');
+    assert.equal(relayEntries(), canceledBefore, 'Canceled preview must not append to the relay');
+    await clickLabel(bob, 'Choose private totals to share', 'button');
+    await clickLabel(bob, 'Expense total');
+    await clickLabel(bob, 'Preview totals', 'button');
+    await waitForLabel(bob, 'USD 12.34');
+    await clickLabel(bob, 'Everyone in this household has updated to the summary-capable app.');
+    await clickLabel(bob, 'Share these totals', 'button');
+    await waitForLabel(bob, 'Expense total: USD 12.34');
+    await sync(alice);
+    await waitForLabel(alice, 'Expense total: USD 12.34');
+    await waitForLabel(alice, 'USD 0.00');
+    assert.equal(await evaluate(alice, `document.body.textContent.includes('Private summary-only lunch')`), false);
+    assert.equal(await evaluate(alice, `document.body.textContent.includes('Income total:')`), false);
+    console.log('Verified household summaries: default-off selection, exact preview, keep-private cancellation, explicit sharing and no private title or balance change.');
     if (process.env.WEB_HOUSEHOLD_QUOTA === '1') {
       await runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api);
     }
@@ -167,6 +205,7 @@ export async function runHouseholdWebScenario(alice, api) {
     await expense(alice, 'Browser shared dinner', '40.00');
     await sync(bob);
     await waitForLabel(bob, 'USD -40.00');
+    await waitForLabel(bob, 'Expense total: USD 12.34');
     await bob.send('Page.reload');
     await openApp(bob);
     await waitForLabel(bob, 'Private Ledger');
@@ -247,13 +286,14 @@ export async function runHouseholdWebScenario(alice, api) {
     assert.equal(privateLeak, false);
     await openHousehold(replacement);
     await waitForLabel(replacement, 'After old device retirement');
+    await waitForLabel(replacement, 'Expense total: USD 12.34');
     const requests = [alice, bob, replacement].flatMap(peer => peer.events)
       .filter(event => event.method === 'Network.requestWillBeSent' && event.params.request.url.startsWith(relayUrl));
     assert(requests.some(event => event.params.request.method === 'POST'));
     assert(requests.some(event => event.params.request.method === 'GET'));
     for (const event of requests) {
       const body = event.params.request.postData ?? '';
-      for (const title of ['Groceries', 'Rent', 'Quota blocked entry', 'After quota clears', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',
+      for (const title of ['Groceries', 'Rent', 'Private summary-only lunch', 'Quota blocked entry', 'After quota clears', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',
         'Browser travel', 'Browser Japan', 'Browser EUR first', 'Browser EUR second', 'Browser JPY train']) {
         assert(!body.includes(title), 'Relay request leaked a readable financial title');
       }

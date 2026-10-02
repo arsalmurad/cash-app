@@ -64,8 +64,9 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   no private ledger or readable financial fields may reach the relay.
   Immutable opt-in totals, nonfinancial signed summary events, compatibility
   guards and publication UI now have local Rust/native-bridge/SQLite/host-widget
-  evidence in `SHARED-SUMMARIES.md`. Production WASM/mobile and actual-worker
-  summary audit remain open; do not mark this gate complete from host tests.
+  evidence in `SHARED-SUMMARIES.md`. Production WASM UI and actual-worker summary
+  storage audit also passed; mobile summary runtime remains open. Do not mark
+  this gate complete from host/browser tests alone.
 - [ ] Review personal UX coverage against the stated Cashew quality bar, not
   just widget presence; fix functional gaps and verify phone/tablet/web layouts.
   Budget/goal removal, recurring stop, future-rule management and stale-post
