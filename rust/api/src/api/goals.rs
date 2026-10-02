@@ -311,15 +311,7 @@ pub fn goal_progress(ledger: &PersonalLedger, book: &GoalBook) -> Result<Vec<Goa
                 .format_minor_units(record.target_minor),
         };
 
-        let percent_complete = if record.target_minor > 0 {
-            progress_minor
-                .max(0)
-                .checked_mul(100)
-                .ok_or_else(|| "goal percentage overflowed".to_owned())?
-                / record.target_minor
-        } else {
-            0
-        };
+        let percent_complete = super::progress::percentage(progress_minor, record.target_minor);
 
         views.push(GoalView {
             id: id.as_str().to_owned(),
@@ -493,6 +485,46 @@ mod tests {
         assert_eq!(progress[0].target_label, "USD 1000.00");
         assert_eq!(progress[0].progress_label, "USD 250.00");
         assert_eq!(progress[0].percent_complete, 25);
+    }
+
+    #[test]
+    fn valid_i64_balance_does_not_overflow_goal_percentage() {
+        let ledger = new_ledger_with_checking("device-a");
+        let book = new_book("device-a");
+        let maximum = "92233720368547758.07";
+        upsert_goal(
+            &book,
+            "large".into(),
+            "Large".into(),
+            GoalKind::Save,
+            maximum.into(),
+            "USD".into(),
+            Some("checking".into()),
+            None,
+            None,
+            1,
+        )
+        .unwrap();
+        earn(&ledger, "maximum", maximum, 2);
+        let progress = goal_progress(&ledger, &book).unwrap();
+        assert_eq!(progress[0].percent_complete, 100);
+        assert_eq!(progress[0].progress_label, format!("USD {maximum}"));
+        upsert_goal(
+            &book,
+            "large".into(),
+            "Large".into(),
+            GoalKind::Save,
+            "0.01".into(),
+            "USD".into(),
+            Some("checking".into()),
+            None,
+            None,
+            3,
+        )
+        .unwrap();
+        let progress = goal_progress(&ledger, &book).unwrap();
+        assert_eq!(progress[0].percent_complete, i64::MAX);
+        assert_eq!(progress[0].progress_label, format!("USD {maximum}"));
     }
 
     #[test]

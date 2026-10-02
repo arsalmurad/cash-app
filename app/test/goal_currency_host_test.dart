@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:private_ledger/data/rust/api/goals.dart';
+import 'package:private_ledger/data/rust/api/budgets.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/data/rust/frb_generated.dart';
 import 'package:private_ledger/data/storage/event_store.dart';
@@ -137,6 +138,86 @@ void main() {
           expect(restarted.goals, isEmpty);
         },
       );
+      for (final saving in [true, false]) {
+        test(
+          'maximum i64 ${saving ? 'saving' : 'budget'} progress persists without failed saves',
+          () async {
+            const maximum = '92233720368547758.07';
+            final controller = LedgerController();
+            addTearDown(controller.dispose);
+            await controller.initialize();
+            final account = controller.overview!.accounts.first.id;
+            if (saving) {
+              expect(
+                await controller.addOrUpdateGoal(
+                  name: 'Large',
+                  kind: GoalKind.save,
+                  targetAmount: maximum,
+                  linkedAccountId: account,
+                ),
+                isTrue,
+              );
+            } else {
+              expect(
+                await controller.addOrUpdateBudget(
+                  name: 'Large',
+                  limitAmount: maximum,
+                  period: BudgetPeriodKind.monthly,
+                ),
+                isTrue,
+              );
+            }
+            expect(
+              await controller.record(
+                title: 'Maximum',
+                amount: maximum,
+                kind: saving ? EntryKind.income : EntryKind.expense,
+                accountId: account,
+              ),
+              isTrue,
+            );
+            expect(controller.errorMessage, isNull);
+            if (saving) {
+              expect(controller.goals.single.percentComplete.toInt(), 100);
+              expect(
+                await controller.addOrUpdateGoal(
+                  goalId: controller.goals.single.id,
+                  name: 'Large',
+                  kind: GoalKind.save,
+                  targetAmount: '0.01',
+                  linkedAccountId: account,
+                ),
+                isTrue,
+              );
+            } else {
+              expect(controller.budgets.single.percentUsed.toInt(), 100);
+              expect(
+                await controller.addOrUpdateBudget(
+                  budgetId: controller.budgets.single.id,
+                  name: 'Large',
+                  limitAmount: '0.01',
+                  period: BudgetPeriodKind.monthly,
+                ),
+                isTrue,
+              );
+            }
+            final restarted = LedgerController();
+            addTearDown(restarted.dispose);
+            await restarted.initialize();
+            expect(restarted.errorMessage, isNull);
+            expect(
+              restarted.overview!.transactions.single.amountLabel,
+              'USD $maximum',
+            );
+            expect(
+              saving
+                  ? restarted.goals.single.percentComplete.toInt()
+                  : restarted.budgets.single.percentUsed.toInt(),
+              9223372036854775807,
+            );
+          },
+        );
+      }
       test(
         'spending category and deadline survive edits and SQLite restart',
         () async {

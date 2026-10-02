@@ -942,3 +942,14 @@ SQLite/bridge regressions cover JPY entry/edit/restart and rejected inputs
 without durable writes. No financial event or old target is silently rewritten:
 users must review and explicitly edit targets saved by older builds.
 
+## 2026-10-02 — Progress percentages cannot invalidate valid money
+
+Goal/budget percentages previously multiplied valid i64 minor units by 100 in
+i64, failing even when the final ratio was 100%. Use an i128 intermediate,
+integer truncation and nonnegative progress; saturate only the presentation
+ratio at i64::MAX. Stored money, frozen rates and exact amount labels do not
+change. The UI shows `>1,000,000%` above that threshold rather than claiming a
+saturated value is exact. Actual ledger overflow still fails; this is not
+saturating financial arithmetic. The bridge layout and persistence format are
+unchanged.
+

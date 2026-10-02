@@ -5,6 +5,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
 import '../../data/rust/api/goals.dart';
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/ledger.dart';
+import 'progress_label.dart';
 
 /// Shows every goal's current progress. Progress is computed fresh by the
 /// Rust core each time (see `goal_progress`), so this widget is purely
@@ -119,7 +120,7 @@ class _GoalCard extends StatelessWidget {
               children: [
                 Text('${goal.progressLabel} of ${goal.targetLabel}'),
                 Text(
-                  '$percent%',
+                  progressPercentLabel(percent),
                   style: TextStyle(
                     color: isOver ? theme.colorScheme.error : null,
                     fontWeight: FontWeight.bold,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/rust/api/budgets.dart';
 import '../../data/rust/api/categories.dart';
+import 'progress_label.dart';
 
 /// Shows every budget's current progress. Progress is computed fresh by the
 /// Rust core each time (see `budget_progress`), so this widget is purely
@@ -137,7 +138,7 @@ class _BudgetCard extends StatelessWidget {
               children: [
                 Text('${budget.spentLabel} of ${budget.limitLabel}'),
                 Text(
-                  '$percent%',
+                  progressPercentLabel(percent),
                   style: TextStyle(
                     color: overBudget ? theme.colorScheme.error : null,
                     fontWeight: FontWeight.bold,
