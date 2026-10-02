@@ -1,8 +1,27 @@
 # Phase 1 progress
 
-Updated 2026-10-02. Historical platform runs below apply only to their stated
+Updated 2026-10-03. Historical platform runs below apply only to their stated
 revisions, not the final prototype. Current open gates are in `COMPLETION.md`;
 the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
+
+## Current Android personal journey (2026-10-03)
+
+Production source `6942be1`, with the integration-driver-only scroll fix in
+the accompanying commit, passed `flutter --no-version-check test --no-pub
+integration_test/ledger_test.dart -d emulator-5580 --reporter expanded` on the
+owned read-only Android 16/API 36 x86_64 AOSP ATD emulator with WHPX. Cached
+debug build: 91.3 s; installation: 1.396 s; runtime: 91 s, one test passed.
+This exercises the actual SQLite personal journey, including frozen EUR
+corrections, category changes, canceled/confirmed removal and restored history.
+
+The first attempt failed because default `ensureVisible` placed the older
+Hotel menu beneath the floating Add button: the tap opened Add instead of
+transaction actions. Activity already reserves 112 pixels of bottom scrolling
+space. The driver now explicitly scrolls that entry higher and asserts its
+menu is hit-testable before tapping, including after restart. No app layout,
+financial logic or expected amounts were changed; tap warnings are not silenced.
+The owned emulator was stopped after the passing run. This does not claim a
+new iOS run or close final-source cross-platform acceptance.
 
 ## Personal definition lifecycle (2026-10-02)
 
