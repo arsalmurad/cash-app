@@ -1142,3 +1142,12 @@ All 303 native-enabled app tests pass in 104 s, and analysis has no issues
 (7.6 s). This automated scope is not contrast certification, a keyboard-only
 audit, actual mobile runtime, or a VoiceOver/NVDA test.
 
+## 2026-10-03 — Label the activity search-clear action
+
+The empty-query accessibility matrix did not exercise the conditional clear
+button. A focused RED regression finds no "Clear search" target after typing.
+Give that existing icon button a tooltip/accessibility label and verify tapping
+it restores both expense and income rows, then removes the no-longer-needed
+button. All six ledger-screen tests pass (3 s). Filtering and persistence are
+unchanged; runtime evidence on the older artifact does not include this label.
+

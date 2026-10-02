@@ -193,6 +193,13 @@ void main() {
 
     expect(find.text('Groceries'), findsNothing);
     expect(find.text('Paycheck'), findsOneWidget);
+    final clearSearch = find.byTooltip('Clear search');
+    expect(clearSearch.hitTestable(), findsOneWidget);
+    await tester.tap(clearSearch);
+    await tester.pump();
+    expect(find.text('Groceries'), findsOneWidget);
+    expect(find.text('Paycheck'), findsOneWidget);
+    expect(find.byTooltip('Clear search'), findsNothing);
   });
 
   testWidgets('choosing the Income chip filters to income only', (
