@@ -406,3 +406,32 @@ the free full API 36 AOSP image is a separate upcoming file-picker verification
 target. Final release APK, final production web build, and current-source iOS
 acceptance remain separate gates. No paid cloud jobs or relay deployment were
 started for these checks.
+
+### Actual Android document-provider journey (2026-10-02)
+
+The free full AOSP Android 16/API 36 x86_64 system image (revision 2,
+extension 17) supplies `com.android.documentsui`, unlike the minimal ATD
+image. An owned read-only, headless `CashAppCsvApi36` emulator session
+(`emulator-5582`, WHPX, SwiftShader, emulator 37.1.11) independently passed
+`scripts/verify_android_csv.mjs`, with `ANDROID_RESET_CSV_TEST_APP=1` and the
+same pinned toolchains above. The cached APK build took 120.4 s; both native
+integration tests passed in 55 s. Production app code remains `6b4c646`.
+
+The driver selected a real 89-byte BOM-prefixed Unicode CSV through Android's
+document UI. Flutter assertions proved selection did not mutate the ledger,
+explicit Import produced USD -1.23, and a fresh SQLite-backed controller
+recovered the exact transaction title. Actual native clipboard bytes matched.
+Android's actual Save action completed, and pulling the exported file proved
+all 86 UTF-8 bytes matched the LF CSV without its input BOM. This is successful
+document-provider coverage, not mocked picker coverage or merely a build.
+
+An earlier manual attempt failed: clipboard readback was null while a System
+UI not-responding dialog was observed, and the file journey exceeded its
+five-minute timeout before Save completed. That observation does not establish
+an app or OS root cause. The bounded driver fixes were absent-package handling,
+Windows batch quoting and binary file pull/read instead of `adb shell cat`
+(the latter translated LF to CRLF). Those failed attempts are not passes.
+Only the named disposable emulator/app and verified synthetic fixture output
+are reset; the driver refuses physical devices and unexpected export contents.
+The generated instrumented debug APK is a test artifact, not a release APK.
+Current-source iOS and final web/release acceptance remain outstanding.
