@@ -70,8 +70,8 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   production Chrome runtime evidence. Remaining functional/adaptive review
   includes the recent-activity ordering regression. Personal amount/category
   corrections and non-erasing removal/history have actual SQLite failure/reload
-  tests and production Chrome evidence; Android verification is pending.
-  still needs attention; these checks do not close the whole UX gate.
+  tests, production Chrome evidence and actual Android emulator runtime evidence.
+  These checks do not close the whole UX gate.
 - [x] Pin reproducible CI environments, including explicit WASM nightly,
   action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
   remain recorded rather than hidden or upgraded without verification.

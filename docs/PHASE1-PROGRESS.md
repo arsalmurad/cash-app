@@ -25,7 +25,20 @@ SQLite image, removal with the exact original net balance, and ordered original/
 correction/removal history after a full page reload. Existing lifecycle and
 large-value checks also passed. Initial attempts exposed missing driver waits
 for dialog/dropdown readiness; corrected waits use rendered semantics, not app
-state injection. Android runtime for this source is pending; no new iOS claimed.
+state injection.
+
+The same production source passed the expanded personal Android journey on the
+owned read-only AOSP ATD Android 16/API 36 x86_64 emulator (`emulator-5580`, WHPX).
+Command: `flutter --no-version-check test --no-pub integration_test/ledger_test.dart
+-d emulator-5580 --reporter expanded`. The cached debug build took 87.4 s,
+installation 2.219 s, and runtime 82 s. Actual rendered EUR 80 -> 85 retained
+the original 1.0875 rate (USD 92.44), category change/removal persisted, removal
+returned the expected USD -513.57, CSV excluded Hotel, and a fresh SQLite
+controller plus the history dialog retained all four events. Existing large-
+money and definition lifecycle checks passed too. The initial 256.7 s build/run
+reached the final reload but its test selector matched both Activity heading
+and tab; the corrected selector targets NavigationBar only. No new iOS,
+physical-phone, release APK or arbitrary power-loss result is claimed.
 
 Queued-ID follow-up: three deterministic real-native-bridge RED regressions
 reproduced same-tick expense/transfer collisions and transaction ID reuse after

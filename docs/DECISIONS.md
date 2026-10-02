@@ -990,5 +990,6 @@ change to expose removal state and history. Ambiguous append failures still
 disable further writes until restart. Windows actual SQLite tests covered all
 three actions failing before/after commit and durable history reload. All 268
 Flutter host tests, 59 Rust API tests and the core acceptance suite passed;
-platform runtime results for this source are still pending.
+production Chrome/WASM and Android emulator runtime subsequently passed at
+production source `1fbea4d`; see `PHASE1-PROGRESS.md` for exact scope and commands.
 
