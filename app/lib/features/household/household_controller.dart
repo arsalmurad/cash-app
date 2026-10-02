@@ -236,7 +236,12 @@ class HouseholdController extends ChangeNotifier {
 
   void _disableWrites() {
     _writesDisabled = true;
+    final abandoned = _household;
     _household = null;
+    // The serialized operation has finished its Rust calls before reaching
+    // this failure path. Release unconfirmed keys instead of leaving their
+    // handle to a later browser finalizer, potentially after page reload.
+    abandoned?.dispose();
   }
 
   Future<bool> _run(

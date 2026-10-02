@@ -1195,3 +1195,21 @@ a Windows WSARecv error 64 diagnostic but exited 0 after the scenario and scan
 passed; that socket diagnostic is not independently diagnosed. Authentication,
 global abuse controls, bounded retention and deployment remain separate gates.
 
+## 2026-10-03 — Release household ownership after an uncertain save
+
+The current production browser passed personal search/filter/clear and unchanged-
+SQLite checks, then failed during the quota/reload household scenario. Its Rust
+panic stack identifies `Household::decrement_strong_count`, not the previously
+repaired summary-preview handle. The quota assertions still verified unchanged
+confirmed SQLite bytes, no relay append, blocked later writes and identical
+bytes after reload; the full combined runtime did not pass.
+
+When disabling writes after a serialized operation's Rust calls have finished,
+explicitly dispose the abandoned household handle instead of leaving ownership
+to a later browser finalizer. Two ownership-only tests fail before this change
+and pass after it, covering both write-before-failure possibilities, queued work,
+no premature disposal and no double release. All 24 affected native-enabled
+tests pass (24 s), and analysis has no issues (4 s). Actual updated web-runtime
+verification remains pending; this is not a universal diagnosis of bridge or
+browser finalizers, and generated bindings/toolchains are unchanged.
+
