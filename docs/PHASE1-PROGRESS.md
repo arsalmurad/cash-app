@@ -6,6 +6,27 @@ the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
 
 ## Personal definition lifecycle (2026-10-02)
 
+Personal transaction corrections at production source `1fbea4d`: the core's
+existing amount/category/void events are now available through the bridge and
+UI. Amount corrections retain original currency, frozen FX and creation time;
+stale selections are rejected. Removed entries stay visibly marked in Activity
+and keep ordered history, but leave balances/progress and CSV exports. This does
+not implement transfer/title edits or erase financial history. Windows actual
+SQLite checks passed for cold reload and all three actions failing before/after
+commit (seven tests). All 268 app host tests, 59 API tests and core acceptance
+tests passed; a later focused four-test widget run also covered enlarged 360x740
+history and an out-of-range date. Static analysis was clean.
+
+The pinned Rust production WASM build completed in 29.16 s (known atomics warning)
+and Flutter WASM build in 164.9 s. Chrome 154.0.8037.58 independently passed
+`WEB_PERSONAL_LIFECYCLE=1 WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`:
+actual rendered amount/category corrections, cancellation with byte-identical
+SQLite image, removal with the exact original net balance, and ordered original/
+correction/removal history after a full page reload. Existing lifecycle and
+large-value checks also passed. Initial attempts exposed missing driver waits
+for dialog/dropdown readiness; corrected waits use rendered semantics, not app
+state injection. Android runtime for this source is pending; no new iOS claimed.
+
 Queued-ID follow-up: three deterministic real-native-bridge RED regressions
 reproduced same-tick expense/transfer collisions and transaction ID reuse after
 restart. Fresh operation IDs allocated before the queue fixed them; 39 focused
@@ -1250,7 +1271,8 @@ final-source platform acceptance is complete. Historical CI evidence is above.
   tombstones and explicit confirmation. All active recurring rules remain
   manageable outside the upcoming horizon. Category removal is still absent;
   historical category references must not disappear silently.
-- No UI for a goal's category/deadline or a recurring rule's category.
+- Goal category/deadline and recurring-category controls now have runtime
+  evidence above; personal transaction corrections/history are also implemented.
 - The biometric lock has no grace period (it re-locks on every
   background/resume) and is untested on a device with no biometrics
   enrolled but a passcode set. Recurring rules have no "skip this

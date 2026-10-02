@@ -2,13 +2,15 @@
 import assert from 'node:assert/strict';
 
 export async function runPersonalLifecycleWebScenario(page, api) {
-  const { openApp, evaluate, waitForLabel, clickLabel, focusLabel } = api;
+  const { openApp, evaluate, waitFor, waitForLabel, clickLabel, focusLabel } = api;
   async function fill(label, value) {
     await focusLabel(page, label);
     await page.send('Input.insertText', { text: value });
   }
   const saved = () => evaluate(page, "localStorage.getItem('private_ledger.sqlite.v1')");
   async function dropdown(label, option) {
+    await waitFor(page, `[...document.querySelectorAll('flt-semantics-host [role="button"], flt-semantics-host [role="combobox"]')]
+      .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim() ?? '').includes(${JSON.stringify(label)}))`);
     const controls = await evaluate(page,
       `[...document.querySelectorAll('flt-semantics-host [role="button"], flt-semantics-host [role="combobox"]')]
         .map(e => ({ label: e.getAttribute('aria-label') ?? e.textContent?.trim(), role: e.getAttribute('role') }))`);
@@ -182,6 +184,7 @@ export async function runPersonalLifecycleWebScenario(page, api) {
   await waitForLabel(page, '−USD 12.00');
   await clickLabel(page, 'Transaction actions: Correction fixture', 'button');
   await clickLabel(page, 'Change category');
+  await waitForLabel(page, 'Category');
   await dropdown('Category', 'Food');
   await clickLabel(page, 'Save correction', 'button');
   await clickLabel(page, 'Transaction actions: Correction fixture', 'button');
