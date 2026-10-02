@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { runHouseholdQuotaScenario } from './browser_quota_scenario.mjs';
 
 export async function runHouseholdWebScenario(alice, api) {
   const { appUrl, debugPort, repoRoot, connectCdp, waitForPage, openApp,
@@ -150,7 +151,7 @@ export async function runHouseholdWebScenario(alice, api) {
 
   try {
     await alice.send('Network.enable');
-    await protect(alice);
+    const alicePhrase = await protect(alice);
     await fill(alice, 'Relay address', relayUrl);
     await clickLabel(alice, 'Save relay address', 'button');
     await clickLabel(alice, 'Create a household', 'button');
@@ -159,6 +160,9 @@ export async function runHouseholdWebScenario(alice, api) {
     const bobPhrase = await protect(bob);
     await accept(bob, await invite(await joinRequest(bob)));
     console.log('Verified household: two independent browser identities joined through real HTTP/CORS.');
+    if (process.env.WEB_HOUSEHOLD_QUOTA === '1') {
+      await runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api);
+    }
 
     await expense(alice, 'Browser shared dinner', '40.00');
     await sync(bob);
@@ -249,7 +253,7 @@ export async function runHouseholdWebScenario(alice, api) {
     assert(requests.some(event => event.params.request.method === 'GET'));
     for (const event of requests) {
       const body = event.params.request.postData ?? '';
-      for (const title of ['Groceries', 'Rent', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',
+      for (const title of ['Groceries', 'Rent', 'Quota blocked entry', 'After quota clears', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',
         'Browser travel', 'Browser Japan', 'Browser EUR first', 'Browser EUR second', 'Browser JPY train']) {
         assert(!body.includes(title), 'Relay request leaked a readable financial title');
       }

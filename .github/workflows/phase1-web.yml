@@ -134,6 +134,7 @@ jobs:
         env:
           CHROME_NO_SANDBOX: "1"
           WEB_HOUSEHOLD: "1"
+          WEB_HOUSEHOLD_QUOTA: "1"
           WEB_CSV: "1"
           WEB_PERSONAL_LIFECYCLE: "1"
         run: |

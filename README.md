@@ -70,6 +70,9 @@ bridge first, then `flutter build web --wasm --no-web-resources-cdn --no-pub`.
 From the repository root, `WEB_HOUSEHOLD=1 node scripts/verify_web_runtime.mjs`
 drives the rendered release UI against a fresh local workerd relay. Set
 `WEB_CSV=1` for actual file import/download checks.
+With `WEB_HOUSEHOLD=1`, `WEB_HOUSEHOLD_QUOTA=1` exhausts actual Chrome storage
+using an unrelated key in the owned test profile. It checks unchanged confirmed
+SQLite bytes, no relay append, blocked later writes and restart/unlock recovery.
 `WEB_PERSONAL_LIFECYCLE=1` checks budget/goal removal and stopping a monthly
 rule through the rendered UI, cancellation without writes and durable restart
 without erasing its recorded expense. Set it alongside the other checks.
