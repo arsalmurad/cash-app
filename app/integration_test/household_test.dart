@@ -3,6 +3,7 @@ import 'package:integration_test/integration_test.dart';
 import 'package:private_ledger/data/rust/frb_generated.dart';
 
 import '../test_support/native_vault_scenario.dart';
+import '../test_support/chosen_summary_native_scenario.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,7 @@ void main() {
       await runNativeVaultScenario();
       await runProtectedNativeHouseholdScenario();
       await runProtectedNativeHouseholdFailureScenario();
+      await runChosenSummaryNativeScenario(tester);
     },
   );
 }
