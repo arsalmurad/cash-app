@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show PlatformInt64;
 import 'package:private_ledger/data/rust/api/categories.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/features/ledger/csv_transactions.dart';
@@ -15,6 +17,7 @@ class _RecordingController extends LedgerController {
     String? categoryId,
     String? recurringId,
     String? rate,
+    PlatformInt64? expectedOccurrenceMillis,
   }) async {
     writes += 1;
     return true;

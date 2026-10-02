@@ -69,7 +69,11 @@ For production WASM, follow the existing pinned web workflow to build the Rust
 bridge first, then `flutter build web --wasm --no-web-resources-cdn --no-pub`.
 From the repository root, `WEB_HOUSEHOLD=1 node scripts/verify_web_runtime.mjs`
 drives the rendered release UI against a fresh local workerd relay. Set
-`WEB_CSV=1` for actual file import/download checks. On PowerShell set these
+`WEB_CSV=1` for actual file import/download checks.
+`WEB_PERSONAL_LIFECYCLE=1` checks budget/goal removal and stopping a monthly
+rule through the rendered UI, cancellation without writes and durable restart
+without erasing its recorded expense. Set it alongside the other checks.
+On PowerShell set these
 environment variables with `$env:NAME='value'` before invoking Node.
 
 The Android CSV driver requires the explicitly named disposable

@@ -1,7 +1,45 @@
 # Phase 1 progress
 
-Updated 2026-09-30. Phase 1's exit test has passed (see "Phase 1 exit test" below).
-The "Remaining work" list at the bottom is follow-up polish, not a gate.
+Updated 2026-10-02. Historical platform runs below apply only to their stated
+revisions, not the final prototype. Current open gates are in `COMPLETION.md`;
+the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
+
+## Personal definition lifecycle (2026-10-02)
+
+Later sections retain earlier, revision-specific evidence; no historical iOS
+run verifies these new lifecycle calls.
+
+Budgets and goals can be removed; recurring rules can be stopped with explicit
+keep/remove confirmations. Immutable tombstones retain older definitions and
+their fold heads, so late writes/replay do not resurrect them. Removing a
+definition does not erase ledger transactions or their amounts. SQLite v1
+upgrades to reader version 2 under its writer lock/integrity check without
+changing tables, documents, frames or revisions (`SQLITE-STORAGE.md`).
+
+The Recurring management screen now shows every active rule's next date, not
+just a 14-day upcoming subset: a monthly/yearly rule remains manageable after
+an occurrence is recorded. Future occurrences cannot be posted early. At the
+serialized save boundary, the controller checks the rule/date/title/amount/
+account/category/kind again, rejecting old reminders after stop/edit or a prior
+recording. Save failures before or after commit keep the confirmed display,
+disable subsequent writes and require restart to recover the durable truth.
+
+Test-first regressions independently passed with the pinned native Windows
+bridge: six lifecycle core tests (late arrival, replay/restart, reactivation and
+equal-actor/HLC event-ID ties), four lifecycle/schedule API checks, all 11 storage
+tests, the remaining affected core/API acceptance suites, and all 238 app tests.
+Actual native SQLite tests cover transaction preservation, all three removal
+save failures before/after commit, monthly-rule management and expense-to-income
+stale posting. Four screen tests cover keep/confirm on 360x740 and pending/failure
+handling; amount summaries now wrap instead of overflowing on that phone size.
+
+The production WASM lifecycle UI journey passed on Chrome 154.0.8037.58,
+including actual persisted cancellation/removal/reload and a retained recorded
+expense. Initial driver attempts failed on Flutter's newline-merged navigation
+and balance labels; the driver was corrected using rendered semantics, without
+app debug hooks or injected ledger state. That browser build predates only the
+additional transaction-kind stale guard. The final source's broader browser and
+Android runtime checks are pending; no new iOS runtime is claimed here.
 
 ## Takeover verification and recovery fix (2026-10-01)
 
@@ -1080,28 +1118,29 @@ calls don't go through `WorkerPool` at all) and remain fully green.
 
 ## Remaining work
 
-Follow-up polish; none of it blocks the exit test. Verified state: every
-feature in the brief's Phase 1 scope is built, and iOS, Android, and web
-pass in CI (see "Phase 1 exit test").
+Current follow-up work; this list is not a claim that the final prototype or
+final-source platform acceptance is complete. Historical CI evidence is above.
 
-- The web `EventStore`'s append is read-decode-concatenate-reencode-write
-  over the whole log (`event_store_web.dart`): O(log size) per write. Fine
-  at this scale; revisit (e.g. IndexedDB, one record per frame) if history
-  grows large.
-- Categories, budgets, goals, and recurring rules can be created and
-  edited but not deleted: the Rust core has only upsert for them.
+- Browser SQLite reads and saves the whole database image under a Web Lock;
+  quota and large-history responsiveness remain limits (`SQLITE-STORAGE.md`).
+- Budgets/goals can be removed and recurring rules stopped with durable
+  tombstones and explicit confirmation. All active recurring rules remain
+  manageable outside the upcoming horizon. Category removal is still absent;
+  historical category references must not disappear silently.
 - No UI for a goal's category/deadline or a recurring rule's category.
 - The biometric lock has no grace period (it re-locks on every
   background/resume) and is untested on a device with no biometrics
   enrolled but a passcode set. Recurring rules have no "skip this
   occurrence"; the only way past a due one is to record it or edit the
   start date.
-- CSV import/export goes through the clipboard rather than a native file
-  picker, and has no exchange-rate column (foreign-currency rows fail with
+- CSV file selection/save, review, clipboard, Unicode and restart passed on
+  Android and production web (`PHASE2-PROGRESS.md`). It has no exchange-rate
+  column (foreign-currency rows fail with
   a clear per-line error); import only recognizes expense/income rows, not
   transfers.
-- `Snapshot` compaction exists and is tested in the core but is not wired
-  into the persisted log or the bridge.
+- Personal `Snapshot` compaction exists and is tested in the core but is not
+  wired into its persisted log/bridge. Shared checkpoints are now persisted,
+  but keep all signed history; safe acknowledged pruning is separate work.
 - Account currency is fixed at creation; there is no rate editing on an
   existing entry. The log replays from event zero on every load.
 

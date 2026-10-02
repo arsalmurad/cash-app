@@ -8,7 +8,7 @@ import 'ledger.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `lock`, `next_timestamp`
+// These functions are ignored because they are not marked as `pub`: `lock`, `next_timestamp`, `recurring_views`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `RecurringBookData`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `fmt`, `fmt`, `from`, `from`, `from`
 
@@ -73,6 +73,30 @@ Future<List<UpcomingView>> upcomingOccurrences({
   book: book,
   nowMillis: nowMillis,
   horizonDays: horizonDays,
+);
+
+/// All active rules, with their next occurrence, even outside the upcoming
+/// horizon. The management screen must not hide a rule after recording it.
+Future<List<UpcomingView>> recurringSchedule({
+  required PersonalLedger ledger,
+  required RecurringBook book,
+  required PlatformInt64 nowMillis,
+}) => RustLib.instance.api.crateApiRecurringRecurringSchedule(
+  ledger: ledger,
+  book: book,
+  nowMillis: nowMillis,
+);
+
+/// Append a lifecycle tombstone; past ledger transactions are unchanged.
+/// Validate the current fold before advancing the clock.
+Future<RecurringMutation> stopRecurring({
+  required RecurringBook book,
+  required String recurringId,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiRecurringStopRecurring(
+  book: book,
+  recurringId: recurringId,
+  wallClockMillis: wallClockMillis,
 );
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>>

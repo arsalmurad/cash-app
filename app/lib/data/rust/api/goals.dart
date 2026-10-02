@@ -71,6 +71,18 @@ Future<List<GoalView>> goalProgress({
 }) =>
     RustLib.instance.api.crateApiGoalsGoalProgress(ledger: ledger, book: book);
 
+/// Append a lifecycle tombstone; past ledger transactions are unchanged.
+/// Validate the current fold before advancing the clock.
+Future<GoalMutation> removeGoal({
+  required GoalBook book,
+  required String goalId,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiGoalsRemoveGoal(
+  book: book,
+  goalId: goalId,
+  wallClockMillis: wallClockMillis,
+);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>>
 abstract class GoalBook implements RustOpaqueInterface {}
 

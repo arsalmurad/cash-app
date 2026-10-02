@@ -9,10 +9,11 @@ import '../../data/rust/api/ledger.dart';
 /// Rust core each time (see `goal_progress`), so this widget is purely
 /// presentational.
 class GoalsPane extends StatelessWidget {
-  const GoalsPane({required this.goals, this.onEdit, super.key});
+  const GoalsPane({required this.goals, this.onEdit, this.onRemove, super.key});
 
   final List<GoalView> goals;
   final void Function(GoalView goal)? onEdit;
+  final void Function(GoalView goal)? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -25,16 +26,18 @@ class GoalsPane extends StatelessWidget {
       itemBuilder: (context, index) => _GoalCard(
         goal: goals[index],
         onEdit: onEdit == null ? null : () => onEdit!(goals[index]),
+        onRemove: onRemove == null ? null : () => onRemove!(goals[index]),
       ),
     );
   }
 }
 
 class _GoalCard extends StatelessWidget {
-  const _GoalCard({required this.goal, this.onEdit});
+  const _GoalCard({required this.goal, this.onEdit, this.onRemove});
 
   final GoalView goal;
   final VoidCallback? onEdit;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +73,24 @@ class _GoalCard extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                if (onEdit != null)
+                if (onRemove != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'goal actions',
+                    onSelected: (value) =>
+                        value == 'edit' ? onEdit?.call() : onRemove?.call(),
+                    itemBuilder: (_) => [
+                      if (onEdit != null)
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit goal'),
+                        ),
+                      const PopupMenuItem(
+                        value: 'remove',
+                        child: Text('Remove goal'),
+                      ),
+                    ],
+                  )
+                else if (onEdit != null)
                   IconButton(
                     icon: const Icon(Icons.edit_outlined, size: 20),
                     tooltip: 'Edit goal',
@@ -85,12 +105,16 @@ class _GoalCard extends StatelessWidget {
                 value: (percent / 100).clamp(0, 1).toDouble(),
                 minHeight: 8,
                 backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                color: isOver ? theme.colorScheme.error : theme.colorScheme.primary,
+                color: isOver
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary,
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 Text('${goal.progressLabel} of ${goal.targetLabel}'),
                 Text(
@@ -211,8 +235,7 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Name'),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Enter a name'
                     : null,
               ),
@@ -241,8 +264,7 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Enter a target'
                     : null,
               ),
@@ -261,7 +283,8 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
                   ],
                   onChanged: (value) =>
                       setState(() => _linkedAccountId = value),
-                  validator: (value) => (_kind == GoalKind.save && value == null)
+                  validator: (value) =>
+                      (_kind == GoalKind.save && value == null)
                       ? 'Choose an account'
                       : null,
                 ),

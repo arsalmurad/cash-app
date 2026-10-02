@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:private_ledger/data/storage/event_store.dart';
 import 'package:private_ledger/features/ledger/ledger_controller.dart';
 import 'package:private_ledger/features/ledger/ledger_screen.dart';
 import 'package:private_ledger/main.dart' as app;
@@ -187,5 +188,105 @@ void main() {
     expect(find.text('EUR -80.00'), findsOneWidget);
     expect(find.text('≈ USD -87.00'), findsOneWidget);
     expect(find.text('USD -599.34'), findsOneWidget);
+
+    // Create real definitions through the same UI as a user. Their removal
+    // must append history, never alter financial transactions.
+    await tester.tap(find.text('Budgets'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add budget'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'Lifecycle budget',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), '10');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await waitFor(tester, find.text('Lifecycle budget'));
+
+    await tester.tap(find.text('Goals'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add goal'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Lifecycle goal');
+    await tester.enterText(find.byType(TextFormField).at(1), '100');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await waitFor(tester, find.text('Lifecycle goal'));
+
+    await tester.tap(find.text('Recurring'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add recurring'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Lifecycle bill');
+    await tester.enterText(find.byType(TextFormField).at(1), '1.23');
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await waitFor(tester, find.text('Lifecycle bill'));
+    await tester.tap(find.text('Record'));
+    await tester.pumpAndSettle();
+    final deadline = DateTime.now().add(const Duration(seconds: 20));
+    while (restartedController.overview!.balanceLabel != 'USD -600.57' &&
+        DateTime.now().isBefore(deadline)) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(restartedController.overview!.balanceLabel, 'USD -600.57');
+    expect(
+      restartedController.upcoming,
+      hasLength(1),
+      reason: 'Monthly rules remain manageable beyond the reminder horizon',
+    );
+    final ledgerBytes = await EventStore('ledger').readLog();
+    final csv = restartedController.exportTransactionsCsv();
+
+    for (final (tab, kind, empty) in [
+      ('Budgets', 'budget', 'No budgets yet.'),
+      ('Goals', 'goal', 'No goals yet.'),
+      ('Recurring', 'recurring rule', 'No upcoming bills'),
+    ]) {
+      await tester.tap(find.text(tab));
+      await tester.pumpAndSettle();
+      final action = kind == 'recurring rule'
+          ? 'Stop recurring rule'
+          : 'Remove $kind';
+      Future<void> open() async {
+        await tester.tap(find.byTooltip('$kind actions'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(action));
+        await tester.pumpAndSettle();
+      }
+
+      final before = await EventStore(
+        kind == 'recurring rule' ? 'recurring' : '${kind}s',
+      ).readLog();
+      await open();
+      await tester.tap(find.text('Keep $kind'));
+      await tester.pumpAndSettle();
+      expect(
+        await EventStore(kind == 'recurring rule' ? 'recurring' : '${kind}s')
+            .readLog(),
+        orderedEquals(before),
+      );
+      await open();
+      await tester.tap(find.widgetWithText(FilledButton, action));
+      await waitFor(tester, find.textContaining(empty));
+      expect(find.textContaining(empty), findsOneWidget);
+    }
+    expect(await EventStore('ledger').readLog(), orderedEquals(ledgerBytes));
+    expect(restartedController.exportTransactionsCsv(), csv);
+    final finalRestart = LedgerController();
+    await finalRestart.initialize();
+    expect(finalRestart.errorMessage, isNull);
+    expect(finalRestart.budgets, isEmpty);
+    expect(finalRestart.goals, isEmpty);
+    expect(finalRestart.upcoming, isEmpty);
+    expect(finalRestart.exportTransactionsCsv(), csv);
+    await tester.pumpWidget(
+      MaterialApp(home: LedgerScreen(controller: finalRestart)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('USD -600.57'), findsOneWidget);
+    expect(
+      find.text('Lifecycle bill'),
+      findsOneWidget,
+      reason: 'Stopping a rule does not erase the recorded expense',
+    );
   });
 }

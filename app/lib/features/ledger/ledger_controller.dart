@@ -3,10 +3,13 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64, PlatformInt64Util, Uint8List;
 
 import '../../data/rust/api/budgets.dart';
+import '../../data/rust/api/budgets.dart' as budget_api show removeBudget;
 import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/goals.dart';
+import '../../data/rust/api/goals.dart' as goal_api show removeGoal;
 import '../../data/rust/api/ledger.dart';
 import '../../data/rust/api/recurring.dart';
+import '../../data/rust/api/recurring.dart' as recurring_api show stopRecurring;
 import '../../data/storage/actor_id.dart';
 import '../../data/storage/event_store.dart';
 import 'category_presets.dart';
@@ -53,7 +56,6 @@ class LedgerController extends ChangeNotifier {
 
   /// The currency every entry is also valued in, at a rate frozen on the entry.
   String get reportingCurrencyCode => _reportingCurrencyCode;
-  static const int _upcomingHorizonDays = 14;
 
   /// Diagnostics from the most recent [initialize] load, mainly for tests:
   /// how many persisted events were recovered and whether the tail of the
@@ -296,6 +298,7 @@ class LedgerController extends ChangeNotifier {
     String? categoryId,
     String? recurringId,
     String? rate,
+    PlatformInt64? expectedOccurrenceMillis,
   }) async {
     final ledger = _ledger;
     final account = _findAccount(accountId);
@@ -309,8 +312,26 @@ class LedgerController extends ChangeNotifier {
       final fx = await _resolveRate(account, rate);
       final now = DateTime.now();
       _sequence += 1;
-      await _mutateLedger(
-        () => recordTransaction(
+      await _mutateLedger(() async {
+        if (recurringId != null &&
+            !upcoming.any(
+              (current) =>
+                  current.recurringId == recurringId &&
+                  current.isExpense == (kind == EntryKind.expense) &&
+                  current.occurrenceMillis.toInt() <=
+                      DateTime.now().millisecondsSinceEpoch &&
+                  (expectedOccurrenceMillis == null ||
+                      current.occurrenceMillis == expectedOccurrenceMillis) &&
+                  current.title == title.trim() &&
+                  _amountFromLabel(current.amountLabel) == amount &&
+                  current.accountId == accountId &&
+                  current.categoryId == categoryId,
+            )) {
+          throw const _EntryInputError(
+            'This reminder changed or stopped. Check Upcoming before recording.',
+          );
+        }
+        return recordTransaction(
           ledger: ledger,
           transactionId: 'local-${now.microsecondsSinceEpoch}-$_sequence',
           accountId: accountId,
@@ -323,8 +344,8 @@ class LedgerController extends ChangeNotifier {
           categoryId: categoryId,
           recurringId: recurringId,
           wallClockMillis: PlatformInt64Util.from(now.millisecondsSinceEpoch),
-        ),
-      );
+        );
+      });
       return true;
     } catch (error) {
       errorMessage = error.toString();
@@ -547,6 +568,61 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  Future<bool> removeBudget(String id) async {
+    final book = _budgetBook;
+    if (book == null) return false;
+    return _removeDefinition(
+      () => _mutateBudgets(
+        () => budget_api.removeBudget(
+          book: book,
+          budgetId: id,
+          wallClockMillis: _nowMillis(),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> removeGoal(String id) async {
+    final book = _goalBook;
+    if (book == null) return false;
+    return _removeDefinition(
+      () => _mutateGoals(
+        () => goal_api.removeGoal(
+          book: book,
+          goalId: id,
+          wallClockMillis: _nowMillis(),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> stopRecurring(String id) async {
+    final book = _recurringBook;
+    if (book == null) return false;
+    return _removeDefinition(
+      () => _mutateRecurring(
+        () => recurring_api.stopRecurring(
+          book: book,
+          recurringId: id,
+          wallClockMillis: _nowMillis(),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _removeDefinition(Future<void> Function() action) async {
+    errorMessage = null;
+    try {
+      await action();
+      notifyListeners();
+      return true;
+    } catch (error) {
+      errorMessage = error.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Records an upcoming occurrence as a real transaction, tagged with its
   /// recurring rule so [_refreshUpcoming] advances past it next time.
   Future<bool> recordUpcoming(UpcomingView occurrence, {String? rate}) async {
@@ -558,6 +634,7 @@ class LedgerController extends ChangeNotifier {
       accountId: occurrence.accountId,
       categoryId: occurrence.categoryId,
       recurringId: occurrence.recurringId,
+      expectedOccurrenceMillis: occurrence.occurrenceMillis,
     );
   }
 
@@ -781,11 +858,10 @@ class LedgerController extends ChangeNotifier {
     if (ledger == null || book == null) {
       return;
     }
-    upcoming = await upcomingOccurrences(
+    upcoming = await recurringSchedule(
       ledger: ledger,
       book: book,
       nowMillis: _nowMillis(),
-      horizonDays: _upcomingHorizonDays,
     );
   }
 }

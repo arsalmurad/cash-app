@@ -11,12 +11,14 @@ class BudgetsPane extends StatelessWidget {
     required this.budgets,
     required this.categories,
     this.onEdit,
+    this.onRemove,
     super.key,
   });
 
   final List<BudgetView> budgets;
   final List<CategoryView> categories;
   final void Function(BudgetView budget)? onEdit;
+  final void Function(BudgetView budget)? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +32,7 @@ class BudgetsPane extends StatelessWidget {
         budget: budgets[index],
         categoryName: _categoryName(budgets[index].categoryId),
         onEdit: onEdit == null ? null : () => onEdit!(budgets[index]),
+        onRemove: onRemove == null ? null : () => onRemove!(budgets[index]),
       ),
     );
   }
@@ -52,11 +55,13 @@ class _BudgetCard extends StatelessWidget {
     required this.budget,
     required this.categoryName,
     this.onEdit,
+    this.onRemove,
   });
 
   final BudgetView budget;
   final String? categoryName;
   final VoidCallback? onEdit;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +86,24 @@ class _BudgetCard extends StatelessWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                if (onEdit != null)
+                if (onRemove != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'budget actions',
+                    onSelected: (value) =>
+                        value == 'edit' ? onEdit?.call() : onRemove?.call(),
+                    itemBuilder: (_) => [
+                      if (onEdit != null)
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit budget'),
+                        ),
+                      const PopupMenuItem(
+                        value: 'remove',
+                        child: Text('Remove budget'),
+                      ),
+                    ],
+                  )
+                else if (onEdit != null)
                   IconButton(
                     icon: const Icon(Icons.edit_outlined, size: 20),
                     tooltip: 'Edit budget',
@@ -108,8 +130,10 @@ class _BudgetCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 12,
+              runSpacing: 8,
               children: [
                 Text('${budget.spentLabel} of ${budget.limitLabel}'),
                 Text(
@@ -159,11 +183,7 @@ class BudgetDraft {
 }
 
 class NewBudgetDialog extends StatefulWidget {
-  const NewBudgetDialog({
-    required this.categories,
-    this.existing,
-    super.key,
-  });
+  const NewBudgetDialog({required this.categories, this.existing, super.key});
 
   final List<CategoryView> categories;
 
@@ -247,8 +267,7 @@ class _NewBudgetDialogState extends State<NewBudgetDialog> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Name'),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Enter a name'
                     : null,
               ),
@@ -278,8 +297,7 @@ class _NewBudgetDialogState extends State<NewBudgetDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Enter a limit'
                     : null,
               ),

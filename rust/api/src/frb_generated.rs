@@ -45,7 +45,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1249323804;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1667515674;
 
 // Section: executor
 
@@ -2238,6 +2238,181 @@ fn wire__crate__api__recurring__recurring_load_report_impl(
         },
     )
 }
+fn wire__crate__api__recurring__recurring_schedule_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "recurring_schedule",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>,
+            >>::sse_decode(&mut deserializer);
+            let api_now_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 1, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            1 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::recurring::recurring_schedule(
+                        &*api_ledger_guard,
+                        &*api_book_guard,
+                        api_now_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__budgets__remove_budget_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "remove_budget",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>,
+            >>::sse_decode(&mut deserializer);
+            let api_budget_id = <String>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::budgets::remove_budget(
+                        &*api_book_guard,
+                        api_budget_id,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__goals__remove_goal_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "remove_goal",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<GoalBook>,
+            >>::sse_decode(&mut deserializer);
+            let api_goal_id = <String>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::goals::remove_goal(
+                        &*api_book_guard,
+                        api_goal_id,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__storage__sqlite_file_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2297,6 +2472,61 @@ fn wire__crate__api__storage__sqlite_serialized_impl(
                 let output_ok = crate::api::storage::sqlite_serialized(api_database, api_request)?;
                 std::result::Result::Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__recurring__stop_recurring_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "stop_recurring",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_book = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>,
+            >>::sse_decode(&mut deserializer);
+            let api_recurring_id = <String>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_book_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_book, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_book_guard = Some(api_book.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_book_guard = api_book_guard.unwrap();
+                    let output_ok = crate::api::recurring::stop_recurring(
+                        &*api_book_guard,
+                        api_recurring_id,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -3776,22 +4006,28 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        46 => wire__crate__api__ledger__suggest_category_for_title_impl(
+        44 => {
+            wire__crate__api__recurring__recurring_schedule_impl(port, ptr, rust_vec_len, data_len)
+        }
+        45 => wire__crate__api__budgets__remove_budget_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__goals__remove_goal_impl(port, ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__recurring__stop_recurring_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__ledger__suggest_category_for_title_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        47 => wire__crate__api__recurring__upcoming_occurrences_impl(
+        51 => wire__crate__api__recurring__upcoming_occurrences_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        48 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3804,8 +4040,8 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        44 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }

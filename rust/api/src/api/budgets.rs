@@ -1,5 +1,46 @@
 use std::sync::{Mutex, MutexGuard};
 
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    use crate::api::ledger::load_personal_ledger;
+
+    #[test]
+    fn removal_survives_restart_without_touching_transactions_or_clock_on_error() {
+        let book = load_budget_book("alice".into(), vec![]).unwrap();
+        let first = upsert_budget(
+            &book,
+            "food".into(),
+            "Food".into(),
+            None,
+            "10".into(),
+            "USD".into(),
+            BudgetPeriodKind::Monthly,
+            None,
+            10,
+        )
+        .unwrap();
+        let before = lock(&book).unwrap().last_timestamp;
+        assert!(remove_budget(&book, "missing".into(), 500).is_err());
+        assert_eq!(lock(&book).unwrap().last_timestamp, before);
+        let removal = remove_budget(&book, "food".into(), 20).unwrap();
+        let mut bytes = first.appended_frame;
+        bytes.extend(removal.appended_frame);
+        let restarted = load_budget_book("alice".into(), bytes.clone()).unwrap();
+        let decoded = decode_budget_log(&bytes);
+        assert_eq!(decoded.trailing_garbage_bytes, 0);
+        assert_eq!(decoded.upserts.len(), 2);
+        assert!(fold_budgets(decoded.upserts).budgets[&BudgetId::new("food")].deleted);
+        // Empty ledger deliberately has no referenced account. Removed rules
+        // must be filtered before account lookup or progress computation.
+        let ledger = load_personal_ledger("alice".into(), "USD".into(), vec![]).unwrap();
+        assert!(budget_progress(&ledger, &restarted, 30).unwrap().is_empty());
+        let before = lock(&book).unwrap().last_timestamp;
+        assert!(remove_budget(&book, "food".into(), 20).is_err());
+        assert_eq!(lock(&book).unwrap().last_timestamp, before);
+    }
+}
+
 use cash_core::{
     BudgetId, BudgetPeriod, BudgetUpsert, HybridTimestamp, TransactionKind, decode_budget_log,
     encode_budget_frame, fold_budgets, period_start_millis,
@@ -47,8 +88,8 @@ impl BudgetPeriodKind {
             Self::Monthly => Ok(BudgetPeriod::Monthly),
             Self::Yearly => Ok(BudgetPeriod::Yearly),
             Self::Custom => {
-                let days = custom_days
-                    .ok_or_else(|| "a custom period requires custom_days".to_owned())?;
+                let days =
+                    custom_days.ok_or_else(|| "a custom period requires custom_days".to_owned())?;
                 if days == 0 {
                     return Err("a custom period must be at least one day".to_owned());
                 }
@@ -139,8 +180,8 @@ pub fn upsert_budget(
     if budget_id.trim().is_empty() {
         return Err("budget ID cannot be empty".to_owned());
     }
-    let currency = cash_core::Currency::from_code(&limit_currency_code)
-        .map_err(|error| error.to_string())?;
+    let currency =
+        cash_core::Currency::from_code(&limit_currency_code).map_err(|error| error.to_string())?;
     let limit_minor = currency
         .parse_major_units(&limit_amount)
         .map_err(|error| error.to_string())?;
@@ -183,6 +224,9 @@ pub fn budget_progress(
 
     let mut views = Vec::with_capacity(budget_state.budgets.len());
     for (id, record) in &budget_state.budgets {
+        if record.deleted {
+            continue;
+        }
         let period_start = period_start_millis(record.period, now_millis);
         let mut spent_minor: i64 = 0;
         for transaction in state.transactions.values() {
@@ -235,6 +279,43 @@ fn period_label(period: BudgetPeriod) -> String {
     }
 }
 
+/// Append a lifecycle tombstone; past ledger transactions are unchanged.
+/// Validate the current fold before advancing the clock.
+pub fn remove_budget(
+    book: &BudgetBook,
+    budget_id: String,
+    wall_clock_millis: i64,
+) -> Result<BudgetMutation, String> {
+    let mut data = lock(book)?;
+    let key = BudgetId::new(&budget_id);
+    let state = fold_budgets(data.upserts.iter().cloned());
+    if !state
+        .budgets
+        .get(&key)
+        .is_some_and(|record| !record.deleted)
+    {
+        return Err("budget not found or already removed".to_owned());
+    }
+    let mut upsert = data
+        .upserts
+        .iter()
+        .filter(|upsert| upsert.budget_id == key)
+        .max_by_key(|upsert| (upsert.timestamp, &upsert.actor_id, &upsert.id))
+        .cloned()
+        .ok_or_else(|| "budget history missing".to_owned())?;
+    let timestamp = data.next_timestamp(wall_clock_millis)?;
+    upsert.id = cash_core::EventId::new(format!(
+        "{}-{:016x}-{:08x}",
+        data.actor_id, timestamp.physical_millis, timestamp.logical
+    ));
+    upsert.actor_id = cash_core::ActorId::new(&data.actor_id);
+    upsert.timestamp = timestamp;
+    upsert.deleted = true;
+    let appended_frame = encode_budget_frame(&upsert);
+    data.upserts.push(upsert);
+    Ok(BudgetMutation { appended_frame })
+}
+
 fn lock(book: &BudgetBook) -> Result<MutexGuard<'_, BudgetBookData>, String> {
     book.data
         .lock()
@@ -255,15 +336,18 @@ impl BudgetBookData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::ledger::{add_account, load_personal_ledger, record_transaction};
     use crate::api::ledger::{EntryKind, LedgerMutation};
+    use crate::api::ledger::{add_account, load_personal_ledger, record_transaction};
 
     #[test]
     fn book_clock_carries_and_refuses_exhaustion() {
         let book = new_book("device-a");
         let mut data = book.data.lock().unwrap();
         data.last_timestamp = HybridTimestamp::new(100, u32::MAX);
-        assert_eq!(data.next_timestamp(1).unwrap(), HybridTimestamp::new(101, 0));
+        assert_eq!(
+            data.next_timestamp(1).unwrap(),
+            HybridTimestamp::new(101, 0)
+        );
         let exhausted = HybridTimestamp::new(i64::MAX, u32::MAX);
         data.last_timestamp = exhausted;
         assert!(data.next_timestamp(1).is_err());
@@ -275,8 +359,8 @@ mod tests {
     }
 
     fn new_ledger_with_checking(actor_id: &str) -> PersonalLedger {
-        let ledger = load_personal_ledger(actor_id.to_owned(), "USD".to_owned(), Vec::new())
-            .unwrap();
+        let ledger =
+            load_personal_ledger(actor_id.to_owned(), "USD".to_owned(), Vec::new()).unwrap();
         add_account(
             &ledger,
             "checking".to_owned(),
