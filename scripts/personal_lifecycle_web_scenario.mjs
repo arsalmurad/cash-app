@@ -7,7 +7,11 @@ export async function runPersonalLifecycleWebScenario(page, api) {
     await focusLabel(page, label);
     await waitFor(page, `['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)`);
     await page.send('Input.insertText', { text: value });
-    await waitFor(page, `[...document.querySelectorAll('input, textarea')].some(e => e.value === ${JSON.stringify(value)})`);
+    await waitFor(page, `document.activeElement?.value === ${JSON.stringify(value)}`);
+    // Finish editing through the keyboard path before another field or submit.
+    // A browser DOM value alone is not proof Flutter committed the edit.
+    await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   }
   const saved = () => evaluate(page, "localStorage.getItem('private_ledger.sqlite.v1')");
   async function dropdown(label, option) {
