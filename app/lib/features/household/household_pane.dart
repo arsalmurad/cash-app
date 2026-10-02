@@ -118,6 +118,14 @@ class HouseholdPane extends StatelessWidget {
               onEdit: () => onEditAmount(transaction),
               onVoid: () => onVoid(transaction),
             ),
+        const SizedBox(height: 16),
+        Text('Shared accounts', style: theme.textTheme.titleMedium),
+        for (final account in overview.accounts)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text('${account.name} (${account.currencyCode})'),
+            subtitle: Text(account.balanceLabel),
+          ),
       ],
     );
   }
