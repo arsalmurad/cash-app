@@ -34,6 +34,13 @@ export async function runPersonalLifecycleWebScenario(page, api) {
     assert.equal(matches.length, 1, `Expected one rendered navigation control for ${tab}: ${JSON.stringify(controls)}`);
     await clickLabel(page, matches[0]);
   }
+  await waitForLabel(page, 'Calculated on this device');
+  const beforeLockSettings = await saved();
+  await clickLabel(page, 'Screen lock settings', 'button');
+  await waitForLabel(page, 'Screen lock');
+  await waitForLabel(page, 'This device or browser does not support a biometric or passcode lock.');
+  await clickLabel(page, 'Close', 'button');
+  assert.equal(await saved(), beforeLockSettings, 'Opening unavailable screen-lock settings cannot mutate the ledger');
   await navigate('Budgets');
   await clickLabel(page, 'Add budget', 'button');
   await fill('Name', 'Lifecycle budget');
