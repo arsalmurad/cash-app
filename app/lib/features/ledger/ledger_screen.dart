@@ -460,6 +460,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
       context: context,
       builder: (context) => NewGoalDialog(
         accounts: controller.overview?.accounts ?? const [],
+        categories: controller.categories,
+        reportingCurrencyCode: controller.reportingCurrencyCode,
         existing: existing,
       ),
     );

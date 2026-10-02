@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:private_ledger/data/rust/api/goals.dart';
+import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/data/rust/frb_generated.dart';
 import 'package:private_ledger/data/storage/event_store.dart';
 import 'package:private_ledger/features/ledger/ledger_controller.dart';
@@ -134,6 +135,89 @@ void main() {
           await restarted.initialize();
           expect(restarted.errorMessage, isNull);
           expect(restarted.goals, isEmpty);
+        },
+      );
+      test(
+        'spending category and deadline survive edits and SQLite restart',
+        () async {
+          final controller = LedgerController();
+          addTearDown(controller.dispose);
+          await controller.initialize();
+          final category = controller.categories.first.id;
+          final account = controller.overview!.accounts.first.id;
+          final deadline = PlatformInt64Util.from(
+            DateTime(2000).millisecondsSinceEpoch,
+          );
+          expect(
+            await controller.addOrUpdateGoal(
+              name: 'Food cap',
+              kind: GoalKind.spend,
+              targetAmount: '100',
+              categoryId: category,
+              deadlineMillis: deadline,
+            ),
+            isTrue,
+          );
+          final id = controller.goals.single.id;
+          expect(
+            await controller.record(
+              title: 'Counted food',
+              amount: '10',
+              kind: EntryKind.expense,
+              accountId: account,
+              categoryId: category,
+            ),
+            isTrue,
+          );
+          expect(
+            await controller.record(
+              title: 'Other expense',
+              amount: '5',
+              kind: EntryKind.expense,
+              accountId: account,
+            ),
+            isTrue,
+          );
+          expect(controller.goals.single.progressLabel, 'USD 0.00');
+          final restarted = LedgerController();
+          addTearDown(restarted.dispose);
+          await restarted.initialize();
+          expect(restarted.errorMessage, isNull);
+          expect(restarted.goals.single.categoryId, category);
+          expect(restarted.goals.single.deadlineMillis, deadline);
+          final ledgerBefore = await EventStore('ledger').readLog();
+          expect(
+            await restarted.addOrUpdateGoal(
+              goalId: id,
+              name: 'Food cap',
+              kind: GoalKind.spend,
+              targetAmount: '100',
+              categoryId: category,
+            ),
+            isTrue,
+          );
+          expect(restarted.goals.single.progressLabel, 'USD 10.00');
+          expect(
+            await restarted.addOrUpdateGoal(
+              goalId: id,
+              name: 'All spending',
+              kind: GoalKind.spend,
+              targetAmount: '100',
+            ),
+            isTrue,
+          );
+          expect(restarted.goals.single.progressLabel, 'USD 15.00');
+          expect(
+            await EventStore('ledger').readLog(),
+            orderedEquals(ledgerBefore),
+          );
+          final finalRestart = LedgerController();
+          addTearDown(finalRestart.dispose);
+          await finalRestart.initialize();
+          expect(finalRestart.errorMessage, isNull);
+          expect(finalRestart.goals.single.progressLabel, 'USD 15.00');
+          expect(finalRestart.goals.single.categoryId, isNull);
+          expect(finalRestart.goals.single.deadlineMillis, isNull);
         },
       );
     },
