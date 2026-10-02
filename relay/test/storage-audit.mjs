@@ -13,6 +13,7 @@ const mf = new Miniflare({
     { type: 'ESModule', path: `${moduleRoot}/production-worker.js`, contents: await readFile(new URL('../src/worker.js', import.meta.url), 'utf8') },
   ],
   durableObjects: { GROUP: 'AuditGroupLog', MAILBOX: 'AuditMailbox' },
+  bindings: { LOCAL_DEVELOPMENT: 'true' },
   compatibilityDate: '2026-07-01', host: '127.0.0.1', port: 0,
 });
 

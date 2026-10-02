@@ -44,6 +44,8 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
 - [ ] Establish an authenticated, abuse-controlled, bounded-retention relay on
   the free-plan deployment path. Do not purchase services or expose a public
   unauthenticated relay. Account authorization may require the owner.
+  The default worker is now closed; only explicit loopback development is
+  enabled. This safety guard is not production authentication or deployment.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

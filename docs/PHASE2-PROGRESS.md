@@ -337,3 +337,28 @@ journals above, but do not alone close the full durability gate.
   whole log and every new member replays a backfill of the whole history).
 - Metadata is not hidden: the relay sees group and mailbox IDs, entry count,
   sizes, timing, and client IPs.
+
+## Default-closed relay deployment guard (2026-10-02)
+
+The production worker now refuses all data routes, WebSocket paths and CORS
+preflight unless `LOCAL_DEVELOPMENT` is exactly the string `true` and the
+request URL uses a literal loopback hostname. The production Wrangler config
+does not set that binding. Existing Node/workerd acceptance launchers opt in
+explicitly and bind their listener to loopback.
+
+This is not authentication and must not be used to expose a public relay.
+Host/Origin headers are not peer identity; spoofed headers do not alter the
+URL check. Public authentication, abuse controls and bounded log retention
+remain unfinished, and no Cloudflare deployment was made.
+
+All 17 Node/workerd tests passed, including an actual unconfigured workerd
+instance refusing data access, disabled/incorrect bindings, non-loopback URLs,
+and the existing CAS, paging, WebSocket, mailbox and CORS contracts. The real
+Rust three-peer HTTP scenario also passed against the explicitly enabled local
+worker; direct inspection found 27 ciphertext log records plus encrypted
+mailboxes and rejected the plaintext-injection negative control. Commands:
+`npm test` and `CARGO=<existing cargo executable> node test/storage-audit.mjs`
+in `relay/`, on Windows with the pinned Node/Miniflare/workerd versions.
+The audit emitted a Windows WSASend disconnected warning during worker cleanup
+but exited successfully with the assertions above; it is not a deployment or
+physical-network failure-recovery claim.
