@@ -5,6 +5,7 @@ import 'features/household/household_controller.dart';
 import 'features/ledger/ledger_controller.dart';
 import 'features/ledger/ledger_screen.dart';
 import 'features/lock/biometric_lock_gate.dart';
+import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,37 +44,11 @@ class _PrivateLedgerAppState extends State<PrivateLedgerApp> {
       debugShowCheckedModeBanner: false,
       title: 'Private Ledger',
       themeMode: ThemeMode.system,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
+      theme: ledgerTheme(Brightness.light),
+      darkTheme: ledgerTheme(Brightness.dark),
       home: BiometricLockGate(
         child: LedgerScreen(controller: controller, household: household),
       ),
     );
   }
-}
-
-ThemeData _theme(Brightness brightness) {
-  final scheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFF176B5B),
-    brightness: brightness,
-  );
-  return ThemeData(
-    useMaterial3: true,
-    fontFamilyFallback: const ['NotoSansArabic', 'NotoEmoji'],
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
-    cardTheme: CardThemeData(
-      elevation: 0,
-      color: scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  );
 }

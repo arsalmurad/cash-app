@@ -1159,3 +1159,21 @@ and assert that permanent label in the search/clear widget regression. The
 existing wording and filter behavior are unchanged. All 30 affected layout,
 search and real-theme checks pass; updated browser search runtime is pending.
 
+## 2026-10-03 — Verify the actual theme, including desktop web touch targets
+
+The earlier accessibility matrix used generic Android-default ThemeData,
+whereas production web inherited Windows shrink-wrapped/compact defaults.
+Using the extracted, unchanged production theme with a Windows override
+reproduces 40×40 toolbar targets; padded targets repair those, and standard
+density repairs the filter chips' remaining 44-pixel height. Make both settings
+explicit across platforms and reuse `ledgerTheme` in the running app and all
+three adaptive test files. Restore the test's platform override and semantics
+handle before the test body exits, not in late teardown.
+
+All 30 affected cases pass in 13 s, including 12 real-theme navigation cases
+at 1.5×/2× text, labels/48-pixel targets and a limited automated Overview text-
+contrast guideline. Analysis reports no issues (39.6 s). No custom fonts,
+screen reader, focus order, non-text contrast or complete WCAG compliance is
+certified by this widget guideline. Updated production-browser rendering is
+still required; the earlier 303-suite/Android evidence predates these changes.
+

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:local_auth_platform_interface/local_auth_platform_interface.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
@@ -8,6 +9,7 @@ import 'package:private_ledger/features/ledger/ledger_controller.dart';
 import 'package:private_ledger/features/ledger/ledger_screen.dart';
 import 'package:private_ledger/features/ledger/recurring_pane.dart';
 import 'package:private_ledger/features/lock/lock_settings_dialog.dart';
+import 'package:private_ledger/theme.dart';
 
 class _UnavailableAuthPlatform extends LocalAuthPlatform {
   @override
@@ -29,7 +31,9 @@ void main() {
             await tester.binding.setSurfaceSize(size);
             addTearDown(() => tester.binding.setSurfaceSize(null));
             final semantics = tester.ensureSemantics();
+            final previousPlatform = debugDefaultTargetPlatformOverride;
             try {
+              debugDefaultTargetPlatformOverride = TargetPlatform.windows;
               final previousAuth = LocalAuthPlatform.instance;
               LocalAuthPlatform.instance = _UnavailableAuthPlatform();
               addTearDown(() => LocalAuthPlatform.instance = previousAuth);
@@ -61,7 +65,7 @@ void main() {
               addTearDown(controller.dispose);
               await tester.pumpWidget(
                 MaterialApp(
-                  theme: ThemeData(useMaterial3: true, brightness: brightness),
+                  theme: ledgerTheme(brightness),
                   builder: (context, child) => MediaQuery(
                     data: MediaQuery.of(context)
                         .copyWith(textScaler: TextScaler.linear(textScale)),
@@ -116,6 +120,12 @@ void main() {
                   tester,
                   meetsGuideline(androidTapTargetGuideline),
                 );
+                if (destination.key == 'Overview') {
+                  await expectLater(
+                    tester,
+                    meetsGuideline(textContrastGuideline),
+                  );
+                }
               }
               expect(find.text('Calculated on this device'), findsOneWidget);
               final lockSettings = find.byTooltip('Screen lock settings');
@@ -128,6 +138,7 @@ void main() {
               expect(tester.takeException(), isNull);
               await tester.pumpWidget(const SizedBox.shrink());
             } finally {
+              debugDefaultTargetPlatformOverride = previousPlatform;
               semantics.dispose();
             }
           },
