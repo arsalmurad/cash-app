@@ -1,7 +1,8 @@
 # Chosen shared summaries
 
 Implemented 2026-10-02; independently verified in local Rust, Windows native
-bridge/Flutter host and production Chrome/WASM. Mobile verification remains open.
+bridge/Flutter host, production Chrome/WASM and an owned Android emulator.
+Current-source iOS verification remains open.
 
 ## Publication boundary
 
@@ -103,6 +104,35 @@ control proves the scanner rejects a leak. Windows workerd logged WSASend #10053
 all assertions and process exit status passed. This is local workerd inspection,
 not an authenticated public deployment or physical-network reliability claim.
 
-No new iOS or Android runtime is claimed by these checks.
+## Android native runtime, 2026-10-03
+
+Source `6942be1` passed
+`flutter --no-version-check test --no-pub integration_test/household_test.dart
+-d emulator-5580 --reporter expanded` using pinned Flutter/Rust/JDK/SDK tools
+on the owned read-only AOSP ATD Android 16/API 36 x86_64 emulator with WHPX.
+The debug APK build took 400.5 s, installation 1.946 s, and actual runtime
+passed in 26 s. Both Android x86 native targets were built by the existing
+debug toolchain; the run itself was x86_64. The known SDK XML warning remains.
+
+The same integration case runs the existing native OS-key/vault and protected
+household/failure scenarios, then the new summary UI scenario. A scoped private
+USD 12.34 expense produces an exact expense-only preview. Default selection and
+sharing are disabled until explicitly chosen/confirmed. Keep-private preserves
+the actual sealed SQLite document bytes, private frames and relay tail. Confirmed
+sharing leaves shared balances at zero, excludes private transactions, and uses
+real native OS wrapping keys. Fresh-store/key objects restore the sealed snapshot
+after the private amount changes to USD 20.00; a newly invited logical peer
+receives the original signed USD 12.34 snapshot. The two peers share one emulator
+and reference relay, not two physical phones or the production HTTP relay.
+Only test-scoped vault documents/configuration and OS keys are cleaned up.
+
+The subsequently added lock/leave memory regression was reproduced RED, fixed
+at source `c462d5d`, and passed 29 affected host tests. Locking clears the summary
+list, phrase unlock restores it, and leaving clears it again. This is not
+forensic memory erasure or an XSS-protection claim. The production browser run
+above precedes this four-line controller-clearing follow-up; its new browser
+runtime remains part of final-source acceptance, not silently claimed here.
+
+No new iOS runtime is claimed by these checks.
 This feature does not close production authentication, retention/compaction,
 final-source platform acceptance or the whole-project completion gate.
