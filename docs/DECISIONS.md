@@ -1151,3 +1151,11 @@ it restores both expense and income rows, then removes the no-longer-needed
 button. All six ledger-screen tests pass (3 s). Filtering and persistence are
 unchanged; runtime evidence on the older artifact does not include this label.
 
+## 2026-10-03 — Keep an explicit activity search label
+
+The newly extended production scenario could not focus the hint-only search
+field by its accessible label. Use `labelText` instead of a disappearing hint
+and assert that permanent label in the search/clear widget regression. The
+existing wording and filter behavior are unchanged. All 30 affected layout,
+search and real-theme checks pass; updated browser search runtime is pending.
+
