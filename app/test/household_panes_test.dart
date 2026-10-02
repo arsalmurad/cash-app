@@ -54,6 +54,7 @@ void main() {
       WidgetTester tester,
       HouseholdOverview overview, {
       bool busy = false,
+      List<PublishedSummaryView> summaries = const [],
     }) async {
       final calls = <String, int>{};
       void count(String name) => calls[name] = (calls[name] ?? 0) + 1;
@@ -61,6 +62,7 @@ void main() {
         _host(
           HouseholdPane(
             overview: overview,
+            summaries: summaries,
             busy: busy,
             onSync: () => count('sync'),
             onInvite: () => count('invite'),
@@ -74,6 +76,43 @@ void main() {
       );
       return calls;
     }
+
+    testWidgets(
+      'selected foreign summary stays separate from shared balance and private entries',
+      (tester) async {
+        await pump(
+          tester,
+          _overview(),
+          summaries: [
+            PublishedSummaryView(
+              eventId: 'publication',
+              authorId: 'signing-key',
+              publishedMillis: PlatformInt64Util.from(3),
+              preview: SummaryPreview(
+                groupId: 'chosen',
+                currencyCode: 'JPY',
+                startMillis: PlatformInt64Util.from(8640000000000001),
+                endMillisExclusive: PlatformInt64Util.from(8640000000000002),
+                incomeLabel: null,
+                expensesLabel: 'JPY 12750',
+              ),
+            ),
+          ],
+        );
+        await tester.ensureVisible(find.text('Expense total: JPY 12750'));
+        expect(find.text('Expense total: JPY 12750'), findsOneWidget);
+        expect(find.textContaining('Income total:'), findsNothing);
+        expect(find.textContaining('Shared period:'), findsOneWidget);
+        expect(find.text('USD -40.00'), findsWidgets);
+        expect(
+          find.text(
+            'Reported by the author; private source entries are not shared.',
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), null);
+      },
+    );
 
     testWidgets('shows the shared balance, expenses, and members', (
       tester,

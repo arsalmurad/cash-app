@@ -195,6 +195,39 @@ class LedgerController extends ChangeNotifier {
     }
   }
 
+  /// Prepares a detached snapshot only after preceding private writes settle.
+  Future<SummaryDraft> prepareChosenSummary({
+    required String groupId,
+    required DateTime start,
+    required DateTime endExclusive,
+    required bool includeIncome,
+    required bool includeExpenses,
+  }) {
+    // Put this read behind durable writes, not between Rust mutation and save.
+    final next = _mutationQueue.then<SummaryDraft>((_) {
+      _ensureWritable();
+      final ledger = _ledger;
+      if (ledger == null) {
+        throw StateError('Restart the app to load the saved private ledger.');
+      }
+      return prepareSummary(
+        ledger: ledger,
+        groupId: groupId,
+        startMillis: PlatformInt64Util.from(start.millisecondsSinceEpoch),
+        endMillisExclusive: PlatformInt64Util.from(
+          endExclusive.millisecondsSinceEpoch,
+        ),
+        includeIncome: includeIncome,
+        includeExpenses: includeExpenses,
+      );
+    });
+    _mutationQueue = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
   /// Reads immutable history only from a confirmed, usable ledger handle.
   Future<List<TransactionHistoryView>> historyFor(
     TransactionView transaction,

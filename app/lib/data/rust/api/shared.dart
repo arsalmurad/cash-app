@@ -9,7 +9,24 @@ import 'ledger.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `lock`, `outgoing`, `overview_from_state`, `unsigned`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+
+/// Publishes exactly the prepared preview, never recomputing private totals.
+/// Persist the household before encrypting/sending, as for any other local write.
+Future<void> householdPublishSummary({
+  required Household household,
+  required SummaryDraft draft,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiSharedHouseholdPublishSummary(
+  household: household,
+  draft: draft,
+  wallClockMillis: wallClockMillis,
+);
+
+Future<List<PublishedSummaryView>> householdSummaries({
+  required Household household,
+}) =>
+    RustLib.instance.api.crateApiSharedHouseholdSummaries(household: household);
 
 /// Creates this device's identity with no group yet. `member_id` is the
 /// identity every member of the group will see: use an opaque value, not a
@@ -344,6 +361,37 @@ class OutgoingEntry {
           runtimeType == other.runtimeType &&
           expectedTail == other.expectedTail &&
           blob == other.blob;
+}
+
+class PublishedSummaryView {
+  final String eventId;
+  final String authorId;
+  final PlatformInt64 publishedMillis;
+  final SummaryPreview preview;
+
+  const PublishedSummaryView({
+    required this.eventId,
+    required this.authorId,
+    required this.publishedMillis,
+    required this.preview,
+  });
+
+  @override
+  int get hashCode =>
+      eventId.hashCode ^
+      authorId.hashCode ^
+      publishedMillis.hashCode ^
+      preview.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PublishedSummaryView &&
+          runtimeType == other.runtimeType &&
+          eventId == other.eventId &&
+          authorId == other.authorId &&
+          publishedMillis == other.publishedMillis &&
+          preview == other.preview;
 }
 
 /// An event that could not apply (for example an edit of a voided expense).

@@ -75,7 +75,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.13.0';
 
   @override
-  int get rustContentHash => 667556449;
+  int get rustContentHash => -1362610173;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -224,6 +224,12 @@ abstract class RustLibApi extends BaseApi {
     required Household household,
   });
 
+  Future<void> crateApiSharedHouseholdPublishSummary({
+    required Household household,
+    required SummaryDraft draft,
+    required PlatformInt64 wallClockMillis,
+  });
+
   Future<void> crateApiSharedHouseholdRecordTransaction({
     required Household household,
     required String transactionId,
@@ -243,6 +249,10 @@ abstract class RustLibApi extends BaseApi {
   Future<String> crateApiSharedHouseholdSafetyNumber({
     required Household household,
     required String memberId,
+  });
+
+  Future<List<PublishedSummaryView>> crateApiSharedHouseholdSummaries({
+    required Household household,
   });
 
   Future<void> crateApiSharedHouseholdVoidTransaction({
@@ -284,6 +294,15 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<LoadReport> crateApiLedgerLoadReport({required PersonalLedger ledger});
+
+  Future<SummaryDraft> crateApiLedgerPrepareSummary({
+    required PersonalLedger ledger,
+    required String groupId,
+    required PlatformInt64 startMillis,
+    required PlatformInt64 endMillisExclusive,
+    required bool includeIncome,
+    required bool includeExpenses,
+  });
 
   Future<LedgerMutation> crateApiLedgerRecordTransaction({
     required PersonalLedger ledger,
@@ -372,6 +391,10 @@ abstract class RustLibApi extends BaseApi {
   Future<String?> crateApiLedgerSuggestCategoryForTitle({
     required PersonalLedger ledger,
     required String title,
+  });
+
+  Future<SummaryPreview> crateApiLedgerSummaryPreview({
+    required SummaryDraft draft,
   });
 
   Future<List<TransactionHistoryView>> crateApiLedgerTransactionHistory({
@@ -490,6 +513,14 @@ abstract class RustLibApi extends BaseApi {
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_RecurringBookPtr;
+
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SummaryDraft;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SummaryDraft;
+
+  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_SummaryDraftPtr;
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -1548,6 +1579,49 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiSharedHouseholdPublishSummary({
+    required Household household,
+    required SummaryDraft draft,
+    required PlatformInt64 wallClockMillis,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+            draft,
+            serializer,
+          );
+          sse_encode_i_64(wallClockMillis, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 27,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdPublishSummaryConstMeta,
+        argValues: [household, draft, wallClockMillis],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdPublishSummaryConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_publish_summary",
+        argNames: ["household", "draft", "wallClockMillis"],
+      );
+
+  @override
   Future<void> crateApiSharedHouseholdRecordTransaction({
     required Household household,
     required String transactionId,
@@ -1582,7 +1656,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 27,
+            funcId: 28,
             port: port_,
           );
         },
@@ -1637,7 +1711,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 28,
+            funcId: 29,
             port: port_,
           );
         },
@@ -1673,7 +1747,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 29,
+            funcId: 30,
             port: port_,
           );
         },
@@ -1695,6 +1769,42 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<List<PublishedSummaryView>> crateApiSharedHouseholdSummaries({
+    required Household household,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerHousehold(
+            household,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 31,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_published_summary_view,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSharedHouseholdSummariesConstMeta,
+        argValues: [household],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSharedHouseholdSummariesConstMeta =>
+      const TaskConstMeta(
+        debugName: "household_summaries",
+        argNames: ["household"],
+      );
+
+  @override
   Future<void> crateApiSharedHouseholdVoidTransaction({
     required Household household,
     required String transactionId,
@@ -1713,7 +1823,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 30,
+            funcId: 32,
             port: port_,
           );
         },
@@ -1743,7 +1853,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 31,
+            funcId: 33,
             port: port_,
           );
         },
@@ -1776,7 +1886,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 32,
+            funcId: 34,
             port: port_,
           );
         },
@@ -1808,7 +1918,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 33,
+            funcId: 35,
             port: port_,
           );
         },
@@ -1844,7 +1954,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 34,
+            funcId: 36,
             port: port_,
           );
         },
@@ -1880,7 +1990,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 35,
+            funcId: 37,
             port: port_,
           );
         },
@@ -1917,7 +2027,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 36,
+            funcId: 38,
             port: port_,
           );
         },
@@ -1953,7 +2063,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 37,
+            funcId: 39,
             port: port_,
           );
         },
@@ -1990,7 +2100,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 38,
+            funcId: 40,
             port: port_,
           );
         },
@@ -2007,6 +2117,67 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiLedgerLoadReportConstMeta =>
       const TaskConstMeta(debugName: "load_report", argNames: ["ledger"]);
+
+  @override
+  Future<SummaryDraft> crateApiLedgerPrepareSummary({
+    required PersonalLedger ledger,
+    required String groupId,
+    required PlatformInt64 startMillis,
+    required PlatformInt64 endMillisExclusive,
+    required bool includeIncome,
+    required bool includeExpenses,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerPersonalLedger(
+            ledger,
+            serializer,
+          );
+          sse_encode_String(groupId, serializer);
+          sse_encode_i_64(startMillis, serializer);
+          sse_encode_i_64(endMillisExclusive, serializer);
+          sse_encode_bool(includeIncome, serializer);
+          sse_encode_bool(includeExpenses, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 41,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData:
+              sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiLedgerPrepareSummaryConstMeta,
+        argValues: [
+          ledger,
+          groupId,
+          startMillis,
+          endMillisExclusive,
+          includeIncome,
+          includeExpenses,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerPrepareSummaryConstMeta =>
+      const TaskConstMeta(
+        debugName: "prepare_summary",
+        argNames: [
+          "ledger",
+          "groupId",
+          "startMillis",
+          "endMillisExclusive",
+          "includeIncome",
+          "includeExpenses",
+        ],
+      );
 
   @override
   Future<LedgerMutation> crateApiLedgerRecordTransaction({
@@ -2045,7 +2216,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 39,
+            funcId: 42,
             port: port_,
           );
         },
@@ -2133,7 +2304,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 40,
+            funcId: 43,
             port: port_,
           );
         },
@@ -2193,7 +2364,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 41,
+            funcId: 44,
             port: port_,
           );
         },
@@ -2225,7 +2396,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 42,
+            funcId: 45,
             port: port_,
           );
         },
@@ -2259,7 +2430,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 43,
+            funcId: 46,
             port: port_,
           );
         },
@@ -2289,7 +2460,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 44,
+            funcId: 47,
             port: port_,
           );
         },
@@ -2325,7 +2496,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 45,
+            funcId: 48,
             port: port_,
           );
         },
@@ -2368,7 +2539,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 46,
+            funcId: 49,
             port: port_,
           );
         },
@@ -2408,7 +2579,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 47,
+            funcId: 50,
             port: port_,
           );
         },
@@ -2448,7 +2619,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 48,
+            funcId: 51,
             port: port_,
           );
         },
@@ -2479,7 +2650,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(path, serializer);
           sse_encode_box_autoadd_storage_request(request, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 49)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 52)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_storage_response,
@@ -2508,7 +2679,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(database, serializer);
           sse_encode_box_autoadd_storage_request(request, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 50)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 53)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_storage_response,
@@ -2546,7 +2717,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 51,
+            funcId: 54,
             port: port_,
           );
         },
@@ -2584,7 +2755,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 52,
+            funcId: 55,
             port: port_,
           );
         },
@@ -2606,6 +2777,39 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<SummaryPreview> crateApiLedgerSummaryPreview({
+    required SummaryDraft draft,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+            draft,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 56,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_summary_preview,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiLedgerSummaryPreviewConstMeta,
+        argValues: [draft],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiLedgerSummaryPreviewConstMeta =>
+      const TaskConstMeta(debugName: "summary_preview", argNames: ["draft"]);
+
+  @override
   Future<List<TransactionHistoryView>> crateApiLedgerTransactionHistory({
     required PersonalLedger ledger,
     required String transactionId,
@@ -2622,7 +2826,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 53,
+            funcId: 57,
             port: port_,
           );
         },
@@ -2667,7 +2871,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 54,
+            funcId: 58,
             port: port_,
           );
         },
@@ -2719,7 +2923,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 55,
+            funcId: 59,
             port: port_,
           );
         },
@@ -2783,7 +2987,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 56,
+            funcId: 60,
             port: port_,
           );
         },
@@ -2837,7 +3041,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 57,
+            funcId: 61,
             port: port_,
           );
         },
@@ -2914,7 +3118,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 58,
+            funcId: 62,
             port: port_,
           );
         },
@@ -2982,7 +3186,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 59,
+            funcId: 63,
             port: port_,
           );
         },
@@ -3063,6 +3267,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get rust_arc_decrement_strong_count_RecurringBook => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRecurringBook;
 
+  RustArcIncrementStrongCountFnType
+  get rust_arc_increment_strong_count_SummaryDraft => wire
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft;
+
+  RustArcDecrementStrongCountFnType
+  get rust_arc_decrement_strong_count_SummaryDraft => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft;
+
   @protected
   BudgetBook
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
@@ -3115,6 +3327,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return RecurringBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  SummaryDraft
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SummaryDraftImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -3172,6 +3393,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SummaryDraft
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SummaryDraftImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
   BudgetBook
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     dynamic raw,
@@ -3223,6 +3453,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return RecurringBookImpl.frbInternalDcoDecode(raw as List<dynamic>);
+  }
+
+  @protected
+  SummaryDraft
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SummaryDraftImpl.frbInternalDcoDecode(raw as List<dynamic>);
   }
 
   @protected
@@ -3545,6 +3784,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PublishedSummaryView> dco_decode_list_published_summary_view(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_published_summary_view)
+        .toList();
+  }
+
+  @protected
   List<RejectedView> dco_decode_list_rejected_view(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_rejected_view).toList();
@@ -3646,6 +3895,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return OutgoingEntry(
       expectedTail: dco_decode_i_64(arr[0]),
       blob: dco_decode_list_prim_u_8_strict(arr[1]),
+    );
+  }
+
+  @protected
+  PublishedSummaryView dco_decode_published_summary_view(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return PublishedSummaryView(
+      eventId: dco_decode_String(arr[0]),
+      authorId: dco_decode_String(arr[1]),
+      publishedMillis: dco_decode_i_64(arr[2]),
+      preview: dco_decode_summary_preview(arr[3]),
     );
   }
 
@@ -3770,6 +4033,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       revision: dco_decode_i_64(arr[0]),
       value: dco_decode_opt_list_prim_u_8_strict(arr[1]),
       database: dco_decode_list_prim_u_8_strict(arr[2]),
+    );
+  }
+
+  @protected
+  SummaryPreview dco_decode_summary_preview(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    return SummaryPreview(
+      groupId: dco_decode_String(arr[0]),
+      currencyCode: dco_decode_String(arr[1]),
+      startMillis: dco_decode_i_64(arr[2]),
+      endMillisExclusive: dco_decode_i_64(arr[3]),
+      incomeLabel: dco_decode_opt_String(arr[4]),
+      expensesLabel: dco_decode_opt_String(arr[5]),
     );
   }
 
@@ -3946,6 +4225,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SummaryDraft
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SummaryDraftImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   BudgetBook
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     SseDeserializer deserializer,
@@ -4018,6 +4309,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SummaryDraft
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SummaryDraftImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
   BudgetBook
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     SseDeserializer deserializer,
@@ -4084,6 +4387,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return RecurringBookImpl.frbInternalSseDecode(
+      sse_decode_usize(deserializer),
+      sse_decode_i_32(deserializer),
+    );
+  }
+
+  @protected
+  SummaryDraft
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return SummaryDraftImpl.frbInternalSseDecode(
       sse_decode_usize(deserializer),
       sse_decode_i_32(deserializer),
     );
@@ -4468,6 +4783,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PublishedSummaryView> sse_decode_list_published_summary_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PublishedSummaryView>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_published_summary_view(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<RejectedView> sse_decode_list_rejected_view(
     SseDeserializer deserializer,
   ) {
@@ -4642,6 +4971,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PublishedSummaryView sse_decode_published_summary_view(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_eventId = sse_decode_String(deserializer);
+    var var_authorId = sse_decode_String(deserializer);
+    var var_publishedMillis = sse_decode_i_64(deserializer);
+    var var_preview = sse_decode_summary_preview(deserializer);
+    return PublishedSummaryView(
+      eventId: var_eventId,
+      authorId: var_authorId,
+      publishedMillis: var_publishedMillis,
+      preview: var_preview,
+    );
+  }
+
+  @protected
   RecurringFrequency sse_decode_recurring_frequency(
     SseDeserializer deserializer,
   ) {
@@ -4764,6 +5110,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       revision: var_revision,
       value: var_value,
       database: var_database,
+    );
+  }
+
+  @protected
+  SummaryPreview sse_decode_summary_preview(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_groupId = sse_decode_String(deserializer);
+    var var_currencyCode = sse_decode_String(deserializer);
+    var var_startMillis = sse_decode_i_64(deserializer);
+    var var_endMillisExclusive = sse_decode_i_64(deserializer);
+    var var_incomeLabel = sse_decode_opt_String(deserializer);
+    var var_expensesLabel = sse_decode_opt_String(deserializer);
+    return SummaryPreview(
+      groupId: var_groupId,
+      currencyCode: var_currencyCode,
+      startMillis: var_startMillis,
+      endMillisExclusive: var_endMillisExclusive,
+      incomeLabel: var_incomeLabel,
+      expensesLabel: var_expensesLabel,
     );
   }
 
@@ -4966,6 +5331,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    SummaryDraft self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SummaryDraftImpl).frbInternalSseEncode(move: true),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     BudgetBook self,
     SseSerializer serializer,
@@ -5044,6 +5422,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    SummaryDraft self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SummaryDraftImpl).frbInternalSseEncode(move: false),
+      serializer,
+    );
+  }
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerBudgetBook(
     BudgetBook self,
     SseSerializer serializer,
@@ -5116,6 +5507,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_usize(
       (self as RecurringBookImpl).frbInternalSseEncode(move: null),
+      serializer,
+    );
+  }
+
+  @protected
+  void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+    SummaryDraft self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_usize(
+      (self as SummaryDraftImpl).frbInternalSseEncode(move: null),
       serializer,
     );
   }
@@ -5446,6 +5850,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_published_summary_view(
+    List<PublishedSummaryView> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_published_summary_view(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_rejected_view(
     List<RejectedView> self,
     SseSerializer serializer,
@@ -5604,6 +6020,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_published_summary_view(
+    PublishedSummaryView self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.eventId, serializer);
+    sse_encode_String(self.authorId, serializer);
+    sse_encode_i_64(self.publishedMillis, serializer);
+    sse_encode_summary_preview(self.preview, serializer);
+  }
+
+  @protected
   void sse_encode_recurring_frequency(
     RecurringFrequency self,
     SseSerializer serializer,
@@ -5706,6 +6134,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_64(self.revision, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.value, serializer);
     sse_encode_list_prim_u_8_strict(self.database, serializer);
+  }
+
+  @protected
+  void sse_encode_summary_preview(
+    SummaryPreview self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.groupId, serializer);
+    sse_encode_String(self.currencyCode, serializer);
+    sse_encode_i_64(self.startMillis, serializer);
+    sse_encode_i_64(self.endMillisExclusive, serializer);
+    sse_encode_opt_String(self.incomeLabel, serializer);
+    sse_encode_opt_String(self.expensesLabel, serializer);
   }
 
   @protected
@@ -5911,5 +6353,25 @@ class RecurringBookImpl extends RustOpaque implements RecurringBook {
         RustLib.instance.api.rust_arc_decrement_strong_count_RecurringBook,
     rustArcDecrementStrongCountPtr:
         RustLib.instance.api.rust_arc_decrement_strong_count_RecurringBookPtr,
+  );
+}
+
+@sealed
+class SummaryDraftImpl extends RustOpaque implements SummaryDraft {
+  // Not to be used by end users
+  SummaryDraftImpl.frbInternalDcoDecode(List<dynamic> wire)
+    : super.frbInternalDcoDecode(wire, _kStaticData);
+
+  // Not to be used by end users
+  SummaryDraftImpl.frbInternalSseDecode(BigInt ptr, int externalSizeOnNative)
+    : super.frbInternalSseDecode(ptr, externalSizeOnNative, _kStaticData);
+
+  static final _kStaticData = RustArcStaticData(
+    rustArcIncrementStrongCount:
+        RustLib.instance.api.rust_arc_increment_strong_count_SummaryDraft,
+    rustArcDecrementStrongCount:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SummaryDraft,
+    rustArcDecrementStrongCountPtr:
+        RustLib.instance.api.rust_arc_decrement_strong_count_SummaryDraftPtr,
   );
 }

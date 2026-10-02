@@ -23,6 +23,8 @@ class HouseholdPane extends StatelessWidget {
     required this.onVerifyMember,
     required this.onEditAmount,
     required this.onVoid,
+    this.summaries = const [],
+    this.onShareSummary,
     super.key,
   });
 
@@ -35,6 +37,8 @@ class HouseholdPane extends StatelessWidget {
   final ValueChanged<String> onVerifyMember;
   final ValueChanged<SharedTransactionView> onEditAmount;
   final ValueChanged<SharedTransactionView> onVoid;
+  final List<PublishedSummaryView> summaries;
+  final VoidCallback? onShareSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -87,6 +91,46 @@ class HouseholdPane extends StatelessWidget {
           _RejectedNotice(count: overview.rejected.length),
         ],
         const SizedBox(height: 16),
+        Text('Chosen summaries', style: theme.textTheme.titleMedium),
+        const Text(
+          'Snapshots shared by household members. These totals do not affect the shared balance.',
+        ),
+        if (onShareSummary != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: busy ? null : onShareSummary,
+              icon: const Icon(Icons.share_outlined),
+              label: const Text('Choose private totals to share'),
+            ),
+          ),
+        if (summaries.isEmpty) const Text('No totals have been shared.'),
+        for (final summary in summaries)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_summaryPeriod(context, summary)),
+                  if (summary.preview.incomeLabel != null)
+                    Text('Income total: ${summary.preview.incomeLabel}'),
+                  if (summary.preview.expensesLabel != null)
+                    Text('Expense total: ${summary.preview.expensesLabel}'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Published by signing key ${summary.authorId.length > 12 ? summary.authorId.substring(0, 12) : summary.authorId}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  Text(
+                    'Reported by the author; private source entries are not shared.',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(child: Text('People', style: theme.textTheme.titleMedium)),
@@ -128,6 +172,23 @@ class HouseholdPane extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+String _summaryPeriod(BuildContext context, PublishedSummaryView summary) {
+  final preview = summary.preview;
+  try {
+    final start = DateTime.fromMillisecondsSinceEpoch(
+      preview.startMillis.toInt(),
+    );
+    final end = DateTime.fromMillisecondsSinceEpoch(
+      preview.endMillisExclusive.toInt(),
+    ).subtract(const Duration(milliseconds: 1));
+    final localizations = MaterialLocalizations.of(context);
+    return '${localizations.formatMediumDate(start)} – ${localizations.formatMediumDate(end)} '
+        '(this device’s time zone)';
+  } on ArgumentError {
+    return 'Shared period: ${preview.startMillis} to ${preview.endMillisExclusive} (exclusive), epoch milliseconds';
   }
 }
 

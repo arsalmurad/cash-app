@@ -8,6 +8,7 @@ use cash_sync::{Outgoing, Peer};
 use flutter_rust_bridge::frb;
 
 use super::ledger::{AccountView, EntryKind, reporting_balances};
+use super::ledger::{SummaryDraft, SummaryPreview, summary_view};
 
 /// This device's membership in one household: the MLS identity, the shared
 /// events it has seen, and what it still has to send. The network lives in
@@ -24,6 +25,66 @@ pub struct Household {
 pub struct RelayEntry {
     pub sequence: i64,
     pub blob: Vec<u8>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct PublishedSummaryView {
+    pub event_id: String,
+    pub author_id: String,
+    pub published_millis: i64,
+    pub preview: SummaryPreview,
+}
+
+/// Publishes exactly the prepared preview, never recomputing private totals.
+/// Persist the household before encrypting/sending, as for any other local write.
+pub fn household_publish_summary(
+    household: &Household,
+    draft: &SummaryDraft,
+    wall_clock_millis: i64,
+) -> Result<(), String> {
+    let mut peer = lock(household)?;
+    if peer.group_id() != Some(draft.group_id.as_str()) {
+        return Err("The chosen household changed. Prepare a new summary before sharing.".into());
+    }
+    let mut published = draft
+        .published
+        .lock()
+        .map_err(|_| "Summary draft is unavailable.".to_owned())?;
+    if *published {
+        return Err(
+            "This summary was already published. Check the household before retrying.".into(),
+        );
+    }
+    peer.write(
+        wall_clock_millis,
+        EventKind::SummaryPublished {
+            summary: draft.summary.clone(),
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    *published = true;
+    Ok(())
+}
+
+pub fn household_summaries(household: &Household) -> Result<Vec<PublishedSummaryView>, String> {
+    let peer = lock(household)?;
+    let state = peer.state();
+    let mut summaries: Vec<_> = state.ledger.summaries.iter().collect();
+    summaries.sort_by(|(left_id, left), (right_id, right)| {
+        (right.timestamp, &right.actor_id, right_id).cmp(&(left.timestamp, &left.actor_id, left_id))
+    });
+    Ok(summaries
+        .into_iter()
+        .map(|(id, published)| PublishedSummaryView {
+            event_id: id.as_str().to_owned(),
+            author_id: published.actor_id.as_str().to_owned(),
+            published_millis: published.timestamp.physical_millis,
+            preview: summary_view(
+                &published.summary,
+                peer.group_id().unwrap_or_default().to_owned(),
+            ),
+        })
+        .collect())
 }
 
 /// Something for Dart to append to the relay log, only if the log's tail is
