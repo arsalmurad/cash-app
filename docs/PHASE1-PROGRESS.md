@@ -6,6 +6,14 @@ the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
 
 ## Personal definition lifecycle (2026-10-02)
 
+Saving-target follow-up: three actual Windows native-bridge/SQLite regressions
+independently verify JPY 100/123 through entry, edit and restart, reject fractional
+JPY, and reject an unknown linked account without writing a goal. The original
+controller incorrectly parsed saving targets in USD and wrote unknown-account
+goals before progress failed; the regressions reproduced both failures before
+the fix. A focused run with lifecycle and failed-save checks passed all 31 tests.
+Existing targets are not automatically changed; review them explicitly.
+
 Later sections retain earlier, revision-specific evidence; no historical iOS
 run verifies these new lifecycle calls.
 

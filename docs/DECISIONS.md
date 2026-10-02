@@ -931,3 +931,14 @@ its horizon. Future rules are manageable but not postable early; queued writes
 recheck both the rule and expected next date, preventing stale reminders from
 silently posting after a stop/edit or posting the same occurrence twice.
 
+## 2026-10-02 — Saving targets use the linked account's currency
+
+The Flutter controller must parse saving-goal targets in the linked account's
+currency, not the reporting currency. Previously a JPY 100 entry became JPY
+10000 and fractional yen were accepted. Unknown linked accounts also wrote an
+invalid goal before progress failed. Validate the account before mutation;
+spending caps continue to use the reporting currency. Three actual Windows
+SQLite/bridge regressions cover JPY entry/edit/restart and rejected inputs
+without durable writes. No financial event or old target is silently rewritten:
+users must review and explicitly edit targets saved by older builds.
+
