@@ -15,6 +15,7 @@ void main() {
       await RustLib.init();
       await runNativeVaultScenario();
       await runProtectedNativeHouseholdScenario();
+      await runProtectedNativeHouseholdFailureScenario();
     },
   );
 }

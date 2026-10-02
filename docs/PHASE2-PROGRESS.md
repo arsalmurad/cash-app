@@ -8,6 +8,34 @@ is **not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
 
 ## What exists
 
+### Current sealed-storage failure checks (2026-10-02)
+
+The portable failure scenario now runs with real Rust state against retained
+frame stores and actual Windows SQLite documents sealed by Rust AEAD. Host
+wrapping keys are explicitly an in-memory test backend, not OS secure storage.
+Both scenario tests passed, alongside all 258 local app tests and clean static
+analysis. Lost-removal acknowledgement/exclusion assertions were added after
+that full suite and both affected scenario tests passed again.
+
+`flutter --no-version-check test --no-pub integration_test/household_test.dart
+-d emulator-5580 --reporter expanded` then passed on the owned read-only AOSP
+ATD Android 16/API 36 x86_64 emulator (WHPX, pinned tools). Debug APK build:
+86.8 s; install: 2.281 s; actual runtime: 14 s. The same fixture factories use
+real Android OS wrapping keys and sealed SQLite, recreated for every restart.
+Checks cover saves rejected before/after durable commit, queued/later write
+refusal, sender-ratchet save failure before/after commit without sending early,
+exactly-once retry, lost invite/removal replies, lost welcome acknowledgement,
+and joined-state saves before/after commit. A removed peer cannot read the
+subsequent expense. Physical SQLite bytes contain none of the four readable
+failure-fixture expense titles. The original protected household recovery and
+native vault checks also passed; only owned test documents/keys were cleaned up,
+and the owned emulator was stopped after the run.
+
+These are controlled exceptions and logical peers on one emulator, not actual
+power loss, multiple physical devices or real HTTP-failure injection. The relay
+is the in-memory fixture; previous real-worker tests are separate evidence.
+No new iOS/cloud job or authenticated public deployment is claimed.
+
 | Piece | Location | What it does |
 | --- | --- | --- |
 | Shared ledger fold | `rust/core/src/shared.rs` | Total, order-independent fold; conflicts and rejected events stay visible; canonical bytes; wire encoding |
