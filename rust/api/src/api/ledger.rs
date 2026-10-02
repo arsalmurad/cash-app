@@ -598,7 +598,7 @@ impl LedgerData {
     fn overview(&self) -> Result<LedgerOverview, String> {
         let state = fold(self.reporting_currency.clone(), self.events.clone())
             .map_err(|error| error.to_string())?;
-        Ok(overview_from_state(state))
+        Ok(overview_from_state(state, &self.events))
     }
 
     fn append_and_mutation(&mut self, event: Event) -> Result<LedgerMutation, String> {
@@ -660,7 +660,28 @@ pub(crate) fn reporting_balances(state: &LedgerState) -> BTreeMap<&AccountId, Op
     balances
 }
 
-fn overview_from_state(state: LedgerState) -> LedgerOverview {
+fn overview_from_state(state: LedgerState, events: &[Event]) -> LedgerOverview {
+    // Operation IDs are opaque, not timestamps. Keep creation order separate
+    // from the canonical state's ID-keyed maps, including HLC logical ties.
+    // Later corrections do not move an older transaction into recent activity.
+    let transaction_order: BTreeMap<_, _> = events
+        .iter()
+        .filter_map(|event| match &event.kind {
+            EventKind::TransactionRecorded { transaction_id, .. } => {
+                Some((transaction_id.clone(), event.order_key()))
+            }
+            _ => None,
+        })
+        .collect();
+    let transfer_order: BTreeMap<_, _> = events
+        .iter()
+        .filter_map(|event| match &event.kind {
+            EventKind::TransferRecorded { transfer_id, .. } => {
+                Some((transfer_id.clone(), event.order_key()))
+            }
+            _ => None,
+        })
+        .collect();
     let reporting = reporting_balances(&state);
     let accounts = state
         .accounts
@@ -683,7 +704,7 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
             },
         })
         .collect();
-    let transactions = state
+    let mut transactions: Vec<TransactionView> = state
         .transactions
         .iter()
         .rev()
@@ -700,7 +721,13 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
             voided: transaction.voided,
         })
         .collect();
-    let transfers = state
+    transactions.sort_by(|a, b| {
+        transaction_order
+            .get(&TransactionId::new(&b.id))
+            .cmp(&transaction_order.get(&TransactionId::new(&a.id)))
+            .then_with(|| b.id.cmp(&a.id))
+    });
+    let mut transfers: Vec<TransferView> = state
         .transfers
         .iter()
         .rev()
@@ -719,6 +746,12 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
                 .format_minor_units(transfer.received.minor_units),
         })
         .collect();
+    transfers.sort_by(|a, b| {
+        transfer_order
+            .get(&TransactionId::new(&b.id))
+            .cmp(&transfer_order.get(&TransactionId::new(&a.id)))
+            .then_with(|| b.id.cmp(&a.id))
+    });
     LedgerOverview {
         balance_label: state
             .reporting_currency

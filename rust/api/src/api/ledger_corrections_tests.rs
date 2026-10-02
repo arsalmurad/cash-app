@@ -1,6 +1,114 @@
 use super::*;
 
 #[test]
+fn transfer_activity_uses_recorded_order_not_random_operation_ids() {
+    let (ledger, mut log) = fixture("USD", "1", 1, 1);
+    log.extend(
+        add_account(&ledger, "other".into(), "Other".into(), "USD".into(), 3)
+            .unwrap()
+            .appended_frame,
+    );
+    for (id, title) in [("zzzz-old", "Older"), ("0000-new", "Newest")] {
+        log.extend(
+            record_transfer(
+                &ledger,
+                id.into(),
+                "cash".into(),
+                "other".into(),
+                "1".into(),
+                "USD".into(),
+                1,
+                1,
+                "1".into(),
+                "USD".into(),
+                1,
+                1,
+                title.into(),
+                4,
+            )
+            .unwrap()
+            .appended_frame,
+        );
+    }
+    let restarted = load_personal_ledger("device".into(), "USD".into(), log).unwrap();
+    assert_eq!(
+        get_overview(&restarted)
+            .unwrap()
+            .transfers
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect::<Vec<_>>(),
+        ["0000-new", "zzzz-old"]
+    );
+}
+
+#[test]
+fn recent_activity_uses_recorded_order_not_random_operation_ids() {
+    let (ledger, mut log) = fixture("USD", "1", 1, 1);
+    log.extend(
+        record_transaction(
+            &ledger,
+            "zzzz-old".into(),
+            "cash".into(),
+            EntryKind::Expense,
+            "2".into(),
+            "USD".into(),
+            1,
+            1,
+            "Older".into(),
+            None,
+            None,
+            3,
+        )
+        .unwrap()
+        .appended_frame,
+    );
+    log.extend(
+        record_transaction(
+            &ledger,
+            "0000-new".into(),
+            "cash".into(),
+            EntryKind::Expense,
+            "3".into(),
+            "USD".into(),
+            1,
+            1,
+            "Newest".into(),
+            None,
+            None,
+            3,
+        )
+        .unwrap()
+        .appended_frame,
+    );
+    let expected = vec!["0000-new", "zzzz-old", "expense"];
+    assert_eq!(
+        get_overview(&ledger)
+            .unwrap()
+            .transactions
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    log.extend(
+        adjust_transaction_amount(&ledger, "expense".into(), "1".into(), "4".into(), 4)
+            .unwrap()
+            .appended_frame,
+    );
+    let restarted = load_personal_ledger("device".into(), "USD".into(), log).unwrap();
+    assert_eq!(
+        get_overview(&restarted)
+            .unwrap()
+            .transactions
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect::<Vec<_>>(),
+        expected
+    );
+}
+
+#[test]
 fn overflowing_correction_does_not_commit_and_title_suggestions_follow_category_changes() {
     let (ledger, _) = fixture("JPY", "100", 2, 1);
     let before = get_overview(&ledger).unwrap();
