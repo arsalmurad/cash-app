@@ -370,12 +370,11 @@ fn lock(ledger: &PersonalLedger) -> Result<MutexGuard<'_, LedgerData>, String> {
 }
 
 impl LedgerData {
-    fn next_event(&mut self, wall_clock_millis: i64, kind: EventKind) -> Result<Event, String> {
+    fn next_event(&self, wall_clock_millis: i64, kind: EventKind) -> Result<Event, String> {
         let timestamp = self
             .last_timestamp
             .checked_next(wall_clock_millis)
             .ok_or_else(|| "hybrid clock exhausted".to_owned())?;
-        self.last_timestamp = timestamp;
         let id = format!(
             "{}-{:016x}-{:08x}",
             self.actor_id, timestamp.physical_millis, timestamp.logical
@@ -397,12 +396,13 @@ impl LedgerData {
 
     fn append_and_mutation(&mut self, event: Event) -> Result<LedgerMutation, String> {
         let appended_frame = encode_event_frame(&event);
+        let timestamp = event.timestamp;
         self.events.push(event);
         match self.overview() {
-            Ok(overview) => Ok(LedgerMutation {
-                overview,
-                appended_frame,
-            }),
+            Ok(overview) => {
+                self.last_timestamp = timestamp;
+                Ok(LedgerMutation { overview, appended_frame })
+            }
             Err(error) => {
                 self.events.pop();
                 Err(error)
@@ -521,6 +521,18 @@ fn overview_from_state(state: LedgerState) -> LedgerOverview {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejected_future_write_does_not_advance_the_clock() {
+        let ledger = new_ledger("device-a");
+        add_account(&ledger, "cash".into(), "Cash".into(), "USD".into(), 1).unwrap();
+        let before = lock(&ledger).unwrap().last_timestamp;
+        assert!(add_account(&ledger, "cash".into(), "Duplicate".into(), "USD".into(), i64::MAX).is_err());
+        assert_eq!(lock(&ledger).unwrap().last_timestamp, before);
+        let accepted = add_account(&ledger, "other".into(), "Other".into(), "USD".into(), 2).unwrap();
+        let decoded = decode_event_log(&accepted.appended_frame);
+        assert_eq!(decoded.events[0].timestamp, HybridTimestamp::new(2, 0));
+    }
 
     fn new_ledger(actor_id: &str) -> PersonalLedger {
         load_personal_ledger(actor_id.to_owned(), "USD".to_owned(), Vec::new()).unwrap()

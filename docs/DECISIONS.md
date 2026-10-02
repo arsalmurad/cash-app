@@ -965,3 +965,12 @@ random generator. Persisted old IDs and actors remain unchanged; retries do not
 become automatic, and ambiguous saves still disable writes until recovery.
 An injected clock enables these regressions; production defaults to DateTime.now.
 
+## 2026-10-02 — Commit the personal clock only after validation
+
+A rejected account/transaction/transfer previously advanced the in-memory HLC
+even though its event was removed. A reproduced regression used a duplicate
+account with a future timestamp and observed the clock change. Construct the
+candidate timestamp without mutating the clock, and commit it only after the
+candidate event folds successfully. This changes no stored event or bridge
+signature. All 17 personal-ledger Rust API tests passed on the Windows host.
+
