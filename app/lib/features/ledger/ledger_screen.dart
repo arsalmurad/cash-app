@@ -1228,15 +1228,20 @@ class TransferTile extends StatelessWidget {
           ),
         ),
         title: Text(transfer.title),
-        subtitle: Text(
-          '${_accountName(transfer.fromAccountId)} → '
-          '${_accountName(transfer.toAccountId)}',
-        ),
-        trailing: Text(
-          transfer.sentLabel == transfer.receivedLabel
-              ? transfer.sentLabel
-              : '${transfer.sentLabel} → ${transfer.receivedLabel}',
-          style: Theme.of(context).textTheme.titleSmall,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${_accountName(transfer.fromAccountId)} → '
+              '${_accountName(transfer.toAccountId)}',
+            ),
+            Text(
+              transfer.sentLabel == transfer.receivedLabel
+                  ? transfer.sentLabel
+                  : '${transfer.sentLabel} → ${transfer.receivedLabel}',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+          ],
         ),
       ),
     );
