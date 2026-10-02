@@ -246,14 +246,7 @@ pub fn budget_progress(
                 .ok_or_else(|| "budget spend overflowed".to_owned())?;
         }
 
-        let percent_used = if record.limit_minor > 0 {
-            spent_minor
-                .checked_mul(100)
-                .ok_or_else(|| "budget percentage overflowed".to_owned())?
-                / record.limit_minor
-        } else {
-            0
-        };
+        let percent_used = super::progress::percentage(spent_minor, record.limit_minor);
 
         views.push(BudgetView {
             id: id.as_str().to_owned(),
@@ -419,6 +412,44 @@ mod tests {
         assert_eq!(progress[0].limit_label, "USD 300.00");
         assert_eq!(progress[0].spent_label, "USD 0.00");
         assert_eq!(progress[0].percent_used, 0);
+    }
+
+    #[test]
+    fn valid_i64_expense_does_not_overflow_budget_percentage() {
+        let ledger = new_ledger_with_checking("device-a");
+        let book = new_book("device-a");
+        let maximum = "92233720368547758.07";
+        upsert_budget(
+            &book,
+            "large".into(),
+            "Large".into(),
+            None,
+            maximum.into(),
+            "USD".into(),
+            BudgetPeriodKind::Monthly,
+            None,
+            1,
+        )
+        .unwrap();
+        spend(&ledger, "maximum", maximum, None, 2);
+        let progress = budget_progress(&ledger, &book, 3).unwrap();
+        assert_eq!(progress[0].percent_used, 100);
+        assert_eq!(progress[0].spent_label, format!("USD {maximum}"));
+        upsert_budget(
+            &book,
+            "large".into(),
+            "Large".into(),
+            None,
+            "0.01".into(),
+            "USD".into(),
+            BudgetPeriodKind::Monthly,
+            None,
+            4,
+        )
+        .unwrap();
+        let progress = budget_progress(&ledger, &book, 5).unwrap();
+        assert_eq!(progress[0].percent_used, i64::MAX);
+        assert_eq!(progress[0].spent_label, format!("USD {maximum}"));
     }
 
     #[test]

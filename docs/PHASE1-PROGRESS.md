@@ -6,6 +6,17 @@ the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
 
 ## Personal definition lifecycle (2026-10-02)
 
+Large-value follow-up: maximum valid i64 income/expense amounts reproduced
+`goal percentage overflowed` and `budget percentage overflowed` in two RED Rust
+tests. The integer-only presentation fix passed both regressions and a boundary
+helper check; all 55 API tests, 45 core unit tests and core acceptance suites
+passed. The refreshed Windows native bridge then passed 17 focused app checks,
+including actual SQLite maximum-value saves, tiny-target edits and restart
+without false failed-save errors. Exact USD 92233720368547758.07 amounts remain
+unchanged; the saturated ratio is shown as `>1,000,000%` on 360x740 cards.
+Static analysis passed. Platform artifacts for this follow-up have not yet been
+rebuilt; the earlier platform runs below cover their stated revisions only.
+
 Saving-target follow-up: three actual Windows native-bridge/SQLite regressions
 independently verify JPY 100/123 through entry, edit and restart, reject fractional
 JPY, and reject an unknown linked account without writing a goal. The original
