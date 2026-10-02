@@ -28,8 +28,19 @@ overflow, fixed by expanded dropdown layout. All 247 app tests and static
 analysis passed before the additional actual SQLite category/deadline check;
 that check then passed alongside the other nine focused checks. It verifies
 restart, clearing the deadline/category, recomputed USD 0/10/15 progress, and
-byte-identical retained transaction logs. No new Android/iOS/web runtime claim
-is made for these controls yet.
+byte-identical retained transaction logs. Platform runtime results follow below.
+
+Recurring dialogs now let users select or clear a category, retaining unavailable
+existing categories explicitly. Missing accounts require a new valid selection.
+Expanded dropdowns and wrapping date controls passed a 360x740 creation/edit
+journey. The focused recurring/goal/lifecycle suite passed 22 checks and static
+analysis passed. The updated production Flutter WASM build took 200.3 s using
+the unchanged Rust WASM bridge; the real Chrome personal UI journey passed goal
+currency/category/deadline selection, reload and cancelled edits, categorized
+recurring entry, matching USD 1.23 spending-goal progress, and the existing
+keep/remove/reload transaction-preservation
+journey with remote font hosts blocked. This is local Chrome evidence, not a
+new iOS or production-relay deployment result.
 
 Later sections retain earlier, revision-specific evidence; no historical iOS
 run verifies these new lifecycle calls.

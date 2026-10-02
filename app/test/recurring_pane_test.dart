@@ -2,10 +2,98 @@ import 'package:flutter/material.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
+import 'package:private_ledger/data/rust/api/categories.dart';
 import 'package:private_ledger/data/rust/api/recurring.dart';
 import 'package:private_ledger/features/ledger/recurring_pane.dart';
 
 void main() {
+  testWidgets('recurring category can be selected and cleared on a phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    RecurringDraft? result;
+    Future<void> open({UpcomingView? existing}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  result = await showDialog<RecurringDraft>(
+                    context: context,
+                    builder: (_) => NewRecurringDialog(
+                      accounts: const [
+                        AccountView(
+                          id: 'checking',
+                          name: 'Checking',
+                          currencyCode: 'USD',
+                          balanceLabel: 'USD 0.00',
+                        ),
+                      ],
+                      categories: const [
+                        CategoryView(
+                          id: 'housing',
+                          name: 'Housing',
+                          iconKey: 'home',
+                        ),
+                      ],
+                      existing: existing,
+                    ),
+                  );
+                },
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    await open();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Title'), 'Rent');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Amount'), '10');
+    await tester.ensureVisible(
+      find.byKey(const Key('recurringCategoryDropdown')),
+    );
+    await tester.tap(find.byKey(const Key('recurringCategoryDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Housing').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(result!.categoryId, 'housing');
+    await open(
+      existing: UpcomingView(
+        recurringId: 'rent',
+        title: 'Rent',
+        isExpense: true,
+        amountLabel: 'USD 10.00',
+        accountId: 'checking',
+        categoryId: 'housing',
+        frequency: RecurringFrequency.monthly,
+        occurrenceMillis: PlatformInt64Util.from(
+          DateTime.now().millisecondsSinceEpoch,
+        ),
+        isOverdue: true,
+      ),
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('recurringCategoryDropdown')),
+    );
+    await tester.tap(find.byKey(const Key('recurringCategoryDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('No category').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(result!.categoryId, isNull);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('future rules can be managed but cannot be recorded early', (
     tester,
   ) async {
@@ -241,8 +329,7 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      // No category picker exists in this dialog; the existing category must
-      // still be carried through rather than dropped.
+      // An unavailable existing category remains explicit and is preserved.
       expect(result!.categoryId, 'housing');
     },
   );

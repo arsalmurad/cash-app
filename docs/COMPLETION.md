@@ -61,8 +61,9 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   just widget presence; fix functional gaps and verify phone/tablet/web layouts.
   Budget/goal removal, recurring stop, future-rule management and stale-post
   protection are now implemented. Goal currency/category/deadline controls
-  have native-host and phone widget checks; recurring category selection and
-  remaining functional/adaptive review still need attention.
+  and recurring category selection have native-host/phone widget checks and
+  production Chrome runtime evidence. Remaining functional/adaptive review
+  still needs attention; these checks do not close the whole UX gate.
 - [x] Pin reproducible CI environments, including explicit WASM nightly,
   action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
   remain recorded rather than hidden or upgraded without verification.
