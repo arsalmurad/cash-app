@@ -6,6 +6,26 @@ the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
 
 ## Personal definition lifecycle (2026-10-02)
 
+Recent-order follow-up at production source `4a05a7e`: a RED API regression
+reproduced older random IDs sorting ahead of newer entries. Transaction and
+transfer views now use their original recording event's full total-order key;
+later corrections do not move an older entry to the top. All 61 API tests, 269
+Flutter host tests, actual-native same-tick queue/restart/failure checks and static
+analysis passed. The pinned WASM bridge rebuilt in 23.83 s and Flutter release
+WASM in 136.8 s. Chrome independently passed six rendered random-ID income entries:
+each was immediately visible, and reload kept the newest five with the exact
+expected balance. The combined command below passed CSV, personal controls,
+corrections, large money, household HTTP/CORS, actual quota, sealed reload,
+offline conflict, fresh-key recovery/removal, EUR/JPY frozen rates and private
+isolation with remote fonts blocked:
+`WEB_PERSONAL_LIFECYCLE=1 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_QUOTA=1 WEB_CSV=1
+WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`.
+One initial combined driver run submitted a blank title during dialog/focus
+transitions. The driver now verifies actual editing focus and rendered input
+values before submission; neither the app API nor financial state is patched.
+Android below verifies correction source `1fbea4d`, not this later ordering
+helper. No new iOS result is claimed.
+
 Personal transaction corrections at production source `1fbea4d`: the core's
 existing amount/category/void events are now available through the bridge and
 UI. Amount corrections retain original currency, frozen FX and creation time;

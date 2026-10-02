@@ -10,6 +10,15 @@ is **not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
 
 ### Current sealed-storage failure checks (2026-10-02)
 
+After the personal correction/ordering bridge changes, the full production
+Chrome acceptance journey passed again at app source `4a05a7e` with personal,
+CSV, household, quota and offline-font flags enabled (exact combined command
+in `PHASE1-PROGRESS.md`). This independently rechecks the newly generated bridge
+alongside actual HTTP/CORS join, real quota refusal with no early relay append,
+sealed reload, offline conflict, stale-backup fresh-key recovery and old-device
+removal, EUR/JPY convergence and private-ledger/HTTP plaintext boundaries. Local
+workerd only; not public deployment, final iOS or a physical-device result.
+
 Production Chrome quota follow-up passed with `WEB_HOUSEHOLD=1
 WEB_HOUSEHOLD_QUOTA=1 WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`.
 The app binary is the unchanged, already-built production source `2804c03`;
