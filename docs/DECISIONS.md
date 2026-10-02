@@ -1032,3 +1032,15 @@ event convergence, MLS, recovery and storage checks. Feature-gated live HTTP tes
 are separate, not claimed by this command. The existing manual/PR workflow now
 installs matching Clippy and enforces the same lint; no cloud job was dispatched.
 
+## 2026-10-02 — Chosen summary calculation is a separate disclosure boundary
+
+Use an immutable typed snapshot containing only the selected reporting-currency
+income/expense totals and a half-open period. Selection defaults to none; no
+titles, account/category/transaction IDs, source actors, transfers or removed
+entries enter this value. Current corrections use the original date and frozen
+FX; unselected flows are not calculated, and selected i64 overflow is an error.
+The test was written before implementation (missing-feature compile failure),
+then five focused tests, all core acceptance tests and strict core lint passed
+on Windows with pinned Rust 1.98.1. This is calculation only, not yet publication
+UI, encryption, relay or platform-runtime evidence; the analytics gate stays open.
+
