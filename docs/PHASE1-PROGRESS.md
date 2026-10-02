@@ -37,9 +37,36 @@ The production WASM lifecycle UI journey passed on Chrome 154.0.8037.58,
 including actual persisted cancellation/removal/reload and a retained recorded
 expense. Initial driver attempts failed on Flutter's newline-merged navigation
 and balance labels; the driver was corrected using rendered semantics, without
-app debug hooks or injected ledger state. That browser build predates only the
-additional transaction-kind stale guard. The final source's broader browser and
-Android runtime checks are pending; no new iOS runtime is claimed here.
+app debug hooks or injected ledger state. The final production app source
+`a2eeff8`, including the transaction-kind stale guard, then passed the combined
+journey with `WEB_PERSONAL_LIFECYCLE=1 WEB_HOUSEHOLD=1 WEB_CSV=1
+WEB_OFFLINE_FONTS=1 WEB_CSV_LINE_ENDINGS=LF node scripts/verify_web_runtime.mjs`.
+This also passed actual Unicode file selection/download, blocked remote-font
+requests, encrypted household reload, HTTP/CORS invite, offline conflict,
+fresh-key recovery/removal and EUR/JPY frozen-rate convergence. The final Flutter
+WASM build took 178.1 s, reusing the already-built matching Rust WASM bridge.
+
+The first expanded Android journey reached a foreign-account recurring rule
+but the driver assumed a USD default and never completed the required rate
+dialog; the balance correctly stayed unchanged. A diagnostic retry confirmed
+the actual selected account was `euro`, not `everyday`. The corrected driver
+explicitly chooses the account and tests rate cancellation and confirmation,
+rather than bypassing the prompt or changing a ledger expectation to a pass.
+The corrected test passed on the owned read-only AOSP ATD Android 16/API 36
+x86_64 emulator using `flutter --no-version-check test --no-pub
+integration_test/ledger_test.dart -d emulator-5580 --reporter expanded`.
+The final debug APK build took 308.2 s, installation 10.0 s and actual runtime
+103 s. This includes the existing expense/category/transfer/EUR restart journey,
+explicit EUR recurring entry, cancellation without a ledger write, the new
+1.23 EUR at rate 1 alongside the original 80 EUR at 1.0875, all keep/remove
+confirmations, exact unchanged ledger/CSV bytes and fresh SQLite-controller
+restart. Final totals were USD -600.57, EUR -81.23 and reporting EUR value
+USD -88.23. An earlier corrected run passed persistence assertions but its
+final UI check looked for Overview data while the simulated restart retained
+the Recurring tab; the driver now selects Overview explicitly.
+
+No new iOS runtime, physical phone, release APK or power-loss result is claimed.
+The emulator was stopped after verification; pinned tools and caches were kept.
 
 ## Takeover verification and recovery fix (2026-10-01)
 

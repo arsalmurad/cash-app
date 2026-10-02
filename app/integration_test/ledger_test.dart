@@ -209,6 +209,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), 'Lifecycle goal');
     await tester.enterText(find.byType(TextFormField).at(1), '100');
+    await tester.tap(find.byKey(const Key('goalAccountDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Everyday').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await waitFor(tester, find.text('Lifecycle goal'));
 
@@ -218,16 +222,56 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).at(0), 'Lifecycle bill');
     await tester.enterText(find.byType(TextFormField).at(1), '1.23');
+    await tester.tap(find.byKey(const Key('recurringAccountDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Euro').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await waitFor(tester, find.text('Lifecycle bill'));
+    expect(restartedController.upcoming, hasLength(1));
+    expect(
+      restartedController.upcoming.single.isOverdue,
+      isTrue,
+      reason: 'New rule should already be due before Record is tapped',
+    );
+    expect(restartedController.upcoming.single.accountId, 'euro');
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Record'))
+          .onPressed,
+      isNotNull,
+    );
     await tester.tap(find.text('Record'));
+    await waitFor(tester, find.widgetWithText(FilledButton, 'Use rate'));
+    final beforeRateCancel = await EventStore('ledger').readLog();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(
+      await EventStore('ledger').readLog(),
+      orderedEquals(beforeRateCancel),
+    );
+    expect(restartedController.overview!.balanceLabel, 'USD -599.34');
+    await tester.tap(find.text('Record'));
+    await waitFor(tester, find.widgetWithText(FilledButton, 'Use rate'));
+    await tester.enterText(find.byType(TextFormField), '1');
+    await tester.tap(find.widgetWithText(FilledButton, 'Use rate'));
     await tester.pumpAndSettle();
     final deadline = DateTime.now().add(const Duration(seconds: 20));
     while (restartedController.overview!.balanceLabel != 'USD -600.57' &&
         DateTime.now().isBefore(deadline)) {
       await tester.pump(const Duration(milliseconds: 100));
     }
-    expect(restartedController.overview!.balanceLabel, 'USD -600.57');
+    expect(
+      restartedController.errorMessage,
+      isNull,
+      reason: 'Report a real save/validation failure before comparing balances',
+    );
+    expect(
+      restartedController.overview!.balanceLabel,
+      'USD -600.57',
+      reason:
+          'Displayed texts: ${tester.widgetList<Text>(find.byType(Text)).map((text) => text.data).whereType<String>().toList()}',
+    );
     expect(
       restartedController.upcoming,
       hasLength(1),
@@ -282,7 +326,16 @@ void main() {
       MaterialApp(home: LedgerScreen(controller: finalRestart)),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Overview'));
+    await tester.pumpAndSettle();
     expect(find.text('USD -600.57'), findsOneWidget);
+    expect(find.text('EUR -81.23'), findsOneWidget);
+    expect(
+      find.text('≈ USD -88.23'),
+      findsOneWidget,
+      reason:
+          'The old 80 EUR at 1.0875 and new 1.23 EUR at 1 keep their own rates',
+    );
     expect(
       find.text('Lifecycle bill'),
       findsOneWidget,
