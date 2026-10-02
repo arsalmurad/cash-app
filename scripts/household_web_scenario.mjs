@@ -30,7 +30,8 @@ export async function runHouseholdWebScenario(alice, api) {
       ? event.params.args.map(a => a.value ?? a.description ?? '').find(v => String(v).includes('panicked at'))
       : null;
     if (event.method === 'Runtime.exceptionThrown' || panic) {
-      rejectWorkerFailure(new Error(`Owned browser worker failed during ${scenarioStage}: ${String(panic ?? details?.exception?.description ?? details?.text).slice(0, 1200)}`));
+      const opaqueFrame = event.params.stackTrace?.callFrames?.find(frame => frame.functionName.includes('decrement_strong_count'))?.functionName;
+      rejectWorkerFailure(new Error(`Owned browser worker failed during ${scenarioStage}: ${String(panic ?? details?.exception?.description ?? details?.text).slice(0, 1200)}${opaqueFrame ? `\n${opaqueFrame}` : ''}`));
     }
     if (event.method !== 'Target.attachedToTarget') return;
     const session = event.params.sessionId;
@@ -85,6 +86,10 @@ export async function runHouseholdWebScenario(alice, api) {
     }
     await peer.send('Input.insertText', { text: value });
     await waitFor(peer, `document.activeElement?.value === ${JSON.stringify(value)}`);
+    // Complete editing through the same keyboard path as the personal flow.
+    // DOM text alone does not prove Flutter has committed the field update.
+    await peer.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+    await peer.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
   }
 
   async function openHousehold(peer) {
@@ -146,7 +151,22 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickDropdown(alice, 'Currency');
     await clickLabel(alice, currency);
     await clickLabel(alice, 'Create shared account', 'button');
-    await waitForLabel(alice, `${name} (${currency})`);
+    // Populated household lists lazily expose below-fold account semantics.
+    // Verify the rendered card by scrolling, not by reading controller state.
+    const accountLabel = `${name} (${currency})`;
+    const viewport = await evaluate(alice, `({ width: innerWidth, height: innerHeight })`);
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const present = await evaluate(alice, `[...document.querySelectorAll('flt-semantics-host *')]
+        .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim())?.includes(${JSON.stringify(accountLabel)}))`);
+      if (present) break;
+      await alice.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
+        x: viewport.width / 2, y: viewport.height * 0.75, deltaX: 0, deltaY: 300 });
+      await delay(200);
+    }
+    await waitForLabel(alice, accountLabel);
+    await alice.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
+      x: viewport.width / 2, y: viewport.height * 0.75, deltaX: 0, deltaY: -2400 });
+    await delay(200);
   }
 
   async function clickDropdown(peer, label) {
@@ -246,7 +266,8 @@ export async function runHouseholdWebScenario(alice, api) {
     await waitForLabel(bob, 'Expense total: USD 12.34');
     console.log('Verified household summary: explicit browser lock hides the snapshot and phrase unlock restores it.');
     if (process.env.WEB_HOUSEHOLD_QUOTA === '1') {
-      await runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api);
+      scenarioStage = 'Alice quota failure and restart';
+      await Promise.race([workerFailure, runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api)]);
     }
 
     scenarioStage = 'Alice publishes after Bob unlock';
