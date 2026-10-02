@@ -1019,3 +1019,16 @@ reported existing budget-fixture and crypto-chunk warnings, not hidden here.
 No new mobile/WASM runtime is claimed for this isolated fold change; final-source
 platform acceptance remains open.
 
+## 2026-10-02 — Enforce strict Rust lint without protocol changes
+
+The pinned Rust 1.98.1 all-target lint exposed older test/iteration style warnings.
+Move the unchanged authorship test module after production items, use equivalent
+test iterators/predicates, and scope the budget fixture's argument-count exception
+to that fixture. Safety-number v1 now iterates fixed chunks with the compiler's
+preferred API; an independently calculated fixed-key vector passes before and
+after, preserving the exact six groups. Strict Windows workspace lint and the
+complete locked default-feature Rust suite passed, including three-peer 1,000-
+event convergence, MLS, recovery and storage checks. Feature-gated live HTTP tests
+are separate, not claimed by this command. The existing manual/PR workflow now
+installs matching Clippy and enforces the same lint; no cloud job was dispatched.
+

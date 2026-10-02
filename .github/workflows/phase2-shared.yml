@@ -33,6 +33,7 @@ jobs:
         run: |
           rustup toolchain install 1.98.1 --profile minimal
           rustup default 1.98.1
+          rustup component add clippy --toolchain 1.98.1
           rustc --version
 
       - name: Install Node.js
@@ -49,6 +50,10 @@ jobs:
             rust/target
             ~/.npm
           key: shared-${{ runner.os }}-rust1.98.1-node24.19.0-${{ hashFiles('rust/Cargo.lock', 'relay/package-lock.json') }}
+
+      - name: Strict Rust workspace lint
+        working-directory: rust
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Rust workspace tests (core, crypto, sync)
         working-directory: rust
@@ -69,6 +74,7 @@ jobs:
           {
             echo "## Phase 2 shared layer"
             echo
+            echo "- Strict cargo clippy --workspace --all-targets: passed"
             echo "- cargo test --workspace (three-peer exit scenario, MLS, shared fold): passed"
             echo "- Relay worker tests in workerd: passed"
             echo "- Rust sync engine against the running worker: passed"

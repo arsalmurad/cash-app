@@ -203,6 +203,15 @@ fn safety_numbers_match_on_both_sides_and_differ_per_pair() {
 }
 
 #[test]
+fn safety_number_v1_keeps_its_fixed_key_vector() {
+    // Independently calculated SHA-256 over the v1 domain and length-prefixed
+    // sorted keys; preserve all six decimal groups through implementation cleanup.
+    let expected = "37358 43706 07588 45040 47024 87389";
+    assert_eq!(safety_number(&[1; 32], &[2; 32]), expected);
+    assert_eq!(safety_number(&[2; 32], &[1; 32]), expected);
+}
+
+#[test]
 fn a_member_keeps_working_after_a_restart_mid_conversation() {
     let (mut alice, bob, mut carol) = three();
     let before = bob.epoch();

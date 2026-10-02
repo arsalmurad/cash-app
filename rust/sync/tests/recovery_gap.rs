@@ -10,7 +10,7 @@ fn an_old_backup_must_not_reuse_a_sender_ratchet_after_later_sends() {
     let mut bob = Peer::new("bob", usd).unwrap();
     let request = bob.key_package().unwrap();
     let mailbox = alice.invite(&mut relay, &request).unwrap();
-    bob.accept(&mut relay, &alice.group_id().unwrap(), &mailbox)
+    bob.accept(&mut relay, alice.group_id().unwrap(), &mailbox)
         .unwrap();
     let backup = bob.export().unwrap();
     bob.write(

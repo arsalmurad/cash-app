@@ -39,11 +39,11 @@ fn a_mistyped_phrase_is_rejected_not_silently_accepted() {
     // backup. Do not make CI probabilistically assume every typo is invalid.
     let mut swapped = words.clone();
     swapped.swap(0, 1);
-    if swapped != words {
-        if let Ok(wrong_key) = RecoveryKey::from_phrase(&swapped.join(" ")) {
-            let sealed = key.seal(b"original private state").unwrap();
-            assert_eq!(wrong_key.open(&sealed), Err(RecoveryError::CannotOpen));
-        }
+    if swapped != words
+        && let Ok(wrong_key) = RecoveryKey::from_phrase(&swapped.join(" "))
+    {
+        let sealed = key.seal(b"original private state").unwrap();
+        assert_eq!(wrong_key.open(&sealed), Err(RecoveryError::CannotOpen));
     }
     // Deterministic invalid checksum: zero entropy needs a nonzero final
     // checksum, so 24 occurrences of word index zero are not a valid phrase.
