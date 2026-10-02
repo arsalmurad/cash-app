@@ -17,6 +17,77 @@ pub struct PersonalLedger {
     data: Mutex<LedgerData>,
 }
 
+/// Detached, exact preview. It contains no handle back to the private ledger.
+/// Reusing the same draft cannot create a second publication in this session.
+#[frb(opaque)]
+pub struct SummaryDraft {
+    pub(crate) summary: cash_core::ChosenSummary,
+    pub(crate) group_id: String,
+    pub(crate) published: Mutex<bool>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct SummaryPreview {
+    pub group_id: String,
+    pub currency_code: String,
+    pub start_millis: i64,
+    pub end_millis_exclusive: i64,
+    pub income_label: Option<String>,
+    pub expenses_label: Option<String>,
+}
+
+pub(crate) fn summary_view(summary: &cash_core::ChosenSummary, group_id: String) -> SummaryPreview {
+    SummaryPreview {
+        group_id,
+        currency_code: summary.currency().code().to_owned(),
+        start_millis: summary.start_millis(),
+        end_millis_exclusive: summary.end_millis_exclusive(),
+        income_label: summary
+            .income_minor()
+            .map(|minor| summary.currency().format_minor_units(minor)),
+        expenses_label: summary
+            .expenses_minor()
+            .map(|minor| summary.currency().format_minor_units(minor)),
+    }
+}
+
+/// Read-only; nothing is queued or persisted until the distinct publish call.
+/// The caller must show the exact preview and target group before confirmation.
+pub fn prepare_summary(
+    ledger: &PersonalLedger,
+    group_id: String,
+    start_millis: i64,
+    end_millis_exclusive: i64,
+    include_income: bool,
+    include_expenses: bool,
+) -> Result<SummaryDraft, String> {
+    if group_id.is_empty() {
+        return Err("Choose a household before preparing a summary.".into());
+    }
+    let data = lock(ledger)?;
+    let state =
+        fold(data.reporting_currency.clone(), data.events.clone()).map_err(|e| e.to_string())?;
+    let summary = cash_core::chosen_summary(
+        &state,
+        start_millis,
+        end_millis_exclusive,
+        cash_core::SummarySelection {
+            income: include_income,
+            expenses: include_expenses,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(SummaryDraft {
+        summary,
+        group_id,
+        published: Mutex::new(false),
+    })
+}
+
+pub fn summary_preview(draft: &SummaryDraft) -> SummaryPreview {
+    summary_view(&draft.summary, draft.group_id.clone())
+}
+
 struct LedgerData {
     actor_id: String,
     reporting_currency: Currency,
@@ -765,6 +836,10 @@ fn overview_from_state(state: LedgerState, events: &[Event]) -> LedgerOverview {
 #[cfg(test)]
 #[path = "ledger_corrections_tests.rs"]
 mod correction_tests;
+
+#[cfg(test)]
+#[path = "ledger_summary_tests.rs"]
+mod summary_tests;
 
 #[cfg(test)]
 mod tests {

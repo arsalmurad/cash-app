@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../data/rust/api/shared.dart' show SharedTransactionView;
+import '../../data/rust/api/ledger.dart' show SummaryDraft, summaryPreview;
+import '../ledger/ledger_controller.dart';
+import 'chosen_summary_dialog.dart';
 import '../ledger/exchange_rate_dialog.dart';
 import 'household_controller.dart';
 import 'household_dialogs.dart';
@@ -18,11 +21,13 @@ enum _MenuAction { addAccount, backup, leave }
 class HouseholdScreen extends StatefulWidget {
   const HouseholdScreen({
     required this.controller,
+    this.privateLedger,
     this.syncInterval = const Duration(seconds: 30),
     super.key,
   });
 
   final HouseholdController controller;
+  final LedgerController? privateLedger;
   final Duration syncInterval;
 
   @override
@@ -287,6 +292,57 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
     }
   }
 
+  Future<void> _shareSummary() async {
+    final ledger = widget.privateLedger;
+    if (ledger == null || !controller.isMember || controller.isBusy) return;
+    SummaryDraft? draft;
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ChosenSummaryDialog(
+        prepare: (range, income, expenses) async {
+          final group = controller.overview?.groupId;
+          if (group == null ||
+              !controller.isMember ||
+              controller.needsRecoveryInvite) {
+            throw StateError('Choose an active household before sharing.');
+          }
+          final next = await ledger.prepareChosenSummary(
+            groupId: group,
+            start: DateTime(
+              range.start.year,
+              range.start.month,
+              range.start.day,
+            ),
+            // Calendar construction respects local daylight-saving transitions.
+            endExclusive: DateTime(
+              range.end.year,
+              range.end.month,
+              range.end.day + 1,
+            ),
+            includeIncome: income,
+            includeExpenses: expenses,
+          );
+          draft = next;
+          return summaryPreview(draft: next);
+        },
+        publish: () async {
+          final selected = draft;
+          if (selected == null) {
+            throw StateError('Prepare a new summary first.');
+          }
+          final sent = await controller.publishSummary(selected);
+          if (!sent) {
+            throw StateError(
+              controller.errorMessage ?? 'Check the household before retrying.',
+            );
+          }
+          return true;
+        },
+      ),
+    );
+  }
+
   Future<void> _editAmount(SharedTransactionView transaction) async {
     final amount = await showDialog<String>(
       context: context,
@@ -426,6 +482,10 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
               else if (inHousehold)
                 HouseholdPane(
                   overview: overview,
+                  summaries: controller.summaries,
+                  onShareSummary: widget.privateLedger == null
+                      ? null
+                      : _shareSummary,
                   busy: controller.isBusy,
                   onSync: () async {
                     if (!await controller.syncNow()) {

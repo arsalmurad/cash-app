@@ -45,7 +45,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 667556449;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1362610173;
 
 // Section: executor
 
@@ -1488,6 +1488,73 @@ fn wire__crate__api__shared__household_overview_impl(
         },
     )
 }
+fn wire__crate__api__shared__household_publish_summary_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "household_publish_summary",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_household = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Household>,
+            >>::sse_decode(&mut deserializer);
+            let api_draft = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>,
+            >>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_household_guard = None;
+                    let mut api_draft_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_household,
+                                0,
+                                false,
+                            ),
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_draft, 1, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => {
+                                api_household_guard = Some(api_household.lockable_decode_sync_ref())
+                            }
+                            1 => api_draft_guard = Some(api_draft.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_household_guard = api_household_guard.unwrap();
+                    let api_draft_guard = api_draft_guard.unwrap();
+                    let output_ok = crate::api::shared::household_publish_summary(
+                        &*api_household_guard,
+                        &*api_draft_guard,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__shared__household_record_transaction_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1647,6 +1714,59 @@ fn wire__crate__api__shared__household_safety_number_impl(
                         &*api_household_guard,
                         api_member_id,
                     )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__shared__household_summaries_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "household_summaries",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_household = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Household>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_household_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_household,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => {
+                                api_household_guard = Some(api_household.lockable_decode_sync_ref())
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_household_guard = api_household_guard.unwrap();
+                    let output_ok = crate::api::shared::household_summaries(&*api_household_guard)?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -2018,6 +2138,69 @@ fn wire__crate__api__ledger__load_report_impl(
                     }
                     let api_ledger_guard = api_ledger_guard.unwrap();
                     let output_ok = crate::api::ledger::load_report(&*api_ledger_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__ledger__prepare_summary_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "prepare_summary",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_group_id = <String>::sse_decode(&mut deserializer);
+            let api_start_millis = <i64>::sse_decode(&mut deserializer);
+            let api_end_millis_exclusive = <i64>::sse_decode(&mut deserializer);
+            let api_include_income = <bool>::sse_decode(&mut deserializer);
+            let api_include_expenses = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let output_ok = crate::api::ledger::prepare_summary(
+                        &*api_ledger_guard,
+                        api_group_id,
+                        api_start_millis,
+                        api_end_millis_exclusive,
+                        api_include_income,
+                        api_include_expenses,
+                    )?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -2707,6 +2890,56 @@ fn wire__crate__api__ledger__suggest_category_for_title_impl(
         },
     )
 }
+fn wire__crate__api__ledger__summary_preview_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "summary_preview",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_draft = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>,
+            >>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, ()>((move || {
+                    let mut api_draft_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_draft, 0, false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_draft_guard = Some(api_draft.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_draft_guard = api_draft_guard.unwrap();
+                    let output_ok =
+                        Ok::<_, ()>(crate::api::ledger::summary_preview(&*api_draft_guard))?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__ledger__transaction_history_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -3178,6 +3411,9 @@ flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
 flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
     flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>
 );
+flutter_rust_bridge::frb_generated_moi_arc_impl_value!(
+    flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>
+);
 
 // Section: dart2rust
 
@@ -3241,6 +3477,16 @@ impl SseDecode for RecurringBook {
     }
 }
 
+impl SseDecode for SummaryDraft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <RustOpaqueMoi<
+            flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>,
+        >>::sse_decode(deserializer);
+        return flutter_rust_bridge::for_generated::rust_auto_opaque_decode_owned(inner);
+    }
+}
+
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>
 {
@@ -3293,6 +3539,16 @@ impl SseDecode
 
 impl SseDecode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <usize>::sse_decode(deserializer);
+        return decode_rust_opaque_moi(inner);
+    }
+}
+
+impl SseDecode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3692,6 +3948,20 @@ impl SseDecode for Vec<u8> {
     }
 }
 
+impl SseDecode for Vec<crate::api::shared::PublishedSummaryView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::shared::PublishedSummaryView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::shared::RejectedView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3867,6 +4137,22 @@ impl SseDecode for crate::api::shared::OutgoingEntry {
     }
 }
 
+impl SseDecode for crate::api::shared::PublishedSummaryView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_eventId = <String>::sse_decode(deserializer);
+        let mut var_authorId = <String>::sse_decode(deserializer);
+        let mut var_publishedMillis = <i64>::sse_decode(deserializer);
+        let mut var_preview = <crate::api::ledger::SummaryPreview>::sse_decode(deserializer);
+        return crate::api::shared::PublishedSummaryView {
+            event_id: var_eventId,
+            author_id: var_authorId,
+            published_millis: var_publishedMillis,
+            preview: var_preview,
+        };
+    }
+}
+
 impl SseDecode for crate::api::recurring::RecurringFrequency {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4020,6 +4306,26 @@ impl SseDecode for crate::api::storage::StorageResponse {
             revision: var_revision,
             value: var_value,
             database: var_database,
+        };
+    }
+}
+
+impl SseDecode for crate::api::ledger::SummaryPreview {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_groupId = <String>::sse_decode(deserializer);
+        let mut var_currencyCode = <String>::sse_decode(deserializer);
+        let mut var_startMillis = <i64>::sse_decode(deserializer);
+        let mut var_endMillisExclusive = <i64>::sse_decode(deserializer);
+        let mut var_incomeLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_expensesLabel = <Option<String>>::sse_decode(deserializer);
+        return crate::api::ledger::SummaryPreview {
+            group_id: var_groupId,
+            currency_code: var_currencyCode,
+            start_millis: var_startMillis,
+            end_millis_exclusive: var_endMillisExclusive,
+            income_label: var_incomeLabel,
+            expenses_label: var_expensesLabel,
         };
     }
 }
@@ -4241,85 +4547,94 @@ fn pde_ffi_dispatcher_primary_impl(
             data_len,
         ),
         26 => wire__crate__api__shared__household_overview_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__shared__household_record_transaction_impl(
+        27 => wire__crate__api__shared__household_publish_summary_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__shared__household_restore_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__shared__household_safety_number_impl(
+        28 => wire__crate__api__shared__household_record_transaction_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__shared__household_void_transaction_impl(
+        29 => wire__crate__api__shared__household_restore_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__shared__household_safety_number_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        31 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        32 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
-        33 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
-        34 => {
+        31 => wire__crate__api__shared__household_summaries_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__shared__household_void_transaction_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        33 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
+        36 => {
             wire__crate__api__categories__load_category_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        35 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
-        36 => {
+        37 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
+        38 => {
             wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
         }
-        37 => {
+        39 => {
             wire__crate__api__recurring__load_recurring_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        38 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__shared__recovery_generate_phrase_impl(
+        40 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__ledger__prepare_summary_impl(port, ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__shared__recovery_generate_phrase_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        42 => wire__crate__api__shared__recovery_open_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__shared__recovery_seal_impl(port, ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__shared__recovery_validate_phrase_impl(
+        45 => wire__crate__api__shared__recovery_open_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__shared__recovery_seal_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__shared__recovery_validate_phrase_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        45 => wire__crate__api__recurring__recurring_load_report_impl(
+        48 => wire__crate__api__recurring__recurring_load_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        46 => {
+        49 => {
             wire__crate__api__recurring__recurring_schedule_impl(port, ptr, rust_vec_len, data_len)
         }
-        47 => wire__crate__api__budgets__remove_budget_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__goals__remove_goal_impl(port, ptr, rust_vec_len, data_len),
-        51 => wire__crate__api__recurring__stop_recurring_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__ledger__suggest_category_for_title_impl(
+        50 => wire__crate__api__budgets__remove_budget_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__goals__remove_goal_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__recurring__stop_recurring_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__ledger__suggest_category_for_title_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        53 => wire__crate__api__ledger__transaction_history_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__recurring__upcoming_occurrences_impl(
+        56 => wire__crate__api__ledger__summary_preview_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__ledger__transaction_history_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__recurring__upcoming_occurrences_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
-        56 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
-        58 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__ledger__void_transaction_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__ledger__void_transaction_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4332,8 +4647,8 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        49 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4426,6 +4741,21 @@ impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<
 
 impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<RecurringBook>> for RecurringBook {
     fn into_into_dart(self) -> FrbWrapper<RecurringBook> {
+        self.into()
+    }
+}
+
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<SummaryDraft> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self.0)
+            .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for FrbWrapper<SummaryDraft> {}
+
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<SummaryDraft>> for SummaryDraft {
+    fn into_into_dart(self) -> FrbWrapper<SummaryDraft> {
         self.into()
     }
 }
@@ -4863,6 +5193,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::shared::OutgoingEntry>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::shared::PublishedSummaryView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.event_id.into_into_dart().into_dart(),
+            self.author_id.into_into_dart().into_dart(),
+            self.published_millis.into_into_dart().into_dart(),
+            self.preview.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::shared::PublishedSummaryView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::shared::PublishedSummaryView>
+    for crate::api::shared::PublishedSummaryView
+{
+    fn into_into_dart(self) -> crate::api::shared::PublishedSummaryView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::recurring::RecurringFrequency {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -5106,6 +5459,31 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::storage::StorageResponse>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ledger::SummaryPreview {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.group_id.into_into_dart().into_dart(),
+            self.currency_code.into_into_dart().into_dart(),
+            self.start_millis.into_into_dart().into_dart(),
+            self.end_millis_exclusive.into_into_dart().into_dart(),
+            self.income_label.into_into_dart().into_dart(),
+            self.expenses_label.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ledger::SummaryPreview
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::SummaryPreview>
+    for crate::api::ledger::SummaryPreview
+{
+    fn into_into_dart(self) -> crate::api::ledger::SummaryPreview {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ledger::TransactionHistoryView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -5254,6 +5632,13 @@ impl SseEncode for RecurringBook {
     }
 }
 
+impl SseEncode for SummaryDraft {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>>::sse_encode(flutter_rust_bridge::for_generated::rust_auto_opaque_encode::<_, MoiArc<_>>(self), serializer);
+    }
+}
+
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>
 {
@@ -5311,6 +5696,17 @@ impl SseEncode
 
 impl SseEncode
     for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>>
+{
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        let (ptr, size) = self.sse_encode_raw();
+        <usize>::sse_encode(ptr, serializer);
+        <i32>::sse_encode(size, serializer);
+    }
+}
+
+impl SseEncode
+    for RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>
 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5615,6 +6011,16 @@ impl SseEncode for Vec<u8> {
     }
 }
 
+impl SseEncode for Vec<crate::api::shared::PublishedSummaryView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::shared::PublishedSummaryView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::shared::RejectedView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5752,6 +6158,16 @@ impl SseEncode for crate::api::shared::OutgoingEntry {
     }
 }
 
+impl SseEncode for crate::api::shared::PublishedSummaryView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.event_id, serializer);
+        <String>::sse_encode(self.author_id, serializer);
+        <i64>::sse_encode(self.published_millis, serializer);
+        <crate::api::ledger::SummaryPreview>::sse_encode(self.preview, serializer);
+    }
+}
+
 impl SseEncode for crate::api::recurring::RecurringFrequency {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5876,6 +6292,18 @@ impl SseEncode for crate::api::storage::StorageResponse {
         <i64>::sse_encode(self.revision, serializer);
         <Option<Vec<u8>>>::sse_encode(self.value, serializer);
         <Vec<u8>>::sse_encode(self.database, serializer);
+    }
+}
+
+impl SseEncode for crate::api::ledger::SummaryPreview {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.group_id, serializer);
+        <String>::sse_encode(self.currency_code, serializer);
+        <i64>::sse_encode(self.start_millis, serializer);
+        <i64>::sse_encode(self.end_millis_exclusive, serializer);
+        <Option<String>>::sse_encode(self.income_label, serializer);
+        <Option<String>>::sse_encode(self.expenses_label, serializer);
     }
 }
 
@@ -6076,6 +6504,20 @@ mod io {
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>>::decrement_strong_count(ptr as _);
     }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_private_ledger_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>::increment_strong_count(ptr as _);
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_private_ledger_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>::decrement_strong_count(ptr as _);
+    }
 }
 #[cfg(not(target_family = "wasm"))]
 pub use io::*;
@@ -6189,6 +6631,20 @@ mod web {
         ptr: *const std::ffi::c_void,
     ) {
         MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<RecurringBook>>::decrement_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>::increment_strong_count(ptr as _);
+    }
+
+    #[wasm_bindgen]
+    pub fn rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerSummaryDraft(
+        ptr: *const std::ffi::c_void,
+    ) {
+        MoiArc::<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>::decrement_strong_count(ptr as _);
     }
 }
 #[cfg(target_family = "wasm")]

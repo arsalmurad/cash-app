@@ -461,7 +461,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
         if (household != null) {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (context) => HouseholdScreen(controller: household),
+              builder: (context) => HouseholdScreen(
+                controller: household,
+                privateLedger: widget.controller,
+              ),
             ),
           );
         }

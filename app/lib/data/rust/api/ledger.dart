@@ -7,9 +7,30 @@ import '../frb_generated.dart';
 
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `active_transaction`, `append_and_mutation`, `check_expected_amount`, `folded_state`, `lock`, `next_event`, `overview_from_state`, `overview`, `reporting_balances`
+// These functions are ignored because they are not marked as `pub`: `active_transaction`, `append_and_mutation`, `check_expected_amount`, `folded_state`, `lock`, `next_event`, `overview_from_state`, `overview`, `reporting_balances`, `summary_view`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `LedgerData`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+
+/// Read-only; nothing is queued or persisted until the distinct publish call.
+/// The caller must show the exact preview and target group before confirmation.
+Future<SummaryDraft> prepareSummary({
+  required PersonalLedger ledger,
+  required String groupId,
+  required PlatformInt64 startMillis,
+  required PlatformInt64 endMillisExclusive,
+  required bool includeIncome,
+  required bool includeExpenses,
+}) => RustLib.instance.api.crateApiLedgerPrepareSummary(
+  ledger: ledger,
+  groupId: groupId,
+  startMillis: startMillis,
+  endMillisExclusive: endMillisExclusive,
+  includeIncome: includeIncome,
+  includeExpenses: includeExpenses,
+);
+
+Future<SummaryPreview> summaryPreview({required SummaryDraft draft}) =>
+    RustLib.instance.api.crateApiLedgerSummaryPreview(draft: draft);
 
 /// Opens a personal ledger by replaying a durable log's bytes. Pass an empty
 /// `log_bytes` for a brand-new installation; this is the only ledger
@@ -198,6 +219,9 @@ Future<String?> suggestCategoryForTitle({
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>>
 abstract class PersonalLedger implements RustOpaqueInterface {}
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<SummaryDraft>>
+abstract class SummaryDraft implements RustOpaqueInterface {}
+
 class AccountView {
   final String id;
   final String name;
@@ -342,6 +366,45 @@ class LoadReport {
           overview == other.overview &&
           recoveredEventCount == other.recoveredEventCount &&
           truncatedBytes == other.truncatedBytes;
+}
+
+class SummaryPreview {
+  final String groupId;
+  final String currencyCode;
+  final PlatformInt64 startMillis;
+  final PlatformInt64 endMillisExclusive;
+  final String? incomeLabel;
+  final String? expensesLabel;
+
+  const SummaryPreview({
+    required this.groupId,
+    required this.currencyCode,
+    required this.startMillis,
+    required this.endMillisExclusive,
+    this.incomeLabel,
+    this.expensesLabel,
+  });
+
+  @override
+  int get hashCode =>
+      groupId.hashCode ^
+      currencyCode.hashCode ^
+      startMillis.hashCode ^
+      endMillisExclusive.hashCode ^
+      incomeLabel.hashCode ^
+      expensesLabel.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SummaryPreview &&
+          runtimeType == other.runtimeType &&
+          groupId == other.groupId &&
+          currencyCode == other.currencyCode &&
+          startMillis == other.startMillis &&
+          endMillisExclusive == other.endMillisExclusive &&
+          incomeLabel == other.incomeLabel &&
+          expensesLabel == other.expensesLabel;
 }
 
 /// Immutable entries in this transaction's history, in the ledger's total order.

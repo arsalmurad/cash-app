@@ -6,7 +6,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64Util;
 
 import '../../data/rust/api/ledger.dart'
-    show EntryKind, AccountView, FxRatio, fxRateFromDecimal;
+    show EntryKind, AccountView, FxRatio, SummaryDraft, fxRateFromDecimal;
 import '../../data/rust/api/shared.dart';
 import '../../data/storage/blob_store.dart';
 import '../../data/storage/secret_blob_store.dart';
@@ -48,6 +48,7 @@ class HouseholdController extends ChangeNotifier {
   Household? _household;
   RelayClient? _relay;
   HouseholdOverview? overview;
+  List<PublishedSummaryView> summaries = [];
   String? relayUrl;
   bool isBusy = false;
   String? errorMessage;
@@ -99,7 +100,7 @@ class HouseholdController extends ChangeNotifier {
       final saved = await _stateStore.read();
       if (saved != null) {
         await _loadSaved(saved);
-        overview = await householdOverview(household: _household!);
+        await _refresh();
         final store = _stateStore;
         if (store is SecretBlobStore && store.needsMigration) {
           await _persist(); // Validate legacy Rust state before replacing it.
@@ -275,7 +276,11 @@ class HouseholdController extends ChangeNotifier {
   }
 
   Future<void> _refresh() async {
-    overview = await householdOverview(household: _requireHousehold());
+    final household = _requireHousehold();
+    final nextOverview = await householdOverview(household: household);
+    final nextSummaries = await householdSummaries(household: household);
+    overview = nextOverview;
+    summaries = nextSummaries;
   }
 
   /// A failed save may already be durable. Drop the live handle rather than
@@ -764,6 +769,14 @@ class HouseholdController extends ChangeNotifier {
     () => householdVoidTransaction(
       household: _requireHousehold(),
       transactionId: transactionId,
+      wallClockMillis: PlatformInt64Util.from(_clockMillis()),
+    ),
+  );
+
+  Future<bool> publishSummary(SummaryDraft draft) => _write(
+    () => householdPublishSummary(
+      household: _requireHousehold(),
+      draft: draft,
       wallClockMillis: PlatformInt64Util.from(_clockMillis()),
     ),
   );
