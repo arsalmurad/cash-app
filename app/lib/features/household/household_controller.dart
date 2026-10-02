@@ -113,6 +113,7 @@ class HouseholdController extends ChangeNotifier {
       vaultHasCiphertext = error.hasCiphertext;
       _household = null;
       overview = null;
+      summaries = [];
       errorMessage = null;
     } on VaultCannotOpen catch (error) {
       final store = _stateStore;
@@ -122,6 +123,7 @@ class HouseholdController extends ChangeNotifier {
         vaultHasCiphertext = true;
         _household = null;
         overview = null;
+        summaries = [];
       } else {
         _disableWrites();
       }
@@ -174,6 +176,7 @@ class HouseholdController extends ChangeNotifier {
     store.keys.lock();
     _household = null;
     overview = null;
+    summaries = [];
     _pendingInvitation = null;
     _pendingMailboxAck = null;
     _recoveryState = null;
@@ -581,6 +584,7 @@ class HouseholdController extends ChangeNotifier {
       }
       _household = null;
       overview = null;
+      summaries = [];
       _pendingInvitation = null;
       _pendingMailboxAck = null;
       _recoveryState = null;
