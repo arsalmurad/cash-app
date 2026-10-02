@@ -382,7 +382,8 @@ async function focusLabel(cdp, label) {
     `(() => {
       const element = [...document.querySelectorAll('flt-semantics-host *')].find(
         (candidate) =>
-          (candidate.getAttribute('aria-label') ?? candidate.textContent?.trim()) === ${JSON.stringify(label)}
+          candidate.matches('input, textarea, [role="textbox"]') &&
+          candidate.getAttribute('aria-label')?.split(String.fromCharCode(10))[0] === ${JSON.stringify(label)}
       );
       if (!element) return false;
       element.click();
@@ -391,6 +392,8 @@ async function focusLabel(cdp, label) {
     })()`,
   );
   if (!focused) throw new Error(`Could not focus ${label}`);
+  await waitFor(cdp, `['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) &&
+    document.activeElement.getAttribute('aria-label')?.split(String.fromCharCode(10))[0] === ${JSON.stringify(label)}`);
   await delay(150);
 }
 
