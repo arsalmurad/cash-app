@@ -270,7 +270,7 @@ async function stopChrome(processId) {
   });
 }
 
-async function connectCdp(url) {
+async function connectCdp(url, onEvent = () => {}) {
   const socket = new WebSocket(url);
   await new Promise((resolve, reject) => {
     socket.addEventListener('open', resolve, { once: true });
@@ -283,6 +283,7 @@ async function connectCdp(url) {
     const message = JSON.parse(event.data);
     if (!message.id) {
       events.push(message);
+      onEvent(message);
       return;
     }
     if (!pending.has(message.id)) return;
@@ -297,7 +298,7 @@ async function connectCdp(url) {
   });
   return {
     events,
-    send(method, params = {}) {
+    send(method, params = {}, sessionId) {
       const id = ++nextId;
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -308,7 +309,7 @@ async function connectCdp(url) {
           resolve: (value) => { clearTimeout(timeout); resolve(value); },
           reject: (error) => { clearTimeout(timeout); reject(error); },
         });
-        socket.send(JSON.stringify({ id, method, params }));
+        socket.send(JSON.stringify({ id, method, params, sessionId }));
       });
     },
     close() {

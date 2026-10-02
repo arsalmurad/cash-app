@@ -47,6 +47,9 @@ class _FakeController extends HouseholdController {
 
   final calls = <String>[];
   bool nextResult = true;
+  bool restartRequired = false;
+  @override
+  bool get requiresRestart => restartRequired;
   String? inviteCode = 'cashinv1:INVITE';
 
   void _fail(bool ok) {
@@ -193,6 +196,24 @@ Future<_FakeController> _pump(
 }
 
 void main() {
+  testWidgets('failed load stays visible instead of offering a new household', (
+    tester,
+  ) async {
+    final controller = await _pump(tester);
+    controller
+      ..overview = null
+      ..restartRequired = true
+      ..errorMessage = 'The saved household could not be loaded.';
+    controller.notifyListeners();
+    await tester.pumpAndSettle();
+    expect(find.text('Household unavailable'), findsOneWidget);
+    expect(
+      find.text('The saved household could not be loaded.'),
+      findsOneWidget,
+    );
+    expect(find.text('Create a household'), findsNothing);
+    expect(find.text('Join a household'), findsNothing);
+  });
   testWidgets(
     'foreign shared expense requires explicit rate; cancelling sends nothing',
     (tester) async {

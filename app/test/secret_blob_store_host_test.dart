@@ -213,6 +213,7 @@ void main() {
         final invalid = controller(corrupt, invalidKeys);
         await invalid.initialize();
         expect(invalid.errorMessage, isNotNull);
+        expect(invalid.requiresRestart, isTrue);
         expect(await invalid.createHousehold(), isFalse);
         expect(corrupt.value, [0, 1, 2]);
         expect(corrupt.writes, 0);

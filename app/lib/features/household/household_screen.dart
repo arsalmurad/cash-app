@@ -296,51 +296,60 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
     final ledger = widget.privateLedger;
     if (ledger == null || !controller.isMember || controller.isBusy) return;
     SummaryDraft? draft;
-    await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => ChosenSummaryDialog(
-        prepare: (range, income, expenses) async {
-          final group = controller.overview?.groupId;
-          if (group == null ||
-              !controller.isMember ||
-              controller.needsRecoveryInvite) {
-            throw StateError('Choose an active household before sharing.');
-          }
-          final next = await ledger.prepareChosenSummary(
-            groupId: group,
-            start: DateTime(
-              range.start.year,
-              range.start.month,
-              range.start.day,
-            ),
-            // Calendar construction respects local daylight-saving transitions.
-            endExclusive: DateTime(
-              range.end.year,
-              range.end.month,
-              range.end.day + 1,
-            ),
-            includeIncome: income,
-            includeExpenses: expenses,
-          );
-          draft = next;
-          return summaryPreview(draft: next);
-        },
-        publish: () async {
-          final selected = draft;
-          if (selected == null) {
-            throw StateError('Prepare a new summary first.');
-          }
-          final sent = await controller.publishSummary(selected);
-          if (!sent) {
-            throw StateError(
-              controller.errorMessage ?? 'Check the household before retrying.',
+    try {
+      await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => ChosenSummaryDialog(
+          prepare: (range, income, expenses) async {
+            final group = controller.overview?.groupId;
+            if (group == null ||
+                !controller.isMember ||
+                controller.needsRecoveryInvite) {
+              throw StateError('Choose an active household before sharing.');
+            }
+            final next = await ledger.prepareChosenSummary(
+              groupId: group,
+              start: DateTime(
+                range.start.year,
+                range.start.month,
+                range.start.day,
+              ),
+              // Calendar construction respects local daylight-saving transitions.
+              endExclusive: DateTime(
+                range.end.year,
+                range.end.month,
+                range.end.day + 1,
+              ),
+              includeIncome: income,
+              includeExpenses: expenses,
             );
-          }
-          return true;
-        },
-      ),
-    );
+            // This dialog owns its detached Rust preview handles. Release a
+            // replaced preview promptly rather than leaving it to browser GC.
+            draft?.dispose();
+            draft = next;
+            return summaryPreview(draft: next);
+          },
+          publish: () async {
+            final selected = draft;
+            if (selected == null) {
+              throw StateError('Prepare a new summary first.');
+            }
+            final sent = await controller.publishSummary(selected);
+            if (!sent) {
+              throw StateError(
+                controller.errorMessage ??
+                    'Check the household before retrying.',
+              );
+            }
+            return true;
+          },
+        ),
+      );
+    } finally {
+      // Both Keep private and successful publication end the preview lifetime.
+      draft?.dispose();
+    }
   }
 
   Future<void> _editAmount(SharedTransactionView transaction) async {
@@ -498,6 +507,25 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                   onVerifyMember: _verify,
                   onEditAmount: _editAmount,
                   onVoid: _void,
+                )
+              else if (controller.requiresRestart)
+                ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    Text(
+                      'Household unavailable',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      controller.errorMessage ??
+                          'The household could not be loaded.',
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Restart the app before making changes. Do not create a new household to fix this.',
+                    ),
+                  ],
                 )
               else
                 HouseholdSetupPane(

@@ -19,7 +19,25 @@ export async function runHouseholdWebScenario(alice, api) {
   });
   const relayUrl = String(await relay.ready).replace(/\/$/, '');
   const version = await (await fetch(`http://127.0.0.1:${debugPort}/json/version`)).json();
-  const browser = await connectCdp(version.webSocketDebuggerUrl);
+  let rejectWorkerFailure;
+  let scenarioStage = 'initializing';
+  const workerFailure = new Promise((_, reject) => { rejectWorkerFailure = reject; });
+  workerFailure.catch(() => {}); // Observed again by the guarded UI waits below.
+  const attach = { autoAttach: true, waitForDebuggerOnStart: false, flatten: true };
+  const browser = await connectCdp(version.webSocketDebuggerUrl, (event) => {
+    const details = event.params?.exceptionDetails;
+    const panic = event.method === 'Runtime.consoleAPICalled' && event.params.type === 'error'
+      ? event.params.args.map(a => a.value ?? a.description ?? '').find(v => String(v).includes('panicked at'))
+      : null;
+    if (event.method === 'Runtime.exceptionThrown' || panic) {
+      rejectWorkerFailure(new Error(`Owned browser worker failed during ${scenarioStage}: ${String(panic ?? details?.exception?.description ?? details?.text).slice(0, 1200)}`));
+    }
+    if (event.method !== 'Target.attachedToTarget') return;
+    const session = event.params.sessionId;
+    browser.send('Runtime.enable', {}, session).catch(() => {});
+    browser.send('Target.setAutoAttach', attach, session).catch(() => {});
+  });
+  await browser.send('Target.setAutoAttach', attach);
   const peers = [];
   const contexts = [];
 
@@ -140,15 +158,30 @@ export async function runHouseholdWebScenario(alice, api) {
   }
 
   async function edit(peer, amount) {
+    // Summary cards can place the transaction below the initial viewport.
+    // Scroll the rendered list as a user would; do not inject a menu or state.
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const visible = await evaluate(peer, `[...document.querySelectorAll('flt-semantics-host [role="button"]')]
+        .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim()) === 'Expense actions')`);
+      if (visible) break;
+      const viewport = await evaluate(peer, `({ width: innerWidth, height: innerHeight })`);
+      await peer.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
+        x: viewport.width / 2, y: viewport.height * 0.75, deltaX: 0, deltaY: 300 });
+      await delay(200);
+    }
     await clickLabel(peer, 'Expense actions', 'button');
     await clickLabel(peer, 'Change amount');
     await fill(peer, 'Amount', amount, true);
     await clickLabel(peer, 'Save', 'button');
+    const viewport = await evaluate(peer, `({ width: innerWidth, height: innerHeight })`);
+    await peer.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
+      x: viewport.width / 2, y: viewport.height * 0.75, deltaX: 0, deltaY: -1800 });
+    await delay(200);
   }
 
   async function sync(peer) {
     await clickLabel(peer, 'Sync', 'button');
-    await delay(350);
+    await Promise.race([workerFailure, delay(350)]);
   }
 
   try {
@@ -182,6 +215,10 @@ export async function runHouseholdWebScenario(alice, api) {
     await waitForLabel(bob, 'Review shared snapshot');
     await waitForLabel(bob, 'USD 12.34');
     const canceledBefore = relayEntries();
+    await clickLabel(bob, 'Change selection', 'button');
+    await clickLabel(bob, 'Preview totals', 'button');
+    await waitForLabel(bob, 'USD 12.34');
+    assert.equal(relayEntries(), canceledBefore, 'Replacing a preview must not append to the relay');
     await clickLabel(bob, 'Keep private', 'button');
     await waitForLabel(bob, 'No totals have been shared.');
     assert.equal(relayEntries(), canceledBefore, 'Canceled preview must not append to the relay');
@@ -198,10 +235,12 @@ export async function runHouseholdWebScenario(alice, api) {
     assert.equal(await evaluate(alice, `document.body.textContent.includes('Private summary-only lunch')`), false);
     assert.equal(await evaluate(alice, `document.body.textContent.includes('Income total:')`), false);
     console.log('Verified household summaries: default-off selection, exact preview, keep-private cancellation, explicit sharing and no private title or balance change.');
+    scenarioStage = 'locking Bob';
     await clickLabel(bob, 'Lock household in this browser', 'button');
-    await waitForLabel(bob, 'Unlock this browser');
+    await Promise.race([workerFailure, waitForLabel(bob, 'Unlock this browser')]);
     assert.equal(await evaluate(bob, `document.body.textContent.includes('Expense total: USD 12.34')`), false,
       'Locked household must not render the previous summary');
+    scenarioStage = 'unlocking Bob';
     await fill(bob, '24-word unlock phrase', bobPhrase);
     await clickLabel(bob, 'Unlock household', 'button');
     await waitForLabel(bob, 'Expense total: USD 12.34');
@@ -210,18 +249,27 @@ export async function runHouseholdWebScenario(alice, api) {
       await runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api);
     }
 
+    scenarioStage = 'Alice publishes after Bob unlock';
     await expense(alice, 'Browser shared dinner', '40.00');
+    scenarioStage = 'Bob syncs after unlock';
     await sync(bob);
     await waitForLabel(bob, 'USD -40.00');
     await waitForLabel(bob, 'Expense total: USD 12.34');
+    const beforeBobReload = await evaluate(bob, `localStorage.getItem('private_ledger.sqlite.v1')`);
+    assert(beforeBobReload && atob(beforeBobReload).includes('cash-app sealed vault v1\0'),
+      'Household must have a sealed document before reload');
+    scenarioStage = 'reloading Bob';
     await bob.send('Page.reload');
     await openApp(bob);
     await waitForLabel(bob, 'Private Ledger');
+    const afterBobReload = await evaluate(bob, `localStorage.getItem('private_ledger.sqlite.v1')`);
+    assert.equal(afterBobReload, beforeBobReload, 'Reload must preserve the confirmed SQLite image');
     await openHousehold(bob);
     await waitForLabel(bob, 'Unlock this browser');
+    scenarioStage = 'unlocking Bob after reload';
     await fill(bob, '24-word unlock phrase', bobPhrase);
     await clickLabel(bob, 'Unlock household', 'button');
-    await waitForLabel(bob, 'USD -40.00');
+    await Promise.race([workerFailure, waitForLabel(bob, 'USD -40.00')]);
     await waitForLabel(bob, 'Expense total: USD 12.34');
     const saved = await evaluate(bob, `(() => {
       const bytes = atob(localStorage.getItem('private_ledger.sqlite.v1'));
@@ -309,6 +357,7 @@ export async function runHouseholdWebScenario(alice, api) {
     }
     const screenshot = await replacement.send('Page.captureScreenshot', { format: 'png' });
     writeFileSync(join(repoRoot, 'app/.dart_tool/household-web-pass.png'), Buffer.from(screenshot.data, 'base64'));
+    await Promise.race([workerFailure, Promise.resolve()]);
     console.log('Verified household: private ledgers stay separate; HTTP bodies contain no readable fixture titles.');
   } catch (error) {
     for (const [index, peer] of [alice, ...peers].entries()) {
