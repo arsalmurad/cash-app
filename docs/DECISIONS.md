@@ -1209,7 +1209,34 @@ explicitly dispose the abandoned household handle instead of leaving ownership
 to a later browser finalizer. Two ownership-only tests fail before this change
 and pass after it, covering both write-before-failure possibilities, queued work,
 no premature disposal and no double release. All 24 affected native-enabled
-tests pass (24 s), and analysis has no issues (4 s). Actual updated web-runtime
-verification remains pending; this is not a universal diagnosis of bridge or
-browser finalizers, and generated bindings/toolchains are unchanged.
+tests pass (24 s), and analysis has no issues (4 s). The updated browser passes
+actual quota/restart recovery, then stops at a later JPY card lookup; all 305
+host tests and current Android household integration also pass. Full combined
+browser verification remains open. This is not a universal diagnosis of bridge
+or browser finalizers, and generated bindings/toolchains are unchanged.
+
+## 2026-10-03 — Complete browser edits and scroll lazily rendered accounts
+
+The extended actual browser flow verifies title search, labeled clear and
+expense/all filtering without changing saved SQLite bytes. Match exact lines
+within Flutter's contextual editor label (`Activity\nSearch title or category`),
+and wait for its real engine input listener before typing. Finish household
+edits through Tab as the personal driver already does; a DOM value alone is
+not a confirmed Flutter edit. Chrome's listener inspection is documented at
+https://developer.chrome.com/docs/devtools/console/utilities#geteventlistenersobject.
+
+A populated JPY card lookup failed below the lazy list's viewport; an intervening
+rerun failed at replacement invitation input. Scroll through rendered account
+cards and restore the top before continuing, instead of reading app internals
+or injecting financial state. Retry only execution-context replacement during
+bootstrap, not arbitrary evaluation errors; race quota work against fatal worker
+errors and include the opaque-handle type in panic diagnostics. Diagnostic editor
+metadata excludes field values and phrases.
+
+With these driver changes, the entire combined desktop command passes on
+production `eb09a27`, unchanged Rust WASM `26f9563`, Chrome 154.0.8037.58 and
+local workerd: personal/CSV/search, summaries, explicit lock, actual quota/reload,
+offline conflicts, fresh-key recovery/removal, frozen EUR/JPY and ciphertext-only
+request checks. Failed attempts above remain failures, not retroactive passes;
+this successful run is not a universal browser/finalizer reliability guarantee.
 

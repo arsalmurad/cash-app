@@ -169,7 +169,14 @@ try {
         url: location.href,
         isolated: crossOriginIsolated,
         title: document.title,
-        body: document.body?.innerHTML.slice(0, 3000),
+        editors: [...document.querySelectorAll('input, textarea, [role="textbox"]')].map(e => ({
+          tag: e.tagName, role: e.getAttribute('role'),
+          label: e.getAttribute('aria-label'), description: e.getAttribute('aria-description'),
+          labelledBy: e.getAttribute('aria-labelledby'), placeholder: e.getAttribute('placeholder'),
+          focused: e === document.activeElement,
+          rectangle: { x: e.getBoundingClientRect().x, y: e.getBoundingClientRect().y,
+            width: e.getBoundingClientRect().width, height: e.getBoundingClientRect().height },
+        })),
       })`,
     ).catch((diagnosticError) => ({ diagnosticError: diagnosticError.message }));
     console.error('Page diagnostics:', diagnostics);
@@ -329,8 +336,9 @@ async function connectCdp(url, onEvent = () => {}) {
   };
 }
 
-async function evaluate(cdp, expression) {
+async function evaluate(cdp, expression, options = {}) {
   const response = await cdp.send('Runtime.evaluate', {
+    ...options,
     expression,
     awaitPromise: true,
     returnByValue: true,
@@ -394,7 +402,7 @@ async function focusLabel(cdp, label) {
       const element = [...document.querySelectorAll('flt-semantics-host *')].find(
         (candidate) =>
           candidate.matches('input, textarea, [role="textbox"]') &&
-          candidate.getAttribute('aria-label')?.split(String.fromCharCode(10))[0] === ${JSON.stringify(label)}
+          candidate.getAttribute('aria-label')?.split(String.fromCharCode(10)).some(line => line.trim() === ${JSON.stringify(label)})
       );
       if (!element) return false;
       element.click();
@@ -403,18 +411,27 @@ async function focusLabel(cdp, label) {
     })()`,
   );
   if (!focused) throw new Error(`Could not focus ${label}`);
+  // Flutter's semantics editor can be DOM-focused before its engine activates
+  // the input listener. Do not mistake an editable DOM value for an app edit.
+  // Inspect readiness through DevTools; never install or call an app hook.
   await waitFor(cdp, `['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) &&
-    document.activeElement.getAttribute('aria-label')?.split(String.fromCharCode(10))[0] === ${JSON.stringify(label)}`);
+    document.activeElement.getAttribute('aria-label')?.split(String.fromCharCode(10)).some(line => line.trim() === ${JSON.stringify(label)}) &&
+    getEventListeners(document.activeElement).input?.length > 0`,
+    { includeCommandLineAPI: true });
   await delay(150);
 }
 
-async function waitFor(cdp, expression) {
+async function waitFor(cdp, expression, options = {}) {
   const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     try {
-      if (await evaluate(cdp, expression)) return;
-    } catch (_) {
+      if (await evaluate(cdp, expression, options)) return;
+    } catch (error) {
       // The page can replace its execution context during Flutter bootstrap.
+      // Command timeouts and other failures are not a not-yet-ready predicate.
+      if (!/Cannot find context|Execution context was destroyed|No execution context/i.test(error.message)) {
+        throw error;
+      }
     }
     await delay(200);
   }

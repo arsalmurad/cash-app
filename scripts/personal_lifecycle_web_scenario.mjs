@@ -238,4 +238,21 @@ export async function runPersonalLifecycleWebScenario(page, api) {
     `[...document.querySelectorAll('flt-semantics-host *')].map(e => e.getAttribute('aria-label') ?? e.textContent?.trim() ?? '')`);
   assert(!recentLabels.some(label => label.includes('Recent entry 0')), 'The older sixth entry should not occupy a recent row');
   console.log('Verified recent activity: six random-ID entries, newest immediately visible, five-row limit and ordered reload.');
+  const beforeSearch = await saved();
+  await navigate('Activity');
+  await fill('Search title or category', 'Recent entry 5');
+  await waitForLabel(page, 'Recent entry 5');
+  await waitFor(page, `![...document.querySelectorAll('flt-semantics-host *')]
+    .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim() ?? '').includes('Recent entry 4'))`);
+  await clickLabel(page, 'Clear search', 'button');
+  await waitForLabel(page, 'Recent entry 4');
+  await clickLabel(page, 'Expense');
+  await waitForLabel(page, 'Groceries');
+  await waitFor(page, `![...document.querySelectorAll('flt-semantics-host *')]
+    .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim() ?? '').includes('Recent entry 5'))`);
+  await clickLabel(page, 'All');
+  await waitForLabel(page, 'Recent entry 5');
+  assert.equal(await saved(), beforeSearch, 'Search, clear and kind filters cannot mutate saved financial data');
+  await navigate('Overview');
+  console.log('Verified activity: title search, labeled clear action, expense filter and unchanged saved ledger.');
 }
