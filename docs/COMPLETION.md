@@ -1,6 +1,6 @@
 # Completion tracker
 
-Updated 2026-10-02. The active objective is to finish the private prototype
+Updated 2026-10-03. The active objective is to finish the private prototype
 against `expense-app-build-brief.md`, not merely merge individual milestones.
 Unchecked work is not a completion claim. Keep this file current as gates pass.
 
@@ -60,13 +60,15 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   current native-host and production WASM checks passed. This is not pruning.
 - [ ] Finish safe shared compaction or peer-snapshot recovery with offline-peer
   acknowledgements; checkpoints retain all history and relay logs remain unbounded.
-- [ ] Check explicit opt-in publication boundaries and chosen shared analytics;
+- [x] Check explicit opt-in publication boundaries and chosen shared analytics;
   no private ledger or readable financial fields may reach the relay.
   Immutable opt-in totals, nonfinancial signed summary events, compatibility
   guards and publication UI now have local Rust/native-bridge/SQLite/host-widget
   evidence in `SHARED-SUMMARIES.md`. Production WASM UI and actual-worker summary
-  storage audit also passed; mobile summary runtime remains open. Do not mark
-  this gate complete from host/browser tests alone.
+  storage audit also passed, followed by actual Android native UI/SQLite/OS-key
+  restart and signed backfill. Final-source iOS/platform acceptance remains a
+  separate gate. Mixed-version live support is not negotiated; all household
+  devices must update before summaries are published.
 - [ ] Review personal UX coverage against the stated Cashew quality bar, not
   just widget presence; fix functional gaps and verify phone/tablet/web layouts.
   Budget/goal removal, recurring stop, future-rule management and stale-post
