@@ -1006,3 +1006,16 @@ tests and the combined production WASM personal/CSV/household/quota journey
 subsequently passed at source `4a05a7e`; earlier Android checks cover correction
 source only.
 
+## 2026-10-02 — Category soft state uses the full total-order tie-breaker
+
+Categories still compared only HLC and actor, unlike budgets/goals/recurring
+definitions. A RED test reproduced different names for the same valid writes
+in opposite orders. Include event ID last, keeping the immutable frame format
+and financial ledger unchanged. Reverse-order/replay/frame round-trip and bridge
+clock-continuation checks passed, along with all 46 core unit tests, core
+acceptance/money-path tests, 62 bridge tests and 33 affected native app checks.
+The changed core library is strict-lint clean; an all-target API lint also
+reported existing budget-fixture and crypto-chunk warnings, not hidden here.
+No new mobile/WASM runtime is claimed for this isolated fold change; final-source
+platform acceptance remains open.
+

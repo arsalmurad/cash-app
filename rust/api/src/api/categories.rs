@@ -165,11 +165,58 @@ mod tests {
     use super::*;
 
     #[test]
+    fn loading_tied_category_frames_converges_and_keeps_clock_progress() {
+        let frames: Vec<Vec<u8>> = [("a", "Old"), ("z", "Chosen")]
+            .into_iter()
+            .map(|(id, name)| {
+                encode_category_frame(&CategoryUpsert::new(
+                    id,
+                    "device-a",
+                    100,
+                    7,
+                    CategoryId::new("food"),
+                    name,
+                    "restaurant",
+                ))
+            })
+            .collect();
+        let forward = load_category_book("device-a".into(), frames.concat()).unwrap();
+        let backward = load_category_book(
+            "device-a".into(),
+            frames.iter().rev().flatten().copied().collect(),
+        )
+        .unwrap();
+        assert_eq!(
+            list_categories(&forward).unwrap(),
+            list_categories(&backward).unwrap()
+        );
+        assert_eq!(list_categories(&forward).unwrap()[0].name, "Chosen");
+        let edited = upsert_category(
+            &backward,
+            "food".into(),
+            "Reviewed".into(),
+            "shopping_cart".into(),
+            1,
+        )
+        .unwrap();
+        assert_eq!(edited.categories[0].name, "Reviewed");
+        let decoded = decode_category_log(&edited.appended_frame);
+        assert_eq!(decoded.upserts[0].timestamp, HybridTimestamp::new(100, 8));
+        for frame in frames {
+            let decoded = decode_category_log(&frame);
+            assert_eq!(encode_category_frame(&decoded.upserts[0]), frame);
+        }
+    }
+
+    #[test]
     fn book_clock_carries_and_refuses_exhaustion() {
         let book = new_book("device-a");
         let mut data = book.data.lock().unwrap();
         data.last_timestamp = HybridTimestamp::new(100, u32::MAX);
-        assert_eq!(data.next_timestamp(1).unwrap(), HybridTimestamp::new(101, 0));
+        assert_eq!(
+            data.next_timestamp(1).unwrap(),
+            HybridTimestamp::new(101, 0)
+        );
         let exhausted = HybridTimestamp::new(i64::MAX, u32::MAX);
         data.last_timestamp = exhausted;
         assert!(data.next_timestamp(1).is_err());
@@ -225,8 +272,7 @@ mod tests {
     fn an_empty_name_is_rejected_and_never_persisted() {
         let book = new_book("device-a");
         assert!(
-            upsert_category(&book, "food".to_owned(), "  ".to_owned(), "".to_owned(), 1)
-                .is_err()
+            upsert_category(&book, "food".to_owned(), "  ".to_owned(), "".to_owned(), 1).is_err()
         );
         assert!(list_categories(&book).unwrap().is_empty());
     }

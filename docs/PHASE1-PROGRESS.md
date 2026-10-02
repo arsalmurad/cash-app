@@ -6,6 +6,15 @@ the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
 
 ## Personal definition lifecycle (2026-10-02)
 
+Category convergence follow-up: two distinct valid category events with equal
+actor/HLC previously selected the first arrival. A reproduced RED test now
+passes with event ID as the final writer tie-breaker, matching the other
+definition books. Reverse order, replay, unchanged frame re-encoding and the
+next edit's clock advance passed. All 46 core unit tests, core acceptance/lint,
+62 API tests and 33 affected app checks passed against the refreshed Windows
+native library. No frame/bridge layout change or new dependency; no new
+mobile/Web runtime claim for this isolated core correction.
+
 Recent-order follow-up at production source `4a05a7e`: a RED API regression
 reproduced older random IDs sorting ahead of newer entries. Transaction and
 transfer views now use their original recording event's full total-order key;

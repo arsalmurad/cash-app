@@ -8,7 +8,7 @@
 //! Folding is commutative and idempotent by construction: applying the same
 //! set of upserts in any order, any number of times, converges to the same
 //! state, because each key only ever keeps the highest `(timestamp,
-//! actor_id)` writer it has seen. There is nothing to reject, so unlike
+//! actor_id, event_id)` writer it has seen. There is nothing to reject, so unlike
 //! `ledger::fold` this never returns an error.
 
 use std::collections::BTreeMap;
@@ -32,7 +32,7 @@ impl CategoryId {
 
 /// One "set this category's name and icon" write. There is no separate
 /// create/update distinction: every write is an upsert, and the highest
-/// `(timestamp, actor_id)` writer for a given `category_id` wins.
+/// `(timestamp, actor_id, event_id)` writer for a given `category_id` wins.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CategoryUpsert {
     pub id: EventId,
@@ -69,7 +69,7 @@ impl CategoryUpsert {
 pub struct CategoryRecord {
     pub name: String,
     pub icon_key: String,
-    last_writer: (HybridTimestamp, ActorId),
+    last_writer: (HybridTimestamp, ActorId, EventId),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -83,7 +83,7 @@ impl CategoryBookState {
     }
 
     fn apply(&mut self, upsert: &CategoryUpsert) {
-        let writer_key = (upsert.timestamp, upsert.actor_id.clone());
+        let writer_key = (upsert.timestamp, upsert.actor_id.clone(), upsert.id.clone());
         let should_replace = match self.categories.get(&upsert.category_id) {
             Some(existing) => writer_key > existing.last_writer,
             None => true,
@@ -181,6 +181,20 @@ fn decode_upsert(payload: &[u8]) -> Option<CategoryUpsert> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn equal_actor_and_hlc_use_event_id_independent_of_arrival_and_replay() {
+        let low = upsert("a", "alice", 100, 7, "food", "Old", "restaurant");
+        let high = upsert("z", "alice", 100, 7, "food", "Chosen", "shopping_cart");
+        let forward = fold_categories([low.clone(), high.clone()]);
+        let backward = fold_categories([high.clone(), low.clone(), high.clone()]);
+        assert_eq!(forward, backward);
+        assert_eq!(forward.categories[&CategoryId::new("food")].name, "Chosen");
+        let log: Vec<u8> = [high, low].iter().flat_map(encode_category_frame).collect();
+        let decoded = decode_category_log(&log);
+        assert_eq!(decoded.trailing_garbage_bytes, 0);
+        assert_eq!(fold_categories(decoded.upserts), forward);
+    }
+
     fn upsert(
         id: &str,
         actor: &str,
@@ -190,7 +204,15 @@ mod tests {
         name: &str,
         icon: &str,
     ) -> CategoryUpsert {
-        CategoryUpsert::new(id, actor, millis, logical, CategoryId::new(category), name, icon)
+        CategoryUpsert::new(
+            id,
+            actor,
+            millis,
+            logical,
+            CategoryId::new(category),
+            name,
+            icon,
+        )
     }
 
     #[test]
@@ -219,7 +241,15 @@ mod tests {
     fn different_categories_do_not_interfere() {
         let state = fold_categories([
             upsert("e1", "alice", 100, 0, "food", "Food", "restaurant"),
-            upsert("e2", "alice", 100, 0, "transport", "Transport", "directions_car"),
+            upsert(
+                "e2",
+                "alice",
+                100,
+                0,
+                "transport",
+                "Transport",
+                "directions_car",
+            ),
         ]);
         assert_eq!(state.categories.len(), 2);
         assert_eq!(state.categories[&CategoryId::new("food")].name, "Food");
@@ -241,7 +271,15 @@ mod tests {
     #[test]
     fn a_truncated_frame_recovers_the_prefix() {
         let first = upsert("e1", "alice", 100, 0, "food", "Food", "restaurant");
-        let second = upsert("e2", "alice", 200, 0, "transport", "Transport", "directions_car");
+        let second = upsert(
+            "e2",
+            "alice",
+            200,
+            0,
+            "transport",
+            "Transport",
+            "directions_car",
+        );
         let mut log = encode_category_frame(&first);
         let complete_len = log.len();
         let mut torn = encode_category_frame(&second);
