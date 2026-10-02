@@ -18,6 +18,7 @@ mod money;
 mod recurring;
 mod shared;
 mod snapshot;
+mod summary;
 
 pub use budgets::{
     BudgetBookState, BudgetId, BudgetPeriod, BudgetRecord, BudgetUpsert, DecodedBudgetLog,
@@ -46,3 +47,4 @@ pub use shared::{
     SnapshotUpdate, decode_shared_event, encode_shared_event, fold_shared,
 };
 pub use snapshot::{Snapshot, SnapshotError};
+pub use summary::{ChosenSummary, SummaryError, SummarySelection, chosen_summary};
