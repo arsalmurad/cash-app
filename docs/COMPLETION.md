@@ -51,6 +51,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   unauthenticated relay. Account authorization may require the owner.
   The default worker is now closed; only explicit loopback development is
   enabled. This safety guard is not production authentication or deployment.
+  Request bodies now have a streamed 512 KiB parsing bound, and decoded
+  invitations share the 256 KiB blob limit. All 21 local relay tests and the
+  28-record real Rust-peer storage audit pass; these limits do not bound total
+  retained history or authorize a public deployment.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
