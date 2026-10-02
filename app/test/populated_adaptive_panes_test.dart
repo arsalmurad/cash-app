@@ -7,6 +7,7 @@ import 'package:private_ledger/data/rust/api/recurring.dart';
 import 'package:private_ledger/features/ledger/budgets_pane.dart';
 import 'package:private_ledger/features/ledger/goals_pane.dart';
 import 'package:private_ledger/features/ledger/recurring_pane.dart';
+import 'package:private_ledger/theme.dart';
 
 void main() {
   for (final size in [
@@ -75,7 +76,7 @@ void main() {
         for (final entry in panes.entries) {
           await tester.pumpWidget(
             MaterialApp(
-              theme: ThemeData(useMaterial3: true, brightness: brightness),
+              theme: ledgerTheme(brightness),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context)
                     .copyWith(textScaler: const TextScaler.linear(1.5)),

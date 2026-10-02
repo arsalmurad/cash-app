@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/features/ledger/ledger_screen.dart';
+import 'package:private_ledger/theme.dart';
 
 void main() {
   for (final size in [
@@ -24,7 +25,7 @@ void main() {
               : 'USD 10000000000000000.00 → $received';
           await tester.pumpWidget(
             MaterialApp(
-              theme: ThemeData(useMaterial3: true, brightness: brightness),
+              theme: ledgerTheme(brightness),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context)
                     .copyWith(textScaler: const TextScaler.linear(1.5)),
