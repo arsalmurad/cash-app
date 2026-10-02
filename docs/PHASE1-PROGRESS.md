@@ -1383,3 +1383,13 @@ analysis passed with no issues in 3.6 s. These are host-rendered widget checks,
 not actual mobile/browser runtime, a comprehensive accessibility audit or a
 completed Cashew-reference usability review. The earlier empty-pane navigation
 matrix remains covered separately.
+
+The complete existing personal integration also passed on Android at source
+`43871c4`: `flutter --no-version-check test --no-pub integration_test/ledger_test.dart
+-d emulator-5580 --reporter expanded`, pinned tools and the owned read-only
+Android 16/API 36 x86_64 AOSP ATD/WHPX emulator. Cached build 92.1 s,
+installation 1.784 s, runtime 95 s: one test passed. This verifies actual native
+SQLite, exact EUR/frozen conversion, personal corrections, category changes,
+canceled/confirmed removal, restart and history. It does not exercise the new
+extreme recurring label on Android; that remains widget-level evidence above.
+The owned emulator was stopped after both personal and household tests passed.
