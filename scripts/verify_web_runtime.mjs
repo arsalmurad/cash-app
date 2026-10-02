@@ -12,6 +12,12 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const webRoot = join(repoRoot, 'app', 'build', 'web');
+const viewportMatch = /^(\d{3,4})x(\d{3,4})$/.exec(process.env.WEB_VIEWPORT ?? '1280x900');
+if (!viewportMatch) throw new Error('WEB_VIEWPORT must be WIDTHxHEIGHT');
+const [viewportWidth, viewportHeight] = viewportMatch.slice(1).map(Number);
+if (viewportWidth < 240 || viewportWidth > 3840 || viewportHeight < 240 || viewportHeight > 2160) {
+  throw new Error('WEB_VIEWPORT is outside the supported verification dimensions');
+}
 const chromeBinary =
   process.env.CHROME_BINARY ??
   (process.platform === 'win32'
@@ -84,6 +90,11 @@ try {
   cdp = await connectCdp(page.webSocketDebuggerUrl);
   await cdp.send('Runtime.enable');
   await cdp.send('Page.enable');
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: viewportWidth, height: viewportHeight, deviceScaleFactor: 1, mobile: false,
+  });
+  await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight}`);
+  console.log(`Verification viewport: ${viewportWidth}x${viewportHeight}`);
   if (process.env.WEB_OFFLINE_FONTS === '1') {
     await cdp.send('Network.enable');
     await cdp.send('Network.setBlockedURLs', { urls: ['*://fonts.gstatic.com/*', '*://fonts.googleapis.com/*'] });
