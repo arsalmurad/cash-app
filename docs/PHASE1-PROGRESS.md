@@ -54,6 +54,12 @@ byte-identical transaction/CSV preservation and frozen-rate USD/EUR balances
 also passed. The owned emulator was stopped after this run. This does not prove
 new iOS, release APK, physical-device or power-loss behavior.
 
+After the Android emulator stopped, the final complete local app suite passed
+all 249 tests using the existing Windows Rust DLL and pinned Flutter 3.47.5:
+`RUST_LIB_PATH=rust/target/debug/rust_lib_cash_app.dll flutter --no-version-check
+test --no-pub --reporter failures-only` from `app` (use an absolute DLL path).
+Static analysis of the final source and expanded integration test was clean.
+
 Later sections retain earlier, revision-specific evidence; no historical iOS
 run verifies these new lifecycle calls.
 
