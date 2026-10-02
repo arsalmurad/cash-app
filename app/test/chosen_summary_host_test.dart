@@ -178,6 +178,26 @@ void main() {
         expect(first.summaries, isEmpty);
         expect(await first.unlockBrowserVault(phrase), true);
         expect(first.summaries.length, 1);
+        expect(
+          await first.addExpense(
+            title: 'After unlock',
+            amount: '40.00',
+            accountId: first.overview!.accounts.first.id,
+          ),
+          true,
+        );
+        keys.lock(); // New controller models a page's fresh in-memory state.
+        final afterLockRestart = household();
+        addTearDown(afterLockRestart.dispose);
+        await afterLockRestart.initialize();
+        expect(afterLockRestart.needsVaultUnlock, true);
+        expect(afterLockRestart.summaries, isEmpty);
+        expect(await afterLockRestart.unlockBrowserVault(phrase), true);
+        expect(afterLockRestart.overview!.balanceLabel, 'USD -40.00');
+        expect(
+          afterLockRestart.summaries.single.preview.expensesLabel,
+          'USD 87.00',
+        );
         await first.forgetHousehold();
         expect(first.summaries, isEmpty);
       });

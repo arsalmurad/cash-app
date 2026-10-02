@@ -55,6 +55,7 @@ class HouseholdController extends ChangeNotifier {
   bool isLoading = true;
   Future<void> _operationQueue = Future<void>.value();
   bool _writesDisabled = false;
+  bool get requiresRestart => _writesDisabled;
   PendingInvitation? _pendingInvitation;
   String? _pendingMailboxAck;
   Uint8List? _recoveryState;
@@ -174,6 +175,9 @@ class HouseholdController extends ChangeNotifier {
   Future<bool> lockBrowserVault() => _run(() async {
     final store = _browserVault();
     store.keys.lock();
+    // The operation queue has finished all uses of this handle. Release its
+    // Rust keys now, rather than retaining them until Dart's later finalizer.
+    _household?.dispose();
     _household = null;
     overview = null;
     summaries = [];

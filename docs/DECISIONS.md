@@ -1080,3 +1080,22 @@ lock/unlock/leave and failed-save checks, plus existing secret-store and househo
 screen checks, passed (29 affected host tests). This is controller-memory hygiene,
 not a claim that decrypted memory is forensically erased or XSS is prevented.
 
+## 2026-10-03 — Own summary preview handle lifetimes explicitly
+
+The new production browser lock/reload regression exposed a Rust bridge panic
+while releasing a `SummaryDraft`: CDP console call frames identify
+`MoiArc<...SummaryDraft>::decrement_strong_count`, not household decryption.
+The saved sealed SQLite image remained byte-identical across reload and a
+separate native recovery probe restored it. Each summary dialog now releases
+its replaced and canceled/published drafts explicitly; browser-vault locking
+also releases its queued, no-longer-used household handle promptly. Do not
+change opaque codecs or generated/vendor bindings to hide a missing-handle
+panic. The production household browser scenario and 283 native-enabled host
+tests pass with these caller-lifetime changes. This establishes the observed
+regression's repair, not a complete diagnosis of browser finalizer internals.
+
+A failed initial household load stays visibly unavailable instead of showing
+create/join setup. An uncertain save still preserves the last confirmed member
+view and disables writes. The restart message does not promise recoverability
+or encourage creation over existing data.
+
