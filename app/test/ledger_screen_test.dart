@@ -188,6 +188,11 @@ void main() {
     expect(find.text('Groceries'), findsOneWidget);
     expect(find.text('Paycheck'), findsOneWidget);
 
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).decoration!.labelText,
+      'Search title or category',
+    );
+
     await tester.enterText(find.byType(TextField), 'pay');
     await tester.pump();
 

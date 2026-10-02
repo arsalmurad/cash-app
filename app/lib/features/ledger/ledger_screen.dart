@@ -879,7 +879,7 @@ class _ActivitySearchAndFiltersState extends State<_ActivitySearchAndFilters> {
         TextField(
           controller: queryController,
           decoration: InputDecoration(
-            hintText: 'Search title or category',
+            labelText: 'Search title or category',
             prefixIcon: const Icon(Icons.search_rounded),
             suffixIcon: filter.query.isEmpty
                 ? null
