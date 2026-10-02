@@ -64,66 +64,72 @@ class _UpcomingCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(
-              occurrence.isExpense
-                  ? Icons.arrow_upward_rounded
-                  : Icons.arrow_downward_rounded,
-              color: occurrence.isExpense
-                  ? theme.colorScheme.error
-                  : theme.colorScheme.primary,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(occurrence.title, style: theme.textTheme.titleMedium),
-                  Text(
-                    'Due ${_formatDate(date)}',
-                    style: TextStyle(
-                      color: occurrence.isOverdue
-                          ? theme.colorScheme.error
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (onStop != null)
-              PopupMenuButton<String>(
-                tooltip: 'recurring rule actions',
-                onSelected: (value) =>
-                    value == 'edit' ? onEdit?.call() : onStop?.call(),
-                itemBuilder: (_) => [
-                  if (onEdit != null)
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Text('Edit recurring rule'),
-                    ),
-                  const PopupMenuItem(
-                    value: 'stop',
-                    child: Text('Stop recurring rule'),
-                  ),
-                ],
-              )
-            else if (onEdit != null)
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 20),
-                tooltip: 'Edit recurring rule',
-                onPressed: onEdit,
-              ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
-                Text(occurrence.amountLabel),
-                TextButton(
-                  onPressed: occurrence.isOverdue ? onRecord : null,
-                  child: const Text('Record'),
+                Icon(
+                  occurrence.isExpense
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  color: occurrence.isExpense
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.primary,
                 ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        occurrence.title,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      Text(
+                        'Due ${_formatDate(date)}',
+                        style: TextStyle(
+                          color: occurrence.isOverdue
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (onStop != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'recurring rule actions',
+                    onSelected: (value) =>
+                        value == 'edit' ? onEdit?.call() : onStop?.call(),
+                    itemBuilder: (_) => [
+                      if (onEdit != null)
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit recurring rule'),
+                        ),
+                      const PopupMenuItem(
+                        value: 'stop',
+                        child: Text('Stop recurring rule'),
+                      ),
+                    ],
+                  )
+                else if (onEdit != null)
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    tooltip: 'Edit recurring rule',
+                    onPressed: onEdit,
+                  ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Text(occurrence.amountLabel, textAlign: TextAlign.end),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: occurrence.isOverdue ? onRecord : null,
+                child: const Text('Record'),
+              ),
             ),
           ],
         ),
