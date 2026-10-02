@@ -45,7 +45,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1667515674;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 667556449;
 
 // Section: executor
 
@@ -106,6 +106,128 @@ fn wire__crate__api__ledger__add_account_impl(
                         api_account_id,
                         api_name,
                         api_currency_code,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__ledger__adjust_transaction_amount_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "adjust_transaction_amount",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_transaction_id = <String>::sse_decode(&mut deserializer);
+            let api_expected_amount = <String>::sse_decode(&mut deserializer);
+            let api_amount = <String>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let output_ok = crate::api::ledger::adjust_transaction_amount(
+                        &*api_ledger_guard,
+                        api_transaction_id,
+                        api_expected_amount,
+                        api_amount,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__ledger__assign_transaction_category_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "assign_transaction_category",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_transaction_id = <String>::sse_decode(&mut deserializer);
+            let api_expected_category_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_category_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let output_ok = crate::api::ledger::assign_transaction_category(
+                        &*api_ledger_guard,
+                        api_transaction_id,
+                        api_expected_category_id,
+                        api_category_id,
                         api_wall_clock_millis,
                     )?;
                     std::result::Result::Ok(output_ok)
@@ -2585,6 +2707,61 @@ fn wire__crate__api__ledger__suggest_category_for_title_impl(
         },
     )
 }
+fn wire__crate__api__ledger__transaction_history_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "transaction_history",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_transaction_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let output_ok = crate::api::ledger::transaction_history(
+                        &*api_ledger_guard,
+                        api_transaction_id,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__recurring__upcoming_occurrences_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2911,6 +3088,67 @@ fn wire__crate__api__recurring__upsert_recurring_impl(
                         api_category_id,
                         api_frequency,
                         api_start_millis,
+                        api_wall_clock_millis,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__ledger__void_transaction_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "void_transaction",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_ledger = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<PersonalLedger>,
+            >>::sse_decode(&mut deserializer);
+            let api_transaction_id = <String>::sse_decode(&mut deserializer);
+            let api_expected_amount = <String>::sse_decode(&mut deserializer);
+            let api_expected_category_id = <Option<String>>::sse_decode(&mut deserializer);
+            let api_wall_clock_millis = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_ledger_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_ledger,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => api_ledger_guard = Some(api_ledger.lockable_decode_sync_ref()),
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_ledger_guard = api_ledger_guard.unwrap();
+                    let output_ok = crate::api::ledger::void_transaction(
+                        &*api_ledger_guard,
+                        api_transaction_id,
+                        api_expected_amount,
+                        api_expected_category_id,
                         api_wall_clock_millis,
                     )?;
                     std::result::Result::Ok(output_ok)
@@ -3492,6 +3730,20 @@ impl SseDecode for Vec<crate::api::shared::SharedTransactionView> {
     }
 }
 
+impl SseDecode for Vec<crate::api::ledger::TransactionHistoryView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::ledger::TransactionHistoryView>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::ledger::TransactionView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3772,6 +4024,30 @@ impl SseDecode for crate::api::storage::StorageResponse {
     }
 }
 
+impl SseDecode for crate::api::ledger::TransactionHistoryView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_eventId = <String>::sse_decode(deserializer);
+        let mut var_actorId = <String>::sse_decode(deserializer);
+        let mut var_physicalMillis = <i64>::sse_decode(deserializer);
+        let mut var_logical = <u32>::sse_decode(deserializer);
+        let mut var_action = <String>::sse_decode(deserializer);
+        let mut var_amountLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_reportingAmountLabel = <Option<String>>::sse_decode(deserializer);
+        let mut var_categoryId = <Option<String>>::sse_decode(deserializer);
+        return crate::api::ledger::TransactionHistoryView {
+            event_id: var_eventId,
+            actor_id: var_actorId,
+            physical_millis: var_physicalMillis,
+            logical: var_logical,
+            action: var_action,
+            amount_label: var_amountLabel,
+            reporting_amount_label: var_reportingAmountLabel,
+            category_id: var_categoryId,
+        };
+    }
+}
+
 impl SseDecode for crate::api::ledger::TransactionView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -3781,6 +4057,7 @@ impl SseDecode for crate::api::ledger::TransactionView {
         let mut var_amountLabel = <String>::sse_decode(deserializer);
         let mut var_isExpense = <bool>::sse_decode(deserializer);
         let mut var_categoryId = <Option<String>>::sse_decode(deserializer);
+        let mut var_voided = <bool>::sse_decode(deserializer);
         return crate::api::ledger::TransactionView {
             id: var_id,
             account_id: var_accountId,
@@ -3788,6 +4065,7 @@ impl SseDecode for crate::api::ledger::TransactionView {
             amount_label: var_amountLabel,
             is_expense: var_isExpense,
             category_id: var_categoryId,
+            voided: var_voided,
         };
     }
 }
@@ -3882,152 +4160,166 @@ fn pde_ffi_dispatcher_primary_impl(
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
         1 => wire__crate__api__ledger__add_account_impl(port, ptr, rust_vec_len, data_len),
-        2 => wire__crate__api__budgets__budget_load_report_impl(port, ptr, rust_vec_len, data_len),
-        3 => wire__crate__api__budgets__budget_progress_impl(port, ptr, rust_vec_len, data_len),
-        4 => wire__crate__api__categories__category_load_report_impl(
+        2 => wire__crate__api__ledger__adjust_transaction_amount_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        5 => wire__crate__api__ledger__fx_rate_from_decimal_impl(port, ptr, rust_vec_len, data_len),
-        6 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
-        7 => wire__crate__api__goals__goal_load_report_impl(port, ptr, rust_vec_len, data_len),
-        8 => wire__crate__api__goals__goal_progress_impl(port, ptr, rust_vec_len, data_len),
-        9 => wire__crate__api__shared__household_adjust_amount_impl(
+        3 => wire__crate__api__ledger__assign_transaction_category_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        10 => {
+        4 => wire__crate__api__budgets__budget_load_report_impl(port, ptr, rust_vec_len, data_len),
+        5 => wire__crate__api__budgets__budget_progress_impl(port, ptr, rust_vec_len, data_len),
+        6 => wire__crate__api__categories__category_load_report_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        7 => wire__crate__api__ledger__fx_rate_from_decimal_impl(port, ptr, rust_vec_len, data_len),
+        8 => wire__crate__api__ledger__get_overview_impl(port, ptr, rust_vec_len, data_len),
+        9 => wire__crate__api__goals__goal_load_report_impl(port, ptr, rust_vec_len, data_len),
+        10 => wire__crate__api__goals__goal_progress_impl(port, ptr, rust_vec_len, data_len),
+        11 => wire__crate__api__shared__household_adjust_amount_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        12 => {
             wire__crate__api__shared__household_begin_invite_impl(port, ptr, rust_vec_len, data_len)
         }
-        11 => wire__crate__api__shared__household_begin_removal_impl(
+        13 => wire__crate__api__shared__household_begin_removal_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        12 => wire__crate__api__shared__household_commit_accepted_impl(
+        14 => wire__crate__api__shared__household_commit_accepted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        13 => wire__crate__api__shared__household_commit_rejected_impl(
+        15 => wire__crate__api__shared__household_commit_rejected_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        14 => wire__crate__api__shared__household_export_impl(port, ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__shared__household_found_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__shared__household_ingest_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__shared__household_join_impl(port, ptr, rust_vec_len, data_len),
-        18 => {
+        16 => wire__crate__api__shared__household_export_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__shared__household_found_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__shared__household_ingest_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__shared__household_join_impl(port, ptr, rust_vec_len, data_len),
+        20 => {
             wire__crate__api__shared__household_key_package_impl(port, ptr, rust_vec_len, data_len)
         }
-        19 => wire__crate__api__shared__household_merge_recovery_history_impl(
+        21 => wire__crate__api__shared__household_merge_recovery_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        20 => wire__crate__api__shared__household_new_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__shared__household_next_outgoing_impl(
+        22 => wire__crate__api__shared__household_new_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__shared__household_next_outgoing_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        22 => {
+        24 => {
             wire__crate__api__shared__household_open_account_impl(port, ptr, rust_vec_len, data_len)
         }
-        23 => wire__crate__api__shared__household_outgoing_accepted_impl(
+        25 => wire__crate__api__shared__household_outgoing_accepted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        24 => wire__crate__api__shared__household_overview_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__shared__household_record_transaction_impl(
+        26 => wire__crate__api__shared__household_overview_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__shared__household_record_transaction_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__shared__household_restore_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__shared__household_safety_number_impl(
+        28 => wire__crate__api__shared__household_restore_impl(port, ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__shared__household_safety_number_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => wire__crate__api__shared__household_void_transaction_impl(
+        30 => wire__crate__api__shared__household_void_transaction_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        29 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
-        32 => {
+        31 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
+        34 => {
             wire__crate__api__categories__load_category_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        33 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
-        34 => {
+        35 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
+        36 => {
             wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
         }
-        35 => {
+        37 => {
             wire__crate__api__recurring__load_recurring_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        36 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__shared__recovery_generate_phrase_impl(
+        38 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__shared__recovery_generate_phrase_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        40 => wire__crate__api__shared__recovery_open_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__shared__recovery_seal_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__shared__recovery_validate_phrase_impl(
+        42 => wire__crate__api__shared__recovery_open_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__shared__recovery_seal_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__shared__recovery_validate_phrase_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        43 => wire__crate__api__recurring__recurring_load_report_impl(
+        45 => wire__crate__api__recurring__recurring_load_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        44 => {
+        46 => {
             wire__crate__api__recurring__recurring_schedule_impl(port, ptr, rust_vec_len, data_len)
         }
-        45 => wire__crate__api__budgets__remove_budget_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__goals__remove_goal_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__recurring__stop_recurring_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__ledger__suggest_category_for_title_impl(
+        47 => wire__crate__api__budgets__remove_budget_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__goals__remove_goal_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__recurring__stop_recurring_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__ledger__suggest_category_for_title_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__recurring__upcoming_occurrences_impl(
+        53 => wire__crate__api__ledger__transaction_history_impl(port, ptr, rust_vec_len, data_len),
+        54 => wire__crate__api__recurring__upcoming_occurrences_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        52 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
-        54 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
-        55 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        57 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
+        58 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
+        59 => wire__crate__api__ledger__void_transaction_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4040,8 +4332,8 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        47 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
+        49 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -4814,6 +5106,33 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::storage::StorageResponse>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::ledger::TransactionHistoryView {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.event_id.into_into_dart().into_dart(),
+            self.actor_id.into_into_dart().into_dart(),
+            self.physical_millis.into_into_dart().into_dart(),
+            self.logical.into_into_dart().into_dart(),
+            self.action.into_into_dart().into_dart(),
+            self.amount_label.into_into_dart().into_dart(),
+            self.reporting_amount_label.into_into_dart().into_dart(),
+            self.category_id.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::ledger::TransactionHistoryView
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::ledger::TransactionHistoryView>
+    for crate::api::ledger::TransactionHistoryView
+{
+    fn into_into_dart(self) -> crate::api::ledger::TransactionHistoryView {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::ledger::TransactionView {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -4823,6 +5142,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::ledger::TransactionView {
             self.amount_label.into_into_dart().into_dart(),
             self.is_expense.into_into_dart().into_dart(),
             self.category_id.into_into_dart().into_dart(),
+            self.voided.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -5325,6 +5645,16 @@ impl SseEncode for Vec<crate::api::shared::SharedTransactionView> {
     }
 }
 
+impl SseEncode for Vec<crate::api::ledger::TransactionHistoryView> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::ledger::TransactionHistoryView>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::ledger::TransactionView> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5549,6 +5879,20 @@ impl SseEncode for crate::api::storage::StorageResponse {
     }
 }
 
+impl SseEncode for crate::api::ledger::TransactionHistoryView {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.event_id, serializer);
+        <String>::sse_encode(self.actor_id, serializer);
+        <i64>::sse_encode(self.physical_millis, serializer);
+        <u32>::sse_encode(self.logical, serializer);
+        <String>::sse_encode(self.action, serializer);
+        <Option<String>>::sse_encode(self.amount_label, serializer);
+        <Option<String>>::sse_encode(self.reporting_amount_label, serializer);
+        <Option<String>>::sse_encode(self.category_id, serializer);
+    }
+}
+
 impl SseEncode for crate::api::ledger::TransactionView {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -5558,6 +5902,7 @@ impl SseEncode for crate::api::ledger::TransactionView {
         <String>::sse_encode(self.amount_label, serializer);
         <bool>::sse_encode(self.is_expense, serializer);
         <Option<String>>::sse_encode(self.category_id, serializer);
+        <bool>::sse_encode(self.voided, serializer);
     }
 }
 

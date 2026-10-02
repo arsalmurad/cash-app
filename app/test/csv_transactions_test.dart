@@ -132,6 +132,7 @@ void main() {
           accountId: 'everyday',
           title: 'Groceries',
           amountLabel: 'USD 12.34',
+          voided: false,
           isExpense: true,
           categoryId: 'food',
         ),

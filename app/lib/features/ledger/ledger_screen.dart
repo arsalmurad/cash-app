@@ -11,6 +11,7 @@ import 'budgets_pane.dart';
 import 'categories_screen.dart';
 import 'category_presets.dart';
 import 'csv_import_export.dart';
+import 'transaction_actions.dart';
 import 'definition_removal_dialog.dart';
 import 'exchange_rate_dialog.dart';
 import '../household/household_controller.dart';
@@ -209,12 +210,14 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 categories: controller.categories,
                 onAdd: _add,
                 onAddAccount: _addAccount,
+                onTransactionAction: _transactionAction,
               ),
               ActivityPane(
                 transactions: controller.overview!.transactions,
                 transfers: controller.overview!.transfers,
                 categories: controller.categories,
                 accounts: controller.overview!.accounts,
+                onTransactionAction: _transactionAction,
               ),
               BudgetsPane(
                 budgets: controller.budgets,
@@ -258,6 +261,75 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   void _select(int index) => setState(() => selectedIndex = index);
+
+  Future<void> _transactionAction(
+    TransactionView transaction,
+    TransactionAction action,
+  ) async {
+    if (_removalPending) return;
+    final controller = widget.controller;
+    if (action == TransactionAction.history) {
+      try {
+        final history = await controller.historyFor(transaction);
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (_) => TransactionHistoryDialog(
+            transaction: transaction,
+            history: history,
+            categories: controller.categories,
+          ),
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+      return;
+    }
+    Future<bool> Function()? save;
+    if (action == TransactionAction.remove) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => TransactionRemovalDialog(transaction: transaction),
+      );
+      if (confirmed == true) {
+        save = () => controller.removeTransaction(transaction);
+      }
+    } else {
+      final draft = await showDialog<TransactionCorrectionDraft>(
+        context: context,
+        builder: (_) => TransactionCorrectionDialog(
+          transaction: transaction,
+          action: action,
+          categories: controller.categories,
+        ),
+      );
+      if (draft != null) {
+        save = action == TransactionAction.amount
+            ? () => controller.correctAmount(transaction, draft.amount!)
+            : () => controller.changeTransactionCategory(
+                transaction,
+                draft.categoryId,
+              );
+      }
+    }
+    if (save == null || !mounted || _removalPending) return;
+    setState(() => _removalPending = true);
+    final saved = await save();
+    if (!mounted) return;
+    setState(() => _removalPending = false);
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            controller.errorMessage ??
+                'Could not save the correction. Try again.',
+          ),
+        ),
+      );
+    }
+  }
 
   Future<void> _confirmRemoval(
     String kind,
@@ -598,6 +670,7 @@ class OverviewPane extends StatelessWidget {
     required this.categories,
     required this.onAdd,
     required this.onAddAccount,
+    this.onTransactionAction,
     super.key,
   });
 
@@ -605,6 +678,7 @@ class OverviewPane extends StatelessWidget {
   final List<CategoryView> categories;
   final VoidCallback onAdd;
   final VoidCallback onAddAccount;
+  final void Function(TransactionView, TransactionAction)? onTransactionAction;
 
   @override
   Widget build(BuildContext context) {
@@ -671,8 +745,11 @@ class OverviewPane extends StatelessWidget {
                 ...overview.transactions
                     .take(5)
                     .map(
-                      (transaction) =>
-                          TransactionTile(transaction, categories: categories),
+                      (transaction) => TransactionTile(
+                        transaction,
+                        categories: categories,
+                        onAction: onTransactionAction,
+                      ),
                     ),
             ],
           ),
@@ -688,6 +765,7 @@ class ActivityPane extends StatefulWidget {
     required this.transfers,
     required this.categories,
     required this.accounts,
+    this.onTransactionAction,
     super.key,
   });
 
@@ -695,6 +773,7 @@ class ActivityPane extends StatefulWidget {
   final List<TransferView> transfers;
   final List<CategoryView> categories;
   final List<AccountView> accounts;
+  final void Function(TransactionView, TransactionAction)? onTransactionAction;
 
   @override
   State<ActivityPane> createState() => _ActivityPaneState();
@@ -745,6 +824,7 @@ class _ActivityPaneState extends State<ActivityPane> {
                     (transaction) => TransactionTile(
                       transaction,
                       categories: widget.categories,
+                      onAction: widget.onTransactionAction,
                     ),
                   ),
                   ...filteredTransfers.map(
@@ -1033,11 +1113,13 @@ class TransactionTile extends StatelessWidget {
   const TransactionTile(
     this.transaction, {
     this.categories = const [],
+    this.onAction,
     super.key,
   });
 
   final TransactionView transaction;
   final List<CategoryView> categories;
+  final void Function(TransactionView, TransactionAction)? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -1065,14 +1147,52 @@ class TransactionTile extends StatelessWidget {
           ),
         ),
         title: Text(transaction.title),
-        subtitle: Text(category?.name ?? 'Uncategorized'),
-        trailing: Text(
-          '${transaction.isExpense ? '−' : '+'}${transaction.amountLabel}',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: transaction.isExpense ? scheme.error : scheme.tertiary,
-            fontWeight: FontWeight.w700,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              transaction.voided
+                  ? 'Removed from balances'
+                  : (category?.name ?? 'Uncategorized'),
+            ),
+            Text(
+              '${transaction.isExpense ? '−' : '+'}${transaction.amountLabel}',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: transaction.isExpense ? scheme.error : scheme.tertiary,
+                fontWeight: FontWeight.w700,
+                decoration: transaction.voided
+                    ? TextDecoration.lineThrough
+                    : null,
+              ),
+            ),
+          ],
         ),
+        trailing: onAction == null
+            ? null
+            : PopupMenuButton<TransactionAction>(
+                tooltip: 'Transaction actions: ${transaction.title}',
+                onSelected: (action) => onAction!(transaction, action),
+                itemBuilder: (_) => [
+                  if (!transaction.voided) ...[
+                    const PopupMenuItem(
+                      value: TransactionAction.amount,
+                      child: Text('Correct amount'),
+                    ),
+                    const PopupMenuItem(
+                      value: TransactionAction.category,
+                      child: Text('Change category'),
+                    ),
+                    const PopupMenuItem(
+                      value: TransactionAction.remove,
+                      child: Text('Remove transaction'),
+                    ),
+                  ],
+                  const PopupMenuItem(
+                    value: TransactionAction.history,
+                    child: Text('View history'),
+                  ),
+                ],
+              ),
       ),
     );
   }

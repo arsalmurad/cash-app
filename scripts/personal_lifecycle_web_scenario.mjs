@@ -161,4 +161,43 @@ export async function runPersonalLifecycleWebScenario(page, api) {
   await waitForLabel(page, beforeBalance);
   console.log('Verified personal controls: goal currency/category/deadline reload, cancelled edit, categorized recurring posting, USD 1.23 goal progress, explicit removal and preserved balance.');
   console.log('Verified large money: exact income/expense entry, bounded goal/budget percentage display, durable reload and unchanged net balance.');
+
+  await clickLabel(page, 'Add', 'button');
+  await fill('Title', 'Correction fixture');
+  await fill('Amount', '10.00');
+  await clickLabel(page, 'Add transaction', 'button');
+  await waitForLabel(page, 'Correction fixture');
+  const beforeCorrection = await saved();
+  await clickLabel(page, 'Transaction actions: Correction fixture', 'button');
+  await clickLabel(page, 'Remove transaction');
+  await clickLabel(page, 'Keep transaction', 'button');
+  assert.equal(await saved(), beforeCorrection, 'Cancelled transaction removal cannot write data');
+  await clickLabel(page, 'Transaction actions: Correction fixture', 'button');
+  await clickLabel(page, 'Correct amount');
+  await focusLabel(page, 'Amount');
+  await page.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+  await page.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+  await page.send('Input.insertText', { text: '12.00' });
+  await clickLabel(page, 'Save correction', 'button');
+  await waitForLabel(page, '−USD 12.00');
+  await clickLabel(page, 'Transaction actions: Correction fixture', 'button');
+  await clickLabel(page, 'Change category');
+  await dropdown('Category', 'Food');
+  await clickLabel(page, 'Save correction', 'button');
+  await clickLabel(page, 'Transaction actions: Correction fixture', 'button');
+  await clickLabel(page, 'Remove transaction');
+  await clickLabel(page, 'Remove transaction', 'button');
+  await waitForLabel(page, 'Removed from balances');
+  await waitForLabel(page, beforeBalance);
+  await page.send('Page.reload');
+  await openApp(page);
+  await waitForLabel(page, beforeBalance);
+  await waitForLabel(page, 'Removed from balances');
+  await clickLabel(page, 'Transaction actions: Correction fixture', 'button');
+  await clickLabel(page, 'View history');
+  for (const label of ['Recorded', 'Amount corrected', 'Category changed', 'Removed from balances', 'USD 10.00', 'USD 12.00']) {
+    await waitForLabel(page, label);
+  }
+  await clickLabel(page, 'Close', 'button');
+  console.log('Verified transaction corrections: cancelled removal, amount/category changes, durable removal, preserved balance and immutable history after full reload.');
 }
