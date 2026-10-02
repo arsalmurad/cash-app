@@ -52,8 +52,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   The default worker is now closed; only explicit loopback development is
   enabled. This safety guard is not production authentication or deployment.
   Request bodies now have a streamed 512 KiB parsing bound, and decoded
-  invitations share the 256 KiB blob limit. All 21 local relay tests and the
-  28-record real Rust-peer storage audit pass; these limits do not bound total
+  invitations share the 256 KiB blob limit. Storage reads are limited to 16
+  records before values are loaded, with maximum-size page continuation tested.
+  All 22 local relay tests and the 28-record real Rust-peer storage audit pass;
+  these limits do not bound total
   retained history or authorize a public deployment.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
@@ -89,13 +91,17 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   corrections and non-erasing removal/history have actual SQLite failure/reload
   tests, production Chrome evidence and actual Android emulator runtime evidence.
   These checks do not close the whole UX gate.
-  `PERSONAL-UX-REVIEW.md` now records the scoped Cashew review, three repaired
-  populated layout failures, conditional search-clear label repair, 303 host
-  tests and enlarged-text/labeled/48-pixel target checks. Production narrow
-  Chrome passes at `ea3390b`; personal Android passes there and household
-  Android at `2eeafc4`. A newer combined desktop attempt failed, followed by
-  an input-readiness experiment's timeout, so browser reliability and final
-  platform acceptance remain open rather than being inferred from prior passes.
+  `PERSONAL-UX-REVIEW.md` records the scoped Cashew review, repaired populated
+  layout failures, permanent search/clear labels and real-production-theme
+  enlarged-text/labeled/48-pixel checks. All 305 host tests and both Android
+  integrations pass on app source `eb09a27`. Combined desktop Chrome passes
+  there with driver `b07c1c7`, including the uncertain-save household ownership
+  repair, actual search/filter and unchanged SQLite bytes. After a subsequent
+  narrow title-editor readiness failure, driver `d4561e7` uses real pointer
+  activation: the current 360×740 personal/CSV flow and separate desktop
+  household/quota flow both pass, the latter with bounded relay pages.
+  Final iOS and complete accessibility acceptance remain open; exact earlier
+  failures and limited verification scope remain in the progress docs.
 - [x] Pin reproducible CI environments, including explicit WASM nightly,
   action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
   remain recorded rather than hidden or upgraded without verification.

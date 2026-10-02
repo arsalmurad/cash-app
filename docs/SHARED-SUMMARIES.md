@@ -228,3 +228,56 @@ Build 85.6 s, install 3.0 s, runtime 34 s, one test passed. This exercises
 logical peers, actual native bridge/SQLite/OS-key wrapping and the existing
 chosen-summary/recovery/failure scenario. The owned emulator was stopped.
 Final iOS and physical multi-device/biometric acceptance remain unverified.
+
+## Quota-owned handle follow-up, 2026-10-03
+
+The extended combined scenario on production `5a792b0` passed personal search,
+clear and kind filtering, then failed after the household quota/reload step.
+CDP captured a `Household::decrement_strong_count` panic, distinct from the
+previous `SummaryDraft` failure. Real quota exhaustion, unchanged confirmed
+SQLite bytes, no relay append, refused later writes and byte-identical SQLite
+after reload had already passed; unlock/restored shared state did not pass.
+
+Commit `eb09a27` explicitly disposes the abandoned household after serialized
+Rust calls finish in the uncertain-save path. Two ownership-only RED/GREEN
+regressions cover queued work and failure before/after a synthetic save; all
+24 affected native-enabled tests pass (24 s), with no analysis issues (4 s).
+The Flutter-only WASM build completes in 181 s using unchanged Rust `26f9563`.
+The rebuilt Chrome app subsequently passes quota refusal, restart/unlock and
+sealed reload, followed by offline conflicts and fresh-key stale-backup recovery.
+That combined run stops later while looking for a below-fold JPY account card;
+a driver-scrolling rerun stops earlier at replacement invitation input. Neither
+attempt is a complete combined pass. Neither the previous summary repair nor
+this narrow ownership change proves a universal finalizer root cause.
+
+All 305 native-enabled host app tests pass in 157 s on `eb09a27`. Its actual
+Android household integration also passes on the pinned API 36 AOSP ATD/WHPX
+emulator, serial 5580: `flutter --no-version-check test --no-pub
+integration_test/household_test.dart -d emulator-5580 --reporter expanded`.
+Build 93.9 s, installation 12.0 s, runtime 58 s; one integrated case exercises
+logical peers, native SQLite/OS-key wrapping, recovery/failure and summaries.
+This is not physical multi-device or enrolled biometric evidence.
+
+The complete combined desktop command then passes on production `eb09a27`
+and driver `b07c1c7`, unchanged Rust `26f9563`, Windows Chrome 154.0.8037.58
+and local workerd. The driver completes household editing with real Tab input
+and scrolls lazy below-fold account cards; it retains all prior assertions and
+does not read controller internals or inject financial state. CSV/Unicode,
+personal controls/search/clear/filter, summary privacy boundaries, explicit
+lock/unlock, actual quota/restart, sealed reload, conflicts, fresh-key recovery,
+removal, frozen EUR/JPY and readable-title HTTP-body checks all pass.
+Local ignored evidence: `.dart_tool/current-browser-completed-inputs.log`.
+This successful run does not retroactively pass either intervening failed run
+or certify every browser/finalizer fault. Final iOS and deployment remain open.
+
+After a narrow personal-editor readiness failure, driver `d4561e7` changes only
+field activation to ordinary browser pointer press/release. The affected
+household run independently passes on the same app/Rust artifacts with relay
+`45d8e0b` (bounded storage reads): `WEB_VIEWPORT=1280x900 WEB_HOUSEHOLD=1
+WEB_HOUSEHOLD_QUOTA=1 WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`.
+All household assertions, including real quota/reload, signed recovery,
+removal and frozen EUR/JPY, pass; the separate current 360×740 personal/CSV
+scenario also passes. These are two scoped runs, not a new combined-run claim.
+Local evidence: `.dart_tool/current-browser-household-pointer.log` and
+`.dart_tool/current-browser-phone-pointer.log`; synthetic phrases/backups remain
+uncommitted. No app rebuild was needed for these driver/relay-only changes.
