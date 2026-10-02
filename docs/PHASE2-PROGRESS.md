@@ -510,7 +510,19 @@ Independently passed on Windows with the pinned tools:
   refusal passed. Windows workerd emitted WSASend #10054 during cleanup; all
   assertions and exit status passed, not a claim about physical-network recovery.
 
-No current-checkpoint Android/iOS runtime or new cloud job is claimed here.
+The checkpoint-enabled source `bfaaa10` subsequently passed
+`flutter --no-version-check test --no-pub integration_test/household_test.dart
+-d emulator-5580 --reporter expanded` on the owned read-only AOSP ATD Android
+16/API 36 x86_64 emulator, with WHPX and the existing pinned mobile tools.
+The debug APK build took 301.4 s, installation 5.0 s, and actual runtime passed
+in 8 s: real OS wrapping keys, physical sealed SQLite-byte checks, protected
+household restart/recovery and member removal. The first emulator launch used
+the default AVD directory and failed before any app run; retry set the existing
+`ANDROID_AVD_HOME=D:/Android/avd` and booted successfully. It did not install a
+new image or upgrade tools. The two logical peers share one emulator, not two
+physical phones. New EUR/JPY native UI coverage remains a separate check.
+
+No current-checkpoint iOS runtime or new cloud job is claimed here.
 Archive size/memory grow with retained history, and import still replays signed
 sources. An end-to-end performance benchmark and acknowledged pruning remain
 separate work, not reasons to erase an offline peer's history.
