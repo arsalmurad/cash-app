@@ -26,13 +26,13 @@ class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
 class _Keys implements VaultKeys {
   String? phrase;
   @override
-  bool get requiresUnlock => false;
+  bool requiresUnlock = false;
   @override
   Future<String?> read() async => phrase;
   @override
   Future<void> write(String value) async => phrase = value;
   @override
-  void lock() {}
+  void lock() => phrase = null;
 }
 
 class _FaultBlob implements BlobStore {
@@ -172,6 +172,14 @@ void main() {
         expect(restarted.overview!.transactions, isEmpty);
         expect(await first.publishSummary(draft), false);
         expect(first.summaries.length, 1);
+        final phrase = keys.phrase!;
+        keys.requiresUnlock = true;
+        expect(await first.lockBrowserVault(), true);
+        expect(first.summaries, isEmpty);
+        expect(await first.unlockBrowserVault(phrase), true);
+        expect(first.summaries.length, 1);
+        await first.forgetHousehold();
+        expect(first.summaries, isEmpty);
       });
 
       for (final after in [false, true]) {

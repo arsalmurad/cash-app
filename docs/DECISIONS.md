@@ -1070,3 +1070,13 @@ acceptance (125.91 s). A separate focused rerun also rejected modification of a
 published total under its original signature. These are local Rust checks, not
 feature-gated HTTP, new Dart bridge/UI, mobile or production WASM evidence.
 
+## 2026-10-03 — Clear published-summary views when locking or leaving
+
+A new native-bridge regression reproduced a retained summary list after locking
+the browser-style vault, even though its household handle and overview were
+cleared. Clear summaries on lock, leave and locked/failed initialization, while
+preserving the last confirmed view after an uncertain save. Actual sealed SQLite
+lock/unlock/leave and failed-save checks, plus existing secret-store and household
+screen checks, passed (29 affected host tests). This is controller-memory hygiene,
+not a claim that decrypted memory is forensically erased or XSS is prevented.
+
