@@ -171,10 +171,16 @@ void main() {
           hasLength(8),
         );
         expect(controller.overview!.balanceLabel, 'USD -8.00');
+        expect(controller.overview!.transactions.map((entry) => entry.title), [
+          for (var i = 7; i >= 0; i--) 'Entry $i',
+        ]);
         final restarted = create(now: () => instant);
         await restarted.initialize();
         expect(restarted.errorMessage, isNull);
         expect(restarted.overview!.transactions, hasLength(8));
+        expect(restarted.overview!.transactions.map((entry) => entry.title), [
+          for (var i = 7; i >= 0; i--) 'Entry $i',
+        ]);
       },
     );
 
@@ -206,6 +212,10 @@ void main() {
         );
         expect(restarted.overview!.transactions, hasLength(2));
         expect(restarted.overview!.balanceLabel, 'USD -3.00');
+        expect(restarted.overview!.transactions.map((entry) => entry.title), [
+          'After',
+          'Before',
+        ]);
       },
     );
 
@@ -238,6 +248,12 @@ void main() {
         await restarted.initialize();
         expect(restarted.errorMessage, isNull);
         expect(restarted.overview!.transfers, hasLength(4));
+        expect(restarted.overview!.transfers.map((entry) => entry.title), [
+          'Transfer 3',
+          'Transfer 2',
+          'Transfer 1',
+          'Transfer 0',
+        ]);
       },
     );
 

@@ -993,3 +993,14 @@ Flutter host tests, 59 Rust API tests and the core acceptance suite passed;
 production Chrome/WASM and Android emulator runtime subsequently passed at
 production source `1fbea4d`; see `PHASE1-PROGRESS.md` for exact scope and commands.
 
+## 2026-10-02 — Recent activity follows creation order, not opaque IDs
+
+A reproduced RED regression showed that random operation IDs sorted an older
+entry ahead of a newer one, potentially hiding a new entry from Overview's five
+recent rows. Order transaction and transfer views by their original recording
+event's full `(HLC physical, logical, actor, event)` key, newest first. Corrections
+do not reorder creation history. Canonical ledger state, persisted frames and
+bridge layouts are unchanged. All 61 API tests passed; actual native-bridge
+same-tick queues, restart and failure recovery also passed. Production WASM
+verification is pending; earlier Android checks cover correction source only.
+
