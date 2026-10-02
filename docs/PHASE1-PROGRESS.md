@@ -1367,3 +1367,19 @@ final-source platform acceptance is complete. Historical CI evidence is above.
   existing entry. The log replays from event zero on every load.
 
 Household sharing and all server/cloud features remain outside Phase 1.
+
+## Populated adaptive control checks, 2026-10-03
+
+New widget regressions render budget, goal and recurring cards at 360×740,
+840×600 and 1280×900, both Material 3 brightness modes and 1.5× text. They use
+long titles and an exact, valid i64 `USD 10000000000000000.00` label, exercise
+each edit menu and the overdue Record control. Both phone cases reproduced a
+298-pixel recurring-row overflow before the layout fix. Giving the full amount
+its own wrapping line and keeping the title/menu and Record control separate
+repairs it without truncating money or changing scheduling or persistence.
+
+All 19 affected populated/adaptive/recurring widget tests passed in 11 s;
+analysis passed with no issues in 3.6 s. These are host-rendered widget checks,
+not actual mobile/browser runtime, a comprehensive accessibility audit or a
+completed Cashew-reference usability review. The earlier empty-pane navigation
+matrix remains covered separately.
