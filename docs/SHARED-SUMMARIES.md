@@ -181,3 +181,31 @@ The cached general-purpose emulator was initially selected, then stopped in
 favor of the previously verified ATD image before any app test. No new SDK or
 image was installed. This is one emulator with logical peers, not a physical
 multi-device/network run. No current-source iOS runtime is claimed.
+
+## Current combined browser acceptance, 2026-10-03
+
+Production source `43871c4`, driver source `016d5ba`, independently passed the
+complete combined browser command on Windows Chrome 154.0.8037.58 and local
+workerd, without temporary trace markers, debugger pauses or diagnostic reads:
+
+`WEB_PERSONAL_LIFECYCLE=1 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_QUOTA=1 WEB_CSV=1
+WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`
+
+The current Flutter release WASM build took 209.2 s, with the unchanged Rust
+`26f9563` artifact. CSV selection/download and Unicode/font isolation, personal
+controls, exact large money, corrections/history/recent ordering, all summary
+selection/cancellation/publication boundaries, explicit browser lock/unlock,
+actual quota refusal and unchanged SQLite bytes across restart, sealed reload,
+offline conflicts, stale-backup fresh-key recovery, removal and EUR/JPY frozen
+rates all passed. Local evidence: ignored `.dart_tool/current-web-20261003.log`
+and the owned CSV/household screenshots. No phrases or synthetic backups are
+committed as evidence.
+
+Earlier combined runs exposed missing titles and one quota-unlock failure.
+The driver now targets editable fields by their accessible label (including
+multiline hints), verifies the active field and uses real Tab completion for
+personal edits; reading an arbitrary stale input is not readiness. Temporary
+pointer/frame-wait experiments and extra input diagnostic reads were removed.
+The successful combined run closes this runtime regression gate, not a proof
+that every earlier browser/renderer fault has a fully explained root cause.
+Final-source iOS, public authentication and safe bounded retention remain open.
