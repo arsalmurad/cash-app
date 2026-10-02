@@ -3,8 +3,8 @@ use std::fmt;
 
 use crate::bytes_io::{write_i64, write_string, write_u64};
 use crate::{
-    AccountId, Currency, Event, EventId, EventKind, FxRate, Money, MoneyError, TransactionId,
-    TransactionKind,
+    AccountId, ActorId, ChosenSummary, Currency, Event, EventId, EventKind, FxRate,
+    HybridTimestamp, Money, MoneyError, TransactionId, TransactionKind,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,6 +61,15 @@ pub struct LedgerState {
     pub accounts: BTreeMap<AccountId, AccountState>,
     pub transactions: BTreeMap<TransactionId, TransactionState>,
     pub transfers: BTreeMap<TransactionId, TransferState>,
+    pub summaries: BTreeMap<EventId, PublishedSummary>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PublishedSummary {
+    pub summary: ChosenSummary,
+    /// The household author, never the private source-ledger actor.
+    pub actor_id: ActorId,
+    pub timestamp: HybridTimestamp,
 }
 
 impl LedgerState {
@@ -71,6 +80,7 @@ impl LedgerState {
             accounts: BTreeMap::new(),
             transactions: BTreeMap::new(),
             transfers: BTreeMap::new(),
+            summaries: BTreeMap::new(),
         }
     }
 
@@ -134,11 +144,34 @@ impl LedgerState {
             write_i64(&mut bytes, transfer.received_reporting_minor);
             write_string(&mut bytes, &transfer.title);
         }
+        // Preserve byte-identical pre-summary canonical states/checkpoints.
+        // This extension exists only when there are actual publications.
+        if !self.summaries.is_empty() {
+            bytes.extend_from_slice(b"cash-app summaries v1\0");
+            write_u64(&mut bytes, self.summaries.len() as u64);
+            for (id, published) in &self.summaries {
+                write_string(&mut bytes, id.as_str());
+                write_string(&mut bytes, published.actor_id.as_str());
+                write_i64(&mut bytes, published.timestamp.physical_millis);
+                crate::bytes_io::write_u32(&mut bytes, published.timestamp.logical);
+                crate::codec::write_summary(&mut bytes, &published.summary);
+            }
+        }
         bytes
     }
 
     pub(crate) fn apply(&mut self, event: &Event) -> Result<(), FoldError> {
         match &event.kind {
+            EventKind::SummaryPublished { summary } => {
+                self.summaries.insert(
+                    event.id.clone(),
+                    PublishedSummary {
+                        summary: summary.clone(),
+                        actor_id: event.actor_id.clone(),
+                        timestamp: event.timestamp,
+                    },
+                );
+            }
             EventKind::AccountOpened {
                 account_id,
                 name,
@@ -325,10 +358,14 @@ impl LedgerState {
                     received.minor_units,
                 )?;
 
-                self.accounts.get_mut(from_account_id).unwrap().native_balance_minor =
-                    new_from_balance;
-                self.accounts.get_mut(to_account_id).unwrap().native_balance_minor =
-                    new_to_balance;
+                self.accounts
+                    .get_mut(from_account_id)
+                    .unwrap()
+                    .native_balance_minor = new_from_balance;
+                self.accounts
+                    .get_mut(to_account_id)
+                    .unwrap()
+                    .native_balance_minor = new_to_balance;
                 self.reporting_balance_minor = checked_add(
                     checked_sub(self.reporting_balance_minor, sent_reporting_minor)?,
                     received_reporting_minor,

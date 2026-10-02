@@ -1,4 +1,4 @@
-use crate::{ActorId, Currency, EventId, FxRate, HybridTimestamp, Money, OrderKey};
+use crate::{ActorId, ChosenSummary, Currency, EventId, FxRate, HybridTimestamp, Money, OrderKey};
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct AccountId(String);
@@ -34,6 +34,11 @@ pub enum TransactionKind {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EventKind {
+    /// An explicit immutable disclosure, not an expense or income entry.
+    /// Its currency is independent of the household's reporting currency.
+    SummaryPublished {
+        summary: ChosenSummary,
+    },
     AccountOpened {
         account_id: AccountId,
         name: String,

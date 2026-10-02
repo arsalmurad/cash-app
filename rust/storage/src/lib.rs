@@ -13,7 +13,8 @@ pub type Result<T> = std::result::Result<T, String>;
 const APPLICATION_ID: i64 = 0x43415348; // CASH
 // v2 protects lifecycle tombstones from v1's old prefix-recovery decoder.
 // Keep the physical filename/key stable so there is no split-brain store.
-const SCHEMA_VERSION: i64 = 2;
+// V3 protects summary payloads from older readers' unknown-frame tail repair.
+const SCHEMA_VERSION: i64 = 3;
 
 /// A document revision includes tombstones, so a deletion cannot revive legacy
 /// state or allow a stale controller to replace a newer MLS sender ratchet.
@@ -86,12 +87,12 @@ impl Database {
                  CREATE TABLE IF NOT EXISTS frames(stream TEXT NOT NULL REFERENCES streams(name), position INTEGER NOT NULL, value BLOB NOT NULL, PRIMARY KEY(stream,position));
                  CREATE TABLE IF NOT EXISTS recoveries(id INTEGER PRIMARY KEY, stream TEXT NOT NULL, original BLOB NOT NULL);
                  PRAGMA application_id=1128354632;
-                 PRAGMA user_version=2;"
+                 PRAGMA user_version=3;"
             ).map_err(sql)?;
-        } else if application == APPLICATION_ID && version == 1 {
+        } else if application == APPLICATION_ID && matches!(version, 1 | 2) {
             // Same tables and bytes: only the minimum reader version changes.
             // Commit with the integrity check under this initialization lock.
-            db.execute_batch("PRAGMA user_version=2;").map_err(sql)?;
+            db.execute_batch("PRAGMA user_version=3;").map_err(sql)?;
         } else if application != APPLICATION_ID || version != SCHEMA_VERSION {
             return Err("unsupported local database version; it was not replaced".into());
         }
@@ -346,10 +347,11 @@ mod tests {
             .0
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
         // This is the exact previous release's version guard: it must refuse
         // this database before its old frame decoder offers tail recovery.
         assert_ne!(version, 1);
+        assert_ne!(version, 2);
         let restarted = Database::from_bytes(&upgraded.bytes().unwrap()).unwrap();
         assert_eq!(restarted.log("recurring").unwrap().revision, 2);
     }
@@ -357,10 +359,36 @@ mod tests {
     #[test]
     fn future_version_is_rejected_without_changing_saved_bytes() {
         let db = Database::from_bytes(&[]).unwrap();
-        db.0.execute_batch("PRAGMA user_version=3;").unwrap();
+        db.0.execute_batch("PRAGMA user_version=4;").unwrap();
         let before = db.bytes().unwrap();
         assert!(Database::from_bytes(&before).is_err());
         assert_eq!(db.bytes().unwrap(), before);
+    }
+
+    #[test]
+    fn version_two_upgrade_preserves_sealed_household_and_original_frames() {
+        let mut original = Database::from_bytes(&[]).unwrap();
+        original.import_log("ledger", b"original frames").unwrap();
+        original
+            .save_document("household", 0, Some(b"original sealed state"))
+            .unwrap();
+        original.0.execute_batch("PRAGMA user_version=2;").unwrap();
+        let upgraded = Database::from_bytes(&original.bytes().unwrap()).unwrap();
+        assert_eq!(
+            upgraded.log("ledger").unwrap(),
+            original.log("ledger").unwrap()
+        );
+        assert_eq!(
+            upgraded.document("household").unwrap(),
+            original.document("household").unwrap()
+        );
+        let version: i64 = upgraded
+            .0
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+        // Previous v2 refuses this version before opening new event payloads.
+        assert_ne!(version, 2);
     }
 
     #[test]

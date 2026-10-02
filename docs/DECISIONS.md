@@ -1044,3 +1044,29 @@ then five focused tests, all core acceptance tests and strict core lint passed
 on Windows with pinned Rust 1.98.1. This is calculation only, not yet publication
 UI, encryption, relay or platform-runtime evidence; the analytics gate stays open.
 
+## 2026-10-02 — Publish summaries as nonfinancial signed events
+
+Add a typed `SummaryPublished` event, separate from transactions/transfers and
+independent of household reporting currency. Globally unique publication event
+IDs preserve snapshots and authorship; identical replay is idempotent and
+contradictory IDs remain visible rejections. Preserve old canonical bytes when
+there are no summaries, raise SQLite's minimum reader to v3 and signed peer
+archives to v5, and retain v2/v3/v4 signed archive import with checked history.
+Do not disguise totals as expenses or copy private frames to the household.
+
+All household devices must use the summary-capable app before publication:
+archive/version guards do not negotiate live protocol support, and older live
+clients skip unknown application payloads. This private prototype has no public
+deployment or negotiated mixed-version fleet. This limitation must be shown in
+publication UI; a public release needs explicit capability negotiation. Local
+tests cover aggregate-only wire round trips, invalid/empty payload rejection,
+canonical convergence, late checkpoint rebuild, MLS/offline/backfill/restart,
+removed-member exclusion and SQLite v1/v2 upgrade. Browser/mobile/UI acceptance
+and production relay storage audit of summaries remain separate gates.
+
+The complete locked default-feature Rust workspace suite and strict all-target
+lint passed on Windows, including the existing three-peer/two-offline 1,000-event
+acceptance (125.91 s). A separate focused rerun also rejected modification of a
+published total under its original signature. These are local Rust checks, not
+feature-gated HTTP, new Dart bridge/UI, mobile or production WASM evidence.
+
