@@ -1393,3 +1393,22 @@ SQLite, exact EUR/frozen conversion, personal corrections, category changes,
 canceled/confirmed removal, restart and history. It does not exercise the new
 extreme recurring label on Android; that remains widget-level evidence above.
 The owned emulator was stopped after both personal and household tests passed.
+
+## Further personal UX and current Android checks, 2026-10-03
+
+`PERSONAL-UX-REVIEW.md` records the scoped Cashew source/deployed-demo comparison,
+actual browser screenshots and the functional/adaptive gaps found. Exact large
+account and transfer labels now wrap without hiding their values. All 303
+native-enabled host app tests pass at `0fb8f89`, including phone/tablet/desktop
+navigation at 1.5×/2× text and labeled/48-pixel target guidelines. These limited
+automated checks are not screen-reader or contrast certification.
+
+The actual personal Android integration passed again at production `ea3390b`
+on the same pinned Android 16/API 36 x86_64 AOSP ATD/WHPX emulator, serial 5580:
+`flutter --no-version-check test --no-pub integration_test/ledger_test.dart
+-d emulator-5580 --reporter expanded`. Build 388.6 s while a web build was
+active, install 3.3 s, runtime 92 s, one test passed. Avoid overlapping later
+platform builds; the following household build took 85.6 s without that overlap.
+The personal run predates the one-line search-clear label repair `2eeafc4`.
+That repair separately passes all six ledger-screen widget tests, including
+clear-search restoration. No final-source iOS claim is inferred.
