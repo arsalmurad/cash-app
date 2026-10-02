@@ -23,6 +23,22 @@ financial logic or expected amounts were changed; tap warnings are not silenced.
 The owned emulator was stopped after the passing run. This does not claim a
 new iOS run or close final-source cross-platform acceptance.
 
+## Host and adaptive navigation checks (2026-10-03)
+
+At production source `890e636`, `RUST_LIB_PATH` pointed to the actual Windows
+native bridge and `flutter --no-version-check test --no-pub --reporter expanded`
+passed all 276 app tests in 95 s. An earlier invocation used an incorrect
+environment-variable name, skipped native cases, and was stopped; it is not
+counted as a passing full suite.
+
+The separately added `adaptive_ledger_screen_test.dart` passed six focused
+widget cases: 360x740 phone, 840x600 tablet breakpoint, and 1280x900 desktop;
+both Material 3 themes at 1.5x text. All five destinations switch through the
+actual bottom bar/side rail with hit-testable navigation and no render overflow.
+This uses a synthetic controller view, not native storage or screenshots, and
+empty budget/goal/recurring panes; it is not a complete populated-layout or
+Cashew usability comparison. App static analysis passed with no issues.
+
 ## Personal definition lifecycle (2026-10-02)
 
 Category convergence follow-up: two distinct valid category events with equal
