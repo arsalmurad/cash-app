@@ -887,3 +887,25 @@ workerd, including new EUR/JPY controls and readable-title negative checks.
 That web build predates only the empty-account-name guard; final-revision
 cross-platform acceptance remains open. No Rust or toolchain rebuild was needed.
 
+## 2026-10-02 — Checked shared checkpoints without unsafe history pruning
+
+Shared peers now maintain an incremental fold checkpoint with a per-actor
+causal frontier and exact retained event variants. New events beyond the total
+order extend it; late arrivals or conflicting immutable IDs rebuild from the
+retained set. Replays do nothing, and conflicts, rejections and edit heads match
+full replay. A frontier alone is not evidence that there are no missing events.
+
+Signed peer archives advance to v4 and include a canonical checkpoint descriptor.
+Import first verifies every original proof, recomputes the checkpoint and rejects
+a mismatched state/frontier. Signed v2/v3 archives remain readable and upgrade on
+normal export; unsigned v1 remains view/export-only. Old binaries cannot read v4.
+The existing encrypted household journal stores the descriptor with the keys;
+it is not sent as plaintext or substituted for authenticated authorship.
+
+This intentionally does not discard history, establish peer acknowledgements,
+bound relay retention or make startup/persistence constant-cost. Source copies
+and canonical state increase memory/archive size. Repeated state reads no longer
+replay all events, but no end-to-end speedup is claimed: the current 1,000-event
+three-peer run took 184.64 s under concurrent local verification. Pruning before
+offline-peer acknowledgement was rejected; that separate gate remains open.
+

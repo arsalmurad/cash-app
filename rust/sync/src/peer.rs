@@ -3,15 +3,16 @@ use std::fmt;
 
 use crate::authenticated_history::SignedEvent;
 use cash_core::{
-    Currency, EditField, Event, EventId, EventKind, HybridTimestamp, SharedEvent, SharedState,
-    decode_shared_event, encode_shared_event, fold_shared,
+    Currency, EditField, Event, EventId, EventKind, HybridTimestamp, SharedEvent, SharedSnapshot,
+    SharedState, decode_shared_event, encode_shared_event,
 };
 use cash_crypto::{Member, Received, author_id};
 
 use crate::ids::random_id;
 use crate::relay::{MailboxItem, Relay, RelayError};
 
-const EXPORT_MAGIC: &[u8] = b"cash-app peer v3\0";
+const EXPORT_MAGIC: &[u8] = b"cash-app peer v4\0";
+const SIGNED_V3_EXPORT_MAGIC: &[u8] = b"cash-app peer v3\0";
 const SIGNED_V2_EXPORT_MAGIC: &[u8] = b"cash-app peer v2\0";
 const LEGACY_EXPORT_MAGIC: &[u8] = b"cash-app peer v1\0";
 
@@ -176,6 +177,7 @@ pub struct Peer {
     cursor: u64,
     last_timestamp: HybridTimestamp,
     events: Vec<SharedEvent>,
+    snapshot: SharedSnapshot,
     proofs: BTreeMap<EventId, SignedEvent>,
     legacy_unverified: bool,
     known: BTreeSet<EventId>,
@@ -231,7 +233,9 @@ mod authorship_tests {
         let proof = SignedEvent::sign(&bob, incoming).unwrap();
         let mut payload = vec![3];
         payload.extend_from_slice(&proof.encode());
-        alice.ingest(&[(2, bob.encrypt(&payload).unwrap())]).unwrap();
+        alice
+            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
+            .unwrap();
         let written = alice.write(1, event("unused").event.kind).unwrap();
         assert_eq!(written.event.timestamp, HybridTimestamp::new(101, 0));
         let mut restarted = Peer::import(&alice.export().unwrap()).unwrap();
@@ -248,7 +252,9 @@ mod authorship_tests {
         let proof = SignedEvent::sign(&bob, incoming).unwrap();
         let mut payload = vec![3];
         payload.extend_from_slice(&proof.encode());
-        alice.ingest(&[(2, bob.encrypt(&payload).unwrap())]).unwrap();
+        alice
+            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
+            .unwrap();
         let saved = alice.export().unwrap();
         assert!(alice.write(1, event("unused").event.kind).is_err());
         assert_eq!(alice.export().unwrap(), saved);
@@ -306,6 +312,7 @@ mod authorship_tests {
         let (mut alice, _) = household();
         let old = event("alice");
         alice.events.push(old.clone());
+        alice.snapshot.extend([old.clone()]);
         alice.known.insert(old.event.id.clone());
         alice.legacy_unverified = true;
         let archive = alice.export().unwrap();
@@ -380,6 +387,7 @@ impl Peer {
         Ok(Self {
             member: Member::new(member_id)?,
             member_id: member_id.to_owned(),
+            snapshot: SharedSnapshot::from_events(reporting_currency.clone(), []),
             reporting_currency,
             group: None,
             cursor: 0,
@@ -460,6 +468,7 @@ impl Peer {
                     write_field(&mut bytes, &frame.blob);
                 }
             }
+            write_field(&mut bytes, &self.snapshot.checkpoint_bytes());
         }
         Ok(bytes)
     }
@@ -471,7 +480,10 @@ impl Peer {
         let magic = reader.take(EXPORT_MAGIC.len()).ok_or_else(malformed)?;
         let legacy_unverified = if magic == LEGACY_EXPORT_MAGIC {
             true
-        } else if magic == EXPORT_MAGIC || magic == SIGNED_V2_EXPORT_MAGIC {
+        } else if magic == EXPORT_MAGIC
+            || magic == SIGNED_V3_EXPORT_MAGIC
+            || magic == SIGNED_V2_EXPORT_MAGIC
+        {
             false
         } else {
             return Err(malformed());
@@ -541,7 +553,7 @@ impl Peer {
         }
         let member = Member::import(reader.field().ok_or_else(malformed)?)?;
         let mut staged_adds_member = false;
-        let staged_frame = if magic == EXPORT_MAGIC {
+        let staged_frame = if magic == EXPORT_MAGIC || magic == SIGNED_V3_EXPORT_MAGIC {
             match reader.take(1).ok_or_else(malformed)?[0] {
                 0 => None,
                 1 => {
@@ -565,11 +577,25 @@ impl Peer {
         } else {
             None
         };
+        let checkpoint = if magic == EXPORT_MAGIC {
+            Some(reader.field().ok_or_else(malformed)?)
+        } else {
+            None
+        };
         if !reader.bytes.is_empty() {
             return Err(malformed());
         }
         for proof in proofs.values() {
             proof.verify(&member)?;
+        }
+        // Derived state never substitutes for original-author verification.
+        // Old signed archives gain a checkpoint on their next normal export.
+        let snapshot =
+            SharedSnapshot::from_events(reporting_currency.clone(), events.iter().cloned());
+        if checkpoint.is_some_and(|bytes| bytes != snapshot.checkpoint_bytes()) {
+            return Err(SyncError(
+                "shared checkpoint does not match authenticated history".to_owned(),
+            ));
         }
         Ok(Self {
             member,
@@ -579,6 +605,7 @@ impl Peer {
             cursor,
             last_timestamp: HybridTimestamp::new(physical, logical),
             events,
+            snapshot,
             proofs,
             legacy_unverified,
             known,
@@ -1094,13 +1121,13 @@ impl Peer {
             }
             _ => return None,
         };
-        self.state().edit_head(transaction, field).cloned()
+        self.snapshot.state().edit_head(transaction, field).cloned()
     }
 
     /// This peer's view of the shared ledger: everything it has written or
     /// received, folded.
     pub fn state(&self) -> SharedState {
-        fold_shared(self.reporting_currency.clone(), self.events.iter().cloned())
+        self.snapshot.state().clone()
     }
 
     /// Sends everything queued and pulls everything new, in the relay's
@@ -1136,6 +1163,7 @@ impl Peer {
         self.last_timestamp = self.last_timestamp.max(proof.shared.event.timestamp);
         let id = proof.proof_id();
         if self.known.insert(id.clone()) {
+            self.snapshot.extend([proof.shared.clone()]);
             self.events.push(proof.shared.clone());
             self.proofs.insert(id, proof);
         }

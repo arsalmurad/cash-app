@@ -50,8 +50,11 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
   Browser whole-image/quota and protection limits remain in `SQLITE-STORAGE.md`.
-- [ ] Wire safe snapshot/compaction or peer-snapshot recovery into actual shared
-  persistence, preserving causal frontiers and offline peers' acknowledgements.
+- [x] Persist checked shared fold checkpoints with per-actor frontiers, original
+  signed history, late-event/duplicate rebuild and old signed archive migration;
+  current native-host and production WASM checks passed. This is not pruning.
+- [ ] Finish safe shared compaction or peer-snapshot recovery with offline-peer
+  acknowledgements; checkpoints retain all history and relay logs remain unbounded.
 - [ ] Check explicit opt-in publication boundaries and chosen shared analytics;
   no private ledger or readable financial fields may reach the relay.
 - [ ] Review personal UX coverage against the stated Cashew quality bar, not

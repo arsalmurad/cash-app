@@ -41,6 +41,64 @@ fn pair() -> (MemoryRelay, String, Peer, Peer) {
 }
 
 #[test]
+fn persisted_checkpoint_is_checked_and_previous_signed_archives_remain_readable() {
+    let (mut relay, _, mut alice, _) = pair();
+    alice.write(1, account()).unwrap();
+    alice.write(2, expense("checkpoint-rent", 123)).unwrap();
+    alice.sync(&mut relay).unwrap();
+    let saved = alice.export().unwrap();
+    assert!(saved.starts_with(b"cash-app peer v4\0"));
+    let restored = Peer::import(&saved).unwrap();
+    assert_eq!(restored.state(), alice.state());
+    let mut damaged = saved.clone();
+    *damaged.last_mut().unwrap() ^= 1;
+    assert!(
+        Peer::import(&damaged).is_err(),
+        "A cached state must not override signed history"
+    );
+    let marker = b"cash-app shared checkpoint v1\0";
+    let offset = saved
+        .windows(marker.len())
+        .rposition(|window| window == marker)
+        .unwrap();
+    let mut wrong_frontier = saved.clone();
+    // Descriptor magic, actor count, then the first actor's string length.
+    let first_actor = offset + marker.len() + 8 + 8;
+    wrong_frontier[first_actor] ^= 1;
+    assert!(
+        Peer::import(&wrong_frontier).is_err(),
+        "A frontier must match authenticated retained events"
+    );
+    let mut v3 = saved[..offset - 8].to_vec();
+    v3[..b"cash-app peer v3\0".len()].copy_from_slice(b"cash-app peer v3\0");
+    assert_eq!(Peer::import(&v3).unwrap().state(), alice.state());
+    // This fixture has no staged commit; v2 ended before that v3 flag.
+    assert_eq!(v3.pop(), Some(0));
+    v3[..b"cash-app peer v2\0".len()].copy_from_slice(b"cash-app peer v2\0");
+    assert_eq!(Peer::import(&v3).unwrap().state(), alice.state());
+}
+
+#[test]
+fn persisted_checkpoint_accepts_a_late_offline_peer_event_without_losing_history() {
+    let (mut relay, _, mut alice, mut bob) = pair();
+    alice.write(1, account()).unwrap();
+    alice.sync(&mut relay).unwrap();
+    bob.sync(&mut relay).unwrap();
+    alice.write(1000, expense("alice-newer", 100)).unwrap();
+    alice.sync(&mut relay).unwrap();
+    alice = Peer::import(&alice.export().unwrap()).unwrap();
+    let older = bob.write(20, expense("bob-offline", 200)).unwrap();
+    assert_eq!(older.event.timestamp.physical_millis, 20);
+    bob.sync(&mut relay).unwrap();
+    alice.sync(&mut relay).unwrap();
+    assert_eq!(alice.state().ledger.reporting_balance_minor, -300);
+    assert_eq!(alice.state(), bob.state());
+    let restarted = Peer::import(&alice.export().unwrap()).unwrap();
+    assert_eq!(restarted.state(), bob.state());
+    assert_eq!(restarted.state().ledger.transactions.len(), 2);
+}
+
+#[test]
 fn a_restarted_peer_resumes_with_its_state_its_place_and_its_unsent_writes() {
     let (mut relay, _, mut alice, mut bob) = pair();
     alice.write(1, account()).unwrap();
@@ -127,6 +185,12 @@ fn signed_v2_state_is_upgraded_without_changing_its_ledger() {
     alice.write(1, account()).unwrap();
     let canonical = alice.state().canonical_bytes();
     let mut saved = alice.export().unwrap();
+    let marker = b"cash-app shared checkpoint v1\0";
+    let offset = saved
+        .windows(marker.len())
+        .rposition(|window| window == marker)
+        .unwrap();
+    saved.truncate(offset - 8); // v4's checked checkpoint field.
     assert_eq!(saved.pop(), Some(0)); // v3's absent pending-commit journal.
     saved[..b"cash-app peer v2\0".len()].copy_from_slice(b"cash-app peer v2\0");
     let upgraded = Peer::import(&saved).unwrap();
@@ -135,7 +199,7 @@ fn signed_v2_state_is_upgraded_without_changing_its_ledger() {
         upgraded
             .export()
             .unwrap()
-            .starts_with(b"cash-app peer v3\0")
+            .starts_with(b"cash-app peer v4\0")
     );
 }
 
