@@ -59,6 +59,9 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   no private ledger or readable financial fields may reach the relay.
 - [ ] Review personal UX coverage against the stated Cashew quality bar, not
   just widget presence; fix functional gaps and verify phone/tablet/web layouts.
+  Budget/goal removal, recurring stop, future-rule management and stale-post
+  protection are now implemented; category/deadline controls and remaining
+  functional/adaptive review are not closed by these checks.
 - [x] Pin reproducible CI environments, including explicit WASM nightly,
   action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
   remain recorded rather than hidden or upgraded without verification.

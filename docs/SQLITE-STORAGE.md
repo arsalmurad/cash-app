@@ -38,6 +38,17 @@ remain separate acceptance work.
 
 ## Migration and protection boundaries
 
+The 2026-10-02 personal lifecycle change advances `PRAGMA user_version` from
+1 to 2 under the initialization writer lock and integrity check. Tables, stream
+frames, document bytes and revisions are unchanged. The existing filename,
+browser key and Web Lock stay at `.v1` so there is one store, not a second copy.
+This is a minimum-reader-version guard: the previous SQLite release refuses v2
+before its old frame decoder could offer to discard an unfamiliar tombstone as
+an unreadable tail. Do not downgrade or resume from retained legacy journals.
+Future schema versions remain rejected without replacement. The local Rust
+storage suite verifies upgrade/reopen, content/revision preservation and future
+version refusal; it does not claim to have run an old application binary.
+
 Legacy event logs are imported once, transactionally. The original files/keys
 remain untouched as recovery evidence; later edits to them cannot replace a
 migrated stream. A validated torn prefix can be repaired only at its observed

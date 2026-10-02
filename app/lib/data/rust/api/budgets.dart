@@ -64,6 +64,18 @@ Future<List<BudgetView>> budgetProgress({
   nowMillis: nowMillis,
 );
 
+/// Append a lifecycle tombstone; past ledger transactions are unchanged.
+/// Validate the current fold before advancing the clock.
+Future<BudgetMutation> removeBudget({
+  required BudgetBook book,
+  required String budgetId,
+  required PlatformInt64 wallClockMillis,
+}) => RustLib.instance.api.crateApiBudgetsRemoveBudget(
+  book: book,
+  budgetId: budgetId,
+  wallClockMillis: wallClockMillis,
+);
+
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<BudgetBook>>
 abstract class BudgetBook implements RustOpaqueInterface {}
 

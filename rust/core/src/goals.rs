@@ -40,6 +40,8 @@ pub enum GoalKind {
 /// `budgets::BudgetUpsert`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GoalUpsert {
+    /// Immutable lifecycle write; previous definitions remain in the log.
+    pub deleted: bool,
     pub id: EventId,
     pub actor_id: ActorId,
     pub timestamp: HybridTimestamp,
@@ -71,6 +73,7 @@ impl GoalUpsert {
         deadline_millis: Option<i64>,
     ) -> Self {
         Self {
+            deleted: false,
             id: EventId::new(id),
             actor_id: ActorId::new(actor_id),
             timestamp: HybridTimestamp::new(physical_millis, logical),
@@ -87,13 +90,14 @@ impl GoalUpsert {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GoalRecord {
+    pub deleted: bool,
     pub name: String,
     pub kind: GoalKind,
     pub target_minor: i64,
     pub linked_account_id: Option<String>,
     pub category_id: Option<String>,
     pub deadline_millis: Option<i64>,
-    last_writer: (HybridTimestamp, ActorId),
+    last_writer: (HybridTimestamp, ActorId, EventId),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -107,7 +111,7 @@ impl GoalBookState {
     }
 
     fn apply(&mut self, upsert: &GoalUpsert) {
-        let writer_key = (upsert.timestamp, upsert.actor_id.clone());
+        let writer_key = (upsert.timestamp, upsert.actor_id.clone(), upsert.id.clone());
         let should_replace = match self.goals.get(&upsert.goal_id) {
             Some(existing) => writer_key > existing.last_writer,
             None => true,
@@ -116,6 +120,7 @@ impl GoalBookState {
             self.goals.insert(
                 upsert.goal_id.clone(),
                 GoalRecord {
+                    deleted: upsert.deleted,
                     name: upsert.name.clone(),
                     kind: upsert.kind,
                     target_minor: upsert.target_minor,
@@ -200,6 +205,11 @@ fn encode_upsert(upsert: &GoalUpsert) -> Vec<u8> {
         }
         None => write_bool(&mut bytes, false),
     }
+    // Ordinary v1 frame bytes stay identical. Only tombstones append a
+    // boolean extension; SQLite v2 rejects old readers before decoding.
+    if upsert.deleted {
+        write_bool(&mut bytes, true);
+    }
     bytes
 }
 
@@ -232,10 +242,12 @@ fn decode_upsert(payload: &[u8]) -> Option<GoalUpsert> {
     } else {
         None
     };
-    if reader.remaining() != 0 {
-        return None;
-    }
-    Some(GoalUpsert::new(
+    let deleted = match reader.remaining() {
+        0 => false,
+        1 => reader.read_bool()?,
+        _ => return None,
+    };
+    let mut upsert = GoalUpsert::new(
         id,
         actor_id,
         physical_millis,
@@ -247,7 +259,9 @@ fn decode_upsert(payload: &[u8]) -> Option<GoalUpsert> {
         linked_account_id,
         category_id,
         deadline_millis,
-    ))
+    );
+    upsert.deleted = deleted;
+    Some(upsert)
 }
 
 #[cfg(test)]

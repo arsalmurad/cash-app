@@ -13,12 +13,14 @@ class RecurringPane extends StatelessWidget {
     required this.upcoming,
     required this.onRecord,
     this.onEdit,
+    this.onStop,
     super.key,
   });
 
   final List<UpcomingView> upcoming;
   final Future<void> Function(UpcomingView occurrence) onRecord;
   final void Function(UpcomingView occurrence)? onEdit;
+  final void Function(UpcomingView occurrence)? onStop;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +34,7 @@ class RecurringPane extends StatelessWidget {
         occurrence: upcoming[index],
         onRecord: () => onRecord(upcoming[index]),
         onEdit: onEdit == null ? null : () => onEdit!(upcoming[index]),
+        onStop: onStop == null ? null : () => onStop!(upcoming[index]),
       ),
     );
   }
@@ -42,11 +45,13 @@ class _UpcomingCard extends StatelessWidget {
     required this.occurrence,
     required this.onRecord,
     this.onEdit,
+    this.onStop,
   });
 
   final UpcomingView occurrence;
   final VoidCallback onRecord;
   final VoidCallback? onEdit;
+  final VoidCallback? onStop;
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +90,24 @@ class _UpcomingCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (onEdit != null)
+            if (onStop != null)
+              PopupMenuButton<String>(
+                tooltip: 'recurring rule actions',
+                onSelected: (value) =>
+                    value == 'edit' ? onEdit?.call() : onStop?.call(),
+                itemBuilder: (_) => [
+                  if (onEdit != null)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit recurring rule'),
+                    ),
+                  const PopupMenuItem(
+                    value: 'stop',
+                    child: Text('Stop recurring rule'),
+                  ),
+                ],
+              )
+            else if (onEdit != null)
               IconButton(
                 icon: const Icon(Icons.edit_outlined, size: 20),
                 tooltip: 'Edit recurring rule',
@@ -96,7 +118,10 @@ class _UpcomingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(occurrence.amountLabel),
-                TextButton(onPressed: onRecord, child: const Text('Record')),
+                TextButton(
+                  onPressed: occurrence.isOverdue ? onRecord : null,
+                  child: const Text('Record'),
+                ),
               ],
             ),
           ],
@@ -225,8 +250,7 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(labelText: 'Title'),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Enter a title'
                     : null,
               ),
@@ -255,8 +279,7 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
+                validator: (value) => (value == null || value.trim().isEmpty)
                     ? 'Enter an amount'
                     : null,
               ),

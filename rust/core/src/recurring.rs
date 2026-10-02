@@ -53,6 +53,8 @@ pub enum RecurringFrequency {
 /// `budgets::BudgetUpsert`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecurringUpsert {
+    /// Immutable lifecycle write; previous definitions remain in the log.
+    pub deleted: bool,
     pub id: EventId,
     pub actor_id: ActorId,
     pub timestamp: HybridTimestamp,
@@ -87,6 +89,7 @@ impl RecurringUpsert {
         start_millis: i64,
     ) -> Self {
         Self {
+            deleted: false,
             id: EventId::new(id),
             actor_id: ActorId::new(actor_id),
             timestamp: HybridTimestamp::new(physical_millis, logical),
@@ -104,6 +107,7 @@ impl RecurringUpsert {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RecurringRecord {
+    pub deleted: bool,
     pub title: String,
     pub kind: RecurringKind,
     pub amount_minor: i64,
@@ -111,7 +115,7 @@ pub struct RecurringRecord {
     pub category_id: Option<String>,
     pub frequency: RecurringFrequency,
     pub start_millis: i64,
-    last_writer: (HybridTimestamp, ActorId),
+    last_writer: (HybridTimestamp, ActorId, EventId),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -125,7 +129,7 @@ impl RecurringBookState {
     }
 
     fn apply(&mut self, upsert: &RecurringUpsert) {
-        let writer_key = (upsert.timestamp, upsert.actor_id.clone());
+        let writer_key = (upsert.timestamp, upsert.actor_id.clone(), upsert.id.clone());
         let should_replace = match self.rules.get(&upsert.recurring_id) {
             Some(existing) => writer_key > existing.last_writer,
             None => true,
@@ -134,6 +138,7 @@ impl RecurringBookState {
             self.rules.insert(
                 upsert.recurring_id.clone(),
                 RecurringRecord {
+                    deleted: upsert.deleted,
                     title: upsert.title.clone(),
                     kind: upsert.kind,
                     amount_minor: upsert.amount_minor,
@@ -278,6 +283,11 @@ fn encode_upsert(upsert: &RecurringUpsert) -> Vec<u8> {
         RecurringFrequency::Yearly => FREQUENCY_YEARLY,
     });
     write_i64(&mut bytes, upsert.start_millis);
+    // Ordinary v1 frame bytes stay identical. Only tombstones append a
+    // boolean extension; SQLite v2 rejects old readers before decoding.
+    if upsert.deleted {
+        write_bool(&mut bytes, true);
+    }
     bytes
 }
 
@@ -309,10 +319,12 @@ fn decode_upsert(payload: &[u8]) -> Option<RecurringUpsert> {
         _ => return None,
     };
     let start_millis = reader.read_i64()?;
-    if reader.remaining() != 0 {
-        return None;
-    }
-    Some(RecurringUpsert::new(
+    let deleted = match reader.remaining() {
+        0 => false,
+        1 => reader.read_bool()?,
+        _ => return None,
+    };
+    let mut upsert = RecurringUpsert::new(
         id,
         actor_id,
         physical_millis,
@@ -325,7 +337,9 @@ fn decode_upsert(payload: &[u8]) -> Option<RecurringUpsert> {
         category_id,
         frequency,
         start_millis,
-    ))
+    );
+    upsert.deleted = deleted;
+    Some(upsert)
 }
 
 #[cfg(test)]

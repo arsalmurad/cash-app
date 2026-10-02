@@ -11,7 +11,9 @@ use rusqlite::{Connection, MAIN_DB, OptionalExtension, TransactionBehavior, para
 
 pub type Result<T> = std::result::Result<T, String>;
 const APPLICATION_ID: i64 = 0x43415348; // CASH
-const SCHEMA_VERSION: i64 = 1;
+// v2 protects lifecycle tombstones from v1's old prefix-recovery decoder.
+// Keep the physical filename/key stable so there is no split-brain store.
+const SCHEMA_VERSION: i64 = 2;
 
 /// A document revision includes tombstones, so a deletion cannot revive legacy
 /// state or allow a stale controller to replace a newer MLS sender ratchet.
@@ -84,8 +86,12 @@ impl Database {
                  CREATE TABLE IF NOT EXISTS frames(stream TEXT NOT NULL REFERENCES streams(name), position INTEGER NOT NULL, value BLOB NOT NULL, PRIMARY KEY(stream,position));
                  CREATE TABLE IF NOT EXISTS recoveries(id INTEGER PRIMARY KEY, stream TEXT NOT NULL, original BLOB NOT NULL);
                  PRAGMA application_id=1128354632;
-                 PRAGMA user_version=1;"
+                 PRAGMA user_version=2;"
             ).map_err(sql)?;
+        } else if application == APPLICATION_ID && version == 1 {
+            // Same tables and bytes: only the minimum reader version changes.
+            // Commit with the integrity check under this initialization lock.
+            db.execute_batch("PRAGMA user_version=2;").map_err(sql)?;
         } else if application != APPLICATION_ID || version != SCHEMA_VERSION {
             return Err("unsupported local database version; it was not replaced".into());
         }
@@ -316,6 +322,46 @@ fn valid_name(name: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn version_one_upgrade_preserves_documents_and_log_revisions() {
+        let mut original = Database::from_bytes(&[]).unwrap();
+        original.import_log("recurring", b"old rule").unwrap();
+        original.append("recurring", 1, b"updated rule").unwrap();
+        original
+            .save_document("household", 0, Some(b"sealed checkpoint"))
+            .unwrap();
+        original.0.execute_batch("PRAGMA user_version=1;").unwrap();
+        let old_bytes = original.bytes().unwrap();
+        let upgraded = Database::from_bytes(&old_bytes).unwrap();
+        assert_eq!(
+            upgraded.log("recurring").unwrap(),
+            original.log("recurring").unwrap()
+        );
+        assert_eq!(
+            upgraded.document("household").unwrap(),
+            original.document("household").unwrap()
+        );
+        let version: i64 = upgraded
+            .0
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 2);
+        // This is the exact previous release's version guard: it must refuse
+        // this database before its old frame decoder offers tail recovery.
+        assert_ne!(version, 1);
+        let restarted = Database::from_bytes(&upgraded.bytes().unwrap()).unwrap();
+        assert_eq!(restarted.log("recurring").unwrap().revision, 2);
+    }
+
+    #[test]
+    fn future_version_is_rejected_without_changing_saved_bytes() {
+        let db = Database::from_bytes(&[]).unwrap();
+        db.0.execute_batch("PRAGMA user_version=3;").unwrap();
+        let before = db.bytes().unwrap();
+        assert!(Database::from_bytes(&before).is_err());
+        assert_eq!(db.bytes().unwrap(), before);
+    }
 
     #[test]
     fn serialized_sqlite_preserves_append_order_and_documents() {

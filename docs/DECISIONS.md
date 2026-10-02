@@ -909,3 +909,25 @@ replay all events, but no end-to-end speedup is claimed: the current 1,000-event
 three-peer run took 184.64 s under concurrent local verification. Pruning before
 offline-peer acknowledgement was rejected; that separate gate remains open.
 
+## 2026-10-02 — Personal definition removal retains immutable history
+
+Budgets/goals/recurring rules append a lifecycle tombstone through the existing
+durable mutation queue. The fold retains the removed record's head and uses
+`(HLC physical, HLC logical, actor ID, event ID)` for ties; old writes cannot
+resurrect it. Ordinary frame bytes stay unchanged; only tombstones append the
+boolean extension. Deleting frames or using magic titles/dates was rejected:
+both would weaken replay and blur removal with an ordinary edit.
+
+SQLite's minimum reader version advances to 2, retaining the same file/key,
+tables, original bytes and revisions. A v1 reader already rejects other schema
+versions, so it cannot mistake the new payload for a recoverable damaged tail.
+No downgrade is supported. This is not secure erasure; legacy files, retained
+events and SQLite pages can still contain old definitions.
+
+The Recurring management screen reads an unbounded *schedule* of active rules,
+not the 14-day upcoming filter; monthly/yearly rules must remain editable and
+stoppable after an occurrence is recorded. The separate Rust upcoming API keeps
+its horizon. Future rules are manageable but not postable early; queued writes
+recheck both the rule and expected next date, preventing stale reminders from
+silently posting after a stop/edit or posting the same occurrence twice.
+

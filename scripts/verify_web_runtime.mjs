@@ -136,6 +136,12 @@ try {
       waitFor, waitForLabel, clickLabel, focusLabel, delay,
     });
   }
+  if (process.env.WEB_PERSONAL_LIFECYCLE === '1') {
+    const { runPersonalLifecycleWebScenario } = await import('./personal_lifecycle_web_scenario.mjs');
+    await runPersonalLifecycleWebScenario(cdp, {
+      openApp, evaluate, waitFor, waitForLabel, clickLabel, focusLabel,
+    });
+  }
   if (process.env.WEB_HOUSEHOLD === '1') {
     const { runHouseholdWebScenario } = await import('./household_web_scenario.mjs');
     await runHouseholdWebScenario(cdp, {

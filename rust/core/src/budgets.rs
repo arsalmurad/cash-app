@@ -44,6 +44,8 @@ pub enum BudgetPeriod {
 /// `budget_id` wins, identically to `categories::CategoryUpsert`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BudgetUpsert {
+    /// Immutable lifecycle write; previous definitions remain in the log.
+    pub deleted: bool,
     pub id: EventId,
     pub actor_id: ActorId,
     pub timestamp: HybridTimestamp,
@@ -69,6 +71,7 @@ impl BudgetUpsert {
         period: BudgetPeriod,
     ) -> Self {
         Self {
+            deleted: false,
             id: EventId::new(id),
             actor_id: ActorId::new(actor_id),
             timestamp: HybridTimestamp::new(physical_millis, logical),
@@ -83,11 +86,12 @@ impl BudgetUpsert {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BudgetRecord {
+    pub deleted: bool,
     pub name: String,
     pub category_id: Option<String>,
     pub limit_minor: i64,
     pub period: BudgetPeriod,
-    last_writer: (HybridTimestamp, ActorId),
+    last_writer: (HybridTimestamp, ActorId, EventId),
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -101,7 +105,7 @@ impl BudgetBookState {
     }
 
     fn apply(&mut self, upsert: &BudgetUpsert) {
-        let writer_key = (upsert.timestamp, upsert.actor_id.clone());
+        let writer_key = (upsert.timestamp, upsert.actor_id.clone(), upsert.id.clone());
         let should_replace = match self.budgets.get(&upsert.budget_id) {
             Some(existing) => writer_key > existing.last_writer,
             None => true,
@@ -110,6 +114,7 @@ impl BudgetBookState {
             self.budgets.insert(
                 upsert.budget_id.clone(),
                 BudgetRecord {
+                    deleted: upsert.deleted,
                     name: upsert.name.clone(),
                     category_id: upsert.category_id.clone(),
                     limit_minor: upsert.limit_minor,
@@ -207,6 +212,11 @@ fn encode_upsert(upsert: &BudgetUpsert) -> Vec<u8> {
             write_u32(&mut bytes, days);
         }
     }
+    // Ordinary v1 frame bytes stay identical. Only tombstones append a
+    // boolean extension; SQLite v2 rejects old readers before decoding.
+    if upsert.deleted {
+        write_bool(&mut bytes, true);
+    }
     bytes
 }
 
@@ -233,10 +243,12 @@ fn decode_upsert(payload: &[u8]) -> Option<BudgetUpsert> {
         },
         _ => return None,
     };
-    if reader.remaining() != 0 {
-        return None;
-    }
-    Some(BudgetUpsert::new(
+    let deleted = match reader.remaining() {
+        0 => false,
+        1 => reader.read_bool()?,
+        _ => return None,
+    };
+    let mut upsert = BudgetUpsert::new(
         id,
         actor_id,
         physical_millis,
@@ -246,7 +258,9 @@ fn decode_upsert(payload: &[u8]) -> Option<BudgetUpsert> {
         category_id,
         limit_minor,
         period,
-    ))
+    );
+    upsert.deleted = deleted;
+    Some(upsert)
 }
 
 #[cfg(test)]
@@ -321,7 +335,15 @@ mod tests {
             BudgetPeriod::Custom { days: 45 },
         ] {
             let write = upsert(
-                "e1", "alice", 100, 3, "food", "Food", Some("food"), 10_000, period,
+                "e1",
+                "alice",
+                100,
+                3,
+                "food",
+                "Food",
+                Some("food"),
+                10_000,
+                period,
             );
             let frame = encode_budget_frame(&write);
             let decoded = decode_budget_log(&frame);

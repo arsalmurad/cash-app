@@ -1,5 +1,47 @@
 use std::sync::{Mutex, MutexGuard};
 
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    use crate::api::ledger::load_personal_ledger;
+
+    #[test]
+    fn removal_survives_restart_without_touching_transactions_or_clock_on_error() {
+        let book = load_goal_book("alice".into(), vec![]).unwrap();
+        let first = upsert_goal(
+            &book,
+            "food".into(),
+            "Food".into(),
+            GoalKind::Spend,
+            "10".into(),
+            "USD".into(),
+            None,
+            None,
+            None,
+            10,
+        )
+        .unwrap();
+        let before = lock(&book).unwrap().last_timestamp;
+        assert!(remove_goal(&book, "missing".into(), 500).is_err());
+        assert_eq!(lock(&book).unwrap().last_timestamp, before);
+        let removal = remove_goal(&book, "food".into(), 20).unwrap();
+        let mut bytes = first.appended_frame;
+        bytes.extend(removal.appended_frame);
+        let restarted = load_goal_book("alice".into(), bytes.clone()).unwrap();
+        let decoded = decode_goal_log(&bytes);
+        assert_eq!(decoded.trailing_garbage_bytes, 0);
+        assert_eq!(decoded.upserts.len(), 2);
+        assert!(fold_goals(decoded.upserts).goals[&GoalId::new("food")].deleted);
+        // Empty ledger deliberately has no referenced account. Removed rules
+        // must be filtered before account lookup or progress computation.
+        let ledger = load_personal_ledger("alice".into(), "USD".into(), vec![]).unwrap();
+        assert!(goal_progress(&ledger, &restarted).unwrap().is_empty());
+        let before = lock(&book).unwrap().last_timestamp;
+        assert!(remove_goal(&book, "food".into(), 20).is_err());
+        assert_eq!(lock(&book).unwrap().last_timestamp, before);
+    }
+}
+
 use cash_core::{
     GoalId, GoalKind as CoreGoalKind, GoalUpsert, HybridTimestamp, TransactionKind,
     decode_goal_log, encode_goal_frame, fold_goals,
@@ -206,6 +248,9 @@ pub fn goal_progress(ledger: &PersonalLedger, book: &GoalBook) -> Result<Vec<Goa
 
     let mut views = Vec::with_capacity(goal_state.goals.len());
     for (id, record) in &goal_state.goals {
+        if record.deleted {
+            continue;
+        }
         let (progress_minor, progress_currency_label) = match record.kind {
             CoreGoalKind::Save => {
                 let account_id = record
@@ -218,14 +263,13 @@ pub fn goal_progress(ledger: &PersonalLedger, book: &GoalBook) -> Result<Vec<Goa
                     .ok_or_else(|| format!("linked account {account_id} not found"))?;
                 (
                     account.native_balance_minor,
-                    account.currency.format_minor_units(account.native_balance_minor),
+                    account
+                        .currency
+                        .format_minor_units(account.native_balance_minor),
                 )
             }
             CoreGoalKind::Spend => {
-                let start = created_at_millis
-                    .get(id)
-                    .copied()
-                    .unwrap_or(i64::MIN);
+                let start = created_at_millis.get(id).copied().unwrap_or(i64::MIN);
                 let end = record.deadline_millis.unwrap_or(i64::MAX);
                 let mut spent_minor: i64 = 0;
                 for transaction in state.transactions.values() {
@@ -257,10 +301,14 @@ pub fn goal_progress(ledger: &PersonalLedger, book: &GoalBook) -> Result<Vec<Goa
                 let account_id = record.linked_account_id.as_deref().unwrap_or_default();
                 match state.accounts.get(&cash_core::AccountId::new(account_id)) {
                     Some(account) => account.currency.format_minor_units(record.target_minor),
-                    None => state.reporting_currency.format_minor_units(record.target_minor),
+                    None => state
+                        .reporting_currency
+                        .format_minor_units(record.target_minor),
                 }
             }
-            CoreGoalKind::Spend => state.reporting_currency.format_minor_units(record.target_minor),
+            CoreGoalKind::Spend => state
+                .reporting_currency
+                .format_minor_units(record.target_minor),
         };
 
         let percent_complete = if record.target_minor > 0 {
@@ -288,6 +336,39 @@ pub fn goal_progress(ledger: &PersonalLedger, book: &GoalBook) -> Result<Vec<Goa
     Ok(views)
 }
 
+/// Append a lifecycle tombstone; past ledger transactions are unchanged.
+/// Validate the current fold before advancing the clock.
+pub fn remove_goal(
+    book: &GoalBook,
+    goal_id: String,
+    wall_clock_millis: i64,
+) -> Result<GoalMutation, String> {
+    let mut data = lock(book)?;
+    let key = GoalId::new(&goal_id);
+    let state = fold_goals(data.upserts.iter().cloned());
+    if !state.goals.get(&key).is_some_and(|record| !record.deleted) {
+        return Err("goal not found or already removed".to_owned());
+    }
+    let mut upsert = data
+        .upserts
+        .iter()
+        .filter(|upsert| upsert.goal_id == key)
+        .max_by_key(|upsert| (upsert.timestamp, &upsert.actor_id, &upsert.id))
+        .cloned()
+        .ok_or_else(|| "goal history missing".to_owned())?;
+    let timestamp = data.next_timestamp(wall_clock_millis)?;
+    upsert.id = cash_core::EventId::new(format!(
+        "{}-{:016x}-{:08x}",
+        data.actor_id, timestamp.physical_millis, timestamp.logical
+    ));
+    upsert.actor_id = cash_core::ActorId::new(&data.actor_id);
+    upsert.timestamp = timestamp;
+    upsert.deleted = true;
+    let appended_frame = encode_goal_frame(&upsert);
+    data.upserts.push(upsert);
+    Ok(GoalMutation { appended_frame })
+}
+
 fn lock(book: &GoalBook) -> Result<MutexGuard<'_, GoalBookData>, String> {
     book.data
         .lock()
@@ -308,14 +389,19 @@ impl GoalBookData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::ledger::{EntryKind, LedgerMutation, add_account, load_personal_ledger, record_transaction};
+    use crate::api::ledger::{
+        EntryKind, LedgerMutation, add_account, load_personal_ledger, record_transaction,
+    };
 
     #[test]
     fn book_clock_carries_and_refuses_exhaustion() {
         let book = new_book("device-a");
         let mut data = book.data.lock().unwrap();
         data.last_timestamp = HybridTimestamp::new(100, u32::MAX);
-        assert_eq!(data.next_timestamp(1).unwrap(), HybridTimestamp::new(101, 0));
+        assert_eq!(
+            data.next_timestamp(1).unwrap(),
+            HybridTimestamp::new(101, 0)
+        );
         let exhausted = HybridTimestamp::new(i64::MAX, u32::MAX);
         data.last_timestamp = exhausted;
         assert!(data.next_timestamp(1).is_err());

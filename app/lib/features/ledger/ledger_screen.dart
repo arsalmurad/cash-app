@@ -11,6 +11,7 @@ import 'budgets_pane.dart';
 import 'categories_screen.dart';
 import 'category_presets.dart';
 import 'csv_import_export.dart';
+import 'definition_removal_dialog.dart';
 import 'exchange_rate_dialog.dart';
 import '../household/household_controller.dart';
 import '../household/household_screen.dart';
@@ -34,6 +35,7 @@ class LedgerScreen extends StatefulWidget {
 
 class _LedgerScreenState extends State<LedgerScreen> {
   int selectedIndex = 0;
+  bool _removalPending = false;
 
   @override
   Widget build(BuildContext context) {
@@ -162,7 +164,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
               floatingActionButton: widget.controller.overview == null
                   ? null
                   : FloatingActionButton.extended(
-                      onPressed: widget.controller.isLoading
+                      onPressed: widget.controller.isLoading || _removalPending
                           ? null
                           : switch (selectedIndex) {
                               2 => _addBudget,
@@ -197,35 +199,56 @@ class _LedgerScreenState extends State<LedgerScreen> {
     }
     return Stack(
       children: [
-        IndexedStack(
-          index: selectedIndex,
-          children: [
-            OverviewPane(
-              overview: controller.overview!,
-              categories: controller.categories,
-              onAdd: _add,
-              onAddAccount: _addAccount,
-            ),
-            ActivityPane(
-              transactions: controller.overview!.transactions,
-              transfers: controller.overview!.transfers,
-              categories: controller.categories,
-              accounts: controller.overview!.accounts,
-            ),
-            BudgetsPane(
-              budgets: controller.budgets,
-              categories: controller.categories,
-              onEdit: _editBudget,
-            ),
-            GoalsPane(goals: controller.goals, onEdit: _editGoal),
-            RecurringPane(
-              upcoming: controller.upcoming,
-              onRecord: _recordUpcoming,
-              onEdit: _editRecurring,
-            ),
-          ],
+        AbsorbPointer(
+          absorbing: _removalPending,
+          child: IndexedStack(
+            index: selectedIndex,
+            children: [
+              OverviewPane(
+                overview: controller.overview!,
+                categories: controller.categories,
+                onAdd: _add,
+                onAddAccount: _addAccount,
+              ),
+              ActivityPane(
+                transactions: controller.overview!.transactions,
+                transfers: controller.overview!.transfers,
+                categories: controller.categories,
+                accounts: controller.overview!.accounts,
+              ),
+              BudgetsPane(
+                budgets: controller.budgets,
+                categories: controller.categories,
+                onEdit: _editBudget,
+                onRemove: (budget) => _confirmRemoval(
+                  'budget',
+                  budget.name,
+                  () => controller.removeBudget(budget.id),
+                ),
+              ),
+              GoalsPane(
+                goals: controller.goals,
+                onEdit: _editGoal,
+                onRemove: (goal) => _confirmRemoval(
+                  'goal',
+                  goal.name,
+                  () => controller.removeGoal(goal.id),
+                ),
+              ),
+              RecurringPane(
+                upcoming: controller.upcoming,
+                onRecord: _recordUpcoming,
+                onEdit: _editRecurring,
+                onStop: (rule) => _confirmRemoval(
+                  'recurring rule',
+                  rule.title,
+                  () => controller.stopRecurring(rule.recurringId),
+                ),
+              ),
+            ],
+          ),
         ),
-        if (controller.isLoading)
+        if (controller.isLoading || _removalPending)
           const Align(
             alignment: Alignment.topCenter,
             child: LinearProgressIndicator(),
@@ -235,6 +258,33 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   void _select(int index) => setState(() => selectedIndex = index);
+
+  Future<void> _confirmRemoval(
+    String kind,
+    String name,
+    Future<bool> Function() remove,
+  ) async {
+    if (_removalPending) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => DefinitionRemovalDialog(kind: kind, name: name),
+    );
+    if (confirmed != true || !mounted || _removalPending) return;
+    setState(() => _removalPending = true);
+    final saved = await remove();
+    if (!mounted) return;
+    setState(() => _removalPending = false);
+    if (!saved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.controller.errorMessage ??
+                'Could not remove $kind. Try again.',
+          ),
+        ),
+      );
+    }
+  }
 
   Future<void> _add() async {
     final controller = widget.controller;
