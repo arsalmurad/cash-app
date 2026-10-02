@@ -1177,3 +1177,21 @@ screen reader, focus order, non-text contrast or complete WCAG compliance is
 certified by this widget guideline. Updated production-browser rendering is
 still required; the earlier 303-suite/Android evidence predates these changes.
 
+## 2026-10-03 — Bound relay request parsing before storage
+
+Two real-workerd RED tests accepted a padded JSON request larger than 512 KiB
+and a decoded Welcome above the existing 256 KiB blob limit. Read JSON through
+a byte-counted UTF-8 stream capped at 512 KiB, rejecting/canceling excess with
+413 before storage; Content-Length is only an early rejection, not trusted as
+the actual length. Apply the 256 KiB decoded-byte limit consistently to welcomes
+and application blobs. Do not prune events or open public access as part of
+this repair.
+
+All 21 relay tests pass, including dishonest Content-Length, stream cancellation,
+no write after rejection and exact-boundary valid blobs. The real Rust-peer
+workerd storage audit passes with 28 ciphertext records and encrypted mailboxes;
+its plaintext-injection negative control rejects leakage. The audit emitted
+a Windows WSARecv error 64 diagnostic but exited 0 after the scenario and scan
+passed; that socket diagnostic is not independently diagnosed. Authentication,
+global abuse controls, bounded retention and deployment remain separate gates.
+

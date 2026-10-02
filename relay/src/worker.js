@@ -17,6 +17,8 @@
 
 const ID = /^[0-9a-f]{32}$/;
 const MAX_BLOB_BYTES = 256 * 1024;
+const MAX_JSON_BYTES = 512 * 1024;
+const BODY_TOO_LARGE = Symbol("request body too large");
 const PAGE = 500;
 const MAILBOX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -41,10 +43,32 @@ function base64Bytes(text) {
 }
 
 async function readJson(request) {
+  const declaredSize = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredSize) && declaredSize > MAX_JSON_BYTES) {
+    await request.body?.cancel();
+    return BODY_TOO_LARGE;
+  }
+  if (!request.body) return null;
+  const reader = request.body.getReader();
   try {
-    return await request.json();
+    const decoder = new TextDecoder("utf-8", { fatal: true });
+    let bytesRead = 0;
+    let text = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > MAX_JSON_BYTES) {
+        await reader.cancel();
+        return BODY_TOO_LARGE;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
   } catch {
     return null;
+  } finally {
+    reader.releaseLock();
   }
 }
 
@@ -71,6 +95,7 @@ export class GroupLog {
 
   async append(request) {
     const body = await readJson(request);
+    if (body === BODY_TOO_LARGE) return fail(413, "request body exceeds size limit");
     if (
       !body ||
       !Number.isSafeInteger(body.expected_tail) ||
@@ -159,15 +184,17 @@ export class Mailbox {
     const url = new URL(request.url);
     if (request.method === "PUT") {
       const body = await readJson(request);
+      if (body === BODY_TOO_LARGE) return fail(413, "request body exceeds size limit");
+      const welcomeSize = base64Bytes(body?.welcome);
       if (
         !body ||
         typeof body.group !== "string" ||
         !ID.test(body.group) ||
         !Number.isSafeInteger(body.joined_after) ||
         body.joined_after < 0 ||
-        base64Bytes(body.welcome) === null ||
-        body.welcome.length === 0 ||
-        body.welcome.length > MAX_BLOB_BYTES * 2
+        welcomeSize === null ||
+        welcomeSize === 0 ||
+        welcomeSize > MAX_BLOB_BYTES
       ) {
         return fail(400, "invalid mailbox item");
       }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { Miniflare } from "miniflare";
 import { fileURLToPath } from "node:url";
+import { GroupLog } from "../src/worker.js";
 
 const group = "0123456789abcdef0123456789abcdef";
 const b64 = (text) => Buffer.from(text).toString("base64");
@@ -32,6 +33,64 @@ const post = (path, body) =>
   });
 const freshGroup = () =>
   Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+
+test("oversized request bodies cannot write a log entry or mailbox", async () => {
+  const id = freshGroup();
+  const padding = " ".repeat(512 * 1024);
+  const append = await call(`/g/${id}/append`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ expected_tail: 0, blob: b64("opaque") }) + padding,
+  });
+  assert.equal(append.status, 413);
+  assert.equal((await (await call(`/g/${id}?after=0`)).json()).tail, 0);
+  const mailbox = await call(`/m/${id}`, {
+    method: "PUT", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ group: id, joined_after: 0, welcome: b64("opaque") }) + padding,
+  });
+  assert.equal(mailbox.status, 413);
+  assert.equal((await call(`/m/${id}`)).status, 404);
+});
+
+test("decoded welcome size is bounded like an application blob", async () => {
+  const id = freshGroup();
+  const response = await call(`/m/${id}`, {
+    method: "PUT", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ group: id, joined_after: 0,
+      welcome: Buffer.alloc(256 * 1024 + 1).toString("base64") }),
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await call(`/m/${id}`)).status, 404);
+});
+
+test("streamed request bounds do not trust a smaller content length", async () => {
+  let cancelled = false;
+  let storageCalls = 0;
+  const stream = new ReadableStream({
+    pull(controller) { controller.enqueue(new Uint8Array(64 * 1024).fill(32)); },
+    cancel() { cancelled = true; },
+  });
+  const log = new GroupLog({ storage: {
+    transaction() { storageCalls++; throw new Error("Oversized body reached storage"); },
+  } });
+  const response = await log.append(new Request(`http://127.0.0.1/g/${group}/append`, {
+    method: "POST", headers: { "content-length": "1" }, body: stream, duplex: "half",
+  }));
+  assert.equal(response.status, 413);
+  assert.equal(cancelled, true);
+  assert.equal(storageCalls, 0);
+});
+
+test("maximum allowed decoded blobs still pass both real worker routes", async () => {
+  const id = freshGroup();
+  const blob = Buffer.alloc(256 * 1024).toString("base64");
+  assert.equal((await post(`/g/${id}/append`, { expected_tail: 0, blob })).status, 200);
+  const response = await call(`/m/${id}`, {
+    method: "PUT", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ group: id, joined_after: 1, welcome: blob }),
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await (await call(`/m/${id}`)).json()).welcome, blob);
+});
 
 test("actual default workerd deployment rejects data routes without development opt-in", async () => {
   const closed = new Miniflare({
