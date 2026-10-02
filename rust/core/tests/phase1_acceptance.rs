@@ -41,7 +41,7 @@ fn transaction_event(
         EventKind::TransactionRecorded {
             transaction_id: TransactionId::new(format!("transaction-{index:04}")),
             account_id: AccountId::new(account),
-            kind: if index % 5 == 0 {
+            kind: if index.is_multiple_of(5) {
                 TransactionKind::Income
             } else {
                 TransactionKind::Expense

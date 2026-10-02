@@ -8,6 +8,16 @@ is **not deployed**. Design rationale is in `docs/DECISIONS.md` (2026-09-30,
 
 ## What exists
 
+Strict Rust follow-up (Windows, pinned Rust 1.98.1):
+`cargo clippy --manifest-path rust/Cargo.toml --locked --workspace --all-targets
+-- -D warnings` and the complete locked default-feature workspace tests passed.
+The three-peer/two-offline 1,000-event convergence test passed in 109.89 s; this
+also rechecked membership removal, signed history, recovery, checkpoints and
+storage. Safety-number v1 retains an independent fixed-key golden vector; the
+only production crypto change is equivalent fixed-chunk iteration. Other changes
+are lint-only test organization/predicates. No current live HTTP, cloud Actions
+or new platform runtime result is implied; those remain separately recorded.
+
 ### Current sealed-storage failure checks (2026-10-02)
 
 After the personal correction/ordering bridge changes, the full production

@@ -151,9 +151,9 @@ fn three_peers_two_offline_a_thousand_events_converge_byte_identically() {
     for round in 0..80 {
         // Two of three peers flip offline/online at random, but someone is
         // always online so the relay sees traffic.
-        for index in 1..3 {
+        for is_online in online.iter_mut().skip(1) {
             if rng.next(3) == 0 {
-                online[index] = !online[index];
+                *is_online = !*is_online;
             }
         }
 
@@ -241,8 +241,8 @@ fn three_peers_two_offline_a_thousand_events_converge_byte_identically() {
         }
 
         house.sync(0);
-        for index in 1..3 {
-            if online[index] {
+        for (index, is_online) in online.iter().enumerate().skip(1) {
+            if *is_online {
                 house.sync(index);
             }
         }

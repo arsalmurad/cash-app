@@ -191,194 +191,6 @@ pub struct Peer {
     staged_adds_member: bool,
 }
 
-#[cfg(test)]
-mod authorship_tests {
-    use super::*;
-    use crate::authenticated_history::SignedEvent;
-    use cash_core::AccountId;
-    use cash_crypto::author_id;
-
-    fn household() -> (Peer, Member) {
-        let mut alice = Peer::new("alice", Currency::from_code("USD").unwrap()).unwrap();
-        alice.found_group().unwrap();
-        let mut bob = Member::new("bob").unwrap();
-        let invite = alice.begin_invite(&bob.key_package().unwrap()).unwrap();
-        alice.commit_accepted(1).unwrap();
-        bob.join(&invite.welcome).unwrap();
-        (alice, bob)
-    }
-
-    fn event(actor: &str) -> SharedEvent {
-        SharedEvent {
-            event: Event::new(
-                format!("{actor}-event"),
-                actor,
-                1,
-                0,
-                EventKind::AccountOpened {
-                    account_id: AccountId::new("joint"),
-                    name: "Joint".to_owned(),
-                    currency: Currency::from_code("USD").unwrap(),
-                },
-            ),
-            base: None,
-        }
-    }
-
-    #[test]
-    fn observed_clock_overflow_carries_and_restart_preserves_causality() {
-        let (mut alice, mut bob) = household();
-        let mut incoming = event(&author_id(&bob.public_key()));
-        incoming.event.timestamp = HybridTimestamp::new(100, u32::MAX);
-        let proof = SignedEvent::sign(&bob, incoming).unwrap();
-        let mut payload = vec![3];
-        payload.extend_from_slice(&proof.encode());
-        alice
-            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
-            .unwrap();
-        let written = alice.write(1, event("unused").event.kind).unwrap();
-        assert_eq!(written.event.timestamp, HybridTimestamp::new(101, 0));
-        let mut restarted = Peer::import(&alice.export().unwrap()).unwrap();
-        let next = restarted.write(1, event("unused").event.kind).unwrap();
-        assert_eq!(next.event.timestamp, HybridTimestamp::new(101, 1));
-        assert_ne!(written.event.id, next.event.id);
-    }
-
-    #[test]
-    fn exhausted_observed_clock_refuses_a_write_without_mutation() {
-        let (mut alice, mut bob) = household();
-        let mut incoming = event(&author_id(&bob.public_key()));
-        incoming.event.timestamp = HybridTimestamp::new(i64::MAX, u32::MAX);
-        let proof = SignedEvent::sign(&bob, incoming).unwrap();
-        let mut payload = vec![3];
-        payload.extend_from_slice(&proof.encode());
-        alice
-            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
-            .unwrap();
-        let saved = alice.export().unwrap();
-        assert!(alice.write(1, event("unused").event.kind).is_err());
-        assert_eq!(alice.export().unwrap(), saved);
-    }
-
-    #[test]
-    fn unsigned_legacy_frames_cannot_enter_authenticated_history() {
-        let (mut alice, mut bob) = household();
-        let mut payload = vec![1];
-        payload.extend_from_slice(&encode_shared_event(&event("alice")));
-        let frame = bob.encrypt(&payload).unwrap();
-        alice.ingest(&[(2, frame)]).unwrap();
-        assert!(alice.state().ledger.accounts.is_empty());
-        assert_eq!(alice.cursor(), 2);
-    }
-
-    #[test]
-    fn a_valid_author_proof_cannot_be_substituted_for_the_live_sender() {
-        let (mut alice, mut bob) = household();
-        let proof =
-            SignedEvent::sign(&alice.member, event(&author_id(&alice.public_key()))).unwrap();
-        let mut payload = vec![3];
-        payload.extend_from_slice(&proof.encode());
-        let frame = bob.encrypt(&payload).unwrap();
-        alice.ingest(&[(2, frame)]).unwrap();
-        assert!(alice.state().ledger.accounts.is_empty());
-    }
-
-    #[test]
-    fn valid_original_proofs_can_be_forwarded_but_tampered_batches_are_atomic() {
-        let (mut alice, mut bob) = household();
-        let proof =
-            SignedEvent::sign(&alice.member, event(&author_id(&alice.public_key()))).unwrap();
-        let mut corrupt = proof.clone();
-        corrupt.signature[0] ^= 1;
-        let mut payload = vec![4];
-        payload.extend_from_slice(&2_u64.to_be_bytes());
-        write_field(&mut payload, &proof.encode());
-        write_field(&mut payload, &corrupt.encode());
-        alice
-            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
-            .unwrap();
-        assert!(alice.state().ledger.accounts.is_empty());
-        let mut payload = vec![4];
-        payload.extend_from_slice(&1_u64.to_be_bytes());
-        write_field(&mut payload, &proof.encode());
-        alice
-            .ingest(&[(3, bob.encrypt(&payload).unwrap())])
-            .unwrap();
-        assert_eq!(alice.state().ledger.accounts.len(), 1);
-    }
-
-    #[test]
-    fn legacy_unsigned_state_is_viewable_and_exportable_but_cannot_mutate_or_sync() {
-        let (mut alice, _) = household();
-        let old = event("alice");
-        alice.events.push(old.clone());
-        alice.snapshot.extend([old.clone()]);
-        alice.known.insert(old.event.id.clone());
-        alice.legacy_unverified = true;
-        let archive = alice.export().unwrap();
-        assert!(archive.starts_with(LEGACY_EXPORT_MAGIC));
-        let mut restored = Peer::import(&archive).unwrap();
-        assert!(restored.legacy_unverified());
-        assert_eq!(
-            restored.state().canonical_bytes(),
-            alice.state().canonical_bytes()
-        );
-        assert_eq!(restored.export().unwrap(), archive);
-        assert!(restored.write(2, old.event.kind.clone()).is_err());
-        assert!(restored.ingest(&[]).is_err());
-        assert!(restored.next_outgoing().is_err());
-        assert!(restored.key_package().is_err());
-        assert!(restored.found_group().is_err());
-    }
-
-    #[test]
-    fn conflicting_authenticated_event_ids_survive_restart_and_backfill() {
-        let (mut alice, mut bob) = household();
-        let mut original = event(&author_id(&bob.public_key()));
-        let first = SignedEvent::sign(&bob, original.clone()).unwrap();
-        original.event.timestamp.physical_millis = 2;
-        let second = SignedEvent::sign(&bob, original).unwrap();
-        for (index, proof) in [first, second].iter().enumerate() {
-            let mut payload = vec![PAYLOAD_EVENT];
-            payload.extend_from_slice(&proof.encode());
-            alice
-                .ingest(&[(2 + index as u64, bob.encrypt(&payload).unwrap())])
-                .unwrap();
-        }
-        assert_eq!(alice.state().rejected.len(), 1);
-        let mut alice = Peer::import(&alice.export().unwrap()).unwrap();
-        assert_eq!(alice.state().rejected.len(), 1);
-        let mut carol = Peer::new("carol", Currency::from_code("USD").unwrap()).unwrap();
-        let invite = alice.begin_invite(&carol.key_package().unwrap()).unwrap();
-        alice.commit_accepted(4).unwrap();
-        carol
-            .join(alice.group_id().unwrap(), &invite.welcome, 4)
-            .unwrap();
-        while let Some(outgoing) = alice.next_outgoing().unwrap() {
-            let sequence = alice.cursor() + 1;
-            carol.ingest(&[(sequence, outgoing.blob)]).unwrap();
-            alice.outgoing_accepted(sequence).unwrap();
-        }
-        assert_eq!(
-            alice.state().canonical_bytes(),
-            carol.state().canonical_bytes()
-        );
-    }
-
-    #[test]
-    fn restored_signing_identities_still_generate_distinct_event_ids_at_the_same_clock() {
-        let (alice, _) = household();
-        let archive = alice.export().unwrap();
-        let mut first = Peer::import(&archive).unwrap();
-        let mut second = Peer::import(&archive).unwrap();
-        let kind = event("unused").event.kind;
-        let a = first.write(1, kind.clone()).unwrap();
-        let b = second.write(1, kind).unwrap();
-        assert_eq!(a.event.timestamp, b.event.timestamp);
-        assert_ne!(a.event.id, b.event.id);
-    }
-}
-
 impl Peer {
     /// `member_id` is the identity inside the group's MLS credential, which
     /// every member learns. Use an opaque identifier, not a real name; show
@@ -1173,5 +985,193 @@ impl Peer {
     /// tests that check a removed member really is locked out.
     pub fn try_decrypt(&mut self, frame: &[u8]) -> Result<(), SyncError> {
         self.member.receive(frame).map(|_| ()).map_err(Into::into)
+    }
+}
+
+#[cfg(test)]
+mod authorship_tests {
+    use super::*;
+    use crate::authenticated_history::SignedEvent;
+    use cash_core::AccountId;
+    use cash_crypto::author_id;
+
+    fn household() -> (Peer, Member) {
+        let mut alice = Peer::new("alice", Currency::from_code("USD").unwrap()).unwrap();
+        alice.found_group().unwrap();
+        let mut bob = Member::new("bob").unwrap();
+        let invite = alice.begin_invite(&bob.key_package().unwrap()).unwrap();
+        alice.commit_accepted(1).unwrap();
+        bob.join(&invite.welcome).unwrap();
+        (alice, bob)
+    }
+
+    fn event(actor: &str) -> SharedEvent {
+        SharedEvent {
+            event: Event::new(
+                format!("{actor}-event"),
+                actor,
+                1,
+                0,
+                EventKind::AccountOpened {
+                    account_id: AccountId::new("joint"),
+                    name: "Joint".to_owned(),
+                    currency: Currency::from_code("USD").unwrap(),
+                },
+            ),
+            base: None,
+        }
+    }
+
+    #[test]
+    fn observed_clock_overflow_carries_and_restart_preserves_causality() {
+        let (mut alice, mut bob) = household();
+        let mut incoming = event(&author_id(&bob.public_key()));
+        incoming.event.timestamp = HybridTimestamp::new(100, u32::MAX);
+        let proof = SignedEvent::sign(&bob, incoming).unwrap();
+        let mut payload = vec![3];
+        payload.extend_from_slice(&proof.encode());
+        alice
+            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        let written = alice.write(1, event("unused").event.kind).unwrap();
+        assert_eq!(written.event.timestamp, HybridTimestamp::new(101, 0));
+        let mut restarted = Peer::import(&alice.export().unwrap()).unwrap();
+        let next = restarted.write(1, event("unused").event.kind).unwrap();
+        assert_eq!(next.event.timestamp, HybridTimestamp::new(101, 1));
+        assert_ne!(written.event.id, next.event.id);
+    }
+
+    #[test]
+    fn exhausted_observed_clock_refuses_a_write_without_mutation() {
+        let (mut alice, mut bob) = household();
+        let mut incoming = event(&author_id(&bob.public_key()));
+        incoming.event.timestamp = HybridTimestamp::new(i64::MAX, u32::MAX);
+        let proof = SignedEvent::sign(&bob, incoming).unwrap();
+        let mut payload = vec![3];
+        payload.extend_from_slice(&proof.encode());
+        alice
+            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        let saved = alice.export().unwrap();
+        assert!(alice.write(1, event("unused").event.kind).is_err());
+        assert_eq!(alice.export().unwrap(), saved);
+    }
+
+    #[test]
+    fn unsigned_legacy_frames_cannot_enter_authenticated_history() {
+        let (mut alice, mut bob) = household();
+        let mut payload = vec![1];
+        payload.extend_from_slice(&encode_shared_event(&event("alice")));
+        let frame = bob.encrypt(&payload).unwrap();
+        alice.ingest(&[(2, frame)]).unwrap();
+        assert!(alice.state().ledger.accounts.is_empty());
+        assert_eq!(alice.cursor(), 2);
+    }
+
+    #[test]
+    fn a_valid_author_proof_cannot_be_substituted_for_the_live_sender() {
+        let (mut alice, mut bob) = household();
+        let proof =
+            SignedEvent::sign(&alice.member, event(&author_id(&alice.public_key()))).unwrap();
+        let mut payload = vec![3];
+        payload.extend_from_slice(&proof.encode());
+        let frame = bob.encrypt(&payload).unwrap();
+        alice.ingest(&[(2, frame)]).unwrap();
+        assert!(alice.state().ledger.accounts.is_empty());
+    }
+
+    #[test]
+    fn valid_original_proofs_can_be_forwarded_but_tampered_batches_are_atomic() {
+        let (mut alice, mut bob) = household();
+        let proof =
+            SignedEvent::sign(&alice.member, event(&author_id(&alice.public_key()))).unwrap();
+        let mut corrupt = proof.clone();
+        corrupt.signature[0] ^= 1;
+        let mut payload = vec![4];
+        payload.extend_from_slice(&2_u64.to_be_bytes());
+        write_field(&mut payload, &proof.encode());
+        write_field(&mut payload, &corrupt.encode());
+        alice
+            .ingest(&[(2, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        assert!(alice.state().ledger.accounts.is_empty());
+        let mut payload = vec![4];
+        payload.extend_from_slice(&1_u64.to_be_bytes());
+        write_field(&mut payload, &proof.encode());
+        alice
+            .ingest(&[(3, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        assert_eq!(alice.state().ledger.accounts.len(), 1);
+    }
+
+    #[test]
+    fn legacy_unsigned_state_is_viewable_and_exportable_but_cannot_mutate_or_sync() {
+        let (mut alice, _) = household();
+        let old = event("alice");
+        alice.events.push(old.clone());
+        alice.snapshot.extend([old.clone()]);
+        alice.known.insert(old.event.id.clone());
+        alice.legacy_unverified = true;
+        let archive = alice.export().unwrap();
+        assert!(archive.starts_with(LEGACY_EXPORT_MAGIC));
+        let mut restored = Peer::import(&archive).unwrap();
+        assert!(restored.legacy_unverified());
+        assert_eq!(
+            restored.state().canonical_bytes(),
+            alice.state().canonical_bytes()
+        );
+        assert_eq!(restored.export().unwrap(), archive);
+        assert!(restored.write(2, old.event.kind.clone()).is_err());
+        assert!(restored.ingest(&[]).is_err());
+        assert!(restored.next_outgoing().is_err());
+        assert!(restored.key_package().is_err());
+        assert!(restored.found_group().is_err());
+    }
+
+    #[test]
+    fn conflicting_authenticated_event_ids_survive_restart_and_backfill() {
+        let (mut alice, mut bob) = household();
+        let mut original = event(&author_id(&bob.public_key()));
+        let first = SignedEvent::sign(&bob, original.clone()).unwrap();
+        original.event.timestamp.physical_millis = 2;
+        let second = SignedEvent::sign(&bob, original).unwrap();
+        for (index, proof) in [first, second].iter().enumerate() {
+            let mut payload = vec![PAYLOAD_EVENT];
+            payload.extend_from_slice(&proof.encode());
+            alice
+                .ingest(&[(2 + index as u64, bob.encrypt(&payload).unwrap())])
+                .unwrap();
+        }
+        assert_eq!(alice.state().rejected.len(), 1);
+        let mut alice = Peer::import(&alice.export().unwrap()).unwrap();
+        assert_eq!(alice.state().rejected.len(), 1);
+        let mut carol = Peer::new("carol", Currency::from_code("USD").unwrap()).unwrap();
+        let invite = alice.begin_invite(&carol.key_package().unwrap()).unwrap();
+        alice.commit_accepted(4).unwrap();
+        carol
+            .join(alice.group_id().unwrap(), &invite.welcome, 4)
+            .unwrap();
+        while let Some(outgoing) = alice.next_outgoing().unwrap() {
+            let sequence = alice.cursor() + 1;
+            carol.ingest(&[(sequence, outgoing.blob)]).unwrap();
+            alice.outgoing_accepted(sequence).unwrap();
+        }
+        assert_eq!(
+            alice.state().canonical_bytes(),
+            carol.state().canonical_bytes()
+        );
+    }
+
+    #[test]
+    fn restored_signing_identities_still_generate_distinct_event_ids_at_the_same_clock() {
+        let (alice, _) = household();
+        let archive = alice.export().unwrap();
+        let mut first = Peer::import(&archive).unwrap();
+        let mut second = Peer::import(&archive).unwrap();
+        let kind = event("unused").event.kind;
+        let a = first.write(1, kind.clone()).unwrap();
+        let b = second.write(1, kind).unwrap();
+        assert_eq!(a.event.timestamp, b.event.timestamp);
+        assert_ne!(a.event.id, b.event.id);
     }
 }

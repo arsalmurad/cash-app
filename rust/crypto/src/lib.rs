@@ -616,7 +616,7 @@ pub fn safety_number(key_a: &[u8], key_b: &[u8]) -> String {
     hasher.update((second.len() as u64).to_be_bytes());
     hasher.update(second);
     let hash = hasher.finalize();
-    hash.chunks_exact(5)
+    hash.as_chunks::<5>().0.iter()
         .take(6)
         .map(|chunk| {
             let value = chunk.iter().fold(0_u64, |accumulator, byte| {

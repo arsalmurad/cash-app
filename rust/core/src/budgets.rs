@@ -267,6 +267,8 @@ fn decode_upsert(payload: &[u8]) -> Option<BudgetUpsert> {
 mod tests {
     use super::*;
 
+    // This fixture intentionally mirrors every independently varied write field.
+    #[allow(clippy::too_many_arguments)]
     fn upsert(
         id: &str,
         actor: &str,
