@@ -1412,3 +1412,38 @@ platform builds; the following household build took 85.6 s without that overlap.
 The personal run predates the one-line search-clear label repair `2eeafc4`.
 That repair separately passes all six ledger-screen widget tests, including
 clear-search restoration. No final-source iOS claim is inferred.
+
+## Production theme and subsequent personal acceptance, 2026-10-03
+
+The real production theme is now shared with the adaptive test matrix; it
+explicitly pads tap targets and uses standard density after desktop-platform
+regressions reproduced 40-pixel toolbar targets and 44-pixel filter chips. All
+30 affected real-theme/adaptive/activity checks pass, including enlarged-text
+labels/48-pixel targets and a limited Overview text-contrast guideline. This
+does not certify actual screen readers, non-text contrast or full WCAG.
+
+All 305 native-enabled host tests pass on `eb09a27` in 157 s. Actual Android
+personal integration also passes on that app source, pinned API 36 AOSP ATD
+x86_64/WHPX, serial 5580: `flutter --no-version-check test --no-pub
+integration_test/ledger_test.dart -d emulator-5580 --reporter expanded`.
+Build 108.2 s, install 2.865 s, runtime 103 s; one case checks real native
+SQLite, EUR frozen FX, corrections/category/cancel/removal/history/restart.
+It does not add a personal JPY fixture or enrolled biometric evidence. The
+owned emulator was stopped after both personal and household tests passed.
+
+Actual desktop Chrome passes the complete combined personal/CSV/household/quota
+scenario on production `eb09a27`, driver `b07c1c7` and unchanged Rust `26f9563`.
+The new activity search/clear/kind-filter checks also prove saved SQLite bytes
+unchanged. A subsequent 360×740 run passes through corrections/reload but fails
+waiting for the Recent-entry title editor's input listener; DOM focus is present
+but insufficient. Keep that narrow runtime failure open rather than inferring
+a pass from the earlier phone artifact or the successful desktop run.
+
+Driver `d4561e7` subsequently activates rendered fields through normal browser
+pointer press/release instead of DOM-only focus, retaining listener readiness
+and Tab completion. On the same production `eb09a27`/Rust `26f9563` artifacts,
+`WEB_VIEWPORT=360x740 WEB_PERSONAL_LIFECYCLE=1 WEB_CSV=1
+WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`
+passes in Chrome 154.0.8037.58, including recent entries and title search/clear/
+expense/all filters with unchanged SQLite bytes. The preceding failed run is
+not retroactively a pass. This is browser, not physical-device evidence.

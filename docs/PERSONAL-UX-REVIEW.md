@@ -65,8 +65,14 @@ without ellipsizing. All 303 native-enabled host app tests passed in 104 s
 after the transfer repair; analysis reported no issues in 7.6 s.
 
 Accessibility findings here are three observed layout failures, repaired as
-listed above, and no failures in the narrowly scoped label/target guidelines.
-Contrast ratios, UI-component contrast, keyboard-only focus order/escape,
+listed above. A later check using the actual production theme, rather than
+generic Android ThemeData, reproduced 40-pixel desktop toolbar targets and
+44-pixel filter chips. Explicit padded targets and standard visual density
+repair these. All 30 affected real-theme/adaptive/activity cases pass (13 s),
+including the 12 enlarged-text navigation cases and a limited automated
+Overview text-contrast guideline. The older 303-suite result predates this
+theme change. Conditional search clearing also has a labeled-action regression.
+Explicit contrast ratios, UI-component contrast, keyboard-only focus order/escape,
 actual VoiceOver/NVDA announcements and enrolled biometric/passcode behavior
 have not been measured. There is no overall WCAG pass claim. A 48-pixel
 automated guideline pass is not evidence of successful physical-device use.
@@ -103,6 +109,27 @@ timed out in Runtime.evaluate during the combined run before CSV completed.
 The browser driver/reliability investigation remains open; the earlier
 `ba77ac8` combined pass is not final-source evidence or proof of no flaky input.
 Final-source iOS is also a separate gate, not inferred from older runs.
+
+On production `5a792b0`, the extended personal browser flow subsequently passed
+search, clear and expense/all filtering, including unchanged SQLite bytes.
+Flutter merges the search editor's contextual accessible label as
+`Activity\nSearch title or category`; the driver now matches exact label lines
+and checks the real engine input listener before typing. This is not app-state
+injection. The same combined run failed later in household quota/reload with a
+`Household::decrement_strong_count` panic. Confirmed database bytes were preserved;
+the complete combined runtime and final-source mobile gate remain open.
+
+Current production `eb09a27` subsequently passes the complete combined desktop
+flow with driver `b07c1c7`, including quota/reload recovery. A narrow rerun then
+fails on a DOM-focused Title field without an input listener. Driver `d4561e7`
+uses ordinary browser pointer activation rather than DOM-only focus and retains
+the listener/Tab guards; current 360×740 personal/CSV/LF/offline-font acceptance
+passes, including recent entries, search/clear/filter and unchanged SQLite bytes.
+The separate desktop household/quota flow also passes with that driver and
+the smaller relay pages (`45d8e0b`). Both actual Android integrations pass on
+app source `eb09a27`; the owned emulator was stopped. All 305 native-enabled
+host tests pass (157 s). Final iOS, complete accessibility and a universal
+browser-reliability claim are not inferred from these scoped passes.
 
 ## Next priorities
 
