@@ -69,6 +69,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   restart and signed backfill. Final-source iOS/platform acceptance remains a
   separate gate. Mixed-version live support is not negotiated; all household
   devices must update before summaries are published.
+  The explicit browser lock/reload regression now passes at `d004ad9`, along
+  with all 283 native-enabled host tests. The combined personal/CSV/quota
+  browser run has a separate input failure under investigation; do not treat
+  the narrower household runtime as its replacement.
 - [ ] Review personal UX coverage against the stated Cashew quality bar, not
   just widget presence; fix functional gaps and verify phone/tablet/web layouts.
   Budget/goal removal, recurring stop, future-rule management and stale-post

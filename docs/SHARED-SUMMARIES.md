@@ -136,3 +136,37 @@ runtime remains part of final-source acceptance, not silently claimed here.
 No new iOS runtime is claimed by these checks.
 This feature does not close production authentication, retention/compaction,
 final-source platform acceptance or the whole-project completion gate.
+
+## Browser preview lifecycle follow-up, 2026-10-03
+
+Source `d004ad9` fixes the explicit lock/reload regression added at `890e636`.
+The failing trace identified `SummaryDraft` opaque-handle release; the sealed
+SQLite image was unchanged, and a separate native probe restored its summary
+and shared balance. Preview replacement, cancellation and successful publication
+now release their temporary handles explicitly. Locking also releases the old
+household handle after queued operations finish. No generated bindings, Rust
+codecs, crypto, wire schemas or toolchain versions changed.
+
+Independently verified on Windows with the pinned tools:
+
+- Flutter release WASM rebuild: 147.3 s, reusing the unchanged `26f9563` Rust
+  WASM artifact. This build result alone is not runtime evidence.
+- `WEB_HOUSEHOLD=1 node scripts/verify_web_runtime.mjs`: actual Chrome
+  154.0.8037.58 and local workerd passed preview replacement without relay
+  writes, cancellation, publication, explicit lock/unlock, full page reload,
+  preserved sealed SQLite bytes and summary, offline conflicts, stale-backup
+  fresh-key recovery, removal, EUR/JPY frozen rates and readable-title exclusion
+  from HTTP bodies. The driver scrolls to transactions below summary cards and
+  observes fatal errors from owned browser workers without debugger pauses.
+- `RUST_LIB_PATH=.../rust_lib_cash_app.dll flutter --no-version-check test
+  --no-pub --reporter compact`: all **283** host tests passed in 110 s, with
+  native cases enabled. The DLL remains the unchanged `26f9563` Rust source.
+- `flutter --no-version-check analyze --no-pub`: no issues, 4.4 s.
+
+A failed initial load now shows a persistent unavailable/restart screen instead
+of create/join setup; a new widget regression and invalid-storage check pass.
+Uncertain saves still keep the last confirmed member view while stopping writes.
+The combined CSV/personal/quota browser suite has a separate title-input failure
+under investigation and is **not** claimed as passing on this source. An earlier
+renderer memory fault on the pre-fix browser artifact is likewise not explained
+by this handle-lifetime result. Final-source Android/iOS checks remain open.
