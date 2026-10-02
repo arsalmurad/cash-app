@@ -32,7 +32,21 @@ scripts/verify_web_runtime.mjs`: exact USD 10000000000000000.00 income/expense
 entry, persisted reload, lower-bound goal/budget displays and the exact original
 net balance after both entries. Existing category/deadline/lifecycle checks
 passed in the same run. The earlier platform runs below cover their stated
-revisions only; new Android evidence is pending and no new iOS run is claimed.
+revisions only; no new iOS run is claimed.
+
+The combined source also passed the expanded Android journey at test revision
+`3624112` on the owned read-only AOSP ATD Android 16/API 36 x86_64 emulator
+(`emulator-5580`, WHPX). Command: `flutter --no-version-check test --no-pub
+integration_test/ledger_test.dart -d emulator-5580 --reporter expanded`.
+The native debug APK build took 221.5 s, installation 2.384 s and runtime 68 s.
+Actual UI income/expense entry of USD 10000000000000000.00 retained exact labels
+after fresh SQLite controllers, displayed bounded goal/budget percentages,
+returned exactly to USD -600.57, and passed all earlier personal lifecycle,
+category/deadline and frozen-EUR checks. This APK exercises both new native
+percentage arithmetic and random local operation IDs; fixed-clock concurrency
+is covered separately by the host regressions, not by this mobile driver.
+The owned emulator was stopped after the pass; no release APK, physical-device,
+power-loss or new iOS result is claimed.
 
 Saving-target follow-up: three actual Windows native-bridge/SQLite regressions
 independently verify JPY 100/123 through entry, edit and restart, reject fractional
