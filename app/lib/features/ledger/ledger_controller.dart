@@ -23,12 +23,14 @@ class LedgerController extends ChangeNotifier {
     EventStore? budgetStore,
     EventStore? goalStore,
     EventStore? recurringStore,
+    DateTime Function()? now,
   }) : _identity = identity ?? DeviceIdentity(),
        _ledgerStore = ledgerStore ?? EventStore('ledger'),
        _categoryStore = categoryStore ?? EventStore('categories'),
        _budgetStore = budgetStore ?? EventStore('budgets'),
        _goalStore = goalStore ?? EventStore('goals'),
-       _recurringStore = recurringStore ?? EventStore('recurring');
+       _recurringStore = recurringStore ?? EventStore('recurring'),
+       _now = now ?? DateTime.now;
 
   final DeviceIdentity _identity;
   final EventStore _ledgerStore;
@@ -36,6 +38,7 @@ class LedgerController extends ChangeNotifier {
   final EventStore _budgetStore;
   final EventStore _goalStore;
   final EventStore _recurringStore;
+  final DateTime Function() _now;
 
   PersonalLedger? _ledger;
   CategoryBook? _categoryBook;
@@ -49,7 +52,6 @@ class LedgerController extends ChangeNotifier {
   List<UpcomingView> upcoming = [];
   bool isLoading = true;
   String? errorMessage;
-  int _sequence = 0;
   Future<void> _mutationQueue = Future<void>.value();
   bool _writesDisabled = false;
   static const String _reportingCurrencyCode = 'USD';
@@ -310,8 +312,8 @@ class LedgerController extends ChangeNotifier {
     notifyListeners();
     try {
       final fx = await _resolveRate(account, rate);
-      final now = DateTime.now();
-      _sequence += 1;
+      final now = _now();
+      final transactionId = 'local-${generateOpaqueId()}';
       await _mutateLedger(() async {
         if (recurringId != null &&
             !upcoming.any(
@@ -319,7 +321,7 @@ class LedgerController extends ChangeNotifier {
                   current.recurringId == recurringId &&
                   current.isExpense == (kind == EntryKind.expense) &&
                   current.occurrenceMillis.toInt() <=
-                      DateTime.now().millisecondsSinceEpoch &&
+                      _now().millisecondsSinceEpoch &&
                   (expectedOccurrenceMillis == null ||
                       current.occurrenceMillis == expectedOccurrenceMillis) &&
                   current.title == title.trim() &&
@@ -333,7 +335,7 @@ class LedgerController extends ChangeNotifier {
         }
         return recordTransaction(
           ledger: ledger,
-          transactionId: 'local-${now.microsecondsSinceEpoch}-$_sequence',
+          transactionId: transactionId,
           accountId: accountId,
           kind: kind,
           amount: amount,
@@ -420,12 +422,12 @@ class LedgerController extends ChangeNotifier {
     try {
       final sentFx = await _resolveRate(fromAccount, sentRate);
       final receivedFx = await _resolveRate(toAccount, receivedRate);
-      final now = DateTime.now();
-      _sequence += 1;
+      final now = _now();
+      final transferId = 'local-${generateOpaqueId()}';
       await _mutateLedger(
         () => recordTransfer(
           ledger: ledger,
-          transferId: 'local-${now.microsecondsSinceEpoch}-$_sequence',
+          transferId: transferId,
           fromAccountId: fromAccountId,
           toAccountId: toAccountId,
           sentAmount: sentAmount,
@@ -715,7 +717,7 @@ class LedgerController extends ChangeNotifier {
   }
 
   PlatformInt64 _nowMillis() =>
-      PlatformInt64Util.from(DateTime.now().millisecondsSinceEpoch);
+      PlatformInt64Util.from(_now().millisecondsSinceEpoch);
 
   AccountView? _findAccount(String id) {
     for (final account in overview?.accounts ?? const <AccountView>[]) {
@@ -732,9 +734,7 @@ class LedgerController extends ChangeNotifier {
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'^-+|-+$'), '');
-    return slug.isEmpty
-        ? 'category-${DateTime.now().microsecondsSinceEpoch}'
-        : slug;
+    return slug.isEmpty ? 'category-${_now().microsecondsSinceEpoch}' : slug;
   }
 
   void _ensureWritable() {

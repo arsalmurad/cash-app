@@ -953,3 +953,15 @@ saturated value is exact. Actual ledger overflow still fails; this is not
 saturating financial arithmetic. The bridge layout and persistence format are
 unchanged.
 
+## 2026-10-02 — Allocate local operation IDs before queueing
+
+Transaction/transfer IDs previously combined a clock tick with a mutable
+process counter read inside the save queue. Concurrent requests could read the
+same final counter, and a restart could reuse a timestamp/counter pair. Three
+deterministic native-bridge regressions reproduced rejected rapid entries,
+rapid transfers and a same-tick post-restart entry. Allocate a fresh 128-bit
+secure-random ID once before queueing instead, reusing the existing actor-ID
+random generator. Persisted old IDs and actors remain unchanged; retries do not
+become automatic, and ambiguous saves still disable writes until recovery.
+An injected clock enables these regressions; production defaults to DateTime.now.
+

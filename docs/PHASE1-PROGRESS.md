@@ -6,6 +6,15 @@ the historical web-worker failure was resolved later (see `PHASE2-PROGRESS.md`).
 
 ## Personal definition lifecycle (2026-10-02)
 
+Queued-ID follow-up: three deterministic real-native-bridge RED regressions
+reproduced same-tick expense/transfer collisions and transaction ID reuse after
+restart. Fresh operation IDs allocated before the queue fixed them; 39 focused
+checks passed, including the existing failure-before/torn/after-commit and
+lifecycle guards. Restart preserves all eight rapid entries/four transfers.
+Static analysis passed. These queue tests use retained in-memory frame stores
+with the actual Rust bridge, not an OS crash or physical-device test. The native
+SQLite maximum-money checks in the same focused run are separate evidence.
+
 Large-value follow-up: maximum valid i64 income/expense amounts reproduced
 `goal percentage overflowed` and `budget percentage overflowed` in two RED Rust
 tests. The integer-only presentation fix passed both regressions and a boundary

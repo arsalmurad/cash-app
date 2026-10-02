@@ -118,7 +118,7 @@ void main() {
   group('failed saves against the real Rust bridge', () {
     late _Identity identity;
     late Map<String, _Store> stores;
-    LedgerController create() {
+    LedgerController create({DateTime Function()? now}) {
       final controller = LedgerController(
         identity: identity,
         ledgerStore: stores['ledger'],
@@ -126,6 +126,7 @@ void main() {
         budgetStore: stores['budgets'],
         goalStore: stores['goals'],
         recurringStore: stores['recurring'],
+        now: now,
       );
       addTearDown(controller.dispose);
       return controller;
@@ -147,6 +148,98 @@ void main() {
           name: _Store(),
       };
     });
+
+    test(
+      'queued entries in one clock tick keep distinct transaction IDs',
+      () async {
+        final instant = DateTime(2030);
+        final controller = create(now: () => instant);
+        await controller.initialize();
+        final results = await Future.wait([
+          for (var i = 0; i < 8; i++)
+            controller.record(
+              accountId: 'everyday',
+              title: 'Entry $i',
+              amount: '1',
+              kind: EntryKind.expense,
+            ),
+        ]);
+        expect(results, everyElement(isTrue));
+        expect(controller.overview!.transactions, hasLength(8));
+        expect(
+          controller.overview!.transactions.map((entry) => entry.id).toSet(),
+          hasLength(8),
+        );
+        expect(controller.overview!.balanceLabel, 'USD -8.00');
+        final restarted = create(now: () => instant);
+        await restarted.initialize();
+        expect(restarted.errorMessage, isNull);
+        expect(restarted.overview!.transactions, hasLength(8));
+      },
+    );
+
+    test(
+      'same clock tick after restart cannot reuse a transaction ID',
+      () async {
+        final instant = DateTime(2030);
+        final controller = create(now: () => instant);
+        await controller.initialize();
+        expect(
+          await controller.record(
+            accountId: 'everyday',
+            title: 'Before',
+            amount: '1',
+            kind: EntryKind.expense,
+          ),
+          isTrue,
+        );
+        final restarted = create(now: () => instant);
+        await restarted.initialize();
+        expect(
+          await restarted.record(
+            accountId: 'everyday',
+            title: 'After',
+            amount: '2',
+            kind: EntryKind.expense,
+          ),
+          isTrue,
+        );
+        expect(restarted.overview!.transactions, hasLength(2));
+        expect(restarted.overview!.balanceLabel, 'USD -3.00');
+      },
+    );
+
+    test(
+      'queued transfers in one clock tick keep distinct transfer IDs',
+      () async {
+        final instant = DateTime(2030);
+        final controller = create(now: () => instant);
+        await controller.initialize();
+        expect(
+          await controller.createAccount(name: 'Other', currencyCode: 'USD'),
+          isTrue,
+        );
+        final results = await Future.wait([
+          for (var i = 0; i < 4; i++)
+            controller.transfer(
+              fromAccountId: 'everyday',
+              toAccountId: 'other',
+              sentAmount: '1',
+              title: 'Transfer $i',
+            ),
+        ]);
+        expect(results, everyElement(isTrue));
+        expect(controller.overview!.transfers, hasLength(4));
+        expect(
+          controller.overview!.transfers.map((entry) => entry.id).toSet(),
+          hasLength(4),
+        );
+        final restarted = create(now: () => instant);
+        await restarted.initialize();
+        expect(restarted.errorMessage, isNull);
+        expect(restarted.overview!.transfers, hasLength(4));
+      },
+    );
 
     for (final kind in [
       'ledger',
