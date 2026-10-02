@@ -504,6 +504,14 @@ class LedgerController extends ChangeNotifier {
       return false;
     }
     try {
+      final linkedAccount = kind == GoalKind.save
+          ? _findAccount(linkedAccountId ?? '')
+          : null;
+      if (kind == GoalKind.save && linkedAccount == null) {
+        throw const _EntryInputError(
+          'Choose an existing account for a saving goal.',
+        );
+      }
       await _mutateGoals(
         () => upsertGoal(
           book: book,
@@ -511,7 +519,8 @@ class LedgerController extends ChangeNotifier {
           name: name.trim(),
           kind: kind,
           targetAmount: targetAmount,
-          targetCurrencyCode: _reportingCurrencyCode,
+          targetCurrencyCode:
+              linkedAccount?.currencyCode ?? _reportingCurrencyCode,
           linkedAccountId: linkedAccountId,
           categoryId: categoryId,
           deadlineMillis: deadlineMillis,
