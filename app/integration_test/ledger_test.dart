@@ -471,7 +471,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     final hotelActions = find.byTooltip('Transaction actions: Hotel');
-    await tester.ensureVisible(hotelActions);
+    // Place this older entry above the floating Add button, not just inside
+    // the scroll viewport where that button can intercept its menu tap.
+    await Scrollable.ensureVisible(
+      tester.element(hotelActions),
+      alignment: 0.25,
+    );
+    await tester.pumpAndSettle();
+    expect(hotelActions.hitTestable(), findsOneWidget);
     await tester.tap(hotelActions);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove transaction'));
@@ -532,7 +539,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(hotelActions);
+    await Scrollable.ensureVisible(
+      tester.element(hotelActions),
+      alignment: 0.25,
+    );
+    await tester.pumpAndSettle();
+    expect(hotelActions.hitTestable(), findsOneWidget);
     await tester.tap(hotelActions);
     await tester.pumpAndSettle();
     await tester.tap(find.text('View history'));
