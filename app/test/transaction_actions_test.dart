@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show PlatformInt64Util;
 import 'package:private_ledger/data/rust/api/categories.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/features/ledger/ledger_screen.dart';
@@ -19,6 +21,50 @@ const categories = [
 ];
 
 void main() {
+  testWidgets(
+    'history fits enlarged phone text and handles an out-of-range date',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(1.5)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: TransactionHistoryDialog(
+              transaction: transaction,
+              categories: categories,
+              history: [
+                TransactionHistoryView(
+                  eventId: 'old-event',
+                  actorId: 'old-device',
+                  physicalMillis: PlatformInt64Util.from(
+                    8640000000000001,
+                  ),
+                  logical: 1,
+                  action: 'Amount corrected',
+                  amountLabel: 'EUR 85.00',
+                  reportingAmountLabel: 'USD 92.44',
+                  categoryId: null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Transaction history'), findsOneWidget);
+      expect(
+        find.text('Date outside the supported display range'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'amount correction explains frozen FX and returns only the new amount',
     (tester) async {
