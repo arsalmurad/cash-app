@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:local_auth_platform_interface/local_auth_platform_interface.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/features/ledger/budgets_pane.dart';
 import 'package:private_ledger/features/ledger/goals_pane.dart';
 import 'package:private_ledger/features/ledger/ledger_controller.dart';
 import 'package:private_ledger/features/ledger/ledger_screen.dart';
 import 'package:private_ledger/features/ledger/recurring_pane.dart';
+import 'package:private_ledger/features/lock/lock_settings_dialog.dart';
+
+class _UnavailableAuthPlatform extends LocalAuthPlatform {
+  @override
+  Future<bool> isDeviceSupported() async =>
+      throw UnsupportedError('Synthetic unavailable authentication plugin');
+}
 
 void main() {
   for (final size in [
@@ -19,24 +27,27 @@ void main() {
       ) async {
         await tester.binding.setSurfaceSize(size);
         addTearDown(() => tester.binding.setSurfaceSize(null));
+        final previousAuth = LocalAuthPlatform.instance;
+        LocalAuthPlatform.instance = _UnavailableAuthPlatform();
+        addTearDown(() => LocalAuthPlatform.instance = previousAuth);
         final controller = LedgerController()
           ..isLoading = false
           ..overview = const LedgerOverview(
-            balanceLabel: 'USD 1987.66',
+            balanceLabel: 'USD -10000000000000000.00',
             accounts: [
               AccountView(
                 id: 'daily',
                 name: 'Everyday',
                 currencyCode: 'USD',
-                balanceLabel: 'USD 1987.66',
+                balanceLabel: 'USD -10000000000000000.00',
               ),
             ],
             transactions: [
               TransactionView(
                 id: 'groceries',
                 accountId: 'daily',
-                title: 'Groceries',
-                amountLabel: 'USD 12.34',
+                title: 'Groceries and household supplies for the week',
+                amountLabel: 'USD 10000000000000000.00',
                 voided: false,
                 isExpense: true,
               ),
@@ -66,6 +77,7 @@ void main() {
           wide ? findsNothing : findsOneWidget,
         );
         expect(tester.takeException(), isNull);
+        expect(find.byIcon(Icons.repeat_outlined), findsOneWidget);
         final destinations = <String, Type>{
           'Activity': ActivityPane,
           'Budgets': BudgetsPane,
@@ -82,12 +94,24 @@ void main() {
           await tester.tap(target);
           await tester.pumpAndSettle();
           expect(find.byType(destination.value), findsOneWidget);
+          if (destination.key == 'Recurring') {
+            expect(find.byIcon(Icons.repeat), findsOneWidget);
+          }
           expect(
             tester.takeException(),
             isNull,
             reason: '${destination.key} must fit without render overflow',
           );
         }
+        expect(find.text('Calculated on this device'), findsOneWidget);
+        final lockSettings = find.byTooltip('Screen lock settings');
+        expect(lockSettings.hitTestable(), findsOneWidget);
+        await tester.tap(lockSettings);
+        await tester.pumpAndSettle();
+        expect(find.byType(LockSettingsDialog), findsOneWidget);
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
       });
     }

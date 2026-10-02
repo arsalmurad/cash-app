@@ -4,7 +4,7 @@ import '../../data/storage/lock_preference.dart';
 import 'biometric_lock_gate.dart';
 
 /// Lets the user turn the biometric lock on or off. Shown from
-/// `LedgerScreen`'s overflow menu rather than a dedicated settings screen,
+/// `LedgerScreen`'s toolbar or overflow menu rather than a settings screen,
 /// since it's the only app-level preference this app currently has.
 class LockSettingsDialog extends StatefulWidget {
   const LockSettingsDialog({this.preferenceStore, super.key});

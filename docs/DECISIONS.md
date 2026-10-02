@@ -1109,3 +1109,20 @@ current title would not handle the repeated-title case. All 11 affected sheet
 tests pass, including manual category choice and exact transaction/transfer
 drafts. No ledger, persistence, money representation or bridge schema changed.
 
+## 2026-10-03 — Keep full account amounts readable on narrow screens
+
+The existing adaptive navigation matrix now uses an exact valid i64-sized
+balance and a long transaction title. Both 360-pixel phone themes at 1.5× text
+exposed a ListTile trailing-column layout failure. Place currency, full balance
+and optional reporting conversion in the bounded subtitle column instead;
+do not truncate financial values. The focused phone regression and all 291
+native-enabled host app tests pass; static analysis reports no issues.
+
+Make the toolbar padlock open the existing Screen lock settings dialog instead
+of remaining decorative, and describe the balance as "Calculated on this
+device" without implementation jargon. Use the ordinary repeat navigation
+icon after the production browser screenshot showed a blank event-repeat icon;
+the original font contained its glyph, so a missing asset is not established.
+The adaptive matrix checks the new icon selection and settings action. Actual
+updated browser rendering and native mobile runtime remain separate checks.
+

@@ -80,12 +80,11 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           ),
                       ],
                     ),
-                  const Padding(
-                    padding: EdgeInsets.only(right: 16),
-                    child: Tooltip(
-                      message: 'Local prototype session',
-                      child: Icon(Icons.lock_outline_rounded),
-                    ),
+                  IconButton(
+                    tooltip: 'Screen lock settings',
+                    onPressed: () =>
+                        _onDataMenuSelected(_DataMenuAction.lockSettings),
+                    icon: const Icon(Icons.lock_outline_rounded),
                   ),
                 ],
               ),
@@ -118,8 +117,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
                               label: Text('Goals'),
                             ),
                             NavigationRailDestination(
-                              icon: Icon(Icons.event_repeat_outlined),
-                              selectedIcon: Icon(Icons.event_repeat_rounded),
+                              icon: Icon(Icons.repeat_outlined),
+                              selectedIcon: Icon(Icons.repeat),
                               label: Text('Recurring'),
                             ),
                           ],
@@ -156,8 +155,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           label: 'Goals',
                         ),
                         NavigationDestination(
-                          icon: Icon(Icons.event_repeat_outlined),
-                          selectedIcon: Icon(Icons.event_repeat_rounded),
+                          icon: Icon(Icons.repeat_outlined),
+                          selectedIcon: Icon(Icons.repeat),
                           label: 'Recurring',
                         ),
                       ],
@@ -968,7 +967,7 @@ class _BalanceCard extends StatelessWidget {
               children: [
                 Icon(Icons.shield_outlined, size: 18),
                 SizedBox(width: 8),
-                Flexible(child: Text('Calculated by the local Rust ledger')),
+                Flexible(child: Text('Calculated on this device')),
               ],
             ),
           ],
@@ -1012,11 +1011,10 @@ class _AccountsCard extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: const CircleAvatar(child: Icon(Icons.wallet_outlined)),
                 title: Text(account.name),
-                subtitle: Text(account.currencyCode),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(account.currencyCode),
                     Text(
                       account.balanceLabel,
                       style: Theme.of(context).textTheme.labelLarge,
