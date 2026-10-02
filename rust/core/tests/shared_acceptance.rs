@@ -4,13 +4,115 @@
 //! silently overwritten.
 
 use cash_core::{
-    AccountId, Conflict, Currency, EditField, Event, EventId, EventKind, FxRate, Money,
-    RejectReason, SharedEvent, TransactionId, TransactionKind, decode_shared_event, encode_shared_event,
-    fold_shared,
+    AccountId, ActorId, Conflict, Currency, EditField, Event, EventId, EventKind, FxRate,
+    HybridTimestamp, Money, RejectReason, SharedEvent, SharedSnapshot, SnapshotUpdate,
+    TransactionId, TransactionKind, decode_shared_event, encode_shared_event, fold_shared,
 };
 
 fn usd() -> Currency {
     Currency::from_code("USD").unwrap()
+}
+
+#[test]
+fn shared_checkpoint_extends_and_rebuilds_for_late_or_conflicting_events() {
+    let opened = open_account("open", "alice", 1, "shared", usd());
+    let created = record("record", "alice", 10, "dinner", "shared", 100);
+    let edited = adjust("edit", "bob", 30, "dinner", 200, "record");
+    let mut snapshot = SharedSnapshot::from_events(usd(), [opened.clone(), created.clone()]);
+    assert_eq!(snapshot.extend([edited.clone()]), SnapshotUpdate::Extended);
+    assert_eq!(
+        snapshot.state(),
+        &fold_shared(usd(), [opened.clone(), created.clone(), edited.clone()])
+    );
+    assert_eq!(
+        snapshot.causal_frontier().get(&ActorId::new("bob")),
+        Some(&HybridTimestamp::new(30, 0))
+    );
+    assert_eq!(
+        snapshot.extend([created.clone()]),
+        SnapshotUpdate::Unchanged
+    );
+    let late = adjust("late", "carol", 20, "dinner", 300, "record");
+    assert_eq!(snapshot.extend([late.clone()]), SnapshotUpdate::Rebuilt);
+    let events = [
+        opened.clone(),
+        created.clone(),
+        edited.clone(),
+        late.clone(),
+    ];
+    assert_eq!(snapshot.state(), &fold_shared(usd(), events.clone()));
+    assert_eq!(snapshot.state().conflicts.len(), 1);
+    // Same ID with a different immutable body must retract both variants,
+    // not silently treat the second as an idempotent replay.
+    let changed = record("record", "alice", 10, "dinner", "shared", 999);
+    assert_eq!(snapshot.extend([changed.clone()]), SnapshotUpdate::Rebuilt);
+    assert_eq!(
+        snapshot.state(),
+        &fold_shared(usd(), events.into_iter().chain([changed.clone()]))
+    );
+    assert_eq!(snapshot.extend([changed]), SnapshotUpdate::Unchanged);
+}
+
+#[test]
+fn shared_checkpoint_preserves_rejections_heads_and_one_thousand_events() {
+    let mut events = vec![open_account("open", "alice", 0, "shared", usd())];
+    for index in 1..=1000 {
+        events.push(record(
+            &format!("e{index}"),
+            if index % 2 == 0 { "alice" } else { "bob" },
+            index,
+            &format!("t{index}"),
+            "shared",
+            index,
+        ));
+    }
+    let mut snapshot = SharedSnapshot::from_events(usd(), events[..501].iter().cloned());
+    assert_eq!(
+        snapshot.extend(events[501..].iter().cloned()),
+        SnapshotUpdate::Extended
+    );
+    assert_eq!(
+        snapshot.state().canonical_bytes(),
+        fold_shared(usd(), events.clone()).canonical_bytes()
+    );
+    let invalid = adjust("bad", "carol", 1001, "missing", 10, "missing-record");
+    assert_eq!(snapshot.extend([invalid.clone()]), SnapshotUpdate::Extended);
+    events.push(invalid);
+    assert_eq!(snapshot.state(), &fold_shared(usd(), events));
+    assert_eq!(snapshot.state().rejected.len(), 1);
+    assert_eq!(
+        snapshot
+            .state()
+            .edit_head(&TransactionId::new("t1000"), EditField::Amount),
+        Some(&EventId::new("e1000"))
+    );
+}
+
+#[test]
+fn shared_checkpoint_bytes_are_canonical_across_chunked_arrival_orders() {
+    let events = vec![
+        open_account("open", "alice", 1, "shared", usd()),
+        record("record", "alice", 10, "dinner", "shared", 100),
+        adjust("bob-edit", "bob", 20, "dinner", 200, "record"),
+        adjust("carol-edit", "carol", 20, "dinner", 300, "record"),
+        void("void", "alice", 30, "dinner", "bob-edit"),
+        adjust("bad", "bob", 40, "dinner", 400, "record"),
+        // Include both variants and a replay of a conflicting ID.
+        record("duplicate", "alice", 15, "other", "shared", 100),
+        record("duplicate", "alice", 15, "other", "shared", 200),
+        record("duplicate", "alice", 15, "other", "shared", 100),
+    ];
+    let reference = SharedSnapshot::from_events(usd(), events.clone());
+    for seed in 1..=50 {
+        let mut shuffled = events.clone();
+        shuffle(&mut shuffled, seed);
+        let mut snapshot = SharedSnapshot::from_events(usd(), []);
+        for chunk in shuffled.chunks(2) {
+            snapshot.extend(chunk.iter().cloned());
+        }
+        assert_eq!(snapshot.state(), reference.state());
+        assert_eq!(snapshot.checkpoint_bytes(), reference.checkpoint_bytes());
+    }
 }
 
 fn eur() -> Currency {

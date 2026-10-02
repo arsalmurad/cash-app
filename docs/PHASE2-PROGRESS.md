@@ -469,3 +469,48 @@ passed earlier in the first combined run, before that run stopped at currency
 selection; the final household rerun disabled CSV to avoid repeating it.
 The web build predates only the final empty-account-name input guard. These are
 not new Android/iOS runs or final-source release acceptance.
+
+## Persisted shared checkpoints (2026-10-02)
+
+`cash_core::SharedSnapshot` retains exact variants, canonical state and a per-actor
+frontier. Ordered new events extend the fold; late or conflicting-ID events
+rebuild safely, including retractions and visible downstream rejections. The
+actual `Peer` uses the cache for state/edit-head reads and persists its checked
+descriptor in signed v4 archives. Import verifies original proofs before
+checking recomputed state/frontiers. v2/v3 remain readable; unsigned v1 remains
+restricted. No event/proof is pruned, no peer acknowledgement is inferred from
+high-water marks, and bounded relay history/peer-snapshot recovery is not done.
+
+Independently passed on Windows with the pinned tools:
+
+- `cargo test --manifest-path rust/Cargo.toml --workspace --locked`: full core,
+  crypto, SQLite, sync and 48 bridge tests; the three-peer/1,000-event scenario
+  passed in 184.64 s. New core checks cover 1,000-event incremental equivalence,
+  late/conflicting duplicates, rejected events/edit heads and 50 shuffled chunk
+  orders with identical checkpoint bytes.
+- The final `cash_sync --test restart` run passed all eight checks, including
+  tampered state/frontier refusal, v2/v3 compatibility and a persisted checkpoint
+  receiving an older offline-peer event before another restart. Initial new
+  tests failed as expected before implementation; synthetic old-format fixture
+  offsets were then corrected for the added descriptor.
+- After rebuilding `rust_lib_cash_app`, all 224 host app tests passed with
+  `RUST_LIB_PATH` pointing at that DLL, including real journals, protected
+  recovery, failure safety and shared FX. No bridge API/code generation changed.
+- Pinned Rust WASM build passed (89 s) and production Flutter WASM build passed
+  (180.2 s). The initial wrapper failed before compilation because Dart was
+  absent from PATH; retry added the existing pinned executable, not a new SDK.
+  The recorded unstable-atomics warning remains.
+- `WEB_HOUSEHOLD=1 WEB_CSV=1 WEB_OFFLINE_FONTS=1 WEB_CSV_LINE_ENDINGS=LF node
+  scripts/verify_web_runtime.mjs`: current production browser personal SQLite,
+  Unicode file import/download without font requests, encrypted household
+  checkpoint restart, offline conflicts, stale-backup fresh-key recovery,
+  removal and EUR/JPY peer convergence all passed on Windows Chrome 154.0.8037.58.
+- `CARGO=C:/Users/ME/.cargo/bin/cargo.exe node test/storage-audit.mjs` in `relay/`:
+  27 actual workerd ciphertext records/encrypted mailboxes and plaintext-injection
+  refusal passed. Windows workerd emitted WSASend #10054 during cleanup; all
+  assertions and exit status passed, not a claim about physical-network recovery.
+
+No current-checkpoint Android/iOS runtime or new cloud job is claimed here.
+Archive size/memory grow with retained history, and import still replays signed
+sources. An end-to-end performance benchmark and acknowledged pruning remain
+separate work, not reasons to erase an offline peer's history.

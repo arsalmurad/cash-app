@@ -21,7 +21,8 @@ use std::collections::btree_map::Entry;
 use crate::bytes_io::{Reader, write_bool, write_string, write_u64};
 use crate::codec::{decode_event, encode_event};
 use crate::{
-    AccountState, Currency, Event, EventId, EventKind, FoldError, LedgerState, TransactionId,
+    AccountState, ActorId, Currency, Event, EventId, EventKind, FoldError, HybridTimestamp,
+    LedgerState, OrderKey, TransactionId,
 };
 
 /// An event plus what its author had seen when writing it.
@@ -69,6 +70,48 @@ pub struct SharedState {
 }
 
 impl SharedState {
+    fn empty(reporting_currency: Currency) -> Self {
+        Self {
+            ledger: LedgerState::empty(reporting_currency),
+            conflicts: Vec::new(),
+            rejected: Vec::new(),
+            heads: BTreeMap::new(),
+        }
+    }
+
+    fn apply_shared(&mut self, shared: &SharedEvent) {
+        let event = &shared.event;
+        if let Err(error) = apply_atomically(&mut self.ledger, event) {
+            self.rejected.push(Rejected {
+                event_id: event.id.clone(),
+                reason: RejectReason::Fold(error),
+            });
+            return;
+        }
+        match &event.kind {
+            EventKind::TransactionRecorded { transaction_id, .. } => {
+                for field in [EditField::Amount, EditField::Category] {
+                    self.heads
+                        .insert((transaction_id.clone(), field), event.id.clone());
+                }
+            }
+            EventKind::AmountAdjusted { transaction_id, .. } => note_edit(
+                &mut self.heads,
+                &mut self.conflicts,
+                transaction_id,
+                EditField::Amount,
+                shared,
+            ),
+            EventKind::CategoryAssigned { transaction_id, .. } => note_edit(
+                &mut self.heads,
+                &mut self.conflicts,
+                transaction_id,
+                EditField::Category,
+                shared,
+            ),
+            _ => {}
+        }
+    }
     /// The event a new edit of `field` on `transaction` should name as its
     /// `base`: the last one this state applied to that field.
     pub fn edit_head(&self, transaction: &TransactionId, field: EditField) -> Option<&EventId> {
@@ -112,52 +155,120 @@ pub fn fold_shared(
     let mut rejected = Vec::new();
     let events = deduplicate(events, &mut rejected);
 
-    let mut ledger = LedgerState::empty(reporting_currency);
-    let mut conflicts = Vec::new();
-    let mut heads: BTreeMap<(TransactionId, EditField), EventId> = BTreeMap::new();
-
+    let mut state = SharedState::empty(reporting_currency);
+    state.rejected = rejected;
     for shared in &events {
-        let event = &shared.event;
-        if let Err(error) = apply_atomically(&mut ledger, event) {
-            rejected.push(Rejected {
-                event_id: event.id.clone(),
-                reason: RejectReason::Fold(error),
-            });
-            continue;
+        state.apply_shared(shared);
+    }
+    state
+        .rejected
+        .sort_by(|left, right| left.event_id.cmp(&right.event_id));
+    state
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SnapshotUpdate {
+    Unchanged,
+    Extended,
+    Rebuilt,
+}
+
+/// A checked fold checkpoint, not permission to prune history. All distinct
+/// immutable variants remain available so late events and conflicting IDs can
+/// rebuild the exact total fold. A frontier is accompanied by that exact set;
+/// its high-water marks alone never prove that there are no causal gaps.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SharedSnapshot {
+    state: SharedState,
+    sources: BTreeMap<EventId, Vec<SharedEvent>>,
+    causal_frontier: BTreeMap<ActorId, HybridTimestamp>,
+    maximum_order: Option<OrderKey>,
+}
+
+impl SharedSnapshot {
+    pub fn from_events(
+        reporting_currency: Currency,
+        events: impl IntoIterator<Item = SharedEvent>,
+    ) -> Self {
+        let mut snapshot = Self {
+            state: SharedState::empty(reporting_currency),
+            sources: BTreeMap::new(),
+            causal_frontier: BTreeMap::new(),
+            maximum_order: None,
+        };
+        snapshot.extend(events);
+        snapshot
+    }
+
+    pub fn state(&self) -> &SharedState {
+        &self.state
+    }
+
+    pub fn causal_frontier(&self) -> &BTreeMap<ActorId, HybridTimestamp> {
+        &self.causal_frontier
+    }
+
+    pub fn extend(&mut self, events: impl IntoIterator<Item = SharedEvent>) -> SnapshotUpdate {
+        let previous_maximum = self.maximum_order.clone();
+        let mut pending = Vec::new();
+        let mut rebuild = false;
+        for shared in events {
+            let variants = self.sources.entry(shared.event.id.clone()).or_default();
+            if variants.contains(&shared) {
+                continue;
+            }
+            rebuild |= !variants.is_empty()
+                || previous_maximum
+                    .as_ref()
+                    .is_some_and(|maximum| shared.event.order_key() <= *maximum);
+            variants.push(shared.clone());
+            self.causal_frontier
+                .entry(shared.event.actor_id.clone())
+                .and_modify(|timestamp| *timestamp = (*timestamp).max(shared.event.timestamp))
+                .or_insert(shared.event.timestamp);
+            let order = shared.event.order_key();
+            if self
+                .maximum_order
+                .as_ref()
+                .is_none_or(|maximum| order > *maximum)
+            {
+                self.maximum_order = Some(order);
+            }
+            pending.push(shared);
         }
-        match &event.kind {
-            EventKind::TransactionRecorded { transaction_id, .. } => {
-                for field in [EditField::Amount, EditField::Category] {
-                    heads.insert((transaction_id.clone(), field), event.id.clone());
-                }
+        if pending.is_empty() {
+            return SnapshotUpdate::Unchanged;
+        }
+        if rebuild {
+            self.state = fold_shared(
+                self.state.ledger.reporting_currency.clone(),
+                self.sources.values().flatten().cloned(),
+            );
+            SnapshotUpdate::Rebuilt
+        } else {
+            pending.sort_by_key(|shared| shared.event.order_key());
+            for shared in &pending {
+                self.state.apply_shared(shared);
             }
-            EventKind::AmountAdjusted { transaction_id, .. } => {
-                note_edit(
-                    &mut heads,
-                    &mut conflicts,
-                    transaction_id,
-                    EditField::Amount,
-                    shared,
-                );
-            }
-            EventKind::CategoryAssigned { transaction_id, .. } => {
-                note_edit(
-                    &mut heads,
-                    &mut conflicts,
-                    transaction_id,
-                    EditField::Category,
-                    shared,
-                );
-            }
-            _ => {}
+            self.state
+                .rejected
+                .sort_by(|left, right| left.event_id.cmp(&right.event_id));
+            SnapshotUpdate::Extended
         }
     }
-    rejected.sort_by(|left, right| left.event_id.cmp(&right.event_id));
-    SharedState {
-        ledger,
-        conflicts,
-        rejected,
-        heads,
+
+    /// Persisted descriptor is checked against retained authenticated source
+    /// events on load, never accepted as an unauthenticated state injection.
+    pub fn checkpoint_bytes(&self) -> Vec<u8> {
+        let mut bytes = b"cash-app shared checkpoint v1\0".to_vec();
+        write_u64(&mut bytes, self.causal_frontier.len() as u64);
+        for (actor, timestamp) in &self.causal_frontier {
+            write_string(&mut bytes, actor.as_str());
+            bytes.extend_from_slice(&timestamp.physical_millis.to_be_bytes());
+            bytes.extend_from_slice(&timestamp.logical.to_be_bytes());
+        }
+        bytes.extend_from_slice(&self.state.canonical_bytes());
+        bytes
     }
 }
 
