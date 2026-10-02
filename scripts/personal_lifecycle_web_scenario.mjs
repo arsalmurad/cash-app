@@ -8,6 +8,15 @@ export async function runPersonalLifecycleWebScenario(page, api) {
     await page.send('Input.insertText', { text: value });
   }
   const saved = () => evaluate(page, "localStorage.getItem('private_ledger.sqlite.v1')");
+  async function dropdown(label, option) {
+    const controls = await evaluate(page,
+      `[...document.querySelectorAll('flt-semantics-host [role="button"], flt-semantics-host [role="combobox"]')]
+        .map(e => ({ label: e.getAttribute('aria-label') ?? e.textContent?.trim(), role: e.getAttribute('role') }))`);
+    const control = controls.find(value => value.label?.includes(label));
+    assert(control, `No rendered dropdown for ${label}: ${JSON.stringify(controls)}`);
+    await clickLabel(page, control.label, control.role);
+    await clickLabel(page, option);
+  }
   async function navigate(tab) {
     await waitForLabel(page, tab);
     const controls = await evaluate(page,
@@ -27,14 +36,31 @@ export async function runPersonalLifecycleWebScenario(page, api) {
   await navigate('Goals');
   await clickLabel(page, 'Add goal', 'button');
   await fill('Name', 'Lifecycle goal');
+  await waitForLabel(page, 'Target currency: USD');
+  await dropdown('Kind', 'Spend under a cap');
+  await dropdown('Category', 'Food');
+  await clickLabel(page, 'Add deadline (optional)', 'button');
+  await clickLabel(page, 'OK', 'button');
   await fill('Target amount', '100');
   await clickLabel(page, 'Save', 'button');
   await waitForLabel(page, 'Lifecycle goal');
+  await page.send('Page.reload');
+  await openApp(page);
+  await navigate('Goals');
+  await waitForLabel(page, 'Lifecycle goal');
+  const goalBeforeEdit = await saved();
+  await clickLabel(page, 'goal actions', 'button');
+  await clickLabel(page, 'Edit goal');
+  await waitForLabel(page, 'Food');
+  await waitForLabel(page, 'Deadline:');
+  await clickLabel(page, 'Cancel', 'button');
+  assert.equal(await saved(), goalBeforeEdit, 'Cancelled goal edits cannot write data');
 
   await navigate('Recurring');
   await clickLabel(page, 'Add recurring', 'button');
   await fill('Title', 'Lifecycle bill');
   await fill('Amount', '1.23');
+  await dropdown('Category', 'Food');
   await clickLabel(page, 'Save', 'button');
   await waitForLabel(page, 'Lifecycle bill');
   await clickLabel(page, 'Record', 'button');
@@ -53,6 +79,8 @@ export async function runPersonalLifecycleWebScenario(page, api) {
         .filter(label => typeof label === 'string' && label.includes('USD'))`);
     throw new Error(`No displayed reporting balance: ${JSON.stringify(labels)}`);
   }
+  await navigate('Goals');
+  await waitForLabel(page, 'USD 1.23 of USD 100.00');
 
   for (const [tab, kind, title, empty] of [
     ['Budgets', 'budget', 'Lifecycle budget', 'No budgets yet'],
@@ -89,5 +117,5 @@ export async function runPersonalLifecycleWebScenario(page, api) {
   }
   await navigate('Overview');
   await waitForLabel(page, beforeBalance);
-  console.log('Verified personal lifecycle: explicit cancel/confirm, SQLite reload, preserved recorded expense and unchanged balance.');
+  console.log('Verified personal controls: goal currency/category/deadline reload, cancelled edit, categorized recurring posting, USD 1.23 goal progress, explicit removal and preserved balance.');
 }

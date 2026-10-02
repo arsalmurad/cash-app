@@ -499,6 +499,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
       context: context,
       builder: (context) => NewRecurringDialog(
         accounts: controller.overview?.accounts ?? const [],
+        categories: controller.categories,
         existing: existing,
       ),
     );

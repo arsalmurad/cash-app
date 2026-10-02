@@ -213,8 +213,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Everyday').last);
     await tester.pumpAndSettle();
+    expect(find.text('Target currency: USD'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('goalDeadlineButton')));
+    await tester.tap(find.byKey(const Key('goalDeadlineButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await waitFor(tester, find.text('Lifecycle goal'));
+    expect(restartedController.goals.single.deadlineMillis, isNotNull);
 
     await tester.tap(find.text('Recurring'));
     await tester.pumpAndSettle();
@@ -226,6 +233,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Euro').last);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('recurringCategoryDropdown')),
+    );
+    await tester.tap(find.byKey(const Key('recurringCategoryDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Food').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await waitFor(tester, find.text('Lifecycle bill'));
     expect(restartedController.upcoming, hasLength(1));
@@ -235,6 +249,7 @@ void main() {
       reason: 'New rule should already be due before Record is tapped',
     );
     expect(restartedController.upcoming.single.accountId, 'euro');
+    expect(restartedController.upcoming.single.categoryId, 'food');
     expect(
       tester
           .widget<TextButton>(find.widgetWithText(TextButton, 'Record'))
@@ -276,6 +291,12 @@ void main() {
       restartedController.upcoming,
       hasLength(1),
       reason: 'Monthly rules remain manageable beyond the reminder horizon',
+    );
+    expect(
+      restartedController.overview!.transactions
+          .firstWhere((transaction) => transaction.title == 'Lifecycle bill')
+          .categoryId,
+      'food',
     );
     final ledgerBytes = await EventStore('ledger').readLog();
     final csv = restartedController.exportTransactionsCsv();

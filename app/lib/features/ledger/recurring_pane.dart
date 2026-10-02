@@ -3,6 +3,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64, PlatformInt64Util;
 
 import '../../data/rust/api/ledger.dart';
+import '../../data/rust/api/categories.dart';
 import '../../data/rust/api/recurring.dart';
 
 /// Shows every recurring rule's next occurrence, soonest first. Occurrences
@@ -169,9 +170,15 @@ class RecurringDraft {
 }
 
 class NewRecurringDialog extends StatefulWidget {
-  const NewRecurringDialog({required this.accounts, this.existing, super.key});
+  const NewRecurringDialog({
+    required this.accounts,
+    this.categories = const [],
+    this.existing,
+    super.key,
+  });
 
   final List<AccountView> accounts;
+  final List<CategoryView> categories;
 
   /// When set, the dialog starts pre-filled from this rule's next upcoming
   /// occurrence and behaves as an edit rather than a create (see
@@ -207,6 +214,7 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
   late RecurringFrequency _frequency =
       widget.existing?.frequency ?? RecurringFrequency.monthly;
   String? _accountId;
+  String? _categoryId;
   late DateTime _startDate = widget.existing == null
       ? DateTime.now()
       : DateTime.fromMillisecondsSinceEpoch(
@@ -226,6 +234,7 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
     _accountId =
         widget.existing?.accountId ??
         (widget.accounts.isNotEmpty ? widget.accounts.first.id : null);
+    _categoryId = widget.existing?.categoryId;
   }
 
   @override
@@ -256,6 +265,7 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<RecurringKind>(
+                isExpanded: true,
                 key: const Key('recurringKindDropdown'),
                 initialValue: _kind,
                 decoration: const InputDecoration(labelText: 'Kind'),
@@ -285,10 +295,17 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 key: const Key('recurringAccountDropdown'),
                 initialValue: _accountId,
                 decoration: const InputDecoration(labelText: 'Account'),
                 items: [
+                  if (_accountId != null &&
+                      !widget.accounts.any((a) => a.id == _accountId))
+                    DropdownMenuItem(
+                      value: _accountId,
+                      child: const Text('Unavailable account'),
+                    ),
                   for (final account in widget.accounts)
                     DropdownMenuItem(
                       value: account.id,
@@ -296,11 +313,38 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
                     ),
                 ],
                 onChanged: (value) => setState(() => _accountId = value),
-                validator: (value) =>
-                    value == null ? 'Choose an account' : null,
+                validator: (value) => !widget.accounts.any((a) => a.id == value)
+                    ? 'Choose an account'
+                    : null,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: const Key('recurringCategoryDropdown'),
+                isExpanded: true,
+                initialValue: _categoryId,
+                decoration: const InputDecoration(labelText: 'Category'),
+                items: [
+                  const DropdownMenuItem(
+                    value: null,
+                    child: Text('No category'),
+                  ),
+                  if (_categoryId != null &&
+                      !widget.categories.any((c) => c.id == _categoryId))
+                    DropdownMenuItem(
+                      value: _categoryId,
+                      child: const Text('Unavailable category'),
+                    ),
+                  for (final category in widget.categories)
+                    DropdownMenuItem(
+                      value: category.id,
+                      child: Text(category.name),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _categoryId = value),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<RecurringFrequency>(
+                isExpanded: true,
                 key: const Key('recurringFrequencyDropdown'),
                 initialValue: _frequency,
                 decoration: const InputDecoration(labelText: 'Frequency'),
@@ -327,8 +371,9 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                spacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Text(
                     'Starts ${_startDate.year}-${_startDate.month.toString().padLeft(2, '0')}-${_startDate.day.toString().padLeft(2, '0')}',
@@ -375,10 +420,7 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
         kind: _kind,
         amount: _amountController.text.trim(),
         accountId: _accountId!,
-        // This dialog has no category picker of its own; carry an edited
-        // rule's existing category through unchanged rather than dropping it
-        // (a new rule simply has none).
-        categoryId: widget.existing?.categoryId,
+        categoryId: _categoryId,
         frequency: _frequency,
         startMillis: PlatformInt64Util.from(_startDate.millisecondsSinceEpoch),
       ),
