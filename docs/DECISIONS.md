@@ -1240,3 +1240,23 @@ offline conflicts, fresh-key recovery/removal, frozen EUR/JPY and ciphertext-onl
 request checks. Failed attempts above remain failures, not retroactive passes;
 this successful run is not a universal browser/finalizer reliability guarantee.
 
+## 2026-10-03 — Bound ciphertext read pages before loading storage values
+
+The old 500-record storage query could load approximately 166.7 MiB of base64
+text when every accepted blob is 256 KiB, before JSON/string copies. Cloudflare
+documents a shared 128 MB isolate memory limit; the configured SQLite-backed
+Durable Objects allow these individual values (2 MB combined key/value limit).
+Sources: https://developers.cloudflare.com/workers/platform/limits/#memory and
+https://developers.cloudflare.com/durable-objects/platform/limits/.
+
+Limit the storage query itself to 16 records, keeping maximum accepted blobs
+plus the JSON envelope below 6 MiB per page. Existing cursor/more clients already
+iterate arbitrary page lengths, so no wire format, ciphertext or retained history
+changes. A real-workerd RED/GREEN test checks 17 maximum-size blobs, complete
+ordered continuation, exact payloads and the final empty page. All 22 relay
+tests pass (7.6 s); the real Rust-peer storage audit also passes with 28 encrypted
+records/mailboxes and its plaintext-injection negative control. That audit emits
+Windows WSASend #10054 during cleanup but exits 0 after all assertions; this is
+not a diagnosed network guarantee. No production memory/concurrency benchmark,
+global storage bound, pruning, authentication or deployment is claimed.
+
