@@ -852,3 +852,18 @@ failure/journal checks, clean analysis and the full 217-test Windows app suite
 passed with the existing `rust_lib_cash_app.dll`. No Rust rebuild or new mobile
 runtime is claimed for this Dart-only serialization change.
 
+## 2026-10-02 — CSV clipboard failures are recoverable UI state
+
+A denied clipboard write reproduced an uncaught `PlatformException`; Copy also
+remained active while a previous write was pending. Export now catches failure,
+shows an actionable retry/save message, disables duplicate copy/save actions
+until completion, and reports success only after the platform call succeeds.
+Closing the dialog while the call is pending does not update disposed state.
+Status text is a semantic live region; this is not a full screen-reader audit.
+
+Two clipboard regressions and the five existing CSV-dialog checks passed,
+including exact Unicode CSV bytes on retry, unchanged data after failure,
+disabled actions during a pending copy and safe disposal. Static analysis was
+clean. The full 217-test suite recorded above predates this isolated change;
+no final-revision mobile or browser acceptance is claimed for it yet.
+

@@ -20,9 +20,37 @@ class ExportCsvDialog extends StatefulWidget {
 
 class _ExportCsvDialogState extends State<ExportCsvDialog> {
   bool _saving = false;
+  bool _copying = false;
+  bool get _busy => _saving || _copying;
   String? _message;
 
+  Future<void> _copy() async {
+    if (_busy) return;
+    setState(() {
+      _copying = true;
+      _message = null;
+    });
+    try {
+      await Clipboard.setData(ClipboardData(text: widget.csv));
+      if (mounted) {
+        setState(
+          () => _message = 'CSV copied. Paste it only somewhere you trust.',
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _message =
+              'Could not copy the CSV. Try again or save it as a file.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _copying = false);
+    }
+  }
+
   Future<void> _save() async {
+    if (_busy) return;
     setState(() {
       _saving = true;
       _message = null;
@@ -75,7 +103,7 @@ class _ExportCsvDialogState extends State<ExportCsvDialog> {
               if (_message != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 12),
-                  child: Text(_message!),
+                  child: Semantics(liveRegion: true, child: Text(_message!)),
                 ),
             ],
           ),
@@ -83,7 +111,7 @@ class _ExportCsvDialogState extends State<ExportCsvDialog> {
       ),
       actions: [
         FilledButton.icon(
-          onPressed: _saving ? null : _save,
+          onPressed: _busy ? null : _save,
           icon: const Icon(Icons.save_alt_rounded),
           label: Text(_saving ? 'Saving…' : 'Save CSV'),
         ),
@@ -92,18 +120,9 @@ class _ExportCsvDialogState extends State<ExportCsvDialog> {
           child: const Text('Close'),
         ),
         FilledButton.icon(
-          onPressed: _saving
-              ? null
-              : () async {
-                  await Clipboard.setData(ClipboardData(text: widget.csv));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Copied to clipboard')),
-                    );
-                  }
-                },
+          onPressed: _busy ? null : _copy,
           icon: const Icon(Icons.copy_rounded),
-          label: const Text('Copy'),
+          label: Text(_copying ? 'Copying…' : 'Copy'),
         ),
       ],
     );
