@@ -884,6 +884,7 @@ class _ActivitySearchAndFiltersState extends State<_ActivitySearchAndFilters> {
             suffixIcon: filter.query.isEmpty
                 ? null
                 : IconButton(
+                    tooltip: 'Clear search',
                     icon: const Icon(Icons.clear_rounded),
                     onPressed: () {
                       queryController.clear();
