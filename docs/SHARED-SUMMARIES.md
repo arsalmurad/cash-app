@@ -170,3 +170,14 @@ The combined CSV/personal/quota browser suite has a separate title-input failure
 under investigation and is **not** claimed as passing on this source. An earlier
 renderer memory fault on the pre-fix browser artifact is likewise not explained
 by this handle-lifetime result. Final-source Android/iOS checks remain open.
+
+At source `43871c4`, the actual Android household integration passed again on
+the owned read-only Android 16/API 36 x86_64 AOSP ATD/WHPX emulator. Command:
+`flutter --no-version-check test --no-pub integration_test/household_test.dart
+-d emulator-5580 --reporter expanded`. Cached build 146.7 s, installation 4.3 s,
+runtime 31 s: one complete integration case passed, including real SQLite,
+OS wrapping keys, recovery, failed-save safeguards and chosen-summary UI.
+The cached general-purpose emulator was initially selected, then stopped in
+favor of the previously verified ATD image before any app test. No new SDK or
+image was installed. This is one emulator with logical peers, not a physical
+multi-device/network run. No current-source iOS runtime is claimed.
