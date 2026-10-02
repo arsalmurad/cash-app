@@ -1126,3 +1126,19 @@ the original font contained its glyph, so a missing asset is not established.
 The adaptive matrix checks the new icon selection and settings action. Actual
 updated browser rendering and native mobile runtime remain separate checks.
 
+## 2026-10-03 — Preserve transfer amounts and automate navigation accessibility
+
+A separate RED phone regression exposed the same unbounded trailing-column
+failure in transfer cards. Put the source/destination names and complete exact
+sent/received labels in a wrapping subtitle column. Six layout cases cover
+same-currency and USD/JPY transfers, long names, both themes and phone/tablet/
+desktop sizes at 1.5× text; all 25 affected layout/activity tests pass.
+
+The navigation matrix additionally checks full balances and reporting labels,
+1.5× and 2× text, accessible tap labels and Android's 48×48 tap-target guideline
+across all five destinations. Dispose its semantics handle before the test
+body exits; late teardown alone failed the framework's handle-leak check.
+All 303 native-enabled app tests pass in 104 s, and analysis has no issues
+(7.6 s). This automated scope is not contrast certification, a keyboard-only
+audit, actual mobile runtime, or a VoiceOver/NVDA test.
+
