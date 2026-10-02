@@ -224,8 +224,9 @@ export class Mailbox {
 }
 
 // The app on the web calls the relay from a browser, which enforces CORS.
-// There are no cookies or credentials to protect (the relay holds only
-// ciphertext under random identifiers), so any origin may call it.
+// This policy is for explicit loopback development only. Random identifiers
+// and ciphertext do not authorize public storage/bandwidth use. Production
+// authentication and abuse controls must be implemented before public access.
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, PUT, OPTIONS",
@@ -251,6 +252,14 @@ async function route(request, env) {
 
 export default {
   async fetch(request, env) {
+    const hostname = new URL(request.url).hostname;
+    if (env.LOCAL_DEVELOPMENT !== "true" ||
+        !["127.0.0.1", "localhost", "[::1]"].includes(hostname)) {
+      // Default deployment is closed, including preflight and WebSocket paths.
+      // This is a development safety gate, not authentication. Do not infer
+      // peer identity or authorization from Host/Origin headers.
+      return fail(503, "public relay disabled: authentication and abuse controls required");
+    }
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS });
     }

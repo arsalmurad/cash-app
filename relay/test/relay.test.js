@@ -13,6 +13,7 @@ before(async () => {
     modules: true,
     scriptPath: fileURLToPath(new URL("../src/worker.js", import.meta.url)),
     durableObjects: { GROUP: "GroupLog", MAILBOX: "Mailbox" },
+    bindings: { LOCAL_DEVELOPMENT: "true" },
     compatibilityDate: "2026-07-01",
   });
   await mf.ready;
@@ -22,7 +23,7 @@ after(async () => {
   await mf.dispose();
 });
 
-const call = (path, init) => mf.dispatchFetch(`http://relay.test${path}`, init);
+const call = (path, init) => mf.dispatchFetch(`http://127.0.0.1${path}`, init);
 const post = (path, body) =>
   call(path, {
     method: "POST",
@@ -31,6 +32,25 @@ const post = (path, body) =>
   });
 const freshGroup = () =>
   Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
+
+test("actual default workerd deployment rejects data routes without development opt-in", async () => {
+  const closed = new Miniflare({
+    modules: true,
+    scriptPath: fileURLToPath(new URL("../src/worker.js", import.meta.url)),
+    durableObjects: { GROUP: "GroupLog", MAILBOX: "Mailbox" },
+    compatibilityDate: "2026-07-01",
+  });
+  try {
+    await closed.ready;
+    for (const path of [`/g/${group}`, `/g/${group}/append`, `/g/${group}/ws`, `/m/${group}`, `/m/${group}/ack`]) {
+      const response = await closed.dispatchFetch(`http://127.0.0.1${path}`);
+      assert.equal(response.status, 503);
+      assert.equal(response.headers.get("access-control-allow-origin"), null);
+    }
+  } finally {
+    await closed.dispose();
+  }
+});
 
 describe("group log", () => {
   test("appends are totally ordered and compare-and-swap", async () => {

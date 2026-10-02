@@ -2,6 +2,10 @@ name = "cash-app-relay"
 main = "src/worker.js"
 compatibility_date = "2026-07-01"
 
+# Intentionally no LOCAL_DEVELOPMENT binding. Default deployments refuse all
+# data routes until production authentication/abuse controls are implemented.
+# Use the loopback-only Node development launcher for acceptance tests.
+
 [[durable_objects.bindings]]
 name = "GROUP"
 class_name = "GroupLog"

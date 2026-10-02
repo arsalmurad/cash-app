@@ -8,6 +8,7 @@ const mf = new Miniflare({
   modules: true,
   scriptPath: fileURLToPath(new URL("./src/worker.js", import.meta.url)),
   durableObjects: { GROUP: "GroupLog", MAILBOX: "Mailbox" },
+  bindings: { LOCAL_DEVELOPMENT: "true" },
   compatibilityDate: "2026-07-01",
   host: "127.0.0.1",
   port,
