@@ -331,8 +331,8 @@ journals above, but do not alone close the full durability gate.
 - **On-device coverage of edge cases.** Push notifications (the worker
   exposes WebSocket tail notifications; the app polls every 30 s instead),
   multiple households per device, display names inside the encrypted stream
-  (members are shown as `Member <first six hex>`), foreign-currency shared
-  expenses in the UI (the core supports them), category assignment on shared
+  (members are shown as `Member <first six hex>`), native-device coverage of
+  foreign-currency shared expenses, category assignment on shared
   expenses, and compaction or a peer-snapshot path (the relay keeps the
   whole log and every new member replays a backfill of the whole history).
 - Metadata is not hidden: the relay sees group and mailbox IDs, entry count,
@@ -435,3 +435,37 @@ Only the named disposable emulator/app and verified synthetic fixture output
 are reset; the driver refuses physical devices and unexpected export contents.
 The generated instrumented debug APK is a test artifact, not a release APK.
 Current-source iOS and final web/release acceptance remain outstanding.
+
+## Shared multi-currency controls (2026-10-02)
+
+The household screen now creates explicit shared USD/EUR/GBP/JPY accounts and
+lets a shared expense choose among them, without access to private accounts.
+Foreign entries and amount edits ask for USD per source unit and freeze the
+Rust-parsed exact ratio. Adjusting an EUR expense uses its actual account
+currency instead of the former hard-coded USD. Shared account balances retain
+their source-currency labels; the household total remains USD. Reporting-
+currency settings, shared categories and native-device UI coverage remain open.
+
+Independently passed on Windows with the existing native Rust DLL: the
+real-bridge currency scenario, 40 affected UI/controller checks and then all
+224 app tests. The final empty-name guard passed the focused bridge check;
+`flutter --no-version-check analyze --no-pub` reported no issues. Negative
+checks reject missing/invalid/overflowed rates, private/unknown account IDs,
+fractional JPY and missing edit rates without replacing saved journal bytes.
+EUR 10 at 1.1 and EUR 10 at 1.2 fold to USD -23.00; adjusting the first to EUR
+12 at 1.1 and adding JPY 100 at 0.0067 yields USD -25.87 across a second peer
+and journal restart. Later rates do not move the unchanged historical entry.
+
+The production app built with `flutter --no-version-check build web --wasm
+--no-web-resources-cdn --no-pub` (206.5 s), reusing unchanged Rust WASM.
+`WEB_HOUSEHOLD=1 node scripts/verify_web_runtime.mjs` independently passed in
+Windows Chrome 154.0.8037.58 against actual local workerd: encrypted HTTP/CORS
+join, sealed restart, offline conflicts, fresh-key stale-backup recovery,
+removal, explicit EUR/JPY UI entry, matching USD -74.67 peer totals and private
+ledger/readable-request-title separation. Two earlier runs stopped on test
+driver exact-label mismatches for the dropdowns, not app assertions; the driver
+now reads their actual rendered accessibility labels. CSV/offline-font coverage
+passed earlier in the first combined run, before that run stopped at currency
+selection; the final household rerun disabled CSV to avoid repeating it.
+The web build predates only the final empty-account-name input guard. These are
+not new Android/iOS runs or final-source release acceptance.

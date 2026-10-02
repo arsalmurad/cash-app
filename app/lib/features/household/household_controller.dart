@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64Util;
 
-import '../../data/rust/api/ledger.dart' show EntryKind;
+import '../../data/rust/api/ledger.dart'
+    show EntryKind, AccountView, FxRatio, fxRateFromDecimal;
 import '../../data/rust/api/shared.dart';
 import '../../data/storage/blob_store.dart';
 import '../../data/storage/secret_blob_store.dart';
@@ -663,36 +664,101 @@ class HouseholdController extends ChangeNotifier {
 
   // --- Shared expenses --------------------------------------------------
 
+  Future<bool> addAccount({
+    required String name,
+    required String currencyCode,
+  }) => _write(() async {
+    if (name.trim().isEmpty) {
+      throw const FormatException('Enter a shared account name.');
+    }
+    await householdOpenAccount(
+      household: _requireHousehold(),
+      accountId: _newId('shared-account'),
+      name: name.trim(),
+      currencyCode: currencyCode,
+      wallClockMillis: PlatformInt64Util.from(_clockMillis()),
+    );
+  });
+
+  AccountView _sharedAccount(String id) {
+    for (final account in overview?.accounts ?? const <AccountView>[]) {
+      if (account.id == id) return account;
+    }
+    throw const FormatException('Choose an existing shared account.');
+  }
+
+  Future<FxRatio> _sharedRate(AccountView account, String? rate) {
+    if (account.currencyCode == reportingCurrency) {
+      return Future.value(
+        FxRatio(
+          numerator: PlatformInt64Util.from(1),
+          denominator: PlatformInt64Util.from(1),
+        ),
+      );
+    }
+    if (rate == null || rate.trim().isEmpty) {
+      throw FormatException(
+        'Enter the $reportingCurrency per 1 '
+        '${account.currencyCode} exchange rate.',
+      );
+    }
+    // Rust parses the decimal exactly and accounts for different minor-unit
+    // scales (e.g. JPY to USD). Never parse money/rates with Dart doubles.
+    return fxRateFromDecimal(
+      rate: rate.trim(),
+      sourceCurrencyCode: account.currencyCode,
+      targetCurrencyCode: reportingCurrency,
+    );
+  }
+
   Future<bool> addExpense({
     required String title,
     required String amount,
     EntryKind kind = EntryKind.expense,
-  }) => _write(
-    () => householdRecordTransaction(
+    String accountId = _accountId,
+    String? rate,
+  }) => _write(() async {
+    final account = _sharedAccount(accountId);
+    final fx = await _sharedRate(account, rate);
+    await householdRecordTransaction(
       household: _requireHousehold(),
       transactionId: _newId('shared'),
-      accountId: _accountId,
+      accountId: account.id,
       kind: kind,
       amount: amount,
-      currencyCode: reportingCurrency,
-      fxNumerator: PlatformInt64Util.from(1),
-      fxDenominator: PlatformInt64Util.from(1),
+      currencyCode: account.currencyCode,
+      fxNumerator: fx.numerator,
+      fxDenominator: fx.denominator,
       title: title.trim(),
       wallClockMillis: PlatformInt64Util.from(_clockMillis()),
-    ),
-  );
+    );
+  });
 
-  Future<bool> adjustAmount(String transactionId, String amount) => _write(
-    () => householdAdjustAmount(
+  Future<bool> adjustAmount(
+    String transactionId,
+    String amount, {
+    String? rate,
+  }) => _write(() async {
+    final transactions =
+        overview?.transactions ?? const <SharedTransactionView>[];
+    final transaction = transactions
+        .where((t) => t.id == transactionId)
+        .firstOrNull;
+    if (transaction == null) {
+      throw const FormatException('Shared expense not found.');
+    }
+    final account = _sharedAccount(transaction.accountId);
+    final fx = await _sharedRate(account, rate);
+    await householdAdjustAmount(
       household: _requireHousehold(),
       transactionId: transactionId,
       amount: amount,
-      currencyCode: reportingCurrency,
-      fxNumerator: PlatformInt64Util.from(1),
-      fxDenominator: PlatformInt64Util.from(1),
+      currencyCode: account.currencyCode,
+      fxNumerator: fx.numerator,
+      fxDenominator: fx.denominator,
       wallClockMillis: PlatformInt64Util.from(_clockMillis()),
-    ),
-  );
+    );
+  });
 
   Future<bool> voidTransaction(String transactionId) => _write(
     () => householdVoidTransaction(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/features/household/household_dialogs.dart';
 
 Future<T?> _open<T>(
@@ -27,6 +28,77 @@ Future<T?> _open<T>(
 }
 
 void main() {
+  testWidgets(
+    'shared account creation names the publication boundary and validates name',
+    (tester) async {
+      SharedAccountDraft? result;
+      await _open<SharedAccountDraft>(
+        tester,
+        const SharedAccountDialog(),
+        (value) => result = value,
+      );
+      expect(
+        find.textContaining('Your private accounts stay private'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Create shared account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter an account name'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('sharedAccountName')),
+        '  Travel  ',
+      );
+      await tester.tap(find.byKey(const Key('sharedAccountCurrency')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('JPY').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create shared account'));
+      await tester.pumpAndSettle();
+      expect(result, (name: 'Travel', currencyCode: 'JPY'));
+    },
+  );
+
+  testWidgets(
+    'shared expense selects only supplied accounts on a small phone',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      SharedExpenseDraft? result;
+      await _open<SharedExpenseDraft>(
+        tester,
+        const ExpenseDialog(
+          accounts: [
+            AccountView(
+              id: 'household',
+              name: 'Household',
+              currencyCode: 'USD',
+              balanceLabel: 'USD 0.00',
+            ),
+            AccountView(
+              id: 'travel',
+              name: 'Travel',
+              currencyCode: 'EUR',
+              balanceLabel: 'EUR 0.00',
+            ),
+          ],
+        ),
+        (value) => result = value,
+      );
+      await tester.enterText(find.byKey(const Key('expenseTitle')), 'Train');
+      await tester.enterText(find.byKey(const Key('expenseAmount')), '10');
+      await tester.tap(find.byKey(const Key('sharedExpenseAccount')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Travel (EUR)').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('expenseSubmit')));
+      await tester.pumpAndSettle();
+      expect(result, (title: 'Train', amount: '10', accountId: 'travel'));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('JoinDialog shows the request to hand over, then joins', (
     tester,
   ) async {
@@ -181,10 +253,19 @@ void main() {
   testWidgets('ExpenseDialog returns a trimmed title and an amount', (
     tester,
   ) async {
-    ({String title, String amount})? result;
-    await _open<({String title, String amount})>(
+    SharedExpenseDraft? result;
+    await _open<SharedExpenseDraft>(
       tester,
-      const ExpenseDialog(),
+      const ExpenseDialog(
+        accounts: [
+          AccountView(
+            id: 'household',
+            name: 'Household',
+            currencyCode: 'USD',
+            balanceLabel: 'USD 0.00',
+          ),
+        ],
+      ),
       (value) => result = value,
     );
 
@@ -198,7 +279,7 @@ void main() {
     await tester.enterText(find.byKey(const Key('expenseAmount')), '40.00');
     await tester.tap(find.byKey(const Key('expenseSubmit')));
     await tester.pumpAndSettle();
-    expect(result, (title: 'Dinner', amount: '40.00'));
+    expect(result, (title: 'Dinner', amount: '40.00', accountId: 'household'));
   });
 
   testWidgets('AmountDialog prefills and returns the new amount', (

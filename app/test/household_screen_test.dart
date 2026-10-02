@@ -10,7 +10,7 @@ import 'package:private_ledger/features/household/household_screen.dart';
 const _me = 'aaaa0000aaaa0000aaaa0000aaaa0000';
 const _other = 'bbbb1111bbbb1111bbbb1111bbbb1111';
 
-HouseholdOverview _member() => HouseholdOverview(
+HouseholdOverview _member({bool foreign = false}) => HouseholdOverview(
   memberId: _me,
   groupId: '0123456789abcdef0123456789abcdef',
   isMember: true,
@@ -18,20 +18,20 @@ HouseholdOverview _member() => HouseholdOverview(
   pendingCount: PlatformInt64Util.from(0),
   memberIds: const [_me, _other],
   balanceLabel: 'USD -40.00',
-  accounts: const [
+  accounts: [
     AccountView(
       id: 'household',
       name: 'Household',
-      currencyCode: 'USD',
+      currencyCode: foreign ? 'EUR' : 'USD',
       balanceLabel: 'USD -40.00',
     ),
   ],
-  transactions: const [
+  transactions: [
     SharedTransactionView(
       id: 'dinner',
       accountId: 'household',
       title: 'Dinner',
-      amountLabel: 'USD 40.00',
+      amountLabel: foreign ? 'EUR 40.00' : 'USD 40.00',
       isExpense: true,
       voided: false,
       conflicted: false,
@@ -113,14 +113,29 @@ class _FakeController extends HouseholdController {
     required String title,
     required String amount,
     EntryKind kind = EntryKind.expense,
+    String accountId = 'household',
+    String? rate,
   }) async {
-    calls.add('add:$title:$amount');
+    calls.add('add:$title:$amount${rate == null ? '' : ':$accountId:$rate'}');
     return nextResult;
   }
 
   @override
-  Future<bool> adjustAmount(String transactionId, String amount) async {
-    calls.add('adjust:$transactionId:$amount');
+  Future<bool> adjustAmount(
+    String transactionId,
+    String amount, {
+    String? rate,
+  }) async {
+    calls.add('adjust:$transactionId:$amount${rate == null ? '' : ':$rate'}');
+    return nextResult;
+  }
+
+  @override
+  Future<bool> addAccount({
+    required String name,
+    required String currencyCode,
+  }) async {
+    calls.add('account:$name:$currencyCode');
     return nextResult;
   }
 
@@ -178,6 +193,52 @@ Future<_FakeController> _pump(
 }
 
 void main() {
+  testWidgets(
+    'foreign shared expense requires explicit rate; cancelling sends nothing',
+    (tester) async {
+      final controller = await _pump(tester, member: true);
+      controller.overview = _member(foreign: true);
+      controller.notifyListeners();
+      await tester.pumpAndSettle();
+      Future<void> open() async {
+        await tester.tap(find.text('Add shared expense'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byKey(const Key('expenseTitle')), 'Coffee');
+        await tester.enterText(find.byKey(const Key('expenseAmount')), '4.50');
+        await tester.tap(find.byKey(const Key('expenseSubmit')));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('USD per 1 EUR'), findsOneWidget);
+      }
+
+      await open();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(controller.calls, isEmpty);
+      await open();
+      await tester.enterText(find.byType(TextFormField), '1.1');
+      await tester.tap(find.text('Use rate'));
+      await tester.pumpAndSettle();
+      expect(controller.calls, ['add:Coffee:4.50:household:1.1']);
+    },
+  );
+
+  testWidgets('shared account menu persists explicit name and currency', (
+    tester,
+  ) async {
+    final controller = await _pump(tester, member: true);
+    await tester.tap(find.byTooltip('Household options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create shared account'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('sharedAccountName')),
+      'Travel',
+    );
+    await tester.tap(find.text('Create shared account'));
+    await tester.pumpAndSettle();
+    expect(controller.calls, ['account:Travel:USD']);
+  });
+
   testWidgets('with no household it shows setup; saving a relay and creating '
       'move into the household', (tester) async {
     final controller = await _pump(tester);

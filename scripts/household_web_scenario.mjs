@@ -102,12 +102,38 @@ export async function runHouseholdWebScenario(alice, api) {
     await waitForLabel(peer, 'Shared balance');
   }
 
-  async function expense(peer, title, amount) {
+  async function expense(peer, title, amount, accountLabel, rate) {
     await clickLabel(peer, 'Add shared expense', 'button');
     await fill(peer, 'Title', title);
     await fill(peer, 'Amount', amount);
+    if (accountLabel) {
+      await clickDropdown(peer, 'Shared account');
+      await clickLabel(peer, accountLabel);
+    }
     await clickLabel(peer, 'Add', 'button');
+    if (rate) {
+      await fill(peer, 'Exchange rate', rate);
+      await clickLabel(peer, 'Use rate', 'button');
+    }
     await waitForLabel(peer, title);
+  }
+
+  async function createSharedAccount(name, currency) {
+    await clickLabel(alice, 'Household options', 'button');
+    await clickLabel(alice, 'Create shared account');
+    await fill(alice, 'Shared account name', name);
+    await clickDropdown(alice, 'Currency');
+    await clickLabel(alice, currency);
+    await clickLabel(alice, 'Create shared account', 'button');
+    await waitForLabel(alice, `${name} (${currency})`);
+  }
+
+  async function clickDropdown(peer, label) {
+    const controls = await evaluate(peer, `(() => [...document.querySelectorAll('flt-semantics-host [role="button"], flt-semantics-host [role="combobox"]')]
+      .map(e => ({ label: e.getAttribute('aria-label') ?? e.textContent?.trim(), role: e.getAttribute('role') })))()`);
+    const control = controls.find(e => e.label?.includes(label));
+    assert(control, `No rendered dropdown for ${label}: ${JSON.stringify(controls)}`);
+    await clickLabel(peer, control.label, control.role);
   }
 
   async function edit(peer, amount) {
@@ -196,6 +222,20 @@ export async function runHouseholdWebScenario(alice, api) {
     await waitForLabel(replacement, 'USD -51.00');
     console.log('Verified household: a stale backup rejoins with fresh keys; the old device is removed.');
 
+    await createSharedAccount('Browser travel', 'EUR');
+    await expense(alice, 'Browser EUR first', '10', 'Browser travel (EUR)', '1.1');
+    await expense(alice, 'Browser EUR second', '10', 'Browser travel (EUR)', '1.2');
+    await sync(replacement);
+    await waitForLabel(replacement, 'USD -74.00');
+    await createSharedAccount('Browser Japan', 'JPY');
+    await expense(alice, 'Browser JPY train', '100', 'Browser Japan (JPY)', '0.0067');
+    await sync(replacement);
+    await waitForLabel(alice, 'USD -74.67');
+    await waitForLabel(replacement, 'USD -74.67');
+    await waitForLabel(replacement, 'Browser EUR first');
+    await waitForLabel(replacement, 'Browser EUR second');
+    console.log('Verified household: explicit EUR/JPY accounts and frozen entry rates converge through the production WASM UI.');
+
     await clickLabel(replacement, 'Back', 'button');
     await waitForLabel(replacement, 'Private Ledger');
     await waitForLabel(replacement, 'USD 0.00');
@@ -209,7 +249,8 @@ export async function runHouseholdWebScenario(alice, api) {
     assert(requests.some(event => event.params.request.method === 'GET'));
     for (const event of requests) {
       const body = event.params.request.postData ?? '';
-      for (const title of ['Groceries', 'Rent', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup']) {
+      for (const title of ['Groceries', 'Rent', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',
+        'Browser travel', 'Browser Japan', 'Browser EUR first', 'Browser EUR second', 'Browser JPY train']) {
         assert(!body.includes(title), 'Relay request leaked a readable financial title');
       }
     }

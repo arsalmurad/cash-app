@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../data/rust/api/shared.dart' show SharedTransactionView;
+import '../ledger/exchange_rate_dialog.dart';
 import 'household_controller.dart';
 import 'household_dialogs.dart';
 import 'household_pane.dart';
 import 'household_setup_pane.dart';
 import 'vault_pane.dart';
 
-enum _MenuAction { backup, leave }
+enum _MenuAction { addAccount, backup, leave }
 
 /// The shared layer's screen: set up or join a household, then share
 /// expenses with it. It syncs on open, on demand, and every half minute
@@ -225,20 +226,64 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
   }
 
   Future<void> _addExpense() async {
-    final expense = await showDialog<({String title, String amount})>(
+    final expense = await showDialog<SharedExpenseDraft>(
       context: context,
-      builder: (context) => const ExpenseDialog(),
+      builder: (context) =>
+          ExpenseDialog(accounts: controller.overview?.accounts ?? const []),
     );
-    if (expense == null) {
+    if (expense == null || !mounted) {
       return;
     }
+    final rate = await _rateForAccount(expense.accountId);
+    if (!mounted || rate.cancelled) return;
     if (!await controller.addExpense(
       title: expense.title,
       amount: expense.amount,
+      accountId: expense.accountId,
+      rate: rate.value,
     )) {
       _reportFailure(
         "Couldn't send the expense yet. It is saved and will send.",
       );
+    }
+  }
+
+  Future<({bool cancelled, String? value})> _rateForAccount(
+    String accountId,
+  ) async {
+    final account = controller.overview?.accounts
+        .where((a) => a.id == accountId)
+        .firstOrNull;
+    if (account == null) {
+      _reportFailure(
+        'Shared account not found. Reopen the form and try again.',
+      );
+      return (cancelled: true, value: null);
+    }
+    if (account.currencyCode == HouseholdController.reportingCurrency) {
+      return (cancelled: false, value: null);
+    }
+    final rate = await showDialog<String>(
+      context: context,
+      builder: (_) => ExchangeRateDialog(
+        sourceCurrencyCode: account.currencyCode,
+        reportingCurrencyCode: HouseholdController.reportingCurrency,
+      ),
+    );
+    return (cancelled: rate == null, value: rate);
+  }
+
+  Future<void> _addAccount() async {
+    final draft = await showDialog<SharedAccountDraft>(
+      context: context,
+      builder: (_) => const SharedAccountDialog(),
+    );
+    if (draft == null || !mounted) return;
+    if (!await controller.addAccount(
+      name: draft.name,
+      currencyCode: draft.currencyCode,
+    )) {
+      _reportFailure('Could not create the shared account.');
     }
   }
 
@@ -250,10 +295,16 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
         initial: transaction.amountLabel.split(' ').last,
       ),
     );
-    if (amount == null) {
+    if (amount == null || !mounted) {
       return;
     }
-    if (!await controller.adjustAmount(transaction.id, amount)) {
+    final rate = await _rateForAccount(transaction.accountId);
+    if (!mounted || rate.cancelled) return;
+    if (!await controller.adjustAmount(
+      transaction.id,
+      amount,
+      rate: rate.value,
+    )) {
       _reportFailure(
         "Couldn't send the change yet. It is saved and will send.",
       );
@@ -333,10 +384,19 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                 PopupMenuButton<_MenuAction>(
                   tooltip: 'Household options',
                   onSelected: (action) => switch (action) {
+                    _MenuAction.addAccount => _addAccount(),
                     _MenuAction.backup => _backup(),
                     _MenuAction.leave => _leave(),
                   },
                   itemBuilder: (context) => [
+                    if ((overview?.isMember ?? false) &&
+                        !controller.needsRecoveryInvite &&
+                        !controller.needsVaultUnlock &&
+                        !controller.isBusy)
+                      const PopupMenuItem(
+                        value: _MenuAction.addAccount,
+                        child: Text('Create shared account'),
+                      ),
                     if ((overview?.isMember ?? false) ||
                         controller.needsRecoveryInvite)
                       const PopupMenuItem(

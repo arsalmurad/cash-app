@@ -867,3 +867,23 @@ disabled actions during a pending copy and safe disposal. Static analysis was
 clean. The full 217-test suite recorded above predates this isolated change;
 no final-revision mobile or browser acceptance is claimed for it yet.
 
+## 2026-10-02 — Shared accounts and explicit frozen currency conversion
+
+Shared expenses now select only household accounts; creating one explicitly
+explains that its name and transactions are shared. Existing Rust decimal-rate
+parsing produces exact minor-unit ratios, including JPY's zero-decimal scale;
+foreign entries and amount edits require a typed rate. Implicit conversion,
+carrying a previous rate forward, Dart floating point and browsing private
+accounts were rejected. Cancelling the rate dialog publishes nothing, and
+missing/invalid rates or unknown account IDs preserve persisted journal bytes.
+
+The real native bridge test checks EUR rates changing between entries, edits,
+JPY conversion, fractional-JPY refusal, peer convergence and journal restart.
+Two dialog and two screen regressions cover account selection, explicit creation,
+small-phone layout and cancellation. The 224-test host suite passed; the final
+empty-name guard then passed the focused bridge test and clean analyzer. The
+production WASM household UI journey independently passed with real local
+workerd, including new EUR/JPY controls and readable-title negative checks.
+That web build predates only the empty-account-name guard; final-revision
+cross-platform acceptance remains open. No Rust or toolchain rebuild was needed.
+

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/rust/api/ledger.dart' show AccountView;
+
 /// A block of text people must copy exactly (a code, a phrase, a number).
 class _CopyBlock extends StatelessWidget {
   const _CopyBlock({required this.text});
@@ -314,9 +316,13 @@ class SafetyNumberDialog extends StatelessWidget {
   }
 }
 
-/// New shared expense: a title and an amount in the household currency.
+typedef SharedExpenseDraft = ({String title, String amount, String accountId});
+
+/// Only shared accounts are supplied; this form cannot browse private data.
 class ExpenseDialog extends StatefulWidget {
-  const ExpenseDialog({super.key});
+  const ExpenseDialog({required this.accounts, super.key});
+
+  final List<AccountView> accounts;
 
   @override
   State<ExpenseDialog> createState() => _ExpenseDialogState();
@@ -326,6 +332,7 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
   final formKey = GlobalKey<FormState>();
   final titleController = TextEditingController();
   final amountController = TextEditingController();
+  late String? accountId = widget.accounts.firstOrNull?.id;
 
   @override
   void dispose() {
@@ -339,6 +346,7 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
       Navigator.pop(context, (
         title: titleController.text.trim(),
         amount: amountController.text.trim(),
+        accountId: accountId!,
       ));
     }
   }
@@ -349,36 +357,58 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
       title: const Text('Add a shared expense'),
       content: Form(
         key: formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              key: const Key('expenseTitle'),
-              controller: titleController,
-              autofocus: true,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Title'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter a title'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              key: const Key('expenseAmount'),
-              controller: amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                key: const Key('expenseTitle'),
+                controller: titleController,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Title'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter a title'
+                    : null,
               ),
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                hintText: '0.00',
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: const Key('sharedExpenseAccount'),
+                initialValue: accountId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Shared account'),
+                items: [
+                  for (final account in widget.accounts)
+                    DropdownMenuItem(
+                      value: account.id,
+                      child: Text(
+                        '${account.name} (${account.currencyCode})',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+                onChanged: (value) => setState(() => accountId = value),
+                validator: (value) =>
+                    value == null ? 'Choose a shared account' : null,
               ),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter an amount'
-                  : null,
-              onFieldSubmitted: (_) => _submit(),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('expenseAmount'),
+                controller: amountController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Amount',
+                  hintText: '0.00',
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter an amount'
+                    : null,
+                onFieldSubmitted: (_) => _submit(),
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -394,6 +424,83 @@ class _ExpenseDialogState extends State<ExpenseDialog> {
       ],
     );
   }
+}
+
+typedef SharedAccountDraft = ({String name, String currencyCode});
+
+class SharedAccountDialog extends StatefulWidget {
+  const SharedAccountDialog({super.key});
+  @override
+  State<SharedAccountDialog> createState() => _SharedAccountDialogState();
+}
+
+class _SharedAccountDialogState extends State<SharedAccountDialog> {
+  final formKey = GlobalKey<FormState>();
+  final nameController = TextEditingController();
+  String currency = 'USD';
+  @override
+  void dispose() {
+    nameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Create a shared account'),
+    content: SingleChildScrollView(
+      child: Form(
+        key: formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Its name and transactions are visible to household members. Your private accounts stay private.',
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              key: const Key('sharedAccountName'),
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Shared account name',
+              ),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Enter an account name'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const Key('sharedAccountCurrency'),
+              initialValue: currency,
+              decoration: const InputDecoration(labelText: 'Currency'),
+              items: [
+                for (final code in const ['USD', 'EUR', 'GBP', 'JPY'])
+                  DropdownMenuItem(value: code, child: Text(code)),
+              ],
+              onChanged: (value) =>
+                  setState(() => currency = value ?? currency),
+            ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () {
+          if (formKey.currentState!.validate()) {
+            Navigator.pop(context, (
+              name: nameController.text.trim(),
+              currencyCode: currency,
+            ));
+          }
+        },
+        child: const Text('Create shared account'),
+      ),
+    ],
+  );
 }
 
 /// A single amount field, for changing an existing expense.
