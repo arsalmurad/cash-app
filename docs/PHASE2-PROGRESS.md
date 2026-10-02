@@ -372,3 +372,37 @@ run passed LF Unicode CSV import/download with font CDNs blocked:
 This checks the relay guard with the existing production app; that cached build
 predates the separate UTF-8 relay-configuration change, so it is not final-
 revision acceptance for the complete current source tree.
+
+## Current Android source runtime (2026-10-02)
+
+On Windows, the cached Android 16/API 36 AOSP ATD x86_64 image ran in an owned
+read-only `Phase0Api36` session (`emulator-5580`, WHPX, emulator 37.1.11).
+Production app source `6b4c646` passed these device tests with the existing
+Flutter 3.47.5, Rust 1.98.1, JDK 17.0.20.1 and NDK 28.2.13676358:
+
+- `flutter --no-version-check test --no-pub integration_test/ledger_test.dart -d emulator-5580 --reporter expanded`:
+  personal SQLite persistence and restart passed (24 s runtime).
+- The same command targeting `integration_test/household_test.dart`:
+  real OS wrapping keys, physical sealed SQLite bytes, protected household
+  restart/recovery and removed-member checks passed (6 s runtime).
+- Targeting the native CSV test introduced here, with
+  `--dart-define=EXPECT_MISSING_DOCUMENT_PICKER=true`: two tests passed (6 s),
+  including exact Unicode native clipboard bytes and graceful actual-plugin
+  failure/retry without replacing pasted text when the document provider is
+  absent. This is not successful native file selection/save coverage.
+
+The debug APK also built. Initial cold dependency/native setup took 1,928.2 s
+and installed dependency-required SDK Platform 35 revision 2 and CMake 3.22.1;
+it did not change the pinned toolchains. Subsequent instrumented builds reused
+caches and took 95.4, 64.1 and 69.3 s. The SDK XML/deprecated manager warnings
+remain recorded, not worked around by an unverified tool upgrade. To avoid
+exhausting C:, the 3.22 GB/5,219-file generated Rust Android cache was moved to
+`D:/cash-app-build/cash-app-native-rust-cache-20261002`, retaining the original
+`app/build/rust_lib_cash_app/build` path through a local ignored junction.
+These paths are local artifacts, not repository prerequisites.
+
+The minimal ATD image has no activity for OPEN_DOCUMENT or CREATE_DOCUMENT;
+the free full API 36 AOSP image is a separate upcoming file-picker verification
+target. Final release APK, final production web build, and current-source iOS
+acceptance remain separate gates. No paid cloud jobs or relay deployment were
+started for these checks.
