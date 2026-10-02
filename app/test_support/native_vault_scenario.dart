@@ -10,15 +10,27 @@ import 'package:private_ledger/data/storage/secret_blob_store.dart';
 import 'package:private_ledger/data/storage/vault_keys_native.dart';
 
 import 'household_scenario.dart';
+import 'household_failure_scenario.dart';
+
+typedef _Scenario = Future<void> Function({
+  BlobStore Function(String scope)? stateFactory,
+  BlobStore Function(String scope)? configFactory,
+});
 
 /// The full real-bridge household scenario with sealed SQLite documents
 /// and real OS keys for every simulated device; restart recreates both stores.
-Future<void> runProtectedNativeHouseholdScenario() async {
+Future<void> runProtectedNativeHouseholdScenario() =>
+    _runProtectedScenario(runHouseholdScenario);
+
+Future<void> runProtectedNativeHouseholdFailureScenario() =>
+    _runProtectedScenario(runHouseholdFailureScenario);
+
+Future<void> _runProtectedScenario(_Scenario scenario) async {
   final namespace =
       'protected-household-${DateTime.now().microsecondsSinceEpoch}';
   final scopes = <String>{};
   try {
-    await runHouseholdScenario(
+    await scenario(
       stateFactory: (scope) {
         scopes.add(scope);
         return SecretBlobStore(
@@ -28,6 +40,22 @@ Future<void> runProtectedNativeHouseholdScenario() async {
       },
       configFactory: (scope) => BlobStore('$namespace-$scope-config'),
     );
+    final directory = await getApplicationSupportDirectory();
+    final physical = latin1.decode(
+      await File('${directory.path}/cash-app.v1.sqlite').readAsBytes(),
+    );
+    for (final title in [
+      'Queued ratchet',
+      'After interrupted invite',
+      'After recovered removal',
+      'After receiver recovery',
+    ]) {
+      expect(
+        physical,
+        isNot(contains(title)),
+        reason: 'Failure recovery journals stay sealed in physical SQLite',
+      );
+    }
   } finally {
     for (final scope in scopes) {
       await BlobStore('$namespace-$scope').delete();

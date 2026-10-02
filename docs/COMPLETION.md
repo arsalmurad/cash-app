@@ -29,6 +29,9 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   remain explicit in `PHASE2-PROGRESS.md`.
 - [ ] Make household mutations, membership commits, persistence and network
   retries safe under storage failures, concurrency and interrupted invitations.
+  Retained-frame and real sealed SQLite failure/retry scenarios now pass on the
+  host and Android OS-key path. Browser quota behavior and the final gate review
+  remain separate; logical peers and injected exceptions are not power-loss proof.
 - [x] Protect the working household private-key state at rest on native and web;
   PR #13, `494253c`: real OS secure-storage/file checks on iOS and Android,
   Chrome RAM-only/exclusive-lock checks, and 185 host app tests passed.
