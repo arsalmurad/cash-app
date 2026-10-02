@@ -85,6 +85,13 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   corrections and non-erasing removal/history have actual SQLite failure/reload
   tests, production Chrome evidence and actual Android emulator runtime evidence.
   These checks do not close the whole UX gate.
+  `PERSONAL-UX-REVIEW.md` now records the scoped Cashew review, three repaired
+  populated layout failures, conditional search-clear label repair, 303 host
+  tests and enlarged-text/labeled/48-pixel target checks. Production narrow
+  Chrome passes at `ea3390b`; personal Android passes there and household
+  Android at `2eeafc4`. A newer combined desktop attempt failed, followed by
+  an input-readiness experiment's timeout, so browser reliability and final
+  platform acceptance remain open rather than being inferred from prior passes.
 - [x] Pin reproducible CI environments, including explicit WASM nightly,
   action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
   remain recorded rather than hidden or upgraded without verification.

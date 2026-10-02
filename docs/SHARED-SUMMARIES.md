@@ -209,3 +209,22 @@ pointer/frame-wait experiments and extra input diagnostic reads were removed.
 The successful combined run closes this runtime regression gate, not a proof
 that every earlier browser/renderer fault has a fully explained root cause.
 Final-source iOS, public authentication and safe bounded retention remain open.
+
+## Later UX revision verification, 2026-10-03
+
+The combined command also passed on production `ba77ac8`, including the new
+caption and screen-lock settings action. After the transfer-layout repair,
+personal production Chrome at 360×740 passed on `ea3390b`, but the combined
+desktop rerun failed on an empty Recent entry 1 title. An input-handler
+readiness experiment passed personal desktop once, then timed out in
+Runtime.evaluate before the combined CSV step completed. This reopens general
+browser acceptance/reliability; it does not independently reproduce the fixed
+SummaryDraft decrement panic or prove a shared cryptography regression.
+
+Actual Android household integration passes at `2eeafc4` on pinned API 36
+x86_64 AOSP ATD/WHPX, serial 5580: `flutter --no-version-check test --no-pub
+integration_test/household_test.dart -d emulator-5580 --reporter expanded`.
+Build 85.6 s, install 3.0 s, runtime 34 s, one test passed. This exercises
+logical peers, actual native bridge/SQLite/OS-key wrapping and the existing
+chosen-summary/recovery/failure scenario. The owned emulator was stopped.
+Final iOS and physical multi-device/biometric acceptance remain unverified.

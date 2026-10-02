@@ -40,6 +40,7 @@ without overwriting the immutable ledger.
 | Toolbar padlock looked actionable but did nothing | Moderate | It now opens existing Screen lock settings; action and close tested in all six adaptive cases at `ba77ac8` |
 | Recurring icon appeared blank in the production screenshot | Moderate | Ordinary repeat icon substituted at `ba77ac8`; widget icon selection and actual updated production screenshot both pass |
 | Balance caption exposed implementation jargon | Minor | “Calculated on this device” replaces the Rust-specific caption at `ba77ac8` |
+| Search-clear icon had no accessible label when a query was active | Moderate | Tooltip/label and clear/restoration regression pass in all six ledger-screen tests at `2eeafc4` |
 
 ## Consistency and copy
 
@@ -82,7 +83,11 @@ offline conflict convergence, fresh-key recovery, removal, EUR/JPY frozen FX
 and no readable fixture titles in HTTP bodies. The resulting Overview
 screenshot visibly contains the recurring repeat icon.
 
-Android personal/household scenarios passed previously at `43871c4`.
+Android personal runtime also passes at `ea3390b` (388.6 s concurrent build,
+3.3 s install, 92 s runtime); household runtime passes at `2eeafc4` (85.6 s
+build, 3.0 s install, 34 s runtime). Both used the pinned owned API 36 AOSP
+ATD/WHPX emulator, which was then stopped. Logical household peers on one
+emulator are not two physical networked devices or an enrolled biometric test.
 The subsequent transfer-card layout repair is in the production artifact
 `ea3390b` (same Rust WASM). Its Dart-only release build took 239.9 s while the
 Android build was also active. `WEB_VIEWPORT=360x740` with personal lifecycle,
@@ -91,8 +96,12 @@ CSV/LF and offline-font options passed in actual Chrome. CDP asserts
 than Chrome's minimum headless window width. Entry/reload, controls, exact
 large money, corrections/history and recent activity all pass; the screenshot
 shows the stacked account card and five bottom destinations. This is not an
-Android or iPhone hardware run. Combined desktop/household runtime at that
-revision remains pending.
+Android or iPhone hardware run. A combined desktop rerun at that revision
+failed at Recent entry 1 with an empty title; do not count it as a pass.
+An input-listener-readiness experiment then passed the personal flow once but
+timed out in Runtime.evaluate during the combined run before CSV completed.
+The browser driver/reliability investigation remains open; the earlier
+`ba77ac8` combined pass is not final-source evidence or proof of no flaky input.
 Final-source iOS is also a separate gate, not inferred from older runs.
 
 ## Next priorities
