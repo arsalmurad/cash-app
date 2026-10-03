@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'invite_codes.dart';
+import 'relay_policy.dart';
 
 const _magic = 'cash-app household journal v2\u0000';
 const _legacyMagic = 'cash-app household journal v1\u0000';
@@ -17,6 +18,7 @@ class HouseholdJournal {
     this.lastRequest,
     this.pendingAck,
     this.recoveryState,
+    this.membership,
   });
   final Uint8List state;
   final String? relayUrl;
@@ -25,6 +27,7 @@ class HouseholdJournal {
   final String? lastRequest;
   final String? pendingAck;
   final Uint8List? recoveryState;
+  final PendingRelayMembership? membership;
 
   Uint8List encode() => Uint8List.fromList([
     ...utf8.encode(_magic),
@@ -36,6 +39,7 @@ class HouseholdJournal {
         'lastCode': lastCode,
         'lastRequest': lastRequest,
         'pendingAck': pendingAck,
+        'membership': membership?.toJson(),
         'recoveryState': recoveryState == null
             ? null
             : base64.encode(recoveryState!),
@@ -76,6 +80,12 @@ class HouseholdJournal {
           throw const FormatException();
         }
       }
+      final membership = json['membership'] == null
+          ? null
+          : PendingRelayMembership.fromJson(json['membership']);
+      if (membership != null && relay != membership.policy.origin) {
+        throw const FormatException();
+      }
       return HouseholdJournal(
         state: base64.decode(json['state'] as String),
         relayUrl: relay,
@@ -87,6 +97,7 @@ class HouseholdJournal {
         lastCode: json['lastCode'] as String?,
         lastRequest: json['lastRequest'] as String?,
         pendingAck: pendingAck,
+        membership: membership,
         recoveryState: json['recoveryState'] == null
             ? null
             : base64.decode(json['recoveryState'] as String),
@@ -96,6 +107,62 @@ class HouseholdJournal {
         'The household journal is damaged. Restore a backup.',
       );
     }
+  }
+}
+
+/// The exact atomic relay transition retained with the pending private MLS
+/// state. No response loss permits recomputing its policy or replacing bytes.
+class PendingRelayMembership {
+  PendingRelayMembership({
+    required this.expectedTail,
+    required Uint8List commit,
+    required this.policy,
+  }) : _commit = Uint8List.fromList(commit) {
+    if (expectedTail < 0 ||
+        expectedTail >= RelayAuthorizationPolicy.maximumInteger ||
+        commit.isEmpty ||
+        commit.length > 256 * 1024 ||
+        policy.epoch == 0) {
+      throw const FormatException('Invalid pending relay membership.');
+    }
+  }
+  final int expectedTail;
+  final Uint8List _commit;
+  final RelayAuthorizationPolicy policy;
+  Uint8List get commit => Uint8List.fromList(_commit);
+  Map<String, Object?> toJson() => {
+    'version': 1,
+    'tail': expectedTail,
+    'commit': base64.encode(_commit),
+    'policy': policy.toJson(),
+  };
+  factory PendingRelayMembership.fromJson(Object? value) {
+    if (value is! Map ||
+        value.length != 4 ||
+        !value.keys.every({'version', 'tail', 'commit', 'policy'}.contains) ||
+        value['version'] is! int ||
+        value['version'] != 1 ||
+        value['tail'] is! int ||
+        value['commit'] is! String) {
+      throw const FormatException('Invalid pending relay membership.');
+    }
+    final rawPolicy = value['policy'];
+    if (rawPolicy is! Map || rawPolicy['scope'] is! Map) {
+      throw const FormatException('Invalid pending relay membership.');
+    }
+    final scope = rawPolicy['scope'] as Map;
+    if (scope['origin'] is! String || scope['id'] is! String) {
+      throw const FormatException('Invalid pending relay membership.');
+    }
+    return PendingRelayMembership(
+      expectedTail: value['tail'] as int,
+      commit: base64.decode(value['commit'] as String),
+      policy: RelayAuthorizationPolicy.fromJson(
+        rawPolicy,
+        origin: scope['origin'] as String,
+        group: scope['id'] as String,
+      ),
+    );
   }
 }
 

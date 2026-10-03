@@ -14,6 +14,7 @@ import '../../data/storage/vault_keys.dart';
 import 'invite_codes.dart';
 import 'household_journal.dart';
 import 'relay_client.dart';
+import 'relay_policy.dart';
 import 'relay_config.dart';
 
 /// Runs the household layer: owns the network (the Rust core does no I/O),
@@ -139,6 +140,7 @@ class HouseholdController extends ChangeNotifier {
   bool _writesDisabled = false;
   bool get requiresRestart => _writesDisabled;
   PendingInvitation? _pendingInvitation;
+  PendingRelayMembership? _pendingRelayMembership;
   String? _pendingMailboxAck;
   Uint8List? _recoveryState;
   HouseholdOverview? recoveryOverview;
@@ -265,6 +267,7 @@ class HouseholdController extends ChangeNotifier {
     summaries = [];
     _pendingInvitation = null;
     _pendingMailboxAck = null;
+    _pendingRelayMembership = null;
     _recoveryState = null;
     recoveryOverview = null;
     lastInviteCode = null;
@@ -278,7 +281,9 @@ class HouseholdController extends ChangeNotifier {
   Future<bool> setRelayUrl(String url) => _run(() async {
     final trimmed = url.trim().replaceAll(RegExp(r'/+$'), '');
     final uri = Uri.tryParse(trimmed);
-    if ((_pendingInvitation != null || _pendingMailboxAck != null) &&
+    if ((_pendingInvitation != null ||
+            _pendingMailboxAck != null ||
+            _pendingRelayMembership != null) &&
         trimmed != relayUrl) {
       throw const FormatException(
         'Finish the pending invitation before changing relays.',
@@ -397,12 +402,20 @@ class HouseholdController extends ChangeNotifier {
         lastCode: lastInviteCode,
         lastRequest: _lastInviteRequest,
         pendingAck: _pendingMailboxAck,
+        membership: _pendingRelayMembership,
         recoveryState: _recoveryState,
       ).encode();
 
   Future<void> _loadSaved(Uint8List bytes) async {
     final saved = HouseholdJournal.decode(bytes);
     _household = await householdRestore(saved: saved.state);
+    if (saved.membership != null &&
+        (await householdOverview(household: _household!)).groupId !=
+            saved.membership!.policy.group) {
+      throw const FormatException(
+        'The saved relay transition belongs to another household. Restore a backup.',
+      );
+    }
     if (saved.relayUrl != null) {
       relayUrl = saved.relayUrl;
       _relay = _relayFactory(relayUrl!);
@@ -411,6 +424,7 @@ class HouseholdController extends ChangeNotifier {
     lastInviteCode = saved.lastCode;
     _lastInviteRequest = saved.lastRequest;
     _pendingMailboxAck = saved.pendingAck;
+    _pendingRelayMembership = saved.membership;
     _recoveryState = saved.recoveryState;
     if (_recoveryState != null) {
       final archived = await householdRestore(saved: _recoveryState!);
@@ -520,10 +534,12 @@ class HouseholdController extends ChangeNotifier {
       }
       for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {
         await _catchUp(relay, household);
+        final policy = await _membershipPolicy(relay);
         final staged = await householdBeginInvite(
           household: household,
           keyPackage: keyPackage,
         );
+        await _retainMembershipPolicy(staged.commit, policy);
         _pendingInvitation = PendingInvitation(
           invite: HouseholdInvite(
             relayUrl: relayUrl!,
@@ -678,6 +694,7 @@ class HouseholdController extends ChangeNotifier {
       summaries = [];
       _pendingInvitation = null;
       _pendingMailboxAck = null;
+      _pendingRelayMembership = null;
       _recoveryState = null;
       recoveryOverview = null;
       lastInviteCode = null;
@@ -746,6 +763,7 @@ class HouseholdController extends ChangeNotifier {
     recoveryOverview = _recoveryState == null ? null : archivedOverview;
     _pendingInvitation = null;
     _pendingMailboxAck = null;
+    _pendingRelayMembership = null;
     lastInviteCode = null;
     _lastInviteRequest = null;
     if (unlockPhrase != null) {
@@ -922,6 +940,12 @@ class HouseholdController extends ChangeNotifier {
             ),
         ],
       );
+      final pending = _pendingRelayMembership;
+      if (pending != null && entries.last.sequence > pending.expectedTail) {
+        // Only successful ordered MLS ingestion settles an uncertain commit.
+        // It either confirms the identical frame or rejects a losing slot.
+        _pendingRelayMembership = null;
+      }
     }
 
     if (relay is PagedRelayClient) {
@@ -983,15 +1007,41 @@ class HouseholdController extends ChangeNotifier {
         // reach the relay, including an append whose response may be lost.
         await _persist();
         try {
-          final sequence = await relay.append(
-            _groupId(),
-            next.expectedTail.toInt(),
-            next.blob,
-          );
+          final pending = _pendingRelayMembership;
+          final int sequence;
+          if (pending != null) {
+            if (relay is! RosterRelayClient ||
+                !relay.rosterEnabled ||
+                pending.policy.group != _groupId() ||
+                pending.expectedTail != next.expectedTail.toInt() ||
+                !listEquals(pending.commit, next.blob)) {
+              throw const RelayUnavailable(
+                'The saved membership transition does not match this relay request. Keep the household and restore its original relay.',
+              );
+            }
+            sequence = await relay.appendMembership(
+              _groupId(),
+              pending.expectedTail,
+              pending.commit,
+              pending.policy,
+            );
+          } else {
+            if (relay is RosterRelayClient && relay.rosterEnabled) {
+              // Older journals have no policy intent. A pending add/removal
+              // projects different keys and must never become a plain append.
+              await _membershipPolicy(relay, forChange: false);
+            }
+            sequence = await relay.append(
+              _groupId(),
+              next.expectedTail.toInt(),
+              next.blob,
+            );
+          }
           await householdOutgoingAccepted(
             household: household,
             sequence: PlatformInt64Util.from(sequence),
           );
+          _pendingRelayMembership = null;
         } on RelayConflict {
           conflicts += 1;
           if (conflicts >= _maxAttempts) {
@@ -1012,6 +1062,7 @@ class HouseholdController extends ChangeNotifier {
   Future<bool> _queueConfirmedSavedReceipt(Household household) async {
     if (_writesDisabled ||
         _pendingInvitation != null ||
+        _pendingRelayMembership != null ||
         _pendingMailboxAck != null ||
         _recoveryState != null) {
       return false;
@@ -1030,6 +1081,7 @@ class HouseholdController extends ChangeNotifier {
       final saved = HouseholdJournal.decode(bytes);
       if (saved.relayUrl != relayUrl ||
           saved.pending != null ||
+          saved.membership != null ||
           saved.pendingAck != null ||
           saved.recoveryState != null) {
         throw const FormatException(_uncertainSaveMessage);
@@ -1050,6 +1102,58 @@ class HouseholdController extends ChangeNotifier {
 
   // --- Members ----------------------------------------------------------
 
+  Future<RelayAuthorizationPolicy?> _membershipPolicy(
+    RelayClient relay, {
+    bool forChange = true,
+  }) async {
+    if (relay is! RosterRelayClient || !relay.rosterEnabled) return null;
+    if (_pendingRelayMembership != null) {
+      throw const RelayUnavailable(
+        'Finish syncing the saved membership change before starting another.',
+      );
+    }
+    final policy = await relay.readPolicy(_groupId());
+    if (policy.group != _groupId() || policy.origin != relayUrl) {
+      throw const RelayUnavailable(
+        'The relay permission policy belongs to another household or address. No request sent.',
+      );
+    }
+    if (forChange && policy.epoch >= RelayAuthorizationPolicy.maximumInteger) {
+      throw const RelayUnavailable(
+        'Relay permission epochs are exhausted. No membership change started.',
+      );
+    }
+    if (!listEquals(
+      policy.devices.map((device) => device.key).toList(),
+      await relayRosterKeys(),
+    )) {
+      throw const RelayUnavailable(
+        'Relay permissions do not match the confirmed household roster. No membership change started.',
+      );
+    }
+    return policy;
+  }
+
+  Future<void> _retainMembershipPolicy(
+    OutgoingEntry commit,
+    RelayAuthorizationPolicy? current,
+  ) async {
+    if (current == null) return;
+    try {
+      _pendingRelayMembership = PendingRelayMembership(
+        expectedTail: commit.expectedTail.toInt(),
+        commit: commit.blob,
+        policy: current.nextForRosterKeys(await relayRosterKeys()),
+      );
+    } catch (_) {
+      // Construction precedes every network write. Invalid local projections
+      // may safely reject this unsent commit, never fall back to plain append.
+      await householdCommitRejected(household: _requireHousehold());
+      await _persist();
+      rethrow;
+    }
+  }
+
   Future<bool> removeMember(String memberId) => _run(() async {
     if (needsRecoveryInvite) {
       throw const FormatException(
@@ -1060,7 +1164,12 @@ class HouseholdController extends ChangeNotifier {
     final household = _requireHousehold();
     for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {
       await _catchUp(relay, household);
-      await householdBeginRemoval(household: household, memberId: memberId);
+      final policy = await _membershipPolicy(relay);
+      final commit = await householdBeginRemoval(
+        household: household,
+        memberId: memberId,
+      );
+      await _retainMembershipPolicy(commit, policy);
       // The Rust journal retains this exact commit across a lost response.
       await _persist();
       await _refresh();

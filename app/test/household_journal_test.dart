@@ -4,8 +4,114 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_ledger/features/household/household_journal.dart';
 import 'package:private_ledger/features/household/invite_codes.dart';
+import 'package:private_ledger/features/household/relay_policy.dart';
 
 void main() {
+  RelayAuthorizationPolicy policy() => RelayAuthorizationPolicy.fromJson(
+    {
+      'version': 2,
+      'epoch': 1,
+      'scope': {'origin': 'https://relay.test', 'kind': 'g', 'id': '01' * 16},
+      'devices': [
+        {
+          'key': '02' * 32,
+          'operations': ['append', 'membership', 'read'],
+        },
+      ],
+    },
+    origin: 'https://relay.test',
+    group: '01' * 16,
+  );
+
+  test(
+    'pending relay transition survives restart with immutable exact bytes',
+    () {
+      final bytes = Uint8List.fromList([1, 2, 255]);
+      final pending = PendingRelayMembership(
+        expectedTail: 5,
+        commit: bytes,
+        policy: policy(),
+      );
+      bytes[0] = 99;
+      pending.commit[1] = 99;
+      final journal = HouseholdJournal(
+        state: Uint8List.fromList([3]),
+        relayUrl: 'https://relay.test',
+        membership: pending,
+      );
+      final restored = HouseholdJournal.decode(journal.encode());
+      expect(restored.encode(), journal.encode());
+      expect(restored.membership!.commit, [1, 2, 255]);
+      expect(restored.membership!.expectedTail, 5);
+      expect(restored.membership!.policy.toJson(), policy().toJson());
+      expect(
+        () => HouseholdJournal.decode(
+          HouseholdJournal(
+            state: journal.state,
+            relayUrl: 'https://foreign.test',
+            membership: pending,
+          ).encode(),
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
+    'invalid pending membership cannot silently fall back to ordinary append',
+    () {
+      final valid = PendingRelayMembership(
+        expectedTail: 5,
+        commit: Uint8List.fromList([1]),
+        policy: policy(),
+      ).toJson();
+      for (final value in [
+        null,
+        {},
+        {...valid, 'amount': 2050},
+        {...valid, 'version': 1.0},
+        {...valid, 'tail': -1},
+        {...valid, 'tail': 9007199254740991},
+        {...valid, 'commit': ''},
+        {...valid, 'commit': '%%%'},
+        {...valid, 'policy': {}},
+        {
+          ...valid,
+          'policy': {...policy().toJson(), 'epoch': 0},
+        },
+      ]) {
+        expect(
+          () => PendingRelayMembership.fromJson(value),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => PendingRelayMembership(
+          expectedTail: 0,
+          commit: Uint8List(256 * 1024 + 1),
+          policy: policy(),
+        ),
+        throwsFormatException,
+      );
+      final encoded = utf8.decode(
+        HouseholdJournal(
+          state: Uint8List.fromList([3]),
+          relayUrl: 'https://relay.test',
+        ).encode(),
+      );
+      expect(
+        () => HouseholdJournal.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              encoded.replaceFirst('"membership":null', '"membership":{}'),
+            ),
+          ),
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
   test(
     'v1 journals migrate and v2 records cannot be mistaken for raw state',
     () {

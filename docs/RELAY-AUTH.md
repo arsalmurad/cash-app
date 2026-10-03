@@ -774,3 +774,44 @@ All 23 additional journal, uncertain-save and durable paged-sync regressions
 pass (16s), recorded in `app/.dart_tool/roster-controller-regressions.log`.
 The 364-check full suite above predates this isolated getter; current revision
 verification is the 33 affected checks plus clean analysis, not a new full run.
+
+## 2026-10-04 — controller journals exact membership transitions
+
+The opt-in controller now reads a scoped policy matching its confirmed MLS
+roster before staging an add/removal, derives the next policy from protected
+projected keys, and saves policy/slot/commit with the private Rust state before
+network I/O. `PendingRelayMembership` strictly validates exact v1 fields,
+safe bounds and public policy; copied ciphertext and immutable policy survive
+restart. Journal decoding rejects a foreign relay; controller restoration
+rejects a foreign household. Existing v1/v2/raw journals remain readable.
+
+Sync sends this exact saved transition through `appendMembership`, never
+ordinary append. Successful native acknowledgement or ordered MLS ingestion
+clears intent; offline/capacity/policy failures retain it. A confirmed losing
+slot may discard it through native ingestion, not a timeout. Relay switching
+and saved-state receipts remain blocked while intent is pending; recovery and
+vault lock do not reuse it for a replacement identity. Unsent invalid projected
+policies reject the local staged commit and save before any write. Financial
+requests in opt-in mode verify current roster policy too, so a legacy pending
+add/removal without policy metadata cannot silently use plain append.
+
+Twelve focused native/journal checks initially pass (2s), including four
+controlled removal failures and a lost invite response followed by failed
+Welcome delivery across two restarts. The full native-enabled suite then
+passes 374 checks (2m37s) before the final foreign-scope/exhausted-epoch guards
+and added failed-save/missing-metadata cases. Logs:
+`membership-controller-retry.log` and `membership-intent-full-app.log` under
+`app/.dart_tool`. Final scoped regression evidence is recorded below.
+
+These retry tests use actual native MLS and saved app journals with a controlled
+in-memory relay. Its working mailboxes do not prove real-worker authorization:
+the loopback roster worker still refuses mailbox routes. Public trusted
+enrolment, actual authenticated Welcome delivery, owned HTTP controller
+failure injection and final browser/mobile acceptance remain open. The app's
+default factory remains unsigned and roster-disabled; no deployment occurred.
+
+Final analysis is clean (65.6s); all 37 affected native/journal/controller-save
+and paged-sync checks pass (22s), including explicit foreign-policy and
+exhausted-epoch refusal, failed-save-before-send and missing legacy metadata.
+Log: `app/.dart_tool/membership-final-regressions.log`. This is current-source
+scoped evidence; the earlier 374-check full run is deliberately distinguished.

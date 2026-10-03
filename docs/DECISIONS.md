@@ -1566,3 +1566,13 @@ state and identity both before and after the read-only native call. Do not
 serialize this query behind a sync that may await it, or expose raw private
 handles; lock, disposal or uncertain persistence must discard its result.
 
+## 2026-10-04 — Journal exact membership policy with its encrypted commit
+
+Store the immutable public policy, exact commit and expected slot in the same
+protected snapshot as pending MLS state, instead of recomputing permissions
+after restart or treating a lost response as rejection. Only confirmed native
+acceptance or successful ordered ingestion settles this intent; refusal,
+capacity, policy conflict and missing legacy metadata must not fall back to an
+ordinary append. Keep encrypted Welcome delivery separately retryable after
+membership confirmation, without enabling the default transport or public relay.
+
