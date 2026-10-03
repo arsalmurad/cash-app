@@ -95,6 +95,14 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   checks with two separately verified skips; all 15 dedicated interoperability
   checks pass. Fixture-seeded replay rows and opaque sample entries are not
   evidence of combined app-signed MLS networking.
+  The optional sync-peer signer now generates fresh random request nonces from
+  the protected existing identity without modifying saved MLS/ledger state.
+  Its restored-peer proof is accepted/replay-rejected by actual workerd, with
+  all 16 dedicated interoperability checks passing. Full sync acceptance passes
+  74 tests (two explicit live-HTTP tests remain ignored), and the complete relay
+  suite passes 54 checks plus three separately verified fixture skips. CI now
+  includes the peer feature without dispatching any cloud job. App bridge/client
+  enablement and trusted registration/membership/mailboxes remain open.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

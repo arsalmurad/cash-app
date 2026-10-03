@@ -203,6 +203,39 @@ pub struct Peer {
 }
 
 impl Peer {
+    /// Sign the exact outgoing HTTP bytes with the existing protected identity.
+    /// Every attempt gets a fresh random nonce, including after restart. This
+    /// does not mutate MLS state, the outbox, saved history or a staged commit.
+    /// The caller supplies an expiry; freshness and permissions are server
+    /// responsibilities, not evidence that this peer is a current member.
+    #[cfg(feature = "relay-auth")]
+    pub fn sign_relay_request(
+        &self,
+        origin: &str,
+        method: &str,
+        path: &str,
+        body: &[u8],
+        expires: u64,
+    ) -> Result<crate::DeviceRequestProof, SyncError> {
+        let mut nonce = [0_u8; 32];
+        getrandom::getrandom(&mut nonce)
+            .map_err(|error| SyncError(format!("request nonce randomness unavailable: {error}")))?;
+        let request = cash_crypto::RelayRequest {
+            origin,
+            method,
+            path,
+            body,
+            nonce,
+            expires,
+        };
+        Ok(crate::DeviceRequestProof {
+            public_key: self.member.public_key(),
+            nonce,
+            expires,
+            signature: self.member.sign_relay_request(&request)?,
+        })
+    }
+
     /// `member_id` is the identity inside the group's MLS credential, which
     /// every member learns. Use an opaque identifier, not a real name; show
     /// names from inside the encrypted stream.

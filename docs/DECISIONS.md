@@ -1446,3 +1446,12 @@ cursor without sending a receipt for an incomplete catch-up. Do not time out a
 storage callback that may still be writing: uncertain saves disable further
 networking/writes until restart instead of racing another operation.
 
+## 2026-10-03 — Sign relay attempts inside the protected peer
+
+Add an opt-in sync request signer around the existing opaque device identity,
+generating each 32-byte nonce from the platform RNG rather than accepting a
+caller-supplied or restarted counter. Return public proof metadata only and
+leave MLS ratchets, pending financial frames and staged commits unchanged;
+signing is not server authorization. Keep bridge/network enablement separate
+until trusted registration, mailbox and roster transitions are implemented.
+

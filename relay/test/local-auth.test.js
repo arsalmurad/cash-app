@@ -246,10 +246,8 @@ test("local auth cannot adopt legacy history or replace changed stored policy", 
   } finally { await mf.dispose(); }
 });
 
-test("Rust opaque identity proof appends through the actual authenticated group route", {
-  skip: !process.env.RUST_LOCAL_GROUP_PROOF_FIXTURE,
-}, async () => {
-  const proof = JSON.parse(process.env.RUST_LOCAL_GROUP_PROOF_FIXTURE);
+async function proveRustGroupAppend(proofJson) {
+  const proof = JSON.parse(proofJson);
   const trusted = { ...policy, devices: [
     { key: proof.publicKey, operations: ["append"] },
     { key: publicKey, operations: ["read"] },
@@ -270,7 +268,15 @@ test("Rust opaque identity proof appends through the actual authenticated group 
     assert.deepEqual(await (await mf.dispatchFetch(`${origin}${path}`, await signed(path))).json(),
       { entries: [{seq: 1, blob: "AQ=="}], tail: 1, more: false });
   } finally { await mf.dispose(); }
-});
+}
+
+test("Rust opaque identity proof appends through the actual authenticated group route", {
+  skip: !process.env.RUST_LOCAL_GROUP_PROOF_FIXTURE,
+}, () => proveRustGroupAppend(process.env.RUST_LOCAL_GROUP_PROOF_FIXTURE));
+
+test("Rust restored peer signs a fresh request accepted by the actual authenticated group", {
+  skip: !process.env.RUST_PEER_GROUP_PROOF_FIXTURE,
+}, () => proveRustGroupAppend(process.env.RUST_PEER_GROUP_PROOF_FIXTURE));
 
 test("development launcher actually selects authenticated SQLite group routing", { timeout: 30_000 }, async () => {
   const reserve = createServer();

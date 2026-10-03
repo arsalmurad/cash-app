@@ -313,3 +313,62 @@ Log: `app/.dart_tool/authenticated-backfill-relay.log`. This verifies server
 refusal/resumption with synthetic opaque payloads, not real app-signed MLS
 networking, disk-backed Node progress or a new financial-plaintext audit.
 Combined app-to-authenticated-relay acceptance remains open.
+
+## Request proofs from the protected sync peer (2026-10-03)
+
+The optional `cash_sync/relay-auth` feature now forwards the pinned crypto
+request-proof implementation. `Peer.sign_relay_request` uses the peer's existing
+opaque device identity and generates a fresh 32-byte platform-RNG nonce on every
+attempt, including after restoring an archive. RNG errors are returned, not
+replaced with counters or weak randomness. Only public key, nonce, expiry and
+signature leave the signer. No transport, private-key export, new identity,
+MLS ratchet, pending financial event, receipt or staged commit is created.
+The caller supplies exact origin/method/path-query/body and expiry; canonical
+size/URL checks remain in crypto, and trusted permissions/freshness remain
+server responsibilities. A request signature is not proof of current MLS
+membership or permission to register oneself.
+
+Three test-first sync regressions verify signatures independently, distinct
+nonces across 32 attempts and restart, stable key identity, byte-identical
+saved archives before/after signing, pending encrypted delivery/staged commit
+preservation, exact-body tamper rejection and malformed request refusal. An
+initial test incorrectly treated repeated `next_outgoing` encryption as an
+idempotent peek; that assertion was corrected to preserve exact archive checks,
+not changed in the engine. The synthetic restored-peer example emits only
+bounded public proof JSON; the actual SQLite/workerd group route accepts it and
+rejects its replay under an operator-specified policy. Dedicated interoperability
+now passes all 16 checks with zero skips (11.84s).
+
+Strict sync all-target checks with `relay-auth,http` pass (7.06s), as do the
+strict workspace/all-target checks using the CI's new `cash_sync/relay-auth`
+feature selection (15.86s). No cloud job was dispatched. The complete relay
+suite passes 54 checks with three explicit fixture skips (57 total, 15.74s);
+those three fixtures are separately verified by the dedicated command.
+The optional signer is not yet enabled by the app API/FRB or HTTP client, so
+the existing cached native and WASM app bridge artifacts are unchanged.
+
+The full sync command
+`cargo test --manifest-path rust/Cargo.toml -p cash_sync --features relay-auth,http
+--locked --offline -j 1` subsequently passes 74 tests, including the 1,000-event
+three-peer byte-identical convergence/removal scenario (127.93s). Its two
+explicit live-HTTP integration tests remain ignored by this command, not passed.
+Log: `app/.dart_tool/peer-request-sync-retry.log`; relay retry log:
+`app/.dart_tool/peer-request-relay-retry.log`. The interoperability runner now
+builds both cached examples before generating any short-lived proof, so a
+cold-cache compilation cannot consume an earlier fixture's 50-second lifetime.
+The final interoperability rerun with that build ordering passes all 16 checks
+with zero skips in 7.82s.
+
+The initial broad run failed to link new debug test binaries while C: fell to
+about 35 MB free; concurrent workerd checks explicitly reported `SQLITE_FULL`
+and startup failures. Preserve those failed logs as environment evidence, not
+passing tests or a software fix. After both owned runs were terminal, all 2,467
+generated dependency/test-cache files (7,114,183,912 bytes) were moved using
+native PowerShell to `D:/cash-app-toolchains/cash-app-rust-debug-deps`, with
+per-file length and total count/byte checks. A junction preserves the original
+`rust/target/debug/deps` path. Only empty old cache directories were removed;
+no source, private ledger, native app DLL or useful artifact was discarded.
+C: now has about 6.7 GB free; the unchanged suites pass after this cache move.
+This local cache placement is not a repository/CI dependency or a toolchain
+upgrade. Authentication/deployment, bridge signing, roster and mailbox gates
+remain open.
