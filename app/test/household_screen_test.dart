@@ -318,6 +318,36 @@ void main() {
     expect(controller.calls, ['add:Coffee:4.50']);
   });
 
+  for (final message in [
+    'Saved on this device. Do not repeat this change. Relay unavailable.',
+    null,
+  ]) {
+    testWidgets('failed expense send closes the form without repeating '
+        '(message=$message)', (tester) async {
+      final controller = await _pump(tester, member: true);
+      controller
+        ..nextResult = false
+        ..errorMessage = message;
+      await tester.tap(find.text('Add shared expense'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('expenseTitle')), 'Coffee');
+      await tester.enterText(find.byKey(const Key('expenseAmount')), '4.50');
+      await tester.tap(find.byKey(const Key('expenseSubmit')));
+      await tester.pumpAndSettle();
+      expect(controller.calls, ['add:Coffee:4.50']);
+      expect(find.byKey(const Key('expenseSubmit')), findsNothing);
+      expect(
+        find.text(
+          message ?? 'Could not finish saving and sending the expense.',
+        ),
+        findsOneWidget,
+      );
+      if (message == null) {
+        expect(find.textContaining('It is saved and will send'), findsNothing);
+      }
+    });
+  }
+
   testWidgets('inviting pastes a request and shows the invite to send', (
     tester,
   ) async {

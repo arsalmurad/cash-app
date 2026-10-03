@@ -1403,3 +1403,11 @@ inside replay admission, rather than treating one device key as authority for
 every route. Unscoped v1 policies are refused; this is not production bootstrap,
 membership/pruning semantics or app authorization wiring.
 
+## 2026-10-03 — Distinguish a saved change from a failed send
+
+After a confirmed local household save, report a relay failure as saved on this
+device and tell the user not to repeat the change. Keep the false save-and-send
+result and original relay guidance; do not silently call delivery successful.
+Uncertain initial or final persistence still disables writes and takes precedence
+over this reassurance. Generic UI fallbacks no longer promise an unverified save.
+

@@ -659,3 +659,26 @@ also passes with the new streaming HTTP path. `RELAY-CAPACITY.md` records exact
 commands, prior RED regressions, limits, source scope and the undiagnosed WSASend
 diagnostic. Current-mobile/iOS acceptance and public authenticated deployment
 remain separate gates; no server deletion was enabled.
+
+## Saved household change versus failed delivery (2026-10-03)
+
+The expense form already closes before the controller attempts delivery; no
+automatic form retry was found. Its relay error, however, omitted the confirmed
+local-save outcome. The controller now prefixes relay failures after a successful
+local save and successful sync-final save with "Saved on this device. Do not
+repeat this change." It preserves the capacity/operator guidance and false
+save-and-send return value. Initial/final uncertain storage failures still
+require restart and never get this prefix; plain Sync failures do not claim a
+new local change. The UX-copy skill guided factual, actionable wording rather
+than promising eventual delivery or claiming an unverified save.
+
+Both capacity-prefix assertions failed before the implementation. All 16 focused
+native-bridge receipt tests subsequently pass, including four combined capacity/
+uncertain-write cases (before and after the store actually saves), lost replies,
+restart/idempotency and no ACK loops. The earlier combined receipt/screen/save
+safety run passed 42 tests; the final full native-enabled suite includes the new
+two widget checks and passes all 331 tests in 2m46s. Command from `app`:
+`RUST_LIB_PATH=<cached native DLL> flutter test --no-pub`; local detailed log:
+`app/.dart_tool/saved-change-full.log`. Dart analysis reports no issues.
+No Rust core/bridge API changed. This is host/runtime/widget evidence, not a
+current mobile/iOS or rebuilt production-browser pass for the new wording.

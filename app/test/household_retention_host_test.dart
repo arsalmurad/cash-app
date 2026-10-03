@@ -110,6 +110,10 @@ void main() {
         );
         expect(first.requiresRestart, isFalse);
         expect(first.errorMessage, contains('Household relay storage is full'));
+        expect(
+          first.errorMessage,
+          startsWith('Saved on this device. Do not repeat this change.'),
+        );
         expect(first.overview!.transactions.single.title, 'Retained expense');
         final refused = (await relay.readAfter(group, 0)).length;
         expect(refused, before + (afterFinancial ? 1 : 0));
@@ -123,6 +127,11 @@ void main() {
           'Retained expense',
         );
         expect(await restarted.syncNow(), isFalse);
+        expect(
+          restarted.errorMessage,
+          isNot(startsWith('Saved on this device.')),
+          reason: 'A manual sync is not a newly saved local change',
+        );
         expect((await relay.readAfter(group, 0)).length, refused);
         relay.refuseAt =
             null; // Models restored capacity, not an app pruning API.
@@ -134,6 +143,50 @@ void main() {
         expect(await restarted.syncNow(), isTrue);
         expect((await relay.readAfter(group, 0)).length, before + 2);
       });
+    }
+
+    for (final boundary in [1, 3]) {
+      for (final afterSave in [false, true]) {
+        test('capacity refusal with uncertain save $boundary '
+            '(saved=$afterSave) never claims a confirmed change', () async {
+          final relay = _CapacityRelay();
+          final store = _Store();
+          final controller = HouseholdController(
+            stateStore: store,
+            configStore: _Store(),
+            relayFactory: (_) => relay,
+          );
+          addTearDown(controller.dispose);
+          await controller.initialize();
+          await controller.setRelayUrl('https://relay.test');
+          expect(await controller.createHousehold(), isTrue);
+          final group = controller.overview!.groupId!;
+          final before = relay.accepted;
+          relay.refuseAt = before;
+          store.failWrite = store.writes + boundary;
+          store.saveBeforeFailure = afterSave;
+          expect(
+            await controller.addExpense(
+              title: 'Uncertain expense',
+              amount: '7.00',
+            ),
+            isFalse,
+          );
+          expect(controller.requiresRestart, isTrue);
+          expect(
+            controller.errorMessage,
+            isNot(contains('Saved on this device.')),
+          );
+          expect((await relay.readAfter(group, 0)).length, before);
+          final writes = store.writes;
+          expect(await controller.syncNow(), isFalse);
+          expect(
+            store.writes,
+            writes,
+            reason: 'Unconfirmed state is not saved again',
+          );
+        });
+      }
     }
 
     test(
@@ -204,6 +257,11 @@ void main() {
             isFalse,
           );
           expect(controller.requiresRestart, isTrue);
+          expect(
+            controller.errorMessage,
+            isNot(contains('Saved on this device.')),
+            reason: 'An uncertain storage outcome must not claim a safe save',
+          );
           expect(
             (await relay.readAfter(group, 0)).length,
             before + 1,
@@ -311,6 +369,11 @@ void main() {
           isFalse,
         );
         expect(first.requiresRestart, isFalse);
+        expect(
+          first.errorMessage,
+          startsWith('Saved on this device. Do not repeat this change.'),
+          reason: 'A lost send reply is not permission to recreate the expense',
+        );
         expect((await relay.readAfter(group, 0)).length, before + 2);
         final restarted = controller();
         addTearDown(restarted.dispose);
