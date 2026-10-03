@@ -1,5 +1,73 @@
 # Phase 2 progress
 
+## Current Android household runtime (2026-10-04)
+
+Source `744ab3e` passes `integration_test/household_test.dart` on the owned
+read-only `Phase0Api36` emulator, serial `emulator-5580`, Android 16/API 36
+x86_64 AOSP ATD/WHPX. Flutter 3.47.5/Dart 3.13.4, Rust stable 1.98.1,
+JDK 17.0.20.1 and NDK 28.2.13676358 are unchanged. Current native source/bridge
+ABI `970902974` was rebuilt: x86_64 debug library 131,204,864 bytes,
+i686 debug library 125,243,164 bytes, debug APK 96,376,956 bytes.
+
+From `app/`, with the existing SDK/JDK/Gradle/temp paths on D:
+
+```powershell
+..\.toolchains\flutter\bin\flutter.bat --no-version-check test --no-pub integration_test/household_test.dart -d emulator-5580 --reporter expanded
+```
+
+Build passed in 1,322.5s; installation took 7.4s; the one combined household
+test passed, reporting all tests passed at 89s. Log:
+`app/.dart_tool/current-android-household.log`. This executes actual Android OS
+wrapping keys, sealed SQLite bytes, protected household restart/recovery,
+membership/removal and chosen-summary UI/native persistence. Logical peers use
+in-memory transport on one emulator: not authenticated HTTP, two physical
+devices, release APK or current iOS acceptance.
+
+The separate named `1.98.1` Rustup installation reports a missing manifest.
+The cached `stable` toolchain reports `rustc 1.98.1 (48a229cea 2026-09-01)` and
+has both Android targets; no reinstall or upgrade was necessary. The SDK XML
+compatibility warning remains nonfatal. Native build cache on D: was preserved;
+C: became critically low after APK assembly and needs generated-build storage
+adjustment before further substantial builds.
+
+The first current personal-ledger attempt built in 258.8s but failed to attach
+the debug log reader; C: was then completely full and the owned emulator had
+rebooted. No ledger runtime pass is claimed for that attempt
+(`app/.dart_tool/current-android-ledger.log`). Once it ended, the exact generated
+`app/build/app` tree was checked for embedded reparse points and moved intact to
+`D:/cash-app-build/cash-app-android-app-build-20261004`, preserving its original
+path with an ignored junction. This freed about 1.2GB on C: without deleting
+artifacts or the existing native-cache junction. The emulator subsequently
+reported `sys.boot_completed=1` before retry.
+
+That retry built/installed but stalled with a responsive VM service and no app
+isolate. Direct ZIP inspection found the cached APK lacked
+`assets/flutter_assets/kernel_blob.bin`; missing program assets after a full-disk
+build are not an app logic failure. A diagnostic `--no-dds` attempt regenerated
+and packaged the 79,263,368-byte kernel, then completed the ledger scenario, but
+the Flutter harness itself failed `streamListen` for
+`integration_test.VmServiceProxyGoldenFileComparator`. It is **not** an accepted
+pass; this pinned integration harness requires the normal debug-service layer.
+Both failed logs are retained as `current-android-ledger-retry.log` and
+`current-android-ledger-direct-vm.log` under `app/.dart_tool`.
+
+Normal-service retry subsequently **passes** the unchanged
+`integration_test/ledger_test.dart`: build 93.0s, install 1.958s, all tests passed
+at 124s (`app/.dart_tool/current-android-ledger-final.log`). The ledger/persistence
+journey includes actual JPY native UI and persisted mid-run rates. Missing
+packaged kernel is supported by direct ZIP inspection of the stalled APK; its
+regeneration followed by a passing normal-service run distinguishes that cache
+failure from a DDS failure. No production source or acceptance assertion changed.
+
+After both device tests ended, the 2,756,366,317-byte generated
+`app/.dart_tool/flutter_build` cache was likewise moved intact to
+`D:/cash-app-build/cash-app-flutter-build-cache-20261004`, with its original path
+preserved by an ignored junction. C: now has about 3.5GB free and D: about 9.8GB.
+These are local cache paths, not checked-in repository requirements; preserve
+both junctions and their backing directories rather than cleaning/rebuilding.
+
+## Earlier baseline and implementation evidence
+
 Updated 2026-10-02. Phase 2 (the shared layer, brief section 6) is in
 progress: the cryptographic and sync core, bridge, and household UI exist,
 with the runtime evidence and remaining limitations listed below. The relay
