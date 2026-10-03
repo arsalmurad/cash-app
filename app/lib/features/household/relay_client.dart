@@ -126,8 +126,22 @@ class RelayMembershipConflict extends RelayUnavailable {
       );
 }
 
+/// Group-scoped delivery with an accepted sponsor/recipient binding. No take
+/// operation: the recipient acknowledges only after durably saving joined keys.
+abstract interface class RosterWelcomeRelayClient implements RosterRelayClient {
+  Future<void> putRosterWelcome(
+    String group,
+    String mailbox,
+    String recipient,
+    int joinedAfter,
+    Uint8List welcome,
+  );
+  Future<RelayMailboxItem?> peekRosterWelcome(String group, String mailbox);
+  Future<void> acknowledgeRosterWelcome(String group, String mailbox);
+}
+
 /// Talks to the Cloudflare Worker over HTTP.
-class HttpRelayClient implements PagedRelayClient, RosterRelayClient {
+class HttpRelayClient implements PagedRelayClient, RosterWelcomeRelayClient {
   HttpRelayClient(
     String baseUrl, [
     http.Client? client,
@@ -171,6 +185,117 @@ class HttpRelayClient implements PagedRelayClient, RosterRelayClient {
     } on FormatException {
       throw const RelayUnavailable(
         'Invalid roster relay address. No request sent.',
+      );
+    }
+  }
+
+  Uri _welcomeUri(String group, String mailbox, {bool acknowledge = false}) {
+    if (mailbox.length != 32 || !RegExp(r'^[0-9a-f]{32}$').hasMatch(mailbox)) {
+      throw const RelayUnavailable(
+        'Invalid invitation identifier. No request sent.',
+      );
+    }
+    return _rosterUri(group, 'invite/$mailbox${acknowledge ? '/ack' : ''}');
+  }
+
+  void _welcomeWriteReply(http.Response response) {
+    if (response.statusCode == 507) throw const RelayCapacityReached();
+    if (response.statusCode != 200) {
+      throw RelayUnavailable(
+        'invitation request failed (${response.statusCode})',
+      );
+    }
+    final reply = _object(response);
+    if (reply.length != 1 || reply['ok'] != true) {
+      throw const RelayUnavailable(
+        'the relay sent an invalid invitation acknowledgement',
+      );
+    }
+  }
+
+  @override
+  Future<void> putRosterWelcome(
+    String group,
+    String mailbox,
+    String recipient,
+    int joinedAfter,
+    Uint8List welcome,
+  ) async {
+    final uri = _welcomeUri(group, mailbox);
+    if (recipient.length != 64 ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(recipient) ||
+        joinedAfter <= 0 ||
+        joinedAfter > RelayAuthorizationPolicy.maximumInteger ||
+        welcome.isEmpty ||
+        welcome.length > 256 * 1024) {
+      throw const RelayUnavailable(
+        'Invalid invitation delivery. No request sent.',
+      );
+    }
+    _welcomeWriteReply(
+      await _send(
+        'PUT',
+        uri,
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode({
+              'recipient': recipient,
+              'joined_after': joinedAfter,
+              'welcome': base64.encode(welcome),
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Future<RelayMailboxItem?> peekRosterWelcome(
+    String group,
+    String mailbox,
+  ) async {
+    final response = await _send('GET', _welcomeUri(group, mailbox));
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw RelayUnavailable('invitation read failed (${response.statusCode})');
+    }
+    final reply = _object(response);
+    final sequence = reply['joined_after'];
+    if (reply.length != 3 ||
+        reply['group'] != group ||
+        sequence is! int ||
+        sequence <= 0 ||
+        sequence > RelayAuthorizationPolicy.maximumInteger) {
+      throw const RelayUnavailable(
+        'the relay sent an invalid scoped invitation',
+      );
+    }
+    final welcome = _bytes(reply['welcome']);
+    if (welcome.isEmpty ||
+        welcome.length > 256 * 1024 ||
+        base64.encode(welcome) != reply['welcome']) {
+      throw const RelayUnavailable(
+        'the relay sent invalid invitation ciphertext',
+      );
+    }
+    return RelayMailboxItem(
+      group: group,
+      joinedAfter: sequence,
+      welcome: welcome,
+    );
+  }
+
+  @override
+  Future<void> acknowledgeRosterWelcome(String group, String mailbox) async {
+    _welcomeWriteReply(
+      await _send('POST', _welcomeUri(group, mailbox, acknowledge: true)),
+    );
+  }
+
+  void _requireLegacyMailbox() {
+    if (rosterEnabled) {
+      throw const RelayUnavailable(
+        'Authenticated invitations require a group-scoped request. No request sent.',
       );
     }
   }
@@ -522,6 +647,7 @@ class HttpRelayClient implements PagedRelayClient, RosterRelayClient {
     int joinedAfter,
     Uint8List welcome,
   ) async {
+    _requireLegacyMailbox();
     final response = await _send(
       'PUT',
       _uri('/m/$mailbox'),
@@ -544,16 +670,20 @@ class HttpRelayClient implements PagedRelayClient, RosterRelayClient {
 
   @override
   Future<RelayMailboxItem?> takeMailbox(String mailbox) async {
+    _requireLegacyMailbox();
     final response = await _send('POST', _uri('/m/$mailbox/take'));
     return _mailboxReply(response);
   }
 
   @override
-  Future<RelayMailboxItem?> peekMailbox(String mailbox) async =>
-      _mailboxReply(await _send('GET', _uri('/m/$mailbox')));
+  Future<RelayMailboxItem?> peekMailbox(String mailbox) async {
+    _requireLegacyMailbox();
+    return _mailboxReply(await _send('GET', _uri('/m/$mailbox')));
+  }
 
   @override
   Future<void> acknowledgeMailbox(String mailbox) async {
+    _requireLegacyMailbox();
     final response = await _send('POST', _uri('/m/$mailbox/ack'));
     if (response.statusCode != 200 && response.statusCode != 404) {
       throw RelayUnavailable(

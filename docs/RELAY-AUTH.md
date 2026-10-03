@@ -884,3 +884,22 @@ is clean (4.2s) and this owned loopback native scenario passes (2s), recorded in
 save ordering, app UI, browser/mobile runtime or storage-audit acceptance.
 Controller/client mailbox capability, public enrolment/account caps and final
 platform verification remain open; default/public routing is still closed.
+
+## 2026-10-04 — bounded app Welcome transport
+
+`RosterWelcomeRelayClient` adds explicit group-scoped upload/peek/ack without
+changing the default factory or existing unsigned/fixed-policy clients.
+`HttpRelayClient` uses its common signed, abortable, deadline-limited bounded
+reader for every attempt. Invalid IDs, recipients, slots and payload sizes are
+refused before proof/network; peek accepts only exact matching group/slot fields
+and canonical nonempty base64 up to 256 KiB. Write/ack replies must be exact
+`{ok:true}`. Refusals use trusted local copy, including 507 storage capacity.
+Roster-enabled clients refuse every legacy mailbox operation, including take,
+without issuing a proof or request; there is no unsigned/path fallback.
+
+Analysis is clean (3.4s); all 37 focused scoped/legacy/policy/native HTTP checks
+pass (20s), logged in `app/.dart_tool/roster-welcome-transport.log`. The actual
+native OpenMLS scenario now uses the production bounded client methods rather
+than raw test HTTP for upload/read/ack/retry; Bob joins from the returned bytes
+and sponsor reads fail. This still does not prove controller-managed durable
+join/save/ack ordering or current mobile/browser UI. Those remain next work.
