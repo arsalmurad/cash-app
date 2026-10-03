@@ -589,3 +589,29 @@ No current-checkpoint iOS runtime or new cloud job is claimed here.
 Archive size/memory grow with retained history, and import still replays signed
 sources. An end-to-end performance benchmark and acknowledged pruning remain
 separate work, not reasons to erase an offline peer's history.
+
+## Retention-receipt prerequisites (2026-10-03)
+
+`RETENTION-RECEIPTS.md` records the new local saved-state verifier and explicit
+MLS-encrypted exchange. A conservative cutoff requires every current signing
+key, matching signed history/frontiers, epoch, cryptographic group and relay
+log ID; the sender must supply its complete latest confirmed archive. New
+negative regressions catch copied-key relay relabeling and an old ratchet whose
+financial checkpoint happens to match. Receipt control messages do not enter
+the financial event set. Normal sync does not automatically generate replies.
+
+All 62 affected sync tests pass, including the existing three-peer/two-offline/
+1,000-event case (108.26 s for its binary), old signed-archive compatibility,
+recovery and interrupted sync. Strict HTTP-enabled Clippy passes. The actual
+Rust-peer/local workerd audit now includes three encrypted receipt messages:
+31 ciphertext records plus encrypted mailboxes, with receipt/financial plaintext
+sentinels absent and a plaintext-injection negative control rejected. Its final
+WSASend #10053 cleanup diagnostic is not independently diagnosed, despite passing
+assertions and exit 0. No deployed relay or physical-network claim follows.
+
+Queued receipts persist in checked v6 archives, while ordinary archives retain
+v5. Received collections are RAM-only and block planning after restart until
+recollected. Actual protected app-save coordination, persistent collections,
+bounded coordinated recollection, bridge activation and authenticated/recoverable
+pruning remain open. No ciphertext or original signed financial history is
+deleted, and the previous app-platform binaries do not exercise this new API.

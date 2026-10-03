@@ -5,8 +5,8 @@
 #![cfg(feature = "http")]
 
 use cash_core::{
-    AccountId, ChosenSummary, Currency, EditField, EventKind, FxRate, Money, TransactionId, TransactionKind,
-    fold_shared,
+    AccountId, ChosenSummary, Currency, EditField, EventKind, FxRate, Money, TransactionId,
+    TransactionKind, fold_shared,
 };
 use cash_sync::{HttpRelay, MailboxItem, Peer, Relay, RelayError};
 
@@ -134,10 +134,19 @@ fn three_peers_converge_through_the_real_worker() {
     }
     write(&mut peers[1], adjust("dinner", 4_500));
     write(&mut peers[2], adjust("dinner", 4_200));
-    write(&mut peers[1], EventKind::SummaryPublished {
-        summary: ChosenSummary::new(Currency::from_code("JPY").unwrap(),
-            1_700_000_000_000, 1_702_000_000_000, None, Some(PRIVACY_SUMMARY_AMOUNT)).unwrap(),
-    });
+    write(
+        &mut peers[1],
+        EventKind::SummaryPublished {
+            summary: ChosenSummary::new(
+                Currency::from_code("JPY").unwrap(),
+                1_700_000_000_000,
+                1_702_000_000_000,
+                None,
+                Some(PRIVACY_SUMMARY_AMOUNT),
+            )
+            .unwrap(),
+        },
+    );
     for index in 0..20 {
         write(
             &mut peers[index % 3],
@@ -153,10 +162,18 @@ fn three_peers_converge_through_the_real_worker() {
     let reference = fold_shared(usd(), written.clone());
     assert_eq!(reference.conflicts.len(), 1);
     assert_eq!(reference.ledger.summaries.len(), 1);
-    assert_eq!(reference.ledger.reporting_balance_minor,
-        fold_shared(usd(), written.iter().filter(|shared|
-            !matches!(shared.event.kind, EventKind::SummaryPublished { .. })).cloned())
-            .ledger.reporting_balance_minor);
+    assert_eq!(
+        reference.ledger.reporting_balance_minor,
+        fold_shared(
+            usd(),
+            written
+                .iter()
+                .filter(|shared| !matches!(shared.event.kind, EventKind::SummaryPublished { .. }))
+                .cloned()
+        )
+        .ledger
+        .reporting_balance_minor
+    );
     for peer in &peers {
         assert_eq!(peer.state().canonical_bytes(), reference.canonical_bytes());
     }
@@ -166,6 +183,26 @@ fn three_peers_converge_through_the_real_worker() {
             .edit_head(&TransactionId::new("dinner"), EditField::Amount),
         reference.edit_head(&TransactionId::new("dinner"), EditField::Amount)
     );
+    // Explicit receipt exchange through the production HTTP transport. These
+    // exports model confirmed archives; actual app save adapters are not wired.
+    let confirmed_cursor = peers[0].cursor();
+    let mut receipt_needles = Vec::new();
+    for peer in &mut peers {
+        let saved = peer.export().unwrap();
+        receipt_needles.push(Peer::saved_state_receipt(&saved).unwrap());
+        peer.enqueue_saved_state_receipt(&saved).unwrap();
+    }
+    for _ in 0..2 {
+        for peer in &mut peers {
+            peer.sync(&mut relay).unwrap();
+        }
+    }
+    for peer in &peers {
+        assert_eq!(peer.state().canonical_bytes(), reference.canonical_bytes());
+        let receipts = peer.received_retention_receipts();
+        assert_eq!(receipts.len(), 3);
+        assert_eq!(peer.retention_cutoff(&receipts).unwrap(), confirmed_cursor);
+    }
     if std::env::var_os("CASH_RELAY_STORAGE_AUDIT").is_some() {
         // Synthetic fixtures only: no private keys, production data or blobs.
         let mut needles: Vec<Vec<u8>> = [
@@ -183,6 +220,8 @@ fn three_peers_converge_through_the_real_worker() {
         needles.push(PRIVACY_AMOUNT.to_le_bytes().to_vec());
         needles.push(PRIVACY_SUMMARY_AMOUNT.to_be_bytes().to_vec());
         needles.push(PRIVACY_SUMMARY_AMOUNT.to_le_bytes().to_vec());
+        needles.push(b"cash-app durable receipt v2\0".to_vec());
+        needles.extend(receipt_needles);
         for shared in &written {
             needles.push(shared.event.id.as_str().as_bytes().to_vec());
             needles.push(shared.event.actor_id.as_str().as_bytes().to_vec());

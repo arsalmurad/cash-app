@@ -1297,3 +1297,23 @@ confirmed saved bytes. No bridge/wire format, save adapter, encrypted receipt
 transport, relay pruning authority or deletion is enabled; the open integration
 gates and proportional archive cost are explicit in `RETENTION-RECEIPTS.md`.
 
+## 2026-10-03 — Exchange retention receipts without enabling deletion
+
+Queue receipts as a separate nonfinancial MLS payload, preserving the advanced
+ratchet/outbox across restart in a checked v6 archive. Normal archives stay v5;
+old apps must update before handling queued v6 state. Validate live author,
+signature, epoch and processed cursor; keep conflicting equal-cursor claims
+instead of silently overwrite them, and clear collections at membership changes.
+Normal sync creates no ACK-of-ACK loop. Collected receipts remain RAM-only and
+must be explicitly recollected after restart until protected persistence is wired.
+
+Two behavioral RED regressions caught missing relay-log binding and acceptance
+of an older saved ratchet with unchanged financial history. Bind the log ID in
+v2 receipts (refuse/recollect v1), and require the latest complete archive before
+queueing. All 62 sync tests pass, including 1,000-event convergence (108.26 s),
+and strict HTTP-enabled Clippy passes. Real Rust peers exchange receipts through
+local workerd; 31 ciphertext records/mailboxes and the plaintext-injection
+negative control pass. The final audit emits WSASend #10053 but exits 0 after
+assertions, not a diagnosed physical-network guarantee. No actual app save hook,
+bridge activation, pruning authority or history deletion is enabled.
+

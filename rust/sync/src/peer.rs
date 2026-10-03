@@ -14,6 +14,7 @@ use crate::ids::random_id;
 use crate::relay::{MailboxItem, Relay, RelayError};
 
 const EXPORT_MAGIC: &[u8] = b"cash-app peer v5\0";
+const RECEIPT_EXPORT_MAGIC: &[u8] = b"cash-app peer v6\0";
 const SIGNED_V4_EXPORT_MAGIC: &[u8] = b"cash-app peer v4\0";
 const SIGNED_V3_EXPORT_MAGIC: &[u8] = b"cash-app peer v3\0";
 const SIGNED_V2_EXPORT_MAGIC: &[u8] = b"cash-app peer v2\0";
@@ -62,10 +63,13 @@ enum Outbound {
     /// they would never see the household's history. Receivers that already
     /// have an event ignore it (events are idempotent by ID).
     Backfill { ids: Vec<EventId>, offset: usize },
+    /// Nonfinancial attestation made from a confirmed saved archive.
+    Receipt(Vec<u8>),
 }
 
 const PAYLOAD_EVENT: u8 = 3;
 const PAYLOAD_BATCH: u8 = 4;
+const PAYLOAD_RECEIPT: u8 = 5;
 const MAX_BATCH_EVENTS: usize = 200;
 const MAX_BATCH_BYTES: usize = 48 * 1024;
 
@@ -192,6 +196,9 @@ pub struct Peer {
     /// The staged commit adds a member (rather than removes one), so
     /// accepting it owes them a history backfill.
     staged_adds_member: bool,
+    /// RAM-only collection: loss on restart blocks planning until recollected.
+    /// At most two conflicting same-cursor claims per current signing key.
+    retention_receipts: BTreeMap<Vec<u8>, Vec<Vec<u8>>>,
 }
 
 impl Peer {
@@ -216,6 +223,7 @@ impl Peer {
             staged: false,
             staged_frame: None,
             staged_adds_member: false,
+            retention_receipts: BTreeMap::new(),
         })
     }
 
@@ -226,6 +234,12 @@ impl Peer {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(if self.legacy_unverified {
             LEGACY_EXPORT_MAGIC
+        } else if self
+            .outbox
+            .iter()
+            .any(|item| matches!(item, Outbound::Receipt(_)))
+        {
+            RECEIPT_EXPORT_MAGIC
         } else {
             EXPORT_MAGIC
         });
@@ -270,6 +284,10 @@ impl Peer {
                         write_field(&mut bytes, id.as_str().as_bytes());
                     }
                 }
+                Outbound::Receipt(receipt) => {
+                    bytes.push(2);
+                    write_field(&mut bytes, receipt);
+                }
             }
         }
         write_field(&mut bytes, &self.member.export()?);
@@ -295,7 +313,8 @@ impl Peer {
         let magic = reader.take(EXPORT_MAGIC.len()).ok_or_else(malformed)?;
         let legacy_unverified = if magic == LEGACY_EXPORT_MAGIC {
             true
-        } else if magic == EXPORT_MAGIC
+        } else if magic == RECEIPT_EXPORT_MAGIC
+            || magic == EXPORT_MAGIC
             || magic == SIGNED_V4_EXPORT_MAGIC
             || magic == SIGNED_V3_EXPORT_MAGIC
             || magic == SIGNED_V2_EXPORT_MAGIC
@@ -364,12 +383,18 @@ impl Peer {
                     }
                     outbox.push_back(Outbound::Backfill { ids, offset });
                 }
+                2 if magic == RECEIPT_EXPORT_MAGIC => {
+                    let bytes = reader.field().ok_or_else(malformed)?;
+                    Receipt::decode(bytes)?;
+                    outbox.push_back(Outbound::Receipt(bytes.to_vec()));
+                }
                 _ => return Err(malformed()),
             }
         }
         let member = Member::import(reader.field().ok_or_else(malformed)?)?;
         let mut staged_adds_member = false;
-        let staged_frame = if magic == EXPORT_MAGIC
+        let staged_frame = if magic == RECEIPT_EXPORT_MAGIC
+            || magic == EXPORT_MAGIC
             || magic == SIGNED_V4_EXPORT_MAGIC
             || magic == SIGNED_V3_EXPORT_MAGIC
         {
@@ -396,7 +421,10 @@ impl Peer {
         } else {
             None
         };
-        let checkpoint = if magic == EXPORT_MAGIC || magic == SIGNED_V4_EXPORT_MAGIC {
+        let checkpoint = if magic == RECEIPT_EXPORT_MAGIC
+            || magic == EXPORT_MAGIC
+            || magic == SIGNED_V4_EXPORT_MAGIC
+        {
             Some(reader.field().ok_or_else(malformed)?)
         } else {
             None
@@ -406,6 +434,26 @@ impl Peer {
         }
         for proof in proofs.values() {
             proof.verify(&member)?;
+        }
+        for item in &outbox {
+            if let Outbound::Receipt(bytes) = item {
+                let receipt = Receipt::decode(bytes)?;
+                if receipt.public_key != member.public_key()
+                    || Some(receipt.group.as_slice()) != member.group_identifier().as_deref()
+                    || group.as_deref().map(str::as_bytes) != Some(receipt.relay_group.as_slice())
+                    || receipt.epoch > member.epoch()
+                    || receipt.cursor > cursor
+                {
+                    return Err(malformed());
+                }
+                // A receipt may legitimately precede newer queued events or a
+                // membership change; retain it, but never use it as a current ack.
+                member.verify_history(
+                    &receipt.public_key,
+                    &receipt.payload(),
+                    &receipt.signature,
+                )?;
+            }
         }
         // Derived state never substitutes for original-author verification.
         // Old signed archives gain a checkpoint on their next normal export.
@@ -433,10 +481,11 @@ impl Peer {
             staged: staged_frame.is_some(),
             staged_frame,
             staged_adds_member,
+            retention_receipts: BTreeMap::new(),
         })
     }
 
-    /// How many locally written events are still waiting to be sent.
+    /// How many local events, backfills, receipts or commits await sending.
     pub fn pending_count(&self) -> usize {
         self.outbox.len() + usize::from(self.staged)
     }
@@ -473,6 +522,26 @@ impl Peer {
 
     pub fn public_key(&self) -> Vec<u8> {
         self.member.public_key()
+    }
+
+    fn retention_relay_group(&self) -> Result<[u8; 32], SyncError> {
+        let id = self
+            .group
+            .as_deref()
+            .ok_or_else(|| SyncError("no household relay log".to_owned()))?;
+        let bytes: [u8; 32] = id
+            .as_bytes()
+            .try_into()
+            .map_err(|_| SyncError("invalid household relay log identifier".to_owned()))?;
+        if !bytes
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(byte))
+        {
+            return Err(SyncError(
+                "invalid household relay log identifier".to_owned(),
+            ));
+        }
+        Ok(bytes)
     }
 
     fn retention_context(&self) -> Result<(Vec<u8>, u64, [u8; 32]), SyncError> {
@@ -514,6 +583,7 @@ impl Peer {
         let (group, epoch, checkpoint) = peer.retention_context()?;
         let mut receipt = Receipt {
             group,
+            relay_group: peer.retention_relay_group()?,
             epoch,
             cursor: peer.cursor,
             checkpoint,
@@ -525,6 +595,86 @@ impl Peer {
         let bytes = receipt.encode();
         Receipt::decode(&bytes)?;
         Ok(bytes)
+    }
+
+    /// Explicit nonfinancial exchange only. The storage caller must confirm
+    /// `saved` before calling; export/save this queued peer before transmitting.
+    /// No automatic acknowledgement-of-acknowledgement is generated.
+    pub fn enqueue_saved_state_receipt(&mut self, saved: &[u8]) -> Result<(), SyncError> {
+        let (group, epoch, checkpoint) = self.retention_context()?;
+        // Financial equality alone can hide newer received control messages or
+        // ratchet state. Require the latest complete confirmed archive as well.
+        if saved != self.export()?.as_slice() {
+            return Err(SyncError(
+                "Confirm the latest complete household save before acknowledging retention."
+                    .to_owned(),
+            ));
+        }
+        let bytes = Self::saved_state_receipt(saved)?;
+        let receipt = Receipt::decode(&bytes)?;
+        if receipt.public_key != self.public_key()
+            || receipt.group != group
+            || receipt.relay_group != self.retention_relay_group()?
+            || receipt.epoch != epoch
+            || receipt.checkpoint != checkpoint
+            || receipt.cursor > self.cursor
+        {
+            return Err(SyncError(
+                "Only this device's matching confirmed archive can acknowledge retention."
+                    .to_owned(),
+            ));
+        }
+        self.outbox.push_back(Outbound::Receipt(bytes));
+        Ok(())
+    }
+
+    /// RAM-only, signature-checked collection. Persist it separately in a
+    /// protected store or recollect after restart; never infer lost receipts.
+    pub fn received_retention_receipts(&self) -> Vec<Vec<u8>> {
+        self.retention_receipts
+            .values()
+            .flatten()
+            .cloned()
+            .collect()
+    }
+
+    fn remember_receipt(&mut self, bytes: &[u8], sender: &[u8]) -> Result<(), SyncError> {
+        let receipt = Receipt::decode(bytes)?;
+        if receipt.public_key != sender
+            || receipt.epoch != self.member.epoch()
+            || receipt.relay_group != self.retention_relay_group()?
+            || Some(receipt.group.clone()) != self.member.group_identifier()
+            || receipt.cursor > self.cursor
+            || !self
+                .member_keys()?
+                .iter()
+                .any(|(_, key)| *key == receipt.public_key)
+        {
+            return Err(SyncError(
+                "Invalid receipt author, epoch or processed cursor.".to_owned(),
+            ));
+        }
+        self.member
+            .verify_history(&receipt.public_key, &receipt.payload(), &receipt.signature)?;
+        let claims = self
+            .retention_receipts
+            .entry(receipt.public_key)
+            .or_default();
+        if let Some(previous) = claims.first() {
+            let old = Receipt::decode(previous)?;
+            if old.cursor > receipt.cursor {
+                return Ok(());
+            }
+            if old.cursor < receipt.cursor {
+                claims.clear();
+            }
+        }
+        if !claims.iter().any(|old| old == bytes) && claims.len() < 2 {
+            // Retain a second conflicting equal-cursor claim instead of silently
+            // replacing it. The cutoff verifier then refuses the collection.
+            claims.push(bytes.to_vec());
+        }
+        Ok(())
     }
 
     /// Conservative local planning only: require a valid receipt from every
@@ -543,6 +693,7 @@ impl Peer {
         for bytes in receipts {
             let receipt = Receipt::decode(bytes)?;
             if receipt.group != group
+                || receipt.relay_group != self.retention_relay_group()?
                 || receipt.epoch != epoch
                 || receipt.checkpoint != checkpoint
                 || receipt.cursor > self.cursor
@@ -722,7 +873,13 @@ impl Peer {
                     // A frame that decrypts but carries no shared events came
                     // from a buggy or hostile member; skip it rather than
                     // stall everyone behind it.
-                    if let Some(proofs) = decode_payload(&bytes) {
+                    if bytes.first() == Some(&PAYLOAD_RECEIPT) {
+                        if let Some(sender) = sender {
+                            // Invalid member-authored control messages are skipped,
+                            // just like malformed financial batches, not folded.
+                            let _ = self.remember_receipt(&bytes[1..], &sender.public_key);
+                        }
+                    } else if let Some(proofs) = decode_payload(&bytes) {
                         let live = bytes.first() == Some(&PAYLOAD_EVENT);
                         let valid = proofs.iter().all(|proof| {
                             proof.verify(&self.member).is_ok()
@@ -739,8 +896,12 @@ impl Peer {
                         }
                     }
                 }
-                Received::Commit { .. } | Received::Own => {}
-                Received::Removed => self.removed = true,
+                Received::Commit { .. } => self.retention_receipts.clear(),
+                Received::Own => {}
+                Received::Removed => {
+                    self.retention_receipts.clear();
+                    self.removed = true;
+                }
             }
             self.cursor = *sequence;
         }
@@ -768,6 +929,11 @@ impl Peer {
                 let remaining = self.events_named(&ids[*offset..])?;
                 let count = batch_len(&remaining);
                 encode_batch_payload(&remaining[..count])
+            }
+            Some(Outbound::Receipt(receipt)) => {
+                let mut bytes = vec![PAYLOAD_RECEIPT];
+                bytes.extend_from_slice(receipt);
+                bytes
             }
         };
         let blob = self.member.encrypt(&payload)?;
@@ -801,6 +967,11 @@ impl Peer {
                 } else if let Some(Outbound::Backfill { offset, .. }) = self.outbox.front_mut() {
                     *offset = next;
                 }
+            }
+            Some(Outbound::Receipt(bytes)) => {
+                let bytes = bytes.clone();
+                let _ = self.remember_receipt(&bytes, &self.public_key());
+                self.outbox.pop_front();
             }
         }
         self.cursor = sequence;
@@ -866,6 +1037,7 @@ impl Peer {
             ));
         }
         self.member.confirm_commit()?;
+        self.retention_receipts.clear();
         self.staged = false;
         self.staged_frame = None;
         self.cursor = sequence;
@@ -1150,6 +1322,77 @@ mod authorship_tests {
         assert!(legacy.starts_with(LEGACY_EXPORT_MAGIC));
         assert!(Peer::saved_state_receipt(&legacy).is_err());
         assert!(peer.retention_cutoff(&[]).is_err());
+    }
+
+    #[test]
+    fn receipts_cannot_move_between_relay_logs_even_with_the_same_mls_keys() {
+        let mut peer = Peer::new("test-device", Currency::from_code("USD").unwrap()).unwrap();
+        peer.found_group().unwrap();
+        let saved = peer.export().unwrap();
+        let receipt = Peer::saved_state_receipt(&saved).unwrap();
+        let mut other_log = Peer::import(&saved).unwrap();
+        other_log.group = Some(
+            if peer.group_id() == Some("00000000000000000000000000000000") {
+                "11111111111111111111111111111111".to_owned()
+            } else {
+                "00000000000000000000000000000000".to_owned()
+            },
+        );
+        assert!(other_log.retention_cutoff(&[receipt]).is_err());
+        assert!(other_log.enqueue_saved_state_receipt(&saved).is_err());
+    }
+
+    #[test]
+    fn malformed_spoofed_and_future_receipt_frames_do_not_taint_collection() {
+        let (mut alice, mut bob) = household();
+        let alice_receipt = Peer::saved_state_receipt(&alice.export().unwrap()).unwrap();
+        let mut claim = Receipt::decode(&alice_receipt).unwrap();
+        claim.public_key = bob.public_key();
+        claim.signature = bob.sign_history(&claim.payload()).unwrap();
+        let valid = claim.encode();
+        let mut bad_signature = valid.clone();
+        *bad_signature.last_mut().unwrap() ^= 1;
+        claim.cursor = u64::MAX;
+        claim.signature = bob.sign_history(&claim.payload()).unwrap();
+        let future = claim.encode();
+        let mut seq = alice.cursor();
+        let state = alice.state().canonical_bytes();
+        for invalid in [vec![0], bad_signature, future, alice_receipt.clone()] {
+            let mut payload = vec![PAYLOAD_RECEIPT];
+            payload.extend_from_slice(&invalid);
+            seq += 1;
+            alice
+                .ingest(&[(seq, bob.encrypt(&payload).unwrap())])
+                .unwrap();
+            assert!(alice.received_retention_receipts().is_empty());
+            assert_eq!(alice.state().canonical_bytes(), state);
+        }
+        let mut payload = vec![PAYLOAD_RECEIPT];
+        payload.extend_from_slice(&valid);
+        seq += 1;
+        alice
+            .ingest(&[(seq, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        assert_eq!(alice.received_retention_receipts(), vec![valid.clone()]);
+        seq += 1;
+        alice
+            .ingest(&[(seq, bob.encrypt(&payload).unwrap())])
+            .unwrap();
+        assert_eq!(alice.received_retention_receipts(), vec![valid]);
+        // Retain conflicting valid claims rather than silently overwrite them.
+        claim.cursor = 1;
+        claim.checkpoint[0] ^= 1;
+        claim.signature = bob.sign_history(&claim.payload()).unwrap();
+        let mut conflict = vec![PAYLOAD_RECEIPT];
+        conflict.extend_from_slice(&claim.encode());
+        seq += 1;
+        alice
+            .ingest(&[(seq, bob.encrypt(&conflict).unwrap())])
+            .unwrap();
+        let mut collected = alice.received_retention_receipts();
+        assert_eq!(collected.len(), 2);
+        collected.push(alice_receipt);
+        assert!(alice.retention_cutoff(&collected).is_err());
     }
 
     fn event(actor: &str) -> SharedEvent {
