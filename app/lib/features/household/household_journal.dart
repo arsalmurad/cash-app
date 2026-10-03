@@ -19,6 +19,7 @@ class HouseholdJournal {
     this.pendingAck,
     this.recoveryState,
     this.membership,
+    this.pendingAckRoster = false,
   });
   final Uint8List state;
   final String? relayUrl;
@@ -28,6 +29,7 @@ class HouseholdJournal {
   final String? pendingAck;
   final Uint8List? recoveryState;
   final PendingRelayMembership? membership;
+  final bool pendingAckRoster;
 
   Uint8List encode() => Uint8List.fromList([
     ...utf8.encode(_magic),
@@ -39,6 +41,7 @@ class HouseholdJournal {
         'lastCode': lastCode,
         'lastRequest': lastRequest,
         'pendingAck': pendingAck,
+        'ackRoster': pendingAckRoster,
         'membership': membership?.toJson(),
         'recoveryState': recoveryState == null
             ? null
@@ -70,6 +73,10 @@ class HouseholdJournal {
       ) as Map<String, dynamic>;
       final relay = json['relay'] as String?;
       final pendingAck = json['pendingAck'] as String?;
+      final ackRoster = json['ackRoster'] ?? false;
+      if (ackRoster is! bool || (ackRoster && pendingAck == null)) {
+        throw const FormatException();
+      }
       if (pendingAck != null &&
           !RegExp(r'^[0-9a-f]{32}$').hasMatch(pendingAck)) {
         throw const FormatException();
@@ -97,6 +104,7 @@ class HouseholdJournal {
         lastCode: json['lastCode'] as String?,
         lastRequest: json['lastRequest'] as String?,
         pendingAck: pendingAck,
+        pendingAckRoster: ackRoster,
         membership: membership,
         recoveryState: json['recoveryState'] == null
             ? null
@@ -175,7 +183,14 @@ class PendingInvitation {
     required this.keyPackage,
     required this.createdMillis,
     this.committed = false,
-  });
+    this.recipient,
+  }) {
+    if (recipient != null &&
+        (recipient!.length != 64 ||
+            !RegExp(r'^[0-9a-f]{64}$').hasMatch(recipient!))) {
+      throw const FormatException('Invalid invitation recipient.');
+    }
+  }
   final HouseholdInvite invite;
   final int expectedTail;
   final Uint8List commit;
@@ -183,6 +198,7 @@ class PendingInvitation {
   final Uint8List keyPackage;
   final int createdMillis;
   bool committed;
+  final String? recipient;
   String get request => base64.encode(keyPackage);
   String get code => encodeInvite(invite);
   bool get expired =>
@@ -197,6 +213,7 @@ class PendingInvitation {
     'request': request,
     'created': createdMillis,
     'committed': committed,
+    'recipient': recipient,
   };
 
   factory PendingInvitation.fromJson(Map<String, dynamic> json) {
@@ -210,6 +227,7 @@ class PendingInvitation {
       keyPackage: base64.decode(json['request'] as String),
       createdMillis: json['created'] as int,
       committed: json['committed'] as bool,
+      recipient: json['recipient'] as String?,
     );
   }
 }

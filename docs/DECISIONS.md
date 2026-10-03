@@ -1601,3 +1601,11 @@ public replies, canonical nonempty ciphertext and the expected household;
 roster-enabled clients refuse legacy mailbox methods before proof/network
 instead of inferring registration or falling back to unsigned delivery.
 
+## 2026-10-04 — Persist authenticated join delivery mode with saved keys
+
+Derive and retain the invitee's sole new public key from the protected MLS
+projection, and save scoped acknowledgement intent in the same journal as
+joined keys. Do not let restart/configuration changes downgrade a pending
+authenticated upload or acknowledgement to legacy routes; clear intent only
+after confirmed acknowledgement, with the existing uncertain-save guard.
+

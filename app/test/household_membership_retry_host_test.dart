@@ -26,7 +26,8 @@ class _Store implements BlobStore {
   Future<void> delete() async => value = null;
 }
 
-class _RosterRelay extends MemoryRelayClient implements RosterRelayClient {
+class _RosterRelay extends MemoryRelayClient
+    implements RosterWelcomeRelayClient {
   _RosterRelay(this.policy, this.store);
   RelayAuthorizationPolicy policy;
   final _Store store;
@@ -37,6 +38,27 @@ class _RosterRelay extends MemoryRelayClient implements RosterRelayClient {
   bool get rosterEnabled => true;
   @override
   Future<RelayAuthorizationPolicy> readPolicy(String group) async => policy;
+  @override
+  Future<void> putRosterWelcome(
+    String group,
+    String mailbox,
+    String recipient,
+    int joinedAfter,
+    Uint8List welcome,
+  ) async {
+    expect(policy.devices.map((device) => device.key), contains(recipient));
+    final saved = HouseholdJournal.decode(store.value!).pending!;
+    expect(saved.recipient, recipient);
+    expect(saved.committed, isTrue);
+    await putMailbox(mailbox, group, joinedAfter, welcome);
+  }
+
+  @override
+  Future<RelayMailboxItem?> peekRosterWelcome(String group, String mailbox) =>
+      peekMailbox(mailbox);
+  @override
+  Future<void> acknowledgeRosterWelcome(String group, String mailbox) =>
+      acknowledgeMailbox(mailbox);
   @override
   Future<void> putMailbox(
     String mailbox,

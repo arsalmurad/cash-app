@@ -148,6 +148,7 @@ void main() {
       keyPackage: Uint8List.fromList([4]),
       createdMillis: DateTime.now().millisecondsSinceEpoch,
       committed: true,
+      recipient: '02' * 32,
     );
     final journal = HouseholdJournal(
       state: Uint8List.fromList([1]),
@@ -156,6 +157,7 @@ void main() {
       lastCode: 'previous',
       lastRequest: 'request',
       pendingAck: 'fedcba9876543210fedcba9876543210',
+      pendingAckRoster: true,
       recoveryState: Uint8List.fromList([5, 6]),
     );
     final restored = HouseholdJournal.decode(journal.encode());
@@ -163,7 +165,45 @@ void main() {
     expect(restored.pending!.committed, isTrue);
     expect(restored.pending!.expired, isFalse);
     expect(restored.pending!.code, pending.code);
+    expect(restored.pending!.recipient, '02' * 32);
+    expect(restored.pendingAckRoster, isTrue);
     expect(restored.recoveryState, [5, 6]);
+  });
+  test('damaged acknowledgement mode and recipient binding fail closed', () {
+    final encoded = utf8.decode(
+      HouseholdJournal(state: Uint8List.fromList([1])).encode(),
+    );
+    for (final value in ['true', '"true"', '1']) {
+      expect(
+        () => HouseholdJournal.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              encoded.replaceFirst('"ackRoster":false', '"ackRoster":$value'),
+            ),
+          ),
+        ),
+        throwsFormatException,
+      );
+    }
+    final valid = PendingInvitation(
+      invite: const HouseholdInvite(
+        relayUrl: 'https://relay.test',
+        group: '0123456789abcdef0123456789abcdef',
+        mailbox: 'fedcba9876543210fedcba9876543210',
+      ),
+      expectedTail: 1,
+      commit: Uint8List.fromList([1]),
+      welcome: Uint8List.fromList([2]),
+      keyPackage: Uint8List.fromList([3]),
+      createdMillis: 1,
+    ).toJson();
+    for (final recipient in ['bad', '${'02' * 32}\n', 2]) {
+      expect(
+        () => PendingInvitation.fromJson({...valid, 'recipient': recipient}),
+        throwsA(anything),
+      );
+    }
+    expect(PendingInvitation.fromJson(valid).recipient, isNull);
   });
   test('damaged journal fails closed rather than losing pending intent', () {
     final bytes = Uint8List.fromList(
