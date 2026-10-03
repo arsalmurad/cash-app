@@ -12,6 +12,10 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const webRoot = join(repoRoot, 'app', 'build', 'web');
+if (process.env.WEB_CSV === '1' && process.env.WEB_OFFLINE_FONTS === '1' &&
+    process.env.WEB_CSV_LINE_ENDINGS !== 'LF') {
+  throw new Error('Strict offline CSV glyph checks require WEB_CSV_LINE_ENDINGS=LF. Run exact CRLF preservation separately without WEB_OFFLINE_FONTS=1; the pinned renderer has a documented CRLF font warning.');
+}
 const viewportMatch = /^(\d{3,4})x(\d{3,4})$/.exec(process.env.WEB_VIEWPORT ?? '1280x900');
 if (!viewportMatch) throw new Error('WEB_VIEWPORT must be WIDTHxHEIGHT');
 const [viewportWidth, viewportHeight] = viewportMatch.slice(1).map(Number);
@@ -187,7 +191,19 @@ try {
         ),
       )
       .slice(-20);
-    console.error('Browser events:', JSON.stringify(relevantEvents, null, 2));
+    console.error('Browser events:', JSON.stringify(relevantEvents.map(event => {
+      const details = event.params.exceptionDetails ?? event.params.entry ?? event.params;
+      return {
+        method: event.method,
+        type: event.params.type,
+        message: String(details.exception?.description ?? details.text ??
+          event.params.args?.map(arg => arg.value ?? arg.description ?? '').join(' ') ?? '').slice(0, 1200),
+        frames: (details.stackTrace?.callFrames ?? []).slice(0, 6).map(frame => ({
+          functionName: frame.functionName, url: frame.url,
+          lineNumber: frame.lineNumber, columnNumber: frame.columnNumber,
+        })),
+      };
+    }), null, 2));
   }
   if (chromeErrors) {
     console.error(chromeErrors);
