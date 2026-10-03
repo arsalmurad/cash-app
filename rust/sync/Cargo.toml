@@ -10,6 +10,13 @@ rust-version.workspace = true
 # app reaches the relay through Dart's own HTTP stack, and this exists to
 # verify the real worker against the real sync engine.
 http = ["dep:ureq", "dep:serde_json", "dep:base64"]
+# Device request proofs from the peer's existing protected identity. Kept
+# separate from HTTP transport and disabled until callers opt in explicitly.
+relay-auth = ["cash_crypto/relay-auth"]
+
+[[example]]
+name = "peer_request_proof"
+required-features = ["relay-auth"]
 
 [dependencies]
 cash_core = { path = "../core" }

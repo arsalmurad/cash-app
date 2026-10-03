@@ -53,11 +53,11 @@ jobs:
 
       - name: Strict Rust workspace lint
         working-directory: rust
-        run: cargo clippy --workspace --all-targets --locked --features cash_crypto/relay-auth -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked --features cash_sync/relay-auth -- -D warnings
 
       - name: Rust workspace tests (core, crypto, sync)
         working-directory: rust
-        run: cargo test --workspace --locked --features cash_crypto/relay-auth
+        run: cargo test --workspace --locked --features cash_sync/relay-auth
 
       # Runs the worker's own tests in workerd (via miniflare), then the
       # real Rust sync engine against that running worker.
