@@ -1576,3 +1576,11 @@ capacity, policy conflict and missing legacy metadata must not fall back to an
 ordinary append. Keep encrypted Welcome delivery separately retryable after
 membership confirmation, without enabling the default transport or public relay.
 
+## 2026-10-04 — Bind invitation delivery authority to accepted membership
+
+Derive bounded public sponsor/recipient/slot/expiry records inside the same
+transaction as an accepted membership ciphertext, rather than trusting a
+mailbox upload to invent its own recipient or join slot. Preserve a survivor's
+original expiry and one-mailbox binding; removal revokes its record and re-add
+creates a new slot, while damaged or oversized authority fails closed.
+

@@ -4,6 +4,7 @@ import { verifiedRequestContext, verifiedRequestDigest } from './request-proof.j
 import { validDevicePolicy, requestOperation } from './request-scope.js';
 import { admitVerifiedDeviceRequest } from './request-admission.js';
 import { spendRequestBudget } from './request-budget.js';
+import { updateInviteAuthorities } from './invite-authority.js';
 
 export class MembershipRefused extends Error {
   constructor(status) { super('membership transition refused'); this.status = status; }
@@ -75,6 +76,7 @@ export async function applyMembershipTransition(txn, verified, suppliedBody, now
   const effectiveNow = await txn.get('request_clock');
   await spendRequestBudget(txn, verified, effectiveNow);
   await boundReplayKeys(txn, proposal.policy, effectiveNow);
+  await updateInviteAuthorities(txn, current, proposal.policy, verified.publicKey, sequence, effectiveNow);
   // Retain live revoked replay records and all spent budgets. Only expired
   // retired nonce keys are removed, never ciphertext or current-device state.
   await txn.put('authorized_devices', proposal.policy);
