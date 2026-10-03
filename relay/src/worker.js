@@ -23,6 +23,10 @@ const BODY_TOO_LARGE = Symbol("request body too large");
 // Sixteen maximum-size base64 blobs plus metadata stay below 6 MiB per page.
 // The cursor/more protocol already supports any positive page length.
 const PAGE = 16;
+// Conservative per-log ceilings, not an account-wide free-plan guarantee.
+// Count ASCII base64 as actually stored; never silently evict offline history.
+const MAX_LOG_BYTES = 64 * 1024 * 1024;
+const MAX_LOG_ENTRIES = 10_000;
 const MAILBOX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const json = (body, status = 200) =>
@@ -115,14 +119,35 @@ export class GroupLog {
       if (tail !== body.expected_tail) {
         return { conflict: tail };
       }
+      let capacity = await txn.get("capacity");
+      if (capacity === undefined && tail === 0) {
+        capacity = { version: 1, bytes: 0, entries: 0 };
+      }
+      if (!capacity || capacity.version !== 1 ||
+          !Number.isSafeInteger(capacity.bytes) || capacity.bytes < 0 ||
+          capacity.bytes > MAX_LOG_BYTES ||
+          !Number.isSafeInteger(capacity.entries) || capacity.entries < 0 ||
+          capacity.entries > MAX_LOG_ENTRIES || capacity.entries !== tail) {
+        // Do not scan an old unbounded log into memory or guess its usage.
+        // Reads remain available; an explicit bounded migration is required.
+        return { unavailable: true };
+      }
+      if (capacity.entries >= MAX_LOG_ENTRIES ||
+          body.blob.length > MAX_LOG_BYTES - capacity.bytes) {
+        return { full: true };
+      }
       const seq = tail + 1;
       await txn.put(key(seq), body.blob);
       await txn.put("tail", seq);
+      await txn.put("capacity", { version: 1,
+        bytes: capacity.bytes + body.blob.length, entries: capacity.entries + 1 });
       return { seq };
     });
     if (result.conflict !== undefined) {
       return json({ tail: result.conflict }, 409);
     }
+    if (result.unavailable) return fail(503, "log capacity accounting requires migration or repair");
+    if (result.full) return fail(507, "log capacity reached; history preserved, append refused");
     const note = JSON.stringify({ tail: result.seq });
     for (const socket of this.state.getWebSockets()) {
       try {

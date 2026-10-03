@@ -638,3 +638,15 @@ interrupted saves, fresh-key recovery/removal and chosen-summary UI. Exact
 commands, receipt-test scope and limits are in `RETENTION-RECEIPTS.md`; iOS,
 enrolled biometrics, complete accessibility and authenticated pruning are not
 inferred. No cloud workflow, public relay deployment or deletion was enabled.
+
+## Non-destructive relay capacity (2026-10-03)
+
+Per-group encoded-ciphertext and record ceilings now bound further log growth
+without evicting offline history. Transactional accounting and legacy/corrupt
+counter refusal have real workerd boundary tests; actual 64 MiB fill and complete
+paged backfill pass. The real encrypted-peer storage audit still passes all 31
+records/mailboxes and its negative control, now checking exact accounting too.
+See `RELAY-CAPACITY.md` for commands, seeded versus full-volume evidence and
+WSASend diagnostic. No app/Rust source changed, and no platform rebuild was
+needed. This does not close authentication, account-wide quotas, migration,
+pruning/recovery or authorized free-plan deployment.

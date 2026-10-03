@@ -1338,3 +1338,13 @@ restart ACK loops. Lost replies can retry the same immutable event/signed
 receipt as extra ciphertext; tests require logical idempotency and stable
 subsequent tails, not exactly-once network delivery. No deletion is authorized.
 
+## 2026-10-03 — Refuse growth instead of erasing offline history
+
+Bound each relay log to 10,000 records and 64 MiB of encoded ciphertext, with
+capacity, tail and record persisted in the same append transaction. Refuse
+overflow while retaining readable history; unaccounted legacy logs refuse writes
+instead of guessing usage or scanning unbounded data into memory. Silent eviction
+and receipt-based deletion were rejected because offline recovery and authenticated
+deletion authority are not established. This is not account-wide abuse control
+or a free-plan spending guarantee; public access stays closed.
+
