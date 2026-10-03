@@ -56,7 +56,7 @@ test('SQLite membership transition binds ciphertext, current grant, epoch and re
     export default {fetch(request, env) {return env.GROUP.get(env.GROUP.idFromName('fixture')).fetch(request);}};`;
   const mf = new Miniflare({ modulesRoot: root,
     modules: [{type:'ESModule', path:`${root}/fixture.js`, contents:wrapper},
-      ...await Promise.all(['worker', 'request-proof', 'request-membership', 'request-scope', 'request-admission', 'request-budget'].map(async name => ({
+      ...await Promise.all(['worker', 'request-proof', 'request-membership', 'invite-authority', 'request-scope', 'request-admission', 'request-budget'].map(async name => ({
         type:'ESModule', path:`${root}/${name}.js`, contents:await readFile(new URL(`../src/${name}.js`, import.meta.url), 'utf8'),
       })))], durableObjects: {GROUP:{className:'Fixture',useSQLite:true}}, compatibilityDate:'2026-07-01' });
   const url = `${scope.origin}/g/${scope.id}/membership`;
@@ -77,7 +77,20 @@ test('SQLite membership transition binds ciphertext, current grant, epoch and re
     assert.deepEqual(rows.authorized_devices,next); assert.equal(rows.tail,1);
     assert.equal(rows['e:000000000001'],'AQ=='); assert.equal(rows.request_budget.used,1);
     assert.equal(rows[`request_nonces:${identities[0].key}`].records.length,1);
+    assert.deepEqual(rows.invite_authorities,{version:1,records:[{
+      key:identities[1].key,sponsor:identities[0].key,sequence:1,expires:now+7*86400000,mailbox:null,
+    }]},'only newly added public keys acquire delivery authority from the accepted slot');
     const committed = await inspect();
+    const authority=rows.invite_authorities;
+    for (const damaged of [{version:1,records:[{...authority.records[0],name:'private'}]},
+        {version:1,records:Array(65).fill(authority.records[0])}]) {
+      await seed({invite_authorities:damaged});
+      const before=await inspect();
+      const proposal={expected_tail:1,blob:'Ag==',policy:{...next,epoch:2}};
+      assert.equal((await mf.dispatchFetch(url,await signed(proposal))).status,503);
+      assert.deepEqual(await inspect(),before,'invalid invitation authority rolls back ciphertext, nonce and budget too');
+    }
+    await seed({invite_authorities:authority});
     assert.equal((await mf.dispatchFetch(url,request)).status,409);
     assert.deepEqual(await inspect(),committed);
     for (const bad of [

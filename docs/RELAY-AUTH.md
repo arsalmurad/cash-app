@@ -815,3 +815,30 @@ and paged-sync checks pass (22s), including explicit foreign-policy and
 exhausted-epoch refusal, failed-save-before-send and missing legacy metadata.
 Log: `app/.dart_tool/membership-final-regressions.log`. This is current-source
 scoped evidence; the earlier 374-check full run is deliberately distinguished.
+
+## 2026-10-04 — atomic public invitation authority
+
+Accepted policy transitions now update `invite_authorities` in the same SQLite
+transaction as ciphertext, policy, nonce, monotonic clock and budget. Only keys
+newly added by that transition receive a record: public recipient/sponsor keys,
+accepted sequence, immutable seven-day expiry and initially null mailbox ID.
+At most 64 exact sorted records are allowed; no names, amounts, private keys,
+Welcome plaintext or caller-supplied delivery authorization is stored.
+
+Survivors retain their original expiry/binding, removal revokes authority and
+re-add gets a new slot. Missing authority starts empty without granting older
+members retrospective delivery permissions; damaged or oversized authority
+refuses the transaction rather than silently discarding records. Expiry uses
+the existing admitted monotonic request clock, not an independently reset clock.
+
+Seven focused checks pass (9.39s), including actual SQLite failure/rollback
+after authority writes and corrupt/65-record refusal with unchanged ciphertext,
+nonce and budget. The full relay suite passes 61 checks plus three explicit
+optional Rust-fixture skips (23.41s). Actual native MLS over the owned loopback
+roster relay still passes (1s). Logs under `app/.dart_tool`:
+`invite-authority-relay.log`, `invite-authority-full-relay.log`,
+`invite-authority-native-http.log`.
+
+This establishes the authority needed by authenticated Welcome delivery; it
+does not yet route upload/read/ack requests or prove mailbox lifecycle. Default
+public access remains closed and no account/deployment authorization changed.
