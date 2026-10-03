@@ -6,10 +6,12 @@ const utf8 = new TextEncoder();
 const domain = utf8.encode("cash-app authenticated relay request v1\0");
 const schema = ["expires", "nonce", "publicKey", "signature"];
 const verifiedProofs = new WeakMap();
+const verifiedDigests = new WeakMap();
 
 // Identity-local, frozen verifier output cannot be fabricated from JSON.
 export const isVerifiedRequestProof = proof => verifiedProofs.has(proof);
 export const verifiedRequestContext = proof => verifiedProofs.get(proof) ?? null;
+export const verifiedRequestDigest = proof => verifiedDigests.get(proof) ?? null;
 
 function bytes(hex) {
   return Uint8Array.from(hex.match(/../g), value => Number.parseInt(value, 16));
@@ -76,6 +78,7 @@ export async function verifyRequestProof(request, body, proof, expectedKey, now)
     const verified = Object.freeze({ publicKey: expectedKey, nonce: proof.nonce, expires: proof.expires });
     verifiedProofs.set(verified, Object.freeze({ origin: url.origin,
       method: request.method, path: url.pathname, query: url.search }));
+    verifiedDigests.set(verified, digest);
     return verified;
   } catch {
     return null;

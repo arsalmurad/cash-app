@@ -100,7 +100,7 @@ export class GroupLog {
     return fail(405, "method not allowed");
   }
 
-  async append(request, authorize = null) {
+  async append(request, authorize = null, afterAppend = null) {
     const body = await readJson(request);
     if (body === BODY_TOO_LARGE) return fail(413, "request body exceeds size limit");
     if (
@@ -145,6 +145,9 @@ export class GroupLog {
       await txn.put("tail", seq);
       await txn.put("capacity", { version: 1,
         bytes: capacity.bytes + body.blob.length, entries: capacity.entries + 1 });
+      // Optional transaction-local coordination. Throwing rolls back the frame,
+      // capacity and any authentication state together; never run after commit.
+      if (afterAppend) await afterAppend(txn, seq);
       return { seq };
     });
     if (result.denied) return fail(result.denied, "request admission refused");
