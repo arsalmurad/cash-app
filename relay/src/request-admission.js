@@ -1,10 +1,10 @@
 // Admission primitive only, not imported by production routing.
 // Run inside the SAME storage transaction as the authorized mutation. Verify
 // the signature against that exact request/DO scope before calling this helper.
-import { isVerifiedRequestProof } from "./request-proof.js";
+import { isVerifiedRequestProof, verifiedRequestContext } from "./request-proof.js";
+import { validDevicePolicy, requestOperation } from "./request-scope.js";
 
 const HEX32 = /^[0-9a-f]{64}$/;
-const MAX_DEVICES = 64;
 const MAX_NONCES = 256;
 const refuse = reason => ({ ok: false, reason });
 const time = value => Number.isSafeInteger(value) && value >= 0;
@@ -12,11 +12,12 @@ const time = value => Number.isSafeInteger(value) && value >= 0;
 export async function admitVerifiedDeviceRequest(txn, verified, now) {
   if (!isVerifiedRequestProof(verified) || !time(now)) return refuse("invalid");
   const roster = await txn.get("authorized_devices");
-  if (!roster || roster.version !== 1 || !time(roster.epoch) ||
-      !Array.isArray(roster.keys) || roster.keys.length === 0 || roster.keys.length > MAX_DEVICES ||
-      roster.keys.some((key, index) => typeof key !== "string" || !HEX32.test(key) ||
-        (index > 0 && key <= roster.keys[index - 1]))) return refuse("policy");
-  if (!roster.keys.includes(verified.publicKey)) return refuse("unauthorized");
+  if (!validDevicePolicy(roster)) return refuse("policy");
+  const device = roster.devices.find(device => device.key === verified.publicKey);
+  if (!device) return refuse("unauthorized");
+  const operation = requestOperation(verifiedRequestContext(verified), roster.scope);
+  if (!operation) return refuse("scope");
+  if (!device.operations.includes(operation)) return refuse("permission");
 
   const clock = await txn.get("request_clock");
   if (clock !== undefined && !time(clock)) return refuse("state");

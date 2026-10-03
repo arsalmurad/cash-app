@@ -1394,3 +1394,12 @@ Actual SQLite workerd race/rollback/revocation tests pass, but the helper remain
 disconnected from public/app routing until registration, operation permissions
 and account-wide quotas are implemented.
 
+## 2026-10-03 — Bind grants to an exact namespace and operation
+
+Version-2 experimental device policies bind canonical relay origin, group/mailbox
+namespace and per-device operation allowlists. Keep verified request context in
+an immutable isolate-local map and refuse wrong scopes/aliases or absent grants
+inside replay admission, rather than treating one device key as authority for
+every route. Unscoped v1 policies are refused; this is not production bootstrap,
+membership/pruning semantics or app authorization wiring.
+
