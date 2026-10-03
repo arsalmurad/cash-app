@@ -533,3 +533,38 @@ passes (18.86s); log `app/.dart_tool/authenticated-storage-relay-tests.log`.
 No rebuild, install, cloud job or deployment was needed. This strengthens
 authenticated native-group storage evidence, not mailbox storage, raw database
 file forensics, disk/vault persistence, dynamic enrolment or final platforms.
+
+## Atomic membership transaction primitive (2026-10-03)
+
+`request-membership.js` adds a transaction-local operation, not a routed signup
+or roster endpoint. `GroupLog.append` has an optional after-append callback
+inside its existing storage transaction; throwing from that callback rolls back
+ciphertext, tail, capacity and policy/admission writes together. Default/local
+routes supply no callback and retain their existing public-closed behavior.
+
+The primitive rehashes a defensive wire-body copy against the immutable
+verifier's recorded digest. It accepts exactly expected tail, opaque blob and
+bounded nonfinancial policy, requiring exact membership scope, the current
+transaction's grant and the next sequential authorization epoch (not proof of
+an MLS epoch). It checks the exact ciphertext appended at that slot in the same
+transaction, admits the nonce, spends the request budget and writes the policy.
+Extra financial fields, foreign scopes, skipped/stale epochs, permissionless
+callers and loss of all membership-capable devices fail closed. Removal does
+not reset replay records or spent budgets.
+
+The real SQLite/workerd fixture verifies grant addition/removal, exact saved
+state, substituted-body refusal, stale retry without mutation, malformed/foreign
+policies, read-only and removed-device denial. A failure after all writes rolls
+back everything; the identical signed request then succeeds. Only the in-memory
+fixture exposes inspection/seed/fault commands.
+
+`npm test` passes 55 checks with three optional Rust-fixture checks skipped
+(21.69s); log `app/.dart_tool/membership-transaction-relay.log`. Both actual
+native authenticated HTTP/storage cases still pass (21s), logged in
+`app/.dart_tool/membership-hook-native-http.log`. No ABI rebuild or deployment
+was needed. Next integration requires trusted bootstrap/current-policy routing,
+bounded retired replay-key storage during churn, current server time at admission,
+and app MLS commit/Welcome/retry/recovery coordination. The relay cannot inspect
+the opaque MLS commit: permission grants do not prove its cryptographic roster.
+Default/fixed local routes are not dynamically enrolled. Public deployment,
+mailbox, socket, pruning and final-platform gates remain open.

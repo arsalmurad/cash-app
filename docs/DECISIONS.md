@@ -1507,3 +1507,11 @@ paths or the recorded NDK, restore caller environment even on failure, and offer
 a no-build preflight instead of downloading another compiler or repeating the
 known failing default dev invocation.
 
+## 2026-10-03 — Rotate permissions in the encrypted commit transaction
+
+Use an optional transaction-local append hook, not a permission update after
+ciphertext already commits. Recheck the current grant, verifier-bound body,
+scope and sequential authorization epoch, retain replay/budget history, and
+roll back every write on failure. Keep it unrouted until trusted bootstrap,
+bounded retired-key state and app retries are integrated; it cannot inspect MLS.
+

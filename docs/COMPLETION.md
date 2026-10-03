@@ -136,6 +136,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   three optional Rust-fixture checks skipped. No shipped debug/seed endpoint is
   added. This is authenticated group storage evidence, not mailbox/raw-file
   forensics, final platforms or trusted dynamic enrolment.
+  An unrouted membership primitive now rotates policy in the same SQLite
+  transaction as an exact signed ciphertext append, checking current grants,
+  sequential epochs, body binding, nonces and budgets. Actual rollback,
+  revocation and malformed-policy checks pass; 55 relay checks and both real
+  native HTTP/storage cases pass. Trusted routing, bounded retired-key replay
+  state and app commit/Welcome retries remain required before enablement.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
