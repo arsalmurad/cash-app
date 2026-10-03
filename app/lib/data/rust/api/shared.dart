@@ -30,6 +30,15 @@ Future<HouseholdRequestProof> householdSignRelayRequest({
   expires: expires,
 );
 
+/// Public signing keys from the current/staged MLS roster, sorted and bounded.
+/// Read-only: does not merge a commit, advance a ratchet or export private state.
+/// It is not server authorization; relay policy and durable retries are separate.
+Future<List<Uint8List>> householdRelayRosterKeys({
+  required Household household,
+}) => RustLib.instance.api.crateApiSharedHouseholdRelayRosterKeys(
+  household: household,
+);
+
 /// Publishes exactly the prepared preview, never recomputing private totals.
 /// Persist the household before encrypting/sending, as for any other local write.
 Future<void> householdPublishSummary({

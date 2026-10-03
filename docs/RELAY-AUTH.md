@@ -674,3 +674,44 @@ change. Generated ABI, cached native/WASM artifacts and app defaults are
 unchanged; no current-platform runtime claim follows. App bridge exposure,
 validated policy transport, durable membership/Welcome/retry coordination and
 public deployment remain open.
+
+## Public roster bridge exposure (2026-10-03)
+
+`household_relay_roster_keys` now exposes the verified Rust projection as
+`List<Uint8List>` through regenerated native/web FRB bindings. It holds the
+household mutex only for the read-only query and returns bounded public signing
+keys, not names, ledger fields or private state. A test-first API check fails
+at the missing function, then passes for unjoined refusal, staged invite/
+removal, byte-identical archives, rejected commits and staged restoration.
+All 67 Rust API tests pass (0.85s).
+
+The real native bridge test independently verifies sorted unique 32-byte keys,
+actual Welcome/committed-roster agreement, rejection and restart, unchanged
+current member IDs before commit and unchanged saved archives. Mutating a
+returned Dart key does not mutate the Rust identity or a subsequent response.
+All 25 focused roster/proof/paging/protected-save checks pass (36s). Analysis
+reports no issues (32.9s); strict all-targets API Clippy passes (20.50s).
+
+Regeneration changes the ABI hash to `970902974` (previous `-155377132` is old).
+The rebuilt native DLL is 14,958,592 bytes and the release WASM bridge is
+6,305,277 bytes. Previous artifacts are preserved in ignored
+`app/.dart_tool/bridge-before-roster-keys.dll` and
+`app/.dart_tool/web-bridge-before-roster-keys/`. The pinned Windows release
+helper succeeds in about 1m15s, retaining the known atomics warning; its
+wasm-bindgen installation message is not evidence of a new download.
+Logs: `roster-bridge-generation.log`, `roster-bridge-api-tests.log` and
+`roster-bridge-wasm-build.log` under `app/.dart_tool`.
+
+This directly exercises the new method on native only. The production Flutter
+browser app and existing Android/iOS artifacts predate the new ABI; rebuilding
+a WASM bridge is not browser acceptance. Controller lifetime/lock integration,
+validated policy transport, durable app membership/Welcome/retry coordination
+and final platform verification remain open. Do not combine old app/generated
+bindings with the new native/WASM library or infer server authorization from
+the returned keys.
+
+The full native-enabled `flutter test --no-pub` suite subsequently passes all
+356 checks (3m31s) with `RUST_LIB_PATH` set to the rebuilt DLL, including both
+actual fixed-policy HTTP/storage cases. Log:
+`app/.dart_tool/roster-bridge-full-app.log`. This closes current native ABI
+compatibility for these app tests, not browser/mobile roster acceptance.

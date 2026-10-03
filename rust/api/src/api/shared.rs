@@ -59,6 +59,15 @@ pub fn household_sign_relay_request(
     })
 }
 
+/// Public signing keys from the current/staged MLS roster, sorted and bounded.
+/// Read-only: does not merge a commit, advance a ratchet or export private state.
+/// It is not server authorization; relay policy and durable retries are separate.
+pub fn household_relay_roster_keys(household: &Household) -> Result<Vec<Vec<u8>>, String> {
+    lock(household)?
+        .relay_roster_keys()
+        .map_err(|error| error.to_string())
+}
+
 #[derive(Debug, PartialEq)]
 pub struct PublishedSummaryView {
     pub event_id: String,
@@ -666,6 +675,43 @@ mod tests {
                 &first.signature,
             )
             .unwrap();
+    }
+
+    #[test]
+    fn bridge_roster_projection_is_public_read_only_and_survives_staged_restart() {
+        let alice = household_new("private-alice".into(), "USD".into()).unwrap();
+        let bob = household_new("private-bob".into(), "USD".into()).unwrap();
+        let saved = household_export(&alice).unwrap();
+        assert!(household_relay_roster_keys(&alice).is_err());
+        assert_eq!(household_export(&alice).unwrap(), saved);
+        let group = household_found(&alice).unwrap();
+        let own_key = lock(&alice).unwrap().public_key();
+        assert_eq!(
+            household_relay_roster_keys(&alice).unwrap(),
+            vec![own_key.clone()]
+        );
+        let invite = household_begin_invite(&alice, household_key_package(&bob).unwrap()).unwrap();
+        let mut expected = vec![own_key.clone(), lock(&bob).unwrap().public_key()];
+        expected.sort();
+        let staged = household_export(&alice).unwrap();
+        assert_eq!(household_relay_roster_keys(&alice).unwrap(), expected);
+        assert_eq!(household_overview(&alice).unwrap().member_ids.len(), 1);
+        assert_eq!(household_export(&alice).unwrap(), staged);
+        let restored = household_restore(staged.clone()).unwrap();
+        assert_eq!(household_relay_roster_keys(&restored).unwrap(), expected);
+        assert_eq!(household_export(&restored).unwrap(), staged);
+        household_commit_rejected(&restored).unwrap();
+        assert_eq!(
+            household_relay_roster_keys(&restored).unwrap(),
+            vec![own_key.clone()]
+        );
+        household_commit_accepted(&alice, 1).unwrap();
+        household_join(&bob, group, invite.welcome, 1).unwrap();
+        assert_eq!(household_relay_roster_keys(&bob).unwrap(), expected);
+        household_begin_removal(&alice, "private-bob".into()).unwrap();
+        let saved = household_export(&alice).unwrap();
+        assert_eq!(household_relay_roster_keys(&alice).unwrap(), vec![own_key]);
+        assert_eq!(household_export(&alice).unwrap(), saved);
     }
 
     #[test]

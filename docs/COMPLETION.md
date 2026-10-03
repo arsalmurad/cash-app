@@ -161,6 +161,13 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   devices and actual 64/65-member boundaries pass in 35 affected sync and 25
   crypto integration checks; strict Clippy is clean. Bridge/policy transport and
   durable app membership coordination are still required before app enablement.
+  The bridge now exposes those public bytes through regenerated native/web
+  bindings (ABI `970902974`). All 67 API and 356 native-enabled app tests pass,
+  including staged roster/restart/rejection/result-ownership and real HTTP
+  compatibility; analysis and strict API Clippy are clean. Native/WASM libraries
+  are rebuilt with preserved backups, but browser/mobile artifacts predate this
+  ABI. Controller guards, validated policy transport and durable membership
+  coordination remain open; a WASM build is not new-method browser acceptance.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

@@ -1542,3 +1542,12 @@ incomplete projections. Byte-identical archive checks and actual committed
 roster comparisons verify this query cannot confirm a commit or advance a
 ratchet; exposing it through the app bridge remains a separate change.
 
+## 2026-10-03 — Expose projected signing keys as public bridge bytes only
+
+Keep the bridge query read-only under the existing household mutex and return
+only bounded public key arrays. Regenerate and rebuild both native/WASM ABI
+artifacts before runtime claims, preserving old artifacts as ignored backups.
+Verify actual native staged/restart/rejection and defensive result ownership;
+do not infer browser runtime, controller unlock authority or relay permission
+from a successful build or a public-key list.
+
