@@ -32,6 +32,13 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
   const wrapper = `
     import worker, { RosterGroupLog } from './roster-worker.js';
     export class Fixture extends RosterGroupLog {
+      async read(url,authorize,historicalLimit) {
+        return super.read(url,async txn=>{
+          const value=await authorize(txn);
+          if(this.readFault) throw new Error('controlled admitted read rollback');
+          return value;
+        },historicalLimit);
+      }
       async welcomeRequest(txn,verified,bytes) {
         const value=await super.welcomeRequest(txn,verified,bytes);
         if(this.welcomeFault) throw new Error('controlled Welcome transaction rollback');
@@ -44,15 +51,17 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
         if (request.headers.get('x-test') === 'alarm') {await this.alarm();return Response.json({ok:true});}
         const previous = this.env.LOCAL_AUTH_POLICY;
         const previousFault=this.welcomeFault;
+        const previousReadFault=this.readFault;
         this.welcomeFault=request.headers.get('x-test')==='welcome-fault';
+        this.readFault=request.headers.get('x-test')==='read-fault';
         if (request.headers.has('x-test-root')) this.env.LOCAL_AUTH_POLICY=request.headers.get('x-test-root');
-        try {return await super.fetch(request);} finally {this.env.LOCAL_AUTH_POLICY=previous;this.welcomeFault=previousFault;}
+        try {return await super.fetch(request);} finally {this.env.LOCAL_AUTH_POLICY=previous;this.welcomeFault=previousFault;this.readFault=previousReadFault;}
       }
     }
     export default worker;`;
   const mf = new Miniflare({modulesRoot:moduleRoot,
     modules:[{type:'ESModule',path:`${moduleRoot}/fixture.js`,contents:wrapper},
-      ...await Promise.all(['roster-worker','roster-welcome','local-auth-worker','worker','request-proof','request-membership','invite-authority','request-scope','request-admission','request-budget'].map(async name => ({
+      ...await Promise.all(['roster-worker','roster-welcome','local-auth-worker','worker','request-proof','request-membership','invite-authority','retired-readers','request-scope','request-admission','request-budget'].map(async name => ({
         type:'ESModule',path:`${moduleRoot}/${name}.js`,contents:await readFile(new URL(`../src/${name}.js`,import.meta.url),'utf8'),
       })))],durableObjects:{GROUP:{className:'Fixture',useSQLite:true}},
     bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(root)},compatibilityDate:'2026-07-01'});
@@ -128,21 +137,61 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
     assert.equal((await call(prefix+'/append',await signed(prefix+'/append','POST',{expected_tail:1,blob:'Ag=='},devices[1]))).status,200);
     const revokedProof = await signed(prefix+'?after=0','GET',undefined,devices[1]);
     const removed = {...root,epoch:2};
+    const retirementRecords=Array.from({length:65},(_,i)=>({key:`ff${i.toString(16).padStart(62,'0')}`,through:1,expires:Date.now()+7*86400000}));
+    const setRetired=records=>call(prefix+'/append',{method:'POST',headers:{'x-test':'seed'},body:JSON.stringify({retired_readers:{version:1,records}})});
+    for(const count of [64,65]) {
+      await setRetired(retirementRecords.slice(0,count));
+      const before=await inspect();
+      assert.equal((await call(prefix+'/membership',await signed(prefix+'/membership','POST',{expected_tail:2,blob:'Aw==',policy:removed}))).status,count===64?507:503);
+      assert.deepEqual(await inspect(),before,'retired inventory refusal rolls back removal ciphertext, grants, replay, budget and Welcome authority');
+    }
+    await setRetired([]);
     assert.equal((await call(prefix+'/membership',await signed(prefix+'/membership','POST',{expected_tail:2,blob:'Aw==',policy:removed}))).status,200);
-    const revoked = await inspect();
-    assert.equal((await call(prefix+'?after=0',revokedProof)).status,401);
-    assert.deepEqual(await inspect(),revoked,'revoked requests cannot spend budget or change history');
+    assert.equal(Object.fromEntries(await inspect()).retired_readers.records[0].key,devices[1].key);
+    const catchup=await call(prefix+'?after=0',revokedProof);
+    assert.equal(catchup.status,200);
+    assert.deepEqual(await catchup.json(),{entries:[{seq:1,blob:'AQ=='},{seq:2,blob:'Ag=='},{seq:3,blob:'Aw=='}],tail:3,more:false});
+    let revoked = await inspect();
+    assert.equal((await call(prefix+'?after=0',revokedProof)).status,409);
+    assert.deepEqual(await inspect(),revoked,'retired historical requests still obey replay admission');
+    assert.equal((await call(prefix+'/policy',await signed(prefix+'/policy','GET',undefined,devices[1]))).status,401);
+    assert.equal((await call(prefix+'/append',await signed(prefix+'/append','POST',{expected_tail:3,blob:'BA=='},devices[1]))).status,401);
+    assert.equal((await call(mailbox,await signed(mailbox,'GET',undefined,devices[1]))).status,401);
+    assert.deepEqual(await inspect(),revoked,'retirement must not grant policy, append or Welcome access');
+    assert.equal((await call(prefix+'/append',await signed(prefix+'/append','POST',{expected_tail:3,blob:'BA=='}))).status,200);
+    const bounded=await call(prefix+'?after=2',await signed(prefix+'?after=2','GET',undefined,devices[1]));
+    assert.deepEqual(await bounded.json(),{entries:[{seq:3,blob:'Aw=='}],tail:3,more:false},'post-removal ciphertext and tail never leave the retired read');
+    assert.deepEqual(await (await call(prefix+'?after=3',await signed(prefix+'?after=3','GET',undefined,devices[1]))).json(),{entries:[],tail:3,more:false});
+    revoked=await inspect();
+    const atomic=await signed(prefix+'?after=2','GET',undefined,devices[1]);
+    assert.equal((await call(prefix+'?after=2',{...atomic,headers:{...atomic.headers,'x-test':'read-fault'}})).status,503);
+    assert.deepEqual(await inspect(),revoked,'read fault rolls back retired nonce and spending');
+    assert.equal((await call(prefix+'?after=2',atomic)).status,200,'rolled-back proof remains reusable');
+    revoked=await inspect();
+    const retirement=Object.fromEntries(revoked).retired_readers.records[0];
+    for(const corrupt of [{...retirement,through:5},{...retirement,name:'private'}]) {
+      await setRetired([corrupt]);
+      const before=await inspect();
+      assert.equal((await call(prefix+'?after=2',await signed(prefix+'?after=2','GET',undefined,devices[1]))).status,503);
+      assert.deepEqual(await inspect(),before,'damaged cutoff cannot spend admission or load later ciphertext');
+    }
+    await setRetired([{...retirement,expires:Date.now()-1}]);
+    const expiredRead=await inspect();
+    assert.equal((await call(prefix+'?after=2',await signed(prefix+'?after=2','GET',undefined,devices[1]))).status,401);
+    assert.deepEqual(await inspect(),expiredRead,'expired retirement cannot revive old read authority');
+    await setRetired([retirement]);
+    revoked=await inspect();
     const overridden = await signed(prefix+'?after=0');
     overridden.headers['x-test-root']=JSON.stringify({...root,epoch:1});
     assert.equal((await call(prefix+'?after=0',overridden)).status,503);
     assert.deepEqual(await inspect(),revoked,'deployment config cannot replace persisted bootstrap authority');
     const current = await call(prefix+'?after=0',await signed(prefix+'?after=0'));
     assert.equal(current.status,200);
-    assert.deepEqual((await current.json()).entries.map(entry=>entry.seq),[1,2,3]);
+    assert.deepEqual((await current.json()).entries.map(entry=>entry.seq),[1,2,3,4]);
     const rows = Object.fromEntries(await inspect());
     assert.deepEqual(rows.authorization_root,root);
     assert.deepEqual(rows.authorized_devices,removed);
-    assert.equal(rows.tail,3);
+    assert.equal(rows.tail,4);
     const beforeExpiry=await inspect();
     assert.equal((await call(prefix+'/append',{method:'POST',headers:{'x-test':'seed'},body:JSON.stringify({request_clock:expiry})})).status,200);
     assert.equal((await call(prefix,{headers:{'x-test':'alarm'}})).status,200);

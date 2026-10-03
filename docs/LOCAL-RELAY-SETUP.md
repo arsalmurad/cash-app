@@ -32,6 +32,11 @@ The port/origin must match the copied policy exactly. Do not replace the root
 for an existing relay store. The launcher uses ephemeral local test storage;
 stopping it loses relay history, although saved device ledgers remain local.
 This is not durable production hosting or an offline-peer recovery guarantee.
+Removed devices have seven days to fetch already-authorized encrypted history
+through their removal commit, so their local MLS state can become inactive.
+This does not permit later ciphertext, current policy, invites or writes. A
+device offline beyond that window may retain stale local membership; preserve
+its archive and use a fresh-key invitation rather than reopening the old grant.
 Loopback addresses refer to the device running the app: two isolated mobile
 devices cannot share this URL without a separately authorized deployment path.
 

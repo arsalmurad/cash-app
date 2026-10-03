@@ -242,8 +242,11 @@ export async function runHouseholdWebScenario(alice, api) {
       await sync(alice);
       await clickLabel(alice, 'Household options', 'button');
       assert.equal(await evaluate(alice, `document.body.textContent.includes('Export local relay setup')`), false);
-      await alice.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-      await alice.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      // Dismiss through the real modal barrier; Escape depends on which
+      // renderer/semantics element currently owns keyboard focus.
+      await alice.send('Input.dispatchMouseEvent', { type: 'mousePressed', x:16, y:160, button:'left', clickCount:1 });
+      await alice.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x:16, y:160, button:'left', clickCount:1 });
+      await waitForLabel(alice, 'Shared balance');
       console.log('Verified authenticated bootstrap: production app public roster export starts owned SQLite relay; no pre-seeded history.');
     }
     const bob = await newPeer();
@@ -436,6 +439,10 @@ export async function runHouseholdWebScenario(alice, api) {
     await Promise.race([workerFailure, Promise.resolve()]);
     console.log('Verified household: private ledgers stay separate; HTTP bodies contain no readable fixture titles.');
   } catch (error) {
+    const responses=[alice,...peers].flatMap(peer=>peer.events)
+      .filter(event=>event.method==='Network.responseReceived'&&event.params.response.url.startsWith(relayUrl)&&event.params.response.status>=400)
+      .slice(-12).map(event=>({path:new URL(event.params.response.url).pathname,status:event.params.response.status}));
+    console.error('Owned relay refusal diagnostics (paths/status only):',JSON.stringify(responses));
     for (const [index, peer] of [alice, ...peers].entries()) {
       const screenshot = await peer.send('Page.captureScreenshot', { format: 'png' }).catch(() => null);
       if (screenshot) writeFileSync(join(repoRoot, `app/.dart_tool/household-web-failure-${index}.png`), Buffer.from(screenshot.data, 'base64'));

@@ -56,7 +56,7 @@ test('SQLite membership transition binds ciphertext, current grant, epoch and re
     export default {fetch(request, env) {return env.GROUP.get(env.GROUP.idFromName('fixture')).fetch(request);}};`;
   const mf = new Miniflare({ modulesRoot: root,
     modules: [{type:'ESModule', path:`${root}/fixture.js`, contents:wrapper},
-      ...await Promise.all(['worker', 'request-proof', 'request-membership', 'invite-authority', 'request-scope', 'request-admission', 'request-budget'].map(async name => ({
+      ...await Promise.all(['worker', 'request-proof', 'request-membership', 'invite-authority', 'retired-readers', 'request-scope', 'request-admission', 'request-budget'].map(async name => ({
         type:'ESModule', path:`${root}/${name}.js`, contents:await readFile(new URL(`../src/${name}.js`, import.meta.url), 'utf8'),
       })))], durableObjects: {GROUP:{className:'Fixture',useSQLite:true}}, compatibilityDate:'2026-07-01' });
   const url = `${scope.origin}/g/${scope.id}/membership`;
@@ -107,7 +107,11 @@ test('SQLite membership transition binds ciphertext, current grant, epoch and re
     assert.deepEqual(await inspect(),restricted);
     await seed({authorized_devices:next});
     const removed = {...next,epoch:2,devices:[{key:identities[1].key,operations}]};
-    assert.equal((await mf.dispatchFetch(url,await signed({expected_tail:1,blob:'Ag==',policy:removed}))).status,200);
+    const removalRequest=await signed({expected_tail:1,blob:'Ag==',policy:removed});
+    const beforeRetirement=await inspect();
+    assert.equal((await mf.dispatchFetch(url,{...removalRequest,headers:{...removalRequest.headers,'x-control':'fault'}})).status,503);
+    assert.deepEqual(await inspect(),beforeRetirement,'post-retirement fault rolls back cutoff together with removal, nonce, budget and policy');
+    assert.equal((await mf.dispatchFetch(url,removalRequest)).status,200);
     const afterRemoval = await inspect();
     assert.equal((await mf.dispatchFetch(url,await signed({expected_tail:2,blob:'Aw==',policy:{...next,epoch:3}}))).status,403);
     assert.deepEqual(await inspect(),afterRemoval);

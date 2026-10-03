@@ -259,6 +259,13 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   catch-up because relay revocation blocks its MLS removal commit. Preserve this
   failing opt-in regression and fix bounded retired-device catch-up before
   declaring authenticated platform acceptance; details are in `RELAY-AUTH.md`.
+  That regression is now repaired by transaction-authorized historical reads
+  capped at removal; the unchanged authenticated Chrome removed-state flow and
+  complete household scenario pass. Six affected native HTTP cases and real
+  SQLite cutoff/rollback/capacity/expiry/paging tests also pass. Final iOS/Android,
+  persisted authenticated-roster storage audit, sockets/pruning and authorized
+  public/free-plan deployment remain open; do not treat the browser gate as
+  whole-project completion.
 - [ ] Finish concise setup, recovery, security-limit and verification docs, with
   all deliverable source and evidence synchronized to private GitHub `main`.
 

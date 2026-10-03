@@ -22,7 +22,7 @@ const wrapper = `
   export default worker;`;
 const mf = new Miniflare({ modulesRoot: root,
   modules: [{ type: 'ESModule', path: `${root}/native-fixture.js`, contents: wrapper },
-    ...await Promise.all(['local-auth-worker', 'worker', 'request-proof', 'request-admission', 'request-scope', 'request-budget'].map(async name => ({
+    ...await Promise.all(['local-auth-worker', 'worker', 'request-proof', 'request-admission', 'retired-readers', 'request-scope', 'request-budget'].map(async name => ({
       type: 'ESModule', path: `${root}/${name}.js`,
       contents: await readFile(new URL(`../src/${name}.js`, import.meta.url), 'utf8'),
     })))],
