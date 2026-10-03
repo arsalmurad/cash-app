@@ -1584,3 +1584,12 @@ mailbox upload to invent its own recipient or join slot. Preserve a survivor's
 original expiry and one-mailbox binding; removal revokes its record and re-add
 creates a new slot, while damaged or oversized authority fails closed.
 
+## 2026-10-04 — Recipient-only group-scoped Welcome delivery
+
+Use signed group-scoped upload/read/ack routes, not unauthenticated mailbox
+IDs or consume-before-save requests. Bind the first upload to the accepted
+sponsor/recipient/slot, retain consumed ciphertext until its original expiry
+for exact retries, and cap the small metadata index at 64 without scanning all
+payloads. Alarm cleanup is transactional, advances the observed clock floor
+and removes only expired invitation ciphertext, never financial history.
+

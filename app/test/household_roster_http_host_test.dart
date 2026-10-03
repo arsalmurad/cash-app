@@ -1,5 +1,6 @@
 // Real native MLS commits and device proofs over owned loopback workerd/SQLite.
-// Trusted bootstrap and Welcome delivery are out of band, not public enrolment.
+// Bootstrap is trusted out of band; raw Welcome requests are not acceptance of
+// controller-managed durable protected saves, browser CORS or public enrolment.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -168,10 +169,52 @@ void main() {
         household: resumed,
         sequence: PlatformInt64Util.from(sequence),
       );
+      final mailbox = '$origin/g/$group/invite/${'04' * 16}';
+      final wire = http.Client();
+      addTearDown(wire.close);
+      Future<http.Response> delivery(
+        Household device,
+        String method,
+        String url, [
+        Map<String, Object?>? body,
+      ]) async {
+        final uri = Uri.parse(url);
+        final bytes = body == null
+            ? Uint8List(0)
+            : Uint8List.fromList(utf8.encode(jsonEncode(body)));
+        final request = http.Request(method, uri)..bodyBytes = bytes;
+        request.headers['x-cash-device-proof'] = await _signer(device)(
+          method,
+          uri,
+          bytes,
+        );
+        return http.Response.fromStream(
+          await wire.send(request).timeout(const Duration(seconds: 10)),
+        ).timeout(const Duration(seconds: 10));
+      }
+
+      final envelope = <String, Object?>{
+        'recipient': proposedKeys.singleWhere((key) => key != own.single),
+        'joined_after': sequence,
+        'welcome': base64.encode(invitation.welcome),
+      };
+      expect(
+        (await delivery(resumed, 'PUT', mailbox, envelope)).statusCode,
+        200,
+      );
+      expect((await delivery(resumed, 'GET', mailbox)).statusCode, 403);
+      final fetched = await delivery(bob, 'GET', mailbox);
+      expect(fetched.statusCode, 200);
+      final item = jsonDecode(fetched.body) as Map<String, dynamic>;
+      expect(item['group'], group);
+      expect(item['joined_after'], sequence);
+      final deliveredWelcome = base64.decode(item['welcome'] as String);
+      expect(deliveredWelcome, invitation.welcome);
+      expect((await delivery(bob, 'GET', mailbox)).body, fetched.body);
       await householdJoin(
         household: bob,
         groupId: group,
-        welcome: invitation.welcome,
+        welcome: deliveredWelcome,
         joinedAfter: PlatformInt64Util.from(sequence),
       );
       expect(
@@ -179,6 +222,13 @@ void main() {
         proposedKeys,
       );
       expect((await invitee.readPolicy(group)).toJson(), next.toJson());
+      expect((await delivery(bob, 'POST', '$mailbox/ack')).statusCode, 200);
+      expect((await delivery(bob, 'POST', '$mailbox/ack')).statusCode, 200);
+      expect(
+        (await delivery(resumed, 'PUT', mailbox, envelope)).statusCode,
+        200,
+      );
+      expect((await delivery(bob, 'GET', mailbox)).statusCode, 404);
       final oldProof = await _signer(bob)(
         'GET',
         Uri.parse('$origin/g/$group/policy'),
