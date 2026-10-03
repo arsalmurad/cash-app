@@ -69,23 +69,6 @@ void main() {
         test(
           '$failure never consumes Welcome before saved joined keys, and restart resumes',
           () async {
-            final memory = MemoryRelayClient();
-            final states = [_Store(), _Store()], configs = [_Store(), _Store()];
-            final initial = List.generate(
-              2,
-              (i) => HouseholdController(
-                stateStore: states[i],
-                configStore: configs[i],
-                relayFactory: (_) => memory,
-              ),
-            );
-            for (final device in initial) {
-              await device.initialize();
-              expect(await device.setRelayUrl('https://relay.test'), isTrue);
-            }
-            expect(await initial[0].createHousehold(), isTrue);
-            final request = (await initial[1].prepareJoinRequest())!;
-            final group = initial[0].overview!.groupId!;
             final reserve = await ServerSocket.bind(
               InternetAddress.loopbackIPv4,
               0,
@@ -93,6 +76,41 @@ void main() {
             final port = reserve.port;
             await reserve.close();
             final origin = 'http://127.0.0.1:$port';
+            final memory = MemoryRelayClient();
+            final states = [_Store(), _Store()], configs = [_Store(), _Store()];
+            final initial = List.generate(
+              2,
+              (i) => HouseholdController(
+                stateStore: states[i],
+                configStore: configs[i],
+                relayFactory: failure == 'default-client'
+                    ? null
+                    : (_) => memory,
+              ),
+            );
+            for (var i = 0; i < initial.length; i++) {
+              final device = initial[i];
+              await device.initialize();
+              expect(
+                await device.setRelayUrl(
+                  failure == 'default-client' ? origin : 'https://relay.test',
+                  authenticated: failure == 'default-client' && i == 0,
+                ),
+                isTrue,
+              );
+            }
+            expect(
+              await initial[0].createHousehold(),
+              failure != 'default-client',
+            );
+            final request = (await initial[1].prepareJoinRequest())!;
+            expect(
+              await initial[1].relayBootstrapPolicy(),
+              isNull,
+              reason:
+                  'An unjoined identity cannot grant itself founding authority',
+            );
+            final group = initial[0].overview!.groupId!;
             final proof = jsonDecode(
               await initial[0].relayRequestSigner(
                 'GET',
@@ -100,17 +118,37 @@ void main() {
                 Uint8List(0),
               ),
             ) as Map<String, dynamic>;
-            final root = {
-              'version': 2,
-              'epoch': 0,
-              'scope': {'origin': origin, 'kind': 'g', 'id': group},
-              'devices': [
+            final beforeExport = Uint8List.fromList(states[0].value!);
+            final root = failure == 'default-client'
+                ? jsonDecode((await initial[0].relayBootstrapPolicy())!)
+                : {
+                    'version': 2,
+                    'epoch': 0,
+                    'scope': {'origin': origin, 'kind': 'g', 'id': group},
+                    'devices': [
+                      {
+                        'key': proof['publicKey'],
+                        'operations': ['append', 'membership', 'read'],
+                      },
+                    ],
+                  };
+            if (failure == 'default-client') {
+              expect(
+                states[0].value,
+                beforeExport,
+                reason: 'Public setup export cannot mutate saved identity or ledger',
+              );
+              expect(
+                jsonDecode((await initial[0].relayBootstrapPolicy())!),
+                root,
+              );
+              expect((root as Map)['devices'], [
                 {
                   'key': proof['publicKey'],
                   'operations': ['append', 'membership', 'read'],
                 },
-              ],
-            };
+              ]);
+            }
             // Only initial Alice is operator trusted; Bob enrols via actual MLS and
             // atomic relay membership, never test-supplied two-member policy.
             final process = await Process.start(
@@ -242,6 +280,14 @@ void main() {
               await seed.append(group, entry.sequence - 1, entry.blob);
             }
             expect(await alice.syncNow(), isTrue);
+            if (failure == 'default-client') {
+              expect(
+                await alice.relayBootstrapPolicy(),
+                isNull,
+                reason:
+                    'A synced group cannot be used to reset operator authority',
+              );
+            }
             final invite = (await alice.invite(request))!;
             final descriptor = decodeInvite(invite);
             final downgraded = restore(1, roster: false);

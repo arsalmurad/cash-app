@@ -998,3 +998,27 @@ and household actions. Analysis is clean (3.1s). These are Flutter host widget
 checks, not production browser interaction, real screen-reader/contrast audit,
 native mobile acceptance or public operator/bootstrap setup. The full 393-check
 suite above precedes this isolated UI concern.
+
+## 2026-10-04 — App-accessible public operator bootstrap
+
+New unsynced single-device loopback households can export an exact version-2
+epoch-0 policy via Household options. This queued, read-only operation derives
+the actual protected public roster key; it sends no request and does not modify
+saved ledger/identity bytes. It refuses unjoined/synced/recovery/locked/closed/
+uncertain-save state, pending membership/invitation/ACK work and remote origins.
+The scrollable copy dialog explains public metadata, local-only use and the
+prohibition on replacing an existing root. `LOCAL-RELAY-SETUP.md` records the
+operator steps; the optional local policy file is ignored by Git.
+
+Twenty-four native/HTTP and UI checks pass (16s,
+`app/.dart_tool/relay-bootstrap-ui-http.log`). The fifth HTTP case now uses normal
+clients from founding onward: founding before relay startup saves local keys,
+the public export configures the owning worker, and ordinary sync uploads the
+pending founding events without a test-seeded log. Repeated export is identical
+and leaves saved state unchanged; its sole key matches the protected signer.
+Joined/restarted peers exchange an encrypted expense; synced export is refused.
+UI tests cover conditional menu/failure and exact public copying at 200% phone
+text. Final analysis is clean (2.8s). The five real HTTP cases are rerun with
+explicit unjoined-identity export refusal in `relay-bootstrap-final-native.log`.
+This remains owned native/host-widget evidence, not public enrolment, durable
+hosting, browser/mobile runtime or a new raw storage audit.

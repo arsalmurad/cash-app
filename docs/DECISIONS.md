@@ -1626,3 +1626,11 @@ instead of implying that encryption alone restricts transport or that choosing
 authenticated mode publicly registers a household. Keep mode edits local until
 Save, with normal Material semantics, owned keyboard focus and scrollable text.
 
+## 2026-10-04 — Export public founding grants only for unsynced loopback setup
+
+Derive one founding public key from the protected MLS roster, queue the read-only
+export with controller operations, and refuse synced, unjoined, recovering,
+locked, uncertain-save or non-loopback households. Keep operator acceptance out
+of app networking: an explicit public policy starts the existing local worker,
+not an anonymous registration endpoint or a reset of existing relay authority.
+

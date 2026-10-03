@@ -141,6 +141,64 @@ class HouseholdController extends ChangeNotifier {
       (_relay is RosterRelayClient &&
           (_relay as RosterRelayClient).rosterEnabled);
 
+  /// Operator setup is deliberately limited to a new, unsynced loopback group.
+  /// Exporting these public grants neither registers a device nor resets a root.
+  bool get canExportRelayBootstrap =>
+      authenticatedRelay &&
+      !_relaySigningClosed &&
+      !_writesDisabled &&
+      !needsVaultUnlock &&
+      !needsRecoveryInvite &&
+      overview?.isMember == true &&
+      overview?.cursor.toInt() == 0 &&
+      overview?.memberIds.length == 1 &&
+      _pendingInvitation == null &&
+      _pendingMailboxAck == null &&
+      _pendingRelayMembership == null &&
+      [
+        '127.0.0.1',
+        'localhost',
+        '::1',
+        '[::1]',
+      ].contains(Uri.tryParse(relayUrl ?? '')?.host);
+
+  Future<String?> relayBootstrapPolicy() async {
+    String? result;
+    final ok = await _run(() async {
+      if (!canExportRelayBootstrap) {
+        throw const FormatException(
+          'Relay setup export is only available for a new, unsynced household on a loopback development relay.',
+        );
+      }
+      final origin = relayUrl!;
+      final group = _groupId();
+      final keys = await relayRosterKeys();
+      if (!canExportRelayBootstrap || keys.length != 1) {
+        throw const FormatException(
+          'The household changed before relay setup export.',
+        );
+      }
+      result = jsonEncode(
+        RelayAuthorizationPolicy.fromJson(
+          {
+            'version': 2,
+            'epoch': 0,
+            'scope': {'origin': origin, 'kind': 'g', 'id': group},
+            'devices': [
+              {
+                'key': keys.single,
+                'operations': ['append', 'membership', 'read'],
+              },
+            ],
+          },
+          origin: origin,
+          group: group,
+        ).toJson(),
+      );
+    });
+    return ok ? result : null;
+  }
+
   RelayClient _makeRelay(String url, {bool? authenticated}) {
     final enabled = authenticated ?? _authenticatedRelay;
     RelaySettings(url, authenticated: enabled);
