@@ -1456,10 +1456,27 @@ native bridge and default Rust SQLite: 123 JPY at 0.0065 USD/JPY retains its
 restores JPY -223 / USD -1.80. Fractional JPY is refused without changing the
 saved event log. This host controller check does not claim UI entry or a device.
 `personal_jpy_scenario.dart` adds corresponding real UI entry/display/restart
-checks to the native personal integration, whose Android result is still pending.
+checks to the native personal integration. On the existing Android 16/API 36
+x86_64 AOSP ATD emulator (`emulator-5580`, WHPX), the expanded full personal
+integration now passes (1 test, 94 s runtime; cached build 118.5 s, install
+1.834 s). Command: `flutter --no-version-check test --no-pub
+integration_test/ledger_test.dart -d emulator-5580 --reporter expanded`.
+It exercises the actual JPY UI, two frozen rates, default SQLite, visible
+whole-yen labels after restart and fractional-amount refusal without a log write,
+alongside the existing definitions, large money, corrections and history checks.
+No iOS, physical phone or enrolled biometric pass is inferred.
 No money-path implementation changed. The new fixtures pass the pinned analyzer.
 
 An initial duplicate host-widget harness stalled at asynchronous setup and was
 stopped, not recorded as a pass or an app regression. The existing plain
 real-controller/SQLite host pattern now passes; actual UI remains assigned to
 the native integration rather than inferred from that controller test.
+
+The first expanded Android run passes the preceding personal checks but the
+new fixture starts on the previous Activity tab and cannot find the account
+button. Distinct widget keys now reset both fixture entry and restart screens
+to Overview, rather than reusing old navigation state; the final full run passes.
+This fixture-only repair does not change ledger behavior. The first build takes
+357 s after the receipt bridge change; the retry reuses existing native caches.
+The builder's one reported dependency change is only the `build_tool` path's
+Windows drive-letter case, not a package-version upgrade.
