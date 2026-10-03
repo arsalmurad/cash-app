@@ -62,6 +62,30 @@ in 2 minutes 20 seconds; static analysis reports no issues. This client copy
 change has host HTTP/native-bridge evidence, not a newly rebuilt mobile or
 production browser runtime. Previous platform evidence remains revision-scoped.
 
+## Checked relay pages
+
+A subsequent transport change checks every page's tail, continuation flag,
+contiguous sequences and nonempty bounded decoded entries in both Dart and the
+Rust HTTP client. Backwards tails, missing/mistyped metadata, gaps, duplicates,
+stalled continuation and false completion fail without returning partial history.
+Concurrent tail growth and ordinary empty completion remain valid. A server
+claiming an empty log behind a saved cursor now fails instead of pretending sync
+succeeded; this is not a peer-snapshot recovery implementation.
+
+The test-first Dart regressions initially reproduced an extra request after an
+empty continuation and acceptance of tail rollback. The Rust decoder tests
+initially failed to compile at the absent checked decoder. Subsequently all 41
+focused HTTP/native-bridge household persistence tests, two Rust decoder tests,
+strict HTTP-enabled all-target Clippy and app static analysis pass. The current
+Rust HTTP client again passes the real-workerd 31-record encrypted-peer audit
+and negative control; WSASend #10053 appeared despite passing assertions/exit 0.
+The earlier full 319 app-test run precedes this page-validation change; no new
+production browser/mobile run or physical-network guarantee is inferred.
+
+This check does not authenticate the relay, cap buffered HTTP response bytes,
+or guarantee termination against a server continually inventing advancing
+tails. Those resource and authentication boundaries remain separate work.
+
 ## Still open
 
 There is no account-wide group/mailbox creation quota, authenticated roster,

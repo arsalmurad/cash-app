@@ -169,6 +169,7 @@ class HttpRelayClient implements RelayClient {
   Future<List<RelayLogEntry>> readAfter(String group, int after) async {
     final entries = <RelayLogEntry>[];
     var cursor = after;
+    var previousTail = after;
     while (true) {
       final response = await _send(
         () => _client.get(_uri('/g/$group?after=$cursor')),
@@ -178,18 +179,38 @@ class HttpRelayClient implements RelayClient {
       }
       final page = _object(response);
       final rawEntries = page['entries'];
-      if (rawEntries is! List) {
-        throw const RelayUnavailable('the relay sent no entry list');
+      final tail = page['tail'];
+      final more = page['more'];
+      if (rawEntries is! List ||
+          tail is! int ||
+          more is! bool ||
+          tail < cursor ||
+          tail < previousTail) {
+        throw const RelayUnavailable('the relay sent an invalid log page');
       }
+      final pageStart = cursor;
       for (final raw in rawEntries) {
         if (raw is! Map || raw['seq'] is! int) {
           throw const RelayUnavailable('the relay sent a malformed entry');
         }
         final sequence = raw['seq'] as int;
-        entries.add(RelayLogEntry(sequence, _bytes(raw['blob'])));
+        if (sequence != cursor + 1 || sequence > tail) {
+          throw const RelayUnavailable('the relay sent a gap or reordered log');
+        }
+        final blob = _bytes(raw['blob']);
+        if (blob.isEmpty || blob.length > 256 * 1024) {
+          throw const RelayUnavailable('the relay sent an invalid entry size');
+        }
+        entries.add(RelayLogEntry(sequence, blob));
         cursor = sequence;
       }
-      if (page['more'] != true) {
+      if (more != (cursor < tail) || (more && cursor == pageStart)) {
+        throw const RelayUnavailable(
+          'the relay sent inconsistent continuation',
+        );
+      }
+      previousTail = tail;
+      if (!more) {
         return entries;
       }
     }

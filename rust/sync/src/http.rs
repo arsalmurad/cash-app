@@ -64,6 +64,55 @@ fn mailbox_reply(
     }
 }
 
+struct CheckedPage {
+    entries: Vec<(u64, Vec<u8>)>,
+    tail: u64,
+    more: bool,
+}
+
+fn checked_page(page: &Value, after: u64, previous_tail: u64) -> Result<CheckedPage, RelayError> {
+    let tail = page["tail"]
+        .as_u64()
+        .ok_or_else(|| unavailable("invalid log tail"))?;
+    let more = page["more"]
+        .as_bool()
+        .ok_or_else(|| unavailable("invalid continuation"))?;
+    if tail < after || tail < previous_tail {
+        return Err(unavailable("relay log tail moved backwards"));
+    }
+    let raw = page["entries"]
+        .as_array()
+        .ok_or_else(|| unavailable("missing entry list"))?;
+    let mut entries = Vec::new();
+    let mut cursor = after;
+    for entry in raw {
+        let sequence = entry["seq"]
+            .as_u64()
+            .ok_or_else(|| unavailable("invalid entry sequence"))?;
+        if Some(sequence) != cursor.checked_add(1) || sequence > tail {
+            return Err(unavailable("gap or reordered relay log"));
+        }
+        let blob = decode(
+            entry["blob"]
+                .as_str()
+                .ok_or_else(|| unavailable("entry had no blob"))?,
+        )?;
+        if blob.is_empty() || blob.len() > 256 * 1024 {
+            return Err(unavailable("invalid entry size"));
+        }
+        entries.push((sequence, blob));
+        cursor = sequence;
+    }
+    if more != (cursor < tail) || (more && cursor == after) {
+        return Err(unavailable("inconsistent relay continuation"));
+    }
+    Ok(CheckedPage {
+        entries,
+        tail,
+        more,
+    })
+}
+
 impl Relay for HttpRelay {
     fn append(
         &mut self,
@@ -95,26 +144,21 @@ impl Relay for HttpRelay {
     fn read_after(&self, group: &str, after: u64) -> Result<Vec<(u64, Vec<u8>)>, RelayError> {
         let mut entries = Vec::new();
         let mut cursor = after;
+        let mut previous_tail = after;
         loop {
-            let page = body(
+            let raw = body(
                 self.agent
                     .get(&self.url(&format!("/g/{group}?after={cursor}")))
                     .call()
                     .map_err(unavailable)?,
             )?;
-            for entry in page["entries"].as_array().into_iter().flatten() {
-                let sequence = entry["seq"]
-                    .as_u64()
-                    .ok_or_else(|| unavailable("entry had no seq"))?;
-                let blob = decode(
-                    entry["blob"]
-                        .as_str()
-                        .ok_or_else(|| unavailable("entry had no blob"))?,
-                )?;
-                cursor = sequence;
-                entries.push((sequence, blob));
+            let page = checked_page(&raw, cursor, previous_tail)?;
+            if let Some((sequence, _)) = page.entries.last() {
+                cursor = *sequence;
             }
-            if page["more"].as_bool() != Some(true) {
+            previous_tail = page.tail;
+            entries.extend(page.entries);
+            if !page.more {
                 return Ok(entries);
             }
         }
@@ -155,3 +199,7 @@ impl Relay for HttpRelay {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "http_page_tests.rs"]
+mod page_tests;
