@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_ledger/data/rust/api/categories.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/features/ledger/add_transaction_sheet.dart';
+import 'package:private_ledger/theme.dart';
 
 const _categories = [
   CategoryView(id: 'food', name: 'Food', iconKey: 'restaurant'),
@@ -41,10 +43,20 @@ Future<void> _openSheet(
   required Future<String?> Function(String) onSuggestCategory,
   Future<CategoryView?> Function(String, String)? onAddCategory,
   List<AccountView> accounts = _accounts,
+  List<CategoryView> categories = _categories,
   ValueChanged<EntryDraft?>? onResult,
+  bool keyboardOnly = false,
+  Brightness brightness = Brightness.light,
+  double textScale = 1,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      theme: ledgerTheme(brightness),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -55,7 +67,7 @@ Future<void> _openSheet(
                 builder: (context) => AddTransactionSheet(
                   accounts: accounts,
                   reportingCurrencyCode: 'USD',
-                  categories: _categories,
+                  categories: categories,
                   onSuggestCategory: onSuggestCategory,
                   onAddCategory: onAddCategory ?? (_, _) async => null,
                 ),
@@ -68,11 +80,162 @@ Future<void> _openSheet(
       ),
     ),
   );
-  await tester.tap(find.text('open'));
+  if (keyboardOnly) {
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+  } else {
+    await tester.tap(find.text('open'));
+  }
+  await tester.pumpAndSettle();
+}
+
+bool _focusedInside(Finder finder) {
+  final target = finder.evaluate().single;
+  var inside = FocusManager.instance.primaryFocus?.context == target;
+  FocusManager.instance.primaryFocus?.context?.visitAncestorElements((element) {
+    if (element == target) inside = true;
+    return !inside;
+  });
+  return inside;
+}
+
+Future<void> _key(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyEvent(key);
   await tester.pumpAndSettle();
 }
 
 void main() {
+  for (final size in [const Size(360, 740), const Size(1280, 900)]) {
+    for (final brightness in Brightness.values) {
+      testWidgets('keyboard expense at $size / $brightness / 200% text', (
+        tester,
+      ) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        EntryDraft? result;
+        var returns = 0;
+        await _openSheet(
+          tester,
+          keyboardOnly: true,
+          brightness: brightness,
+          textScale: 2,
+          onSuggestCategory: (_) async => null,
+          onResult: (draft) {
+            returns++;
+            result = draft;
+          },
+        );
+        expect(_focusedInside(find.byType(TextFormField).first), isTrue);
+        tester.testTextInput.enterText('Keyboard coffee');
+        await _key(tester, LogicalKeyboardKey.tab);
+        expect(_focusedInside(find.byType(TextFormField).at(1)), isTrue);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await _key(tester, LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        expect(_focusedInside(find.byType(TextFormField).first), isTrue);
+        await _key(tester, LogicalKeyboardKey.tab);
+        tester.testTextInput.enterText('4.50');
+        await _key(tester, LogicalKeyboardKey.tab);
+        expect(
+          _focusedInside(find.byKey(const Key('accountDropdown'))),
+          isTrue,
+        );
+        await _key(tester, LogicalKeyboardKey.enter);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        await _key(tester, LogicalKeyboardKey.enter);
+        await _key(tester, LogicalKeyboardKey.tab);
+        expect(
+          _focusedInside(find.byKey(const Key('categoryDropdown'))),
+          isTrue,
+        );
+        await _key(tester, LogicalKeyboardKey.enter);
+        await _key(tester, LogicalKeyboardKey.arrowDown);
+        await _key(tester, LogicalKeyboardKey.enter);
+        await _key(tester, LogicalKeyboardKey.tab);
+        expect(
+          _focusedInside(find.widgetWithText(FilledButton, 'Add transaction')),
+          isTrue,
+        );
+        await _key(tester, LogicalKeyboardKey.enter);
+        expect(returns, 1);
+        final draft = result as TransactionDraft;
+        expect(draft.title, 'Keyboard coffee');
+        expect(draft.amount, '4.50');
+        expect(draft.accountId, 'savings');
+        expect(draft.categoryId, 'transport');
+        expect(draft.kind, EntryKind.expense);
+        expect(find.byType(AddTransactionSheet), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('Escape cancels a populated personal entry without submitting', (
+    tester,
+  ) async {
+    EntryDraft? result;
+    var returns = 0;
+    await _openSheet(
+      tester,
+      keyboardOnly: true,
+      onSuggestCategory: (_) async => null,
+      onResult: (draft) {
+        returns++;
+        result = draft;
+      },
+    );
+    tester.testTextInput.enterText('Keep private');
+    await _key(tester, LogicalKeyboardKey.escape);
+    expect(returns, 1);
+    expect(result, isNull);
+    expect(find.byType(AddTransactionSheet), findsNothing);
+    expect(_focusedInside(find.widgetWithText(TextButton, 'open')), isTrue);
+  });
+
+  testWidgets('long account and category labels wrap at 200% phone text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const accountName =
+        'Everyday personal account with a complete descriptive name';
+    const categoryName =
+        'Food and household groceries with a complete descriptive name';
+    await _openSheet(
+      tester,
+      keyboardOnly: true,
+      textScale: 2,
+      accounts: const [
+        AccountView(
+          id: 'everyday',
+          name: accountName,
+          currencyCode: 'USD',
+          balanceLabel: 'USD 0.00',
+        ),
+      ],
+      categories: const [
+        CategoryView(id: 'food', name: categoryName, iconKey: 'restaurant'),
+      ],
+      onSuggestCategory: (_) async => null,
+    );
+    await _key(tester, LogicalKeyboardKey.tab);
+    await _key(tester, LogicalKeyboardKey.tab);
+    await _key(tester, LogicalKeyboardKey.enter);
+    expect(find.text(accountName), findsWidgets);
+    await _key(tester, LogicalKeyboardKey.escape);
+    await _key(tester, LogicalKeyboardKey.tab);
+    await _key(tester, LogicalKeyboardKey.enter);
+    expect(find.text(categoryName), findsWidgets);
+    await _key(tester, LogicalKeyboardKey.escape);
+    await _key(tester, LogicalKeyboardKey.escape);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('returning to a title still ignores its superseded suggestion', (
     tester,
   ) async {
@@ -98,6 +261,48 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Food'), findsOneWidget);
     expect(find.text('Transport'), findsNothing);
+  });
+  testWidgets('long transfer account selectors wrap at 200% phone text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const from = 'Everyday personal account with a complete descriptive name';
+    const to = 'Euro savings account with a complete descriptive name';
+    await _openSheet(
+      tester,
+      textScale: 2,
+      accounts: const [
+        AccountView(
+          id: 'everyday',
+          name: from,
+          currencyCode: 'USD',
+          balanceLabel: 'USD 0.00',
+        ),
+        AccountView(
+          id: 'euro',
+          name: to,
+          currencyCode: 'EUR',
+          balanceLabel: 'EUR 0.00',
+        ),
+      ],
+      onSuggestCategory: (_) async => null,
+    );
+    await tester.ensureVisible(find.text('Transfer'));
+    await tester.tap(find.text('Transfer'));
+    await tester.pumpAndSettle();
+    for (final selector in ['fromAccountDropdown', 'toAccountDropdown']) {
+      await tester.ensureVisible(find.byKey(Key(selector)));
+      await tester.tap(find.byKey(Key(selector)));
+      await tester.pumpAndSettle();
+      expect(find.text(from), findsWidgets);
+      expect(find.text(to), findsWidgets);
+      await _key(tester, LogicalKeyboardKey.escape);
+    }
+    expect(tester.takeException(), isNull);
+    await _key(tester, LogicalKeyboardKey.escape);
   });
   testWidgets('an older title suggestion cannot replace the current category', (
     tester,
@@ -339,12 +544,18 @@ void main() {
 
       await tester.enterText(find.byType(TextFormField).at(0), 'Hotel');
       await tester.enterText(find.byType(TextFormField).at(1), '80.00');
+      await tester.ensureVisible(
+        find.widgetWithText(FilledButton, 'Add transaction'),
+      );
       await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
       await tester.pumpAndSettle();
       expect(result, isNull, reason: 'a missing rate must block submission');
       expect(find.text('Enter the exchange rate'), findsOneWidget);
 
       await tester.enterText(find.byKey(const Key('rateField')), '1.0875');
+      await tester.ensureVisible(
+        find.widgetWithText(FilledButton, 'Add transaction'),
+      );
       await tester.tap(find.widgetWithText(FilledButton, 'Add transaction'));
       await tester.pumpAndSettle();
 

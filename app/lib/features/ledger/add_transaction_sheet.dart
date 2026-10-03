@@ -317,6 +317,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         key: const Key('accountDropdown'),
+        isExpanded: true,
+        isDense: false,
+        itemHeight: null,
         initialValue: accountId,
         decoration: const InputDecoration(labelText: 'Account'),
         items: [
@@ -333,6 +336,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         key: const Key('categoryDropdown'),
+        isExpanded: true,
+        isDense: false,
+        itemHeight: null,
         initialValue: categoryId,
         decoration: const InputDecoration(labelText: 'Category'),
         items: [
@@ -344,7 +350,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 children: [
                   Icon(categoryIcon(category.iconKey), size: 18),
                   const SizedBox(width: 8),
-                  Text(category.name),
+                  Flexible(child: Text(category.name)),
                 ],
               ),
             ),
@@ -355,7 +361,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               children: [
                 Icon(Icons.add_rounded, size: 18),
                 SizedBox(width: 8),
-                Text('New category'),
+                Flexible(child: Text('New category')),
               ],
             ),
           ),
@@ -378,6 +384,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     return [
       DropdownButtonFormField<String>(
         key: const Key('fromAccountDropdown'),
+        isExpanded: true,
+        isDense: false,
+        itemHeight: null,
         initialValue: fromAccountId,
         decoration: const InputDecoration(labelText: 'From account'),
         items: [
@@ -389,6 +398,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       const SizedBox(height: 12),
       DropdownButtonFormField<String>(
         key: const Key('toAccountDropdown'),
+        isExpanded: true,
+        isDense: false,
+        itemHeight: null,
         initialValue: toAccountId,
         decoration: const InputDecoration(labelText: 'To account'),
         items: [

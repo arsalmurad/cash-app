@@ -1411,3 +1411,11 @@ result and original relay guidance; do not silently call delivery successful.
 Uncertain initial or final persistence still disables writes and takes precedence
 over this reassurance. Generic UI fallbacks no longer promise an unverified save.
 
+## 2026-10-03 — Let entry selectors grow with accessible text
+
+Personal entry account/category selectors expand to their field width and use
+variable-height, non-dense selected labels and menu rows. Wrap category text
+inside its icon row rather than clipping names or reducing the user's text size.
+Keyboard-only phone/desktop light/dark tests at 200% text reproduced the old
+overflow; full long-label and transfer-selector checks preserve readable names.
+

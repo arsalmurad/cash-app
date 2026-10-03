@@ -76,6 +76,10 @@ SQLite bytes, no relay append, blocked later writes and restart/unlock recovery.
 `WEB_PERSONAL_LIFECYCLE=1` checks budget/goal removal and stopping a monthly
 rule through the rendered UI, cancellation without writes and durable restart
 without erasing its recorded expense. Set it alongside the other checks.
+`WEB_KEYBOARD_ENTRY=1` checks Tab/Shift+Tab and Escape in a populated personal
+entry and requires the stored SQLite bytes to stay unchanged on cancellation.
+Opening and initial field activation still use pointer input in this browser
+driver; separate host tests exercise keyboard-only opening and submission.
 On PowerShell set these
 environment variables with `$env:NAME='value'` before invoking Node.
 
