@@ -428,3 +428,40 @@ the default controller still supplies no signer. Native/WASM protected-key
 adapter, trusted device registration, mailbox/roster authorization and final
 platform verification remain open. The production browser artifact still
 predates these Dart transport changes; no current-browser claim follows.
+
+## Protected controller provider and lifetime checks (2026-10-03)
+
+`HouseholdController.relayRequestSigner` now adapts the real protected identity
+to HTTP's optional callback. It signs the exact encoded URI path/query and body,
+uses a 50-second expiry from a checked JS-safe clock, refuses credentials or
+fragments in the URL, and returns only the four documented hex/public fields.
+It does not enqueue behind the sync waiting for its own proof. Signing changes
+no saved household bytes, and restoring the archive preserves the public key
+while producing a fresh nonce.
+
+The provider checks writable/unlocked identity before and after the asynchronous
+native call; changed/abandoned handles, lock-state transitions and controller
+disposal discard the result. Disposal revokes proof access without freeing a
+Rust handle underneath existing queued borrows. The default relay factory still
+does not attach this provider: trusted enrolment and transport enablement are
+not silently inferred from possession of a signature.
+
+Three test-first controller regressions extend the real native bridge tests.
+The actual relay signature verifier accepts the generated GET proof and a POST
+proof routed through `HttpRelayClient`/a controlled HTTP mock, rejecting changed
+query and transmitted-body bytes. The verifier uses the previously observed
+expected public key; it is cryptographic conformance, not a self-registration
+or authorization test. Other checks cover restored identity, no archive writes,
+closed/abandoned identities and controlled lock/disposal during a pending proof.
+An initial uncertain-save fixture lacked a relay URL and stopped before saving;
+configuring its in-memory relay correctly exercises the intended failure.
+
+All five proof/controller native checks and all 353 native-enabled app tests
+pass (full suite 2m08s); analysis reports no issues (3.2s). Command from `app`:
+`RUST_LIB_PATH=<cached current native DLL> flutter test --no-pub`; log:
+`app/.dart_tool/controller-request-proof-full.log`. No Rust API/ABI changed,
+and no platform toolchain rebuild was needed. Current browser/mobile provider
+runtime, actual authenticated HTTP/MLS exchange, trusted registration, dynamic
+roster/mailbox authorization and authorized deployment remain open. The lock
+test manipulates controlled controller lock state; it is not new native
+biometric or vault-UI acceptance.

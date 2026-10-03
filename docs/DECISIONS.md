@@ -1473,3 +1473,12 @@ failure; never retry unsigned or let a late callback start networking. Share
 the existing bounded, abortable response reader across HTTP routes rather than
 adding another unbounded signed-request path.
 
+## 2026-10-03 — Recheck identity lifetime after asynchronous proof creation
+
+Expose a controller proof provider without enqueueing it behind the sync that
+may be waiting for it. Retrieve only the current writable/unlocked household,
+then recheck lock, abandonment, handle identity and controller disposal after
+the read-only native call completes. Revoke proof access on disposal without
+freeing a Rust handle underneath existing queued borrows; return only bounded
+public metadata, never an archive or a self-registration grant.
+

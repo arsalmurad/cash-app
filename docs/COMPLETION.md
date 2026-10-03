@@ -115,6 +115,11 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   failure/deadline behavior. Scoped native/transport regressions pass; the default
   controller still has no protected-key provider, and browser/authenticated
   end-to-end acceptance for this Dart change remains open in `RELAY-AUTH.md`.
+  The protected controller provider now connects its existing identity to that
+  opt-in callback, with exact-byte verifier conformance and post-await lifetime
+  refusal checks. All 353 native-enabled app tests pass. The default factory
+  remains unsigned; no enrolment, live authenticated HTTP/MLS exchange or new
+  browser/mobile acceptance is inferred from the controlled transport mock.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
