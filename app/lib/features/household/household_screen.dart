@@ -13,7 +13,7 @@ import 'household_pane.dart';
 import 'household_setup_pane.dart';
 import 'vault_pane.dart';
 
-enum _MenuAction { addAccount, backup, leave }
+enum _MenuAction { addAccount, backup, leave, relaySetup }
 
 /// The shared layer's screen: set up or join a household, then share
 /// expenses with it. It syncs on open, on demand, and every half minute
@@ -77,6 +77,19 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
     if (!await controller.createHousehold()) {
       _reportFailure("Couldn't create the household");
     }
+  }
+
+  Future<void> _relaySetup() async {
+    final policy = await controller.relayBootstrapPolicy();
+    if (!mounted) return;
+    if (policy == null) {
+      _reportFailure('Relay setup is unavailable for this household');
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) => RelaySetupDialog(policy: policy),
+    );
   }
 
   Future<void> _saveRelay(String url, bool authenticated) async {
@@ -448,8 +461,15 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                     _MenuAction.addAccount => _addAccount(),
                     _MenuAction.backup => _backup(),
                     _MenuAction.leave => _leave(),
+                    _MenuAction.relaySetup => _relaySetup(),
                   },
                   itemBuilder: (context) => [
+                    if (controller.canExportRelayBootstrap &&
+                        !controller.isBusy)
+                      const PopupMenuItem(
+                        value: _MenuAction.relaySetup,
+                        child: Text('Export local relay setup'),
+                      ),
                     if ((overview?.isMember ?? false) &&
                         !controller.needsRecoveryInvite &&
                         !controller.needsVaultUnlock &&

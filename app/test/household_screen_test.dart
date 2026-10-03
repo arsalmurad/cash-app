@@ -49,6 +49,19 @@ class _FakeController extends HouseholdController {
   bool nextResult = true;
   bool restartRequired = false;
   bool relayMode = false;
+  bool setupAvailable = false;
+  @override
+  bool get canExportRelayBootstrap => setupAvailable;
+  @override
+  Future<String?> relayBootstrapPolicy() async {
+    calls.add('relay-setup');
+    if (!nextResult) {
+      errorMessage = 'Setup unavailable';
+      return null;
+    }
+    return '{"public":"setup"}';
+  }
+
   @override
   bool get authenticatedRelay => relayMode;
   @override
@@ -200,6 +213,32 @@ Future<_FakeController> _pump(
 }
 
 void main() {
+  testWidgets('public setup menu is conditional and shows export failure', (
+    tester,
+  ) async {
+    final controller = await _pump(tester, member: true);
+    await tester.tap(find.byTooltip('Household options'));
+    await tester.pumpAndSettle();
+    expect(find.text('Export local relay setup'), findsNothing);
+    await tester.tapAt(const Offset(10, 200));
+    await tester.pumpAndSettle();
+    controller.setupAvailable = true;
+    await tester.tap(find.byTooltip('Household options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Export local relay setup'));
+    await tester.pumpAndSettle();
+    expect(find.text('Relay operator setup'), findsOneWidget);
+    expect(find.text('{"public":"setup"}'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    controller.nextResult = false;
+    await tester.tap(find.byTooltip('Household options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Export local relay setup'));
+    await tester.pumpAndSettle();
+    expect(find.text('Setup unavailable'), findsOneWidget);
+    expect(find.text('Relay operator setup'), findsNothing);
+  });
   testWidgets('failed load stays visible instead of offering a new household', (
     tester,
   ) async {

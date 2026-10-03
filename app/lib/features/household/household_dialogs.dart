@@ -50,6 +50,40 @@ class _CopyBlock extends StatelessWidget {
   }
 }
 
+/// Public operator grants for a new loopback household, never private keys.
+class RelaySetupDialog extends StatelessWidget {
+  const RelaySetupDialog({required this.policy, super.key});
+  final String policy;
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Relay operator setup'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Local development only. This public setup contains no expenses, names or private keys. It does not deploy or register a relay.',
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Give this policy to the relay operator as LOCAL_AUTH_POLICY, with LOCAL_AUTH_MEMBERSHIP=true. Do not replace an existing household’s relay root. After setup, close this dialog and sync.',
+          ),
+          const SizedBox(height: 12),
+          _CopyBlock(text: policy),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Close'),
+      ),
+    ],
+  );
+}
+
 /// Step 1 and 3 of joining, for the person being invited: show the join
 /// request to hand to the inviter, then take the invite they send back.
 class JoinDialog extends StatefulWidget {
