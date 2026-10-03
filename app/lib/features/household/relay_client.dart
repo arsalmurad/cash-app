@@ -46,6 +46,19 @@ class RelayUnavailable implements Exception {
   String toString() => 'Relay unavailable: $message';
 }
 
+/// A matching-tail append was refused without evicting retained history.
+/// Keep pending encrypted work; this is not permission to reset the household.
+class RelayCapacityReached extends RelayUnavailable {
+  const RelayCapacityReached()
+    : super(
+        'Household relay storage is full. Keep this household on your device '
+        'and contact the relay operator before trying Sync again.',
+      );
+
+  @override
+  String toString() => message;
+}
+
 /// The relay's contract (see `relay/src/worker.js`). It is an ordered log
 /// with compare-and-swap on the tail, plus single-use welcome mailboxes;
 /// every payload is opaque ciphertext to it.
@@ -135,6 +148,10 @@ class HttpRelayClient implements RelayClient {
       throw const RelayUnavailable(
         'the relay refused an append without a tail',
       );
+    }
+    if (response.statusCode == 507) {
+      // Use trusted local copy, never instructions from a remote error body.
+      throw const RelayCapacityReached();
     }
     if (response.statusCode != 200) {
       throw RelayUnavailable('append failed (${response.statusCode})');
