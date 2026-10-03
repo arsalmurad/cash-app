@@ -100,7 +100,7 @@ export class GroupLog {
     return fail(405, "method not allowed");
   }
 
-  async append(request) {
+  async append(request, authorize = null) {
     const body = await readJson(request);
     if (body === BODY_TOO_LARGE) return fail(413, "request body exceeds size limit");
     if (
@@ -115,6 +115,10 @@ export class GroupLog {
       return fail(400, "blob must be non-empty base64 under the size limit");
     }
     const result = await this.state.storage.transaction(async (txn) => {
+      if (authorize) {
+        const denied = await authorize(txn);
+        if (denied) return { denied };
+      }
       const tail = (await txn.get("tail")) ?? 0;
       if (tail !== body.expected_tail) {
         return { conflict: tail };
@@ -143,6 +147,7 @@ export class GroupLog {
         bytes: capacity.bytes + body.blob.length, entries: capacity.entries + 1 });
       return { seq };
     });
+    if (result.denied) return fail(result.denied, "request admission refused");
     if (result.conflict !== undefined) {
       return json({ tail: result.conflict }, 409);
     }
@@ -159,26 +164,33 @@ export class GroupLog {
     return json({ seq: result.seq });
   }
 
-  async read(url) {
+  async read(url, authorize = null) {
     const after = Number(url.searchParams.get("after") ?? "0");
     if (!Number.isSafeInteger(after) || after < 0) {
       return fail(400, "after must be a non-negative integer");
     }
-    const tail = (await this.state.storage.get("tail")) ?? 0;
-    if (after >= tail) {
-      return json({ entries: [], tail, more: false });
-    }
-    const stored = await this.state.storage.list({
-      start: key(after + 1),
-      end: key(tail + 1),
-      limit: PAGE,
+    const read = async storage => {
+      const tail = (await storage.get("tail")) ?? 0;
+      if (after >= tail) {
+        return json({ entries: [], tail, more: false });
+      }
+      const stored = await storage.list({
+        start: key(after + 1),
+        end: key(tail + 1),
+        limit: PAGE,
+      });
+      const entries = [];
+      for (const [entryKey, blob] of stored) {
+        entries.push({ seq: Number(entryKey.slice(2)), blob });
+      }
+      const last = entries.length ? entries[entries.length - 1].seq : after;
+      return json({ entries, tail, more: last < tail });
+    };
+    if (!authorize) return read(this.state.storage);
+    return this.state.storage.transaction(async txn => {
+      const denied = await authorize(txn);
+      return denied ? fail(denied, "request admission refused") : read(txn);
     });
-    const entries = [];
-    for (const [entryKey, blob] of stored) {
-      entries.push({ seq: Number(entryKey.slice(2)), blob });
-    }
-    const last = entries.length ? entries[entries.length - 1].seq : after;
-    return json({ entries, tail, more: last < tail });
   }
 
   connect(request) {

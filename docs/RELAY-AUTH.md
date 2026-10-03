@@ -180,3 +180,62 @@ was started.
 
 This is an integration foundation, not a checked-off production-authentication
 gate. Known gaps remain in `COMPLETION.md` and `RELAY-CAPACITY.md`.
+
+## Actual authenticated group routes, explicit loopback only (2026-10-03)
+
+`local-auth-worker.js` is a separate experimental entry point, not Wrangler's
+default worker. It requires literal `LOCAL_DEVELOPMENT=true`, an exact loopback
+origin and an operator-supplied `LOCAL_AUTH_POLICY` containing one version-2
+group policy. Only read/append grants are supported. Unknown groups, mailboxes,
+WebSockets, membership/pruning routes and invalid/oversized configuration fail
+closed; rejected namespaces cannot allocate a Durable Object. Configuration is
+trusted out of band, never accepted from a client proof or registration request.
+The stored policy contains only documented public transport metadata.
+
+HTTP proofs use `x-cash-device-proof`. Exact streamed body bytes are bounded to
+512 KiB before verification, then reused without JSON reserialization for the
+existing append implementation. Its authorization hook runs inside the same
+SQLite transaction as ciphertext/tail/capacity writes; signed reads consume
+their nonce in the same transaction as the bounded page read. A fresh empty
+object can initialize the configured policy atomically. Existing unauthenticated
+history is not adopted, and a different persisted policy is refused, not silently
+overwritten or downgraded. Replay protection, permissions and monotonic clock
+checks use the previously tested primitives. Returned append conflicts/capacity
+errors can consume a nonce; a failed transaction rolls it back with all writes.
+
+The original worker/dev behavior is unchanged unless `LOCAL_AUTH_POLICY` is
+explicitly set. With it, `node relay/dev-server.mjs <port>` selects the new
+SQLite group worker; its policy origin must exactly match
+`http://127.0.0.1:<port>`. Missing/invalid policy values refuse access. The current
+Flutter HTTP client remains unsigned and cannot use this mode yet. This is a
+protocol-development option, not a suggested public or normal-user deployment.
+Both workers reject public URLs, even with development enabled.
+
+Actual workerd tests cover signed/unsigned reads and appends, body changes and
+oversize refusal, one winner in a replay race, forbidden namespace allocation,
+legacy-policy refusal, and a deliberately failed real append. That failure
+leaves policy, nonce, clock, ciphertext, tail and capacity absent together; the
+same proof then succeeds on retry. Seed/inspect/fault controls exist only in
+the test's in-memory wrapper, never the launcher or either worker. The launcher
+itself runs in an owned loopback process and accepts a real signed HTTP append;
+only its owned process tree is stopped afterward.
+
+The synthetic Rust example has a `local-group` mode generating a short-lived
+proof from a fresh opaque Member, without key export. Its constant test nonce
+is not a production nonce generator. `npm run test:request-proof-rust` now
+requires both fixtures and passes all 13 checks with zero skips, including a
+Rust-authenticated actual group append and replay rejection. The complete final
+`npm test` passes 49 checks and explicitly skips these two Rust-fixture cases
+(51 total, 23.58 s). Strict crypto/all-target Clippy passes (3.97 s).
+`npm run test:storage` still independently inspects 31 real encrypted-peer log
+records/mailboxes and rejects its plaintext-injection negative control. It emits
+the previously recorded WSASend #10054 diagnostic while exiting successfully;
+no physical-network reliability claim follows. No app bridge changed or platform
+rebuild was required for unused server/fixture code.
+
+Still open: trusted dynamic MLS-roster transitions/recovery, app signing and
+native/WASM networking, mailbox/socket authorization, account-wide/request
+quotas, authenticated long-backfill behavior at the 256-live-nonce limit,
+recoverable pruning and owner-authorized $0 deployment. One configured local
+namespace bounds this experiment, not all account charges or abuse. No cloud
+job, public route or history deletion was enabled.

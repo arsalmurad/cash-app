@@ -1419,3 +1419,12 @@ inside its icon row rather than clipping names or reducing the user's text size.
 Keyboard-only phone/desktop light/dark tests at 200% text reproduced the old
 overflow; full long-label and transfer-selector checks preserve readable names.
 
+## 2026-10-03 — Exercise authenticated group routes without public enablement
+
+Keep the default public-closed worker and add a separate explicit loopback
+entry point with one operator-configured group and read/append grants. Reuse
+the existing real log methods with transaction-local admission hooks instead
+of proving authentication only against a synthetic counter. Refuse legacy
+adoption or silent policy replacement; dynamic roster/mailbox/socket/app
+integration and free-plan deployment remain separate gates.
+
