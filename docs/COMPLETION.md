@@ -263,9 +263,13 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   capped at removal; the unchanged authenticated Chrome removed-state flow and
   complete household scenario pass. Six affected native HTTP cases and real
   SQLite cutoff/rollback/capacity/expiry/paging tests also pass. Final iOS/Android,
-  persisted authenticated-roster storage audit, sockets/pruning and authorized
+  sockets/pruning and authorized
   public/free-plan deployment remain open; do not treat the browser gate as
   whole-project completion.
+  The actual authenticated-roster SQLite KV audit now passes with normal native
+  clients, encrypted expenses, a removed member and a replacement invitation.
+  Exact schema and deliberate plaintext/binary/missing-record controls pass;
+  scope and reproducible commands are recorded in `RELAY-AUTH.md`.
 - [ ] Finish concise setup, recovery, security-limit and verification docs, with
   all deliverable source and evidence synchronized to private GitHub `main`.
 

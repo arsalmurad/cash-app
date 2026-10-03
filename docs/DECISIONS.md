@@ -1643,3 +1643,11 @@ and reported tail to the removal slot. Do not re-grant current policy, Welcome,
 write or post-removal access, and never delete financial history to expire this
 permission. Reserve these grantable keys inside the existing replay-key bound.
 
+## 2026-10-04 — Inspect actual authenticated roster storage with native peers
+
+Exercise normal native clients against the production roster worker and inspect
+its SQLite-backed KV records only through an owning-process test binding. Check
+exact public metadata schemas and known plaintext/binary financial markers;
+negative controls operate on copies, never on the real ledger. This is scoped
+storage evidence, not a raw-file forensic audit or a formal encryption proof.
+

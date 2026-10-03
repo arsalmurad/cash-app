@@ -65,10 +65,13 @@ void main() {
         'lost-ack',
         'after-ack-save',
         'default-client',
+        'storage-audit',
       ]) {
         test(
           '$failure never consumes Welcome before saved joined keys, and restart resumes',
           () async {
+            final audit = failure == 'storage-audit';
+            final defaultClient = failure == 'default-client' || audit;
             final reserve = await ServerSocket.bind(
               InternetAddress.loopbackIPv4,
               0,
@@ -83,9 +86,8 @@ void main() {
               (i) => HouseholdController(
                 stateStore: states[i],
                 configStore: configs[i],
-                relayFactory: failure == 'default-client'
-                    ? null
-                    : (_) => memory,
+                newMemberId: audit ? () => 'Private audit member $i' : null,
+                relayFactory: defaultClient ? null : (_) => memory,
               ),
             );
             for (var i = 0; i < initial.length; i++) {
@@ -93,16 +95,13 @@ void main() {
               await device.initialize();
               expect(
                 await device.setRelayUrl(
-                  failure == 'default-client' ? origin : 'https://relay.test',
-                  authenticated: failure == 'default-client' && i == 0,
+                  defaultClient ? origin : 'https://relay.test',
+                  authenticated: defaultClient && i == 0,
                 ),
                 isTrue,
               );
             }
-            expect(
-              await initial[0].createHousehold(),
-              failure != 'default-client',
-            );
+            expect(await initial[0].createHousehold(), !defaultClient);
             final request = (await initial[1].prepareJoinRequest())!;
             expect(
               await initial[1].relayBootstrapPolicy(),
@@ -119,7 +118,7 @@ void main() {
               ),
             ) as Map<String, dynamic>;
             final beforeExport = Uint8List.fromList(states[0].value!);
-            final root = failure == 'default-client'
+            final root = defaultClient
                 ? jsonDecode((await initial[0].relayBootstrapPolicy())!)
                 : {
                     'version': 2,
@@ -132,7 +131,7 @@ void main() {
                       },
                     ],
                   };
-            if (failure == 'default-client') {
+            if (defaultClient) {
               expect(
                 states[0].value,
                 beforeExport,
@@ -153,7 +152,10 @@ void main() {
             // atomic relay membership, never test-supplied two-member policy.
             final process = await Process.start(
               'node',
-              ['dev-server.mjs', '$port'],
+              [
+                audit ? 'test/native-app-audit-relay.mjs' : 'dev-server.mjs',
+                '$port',
+              ],
               workingDirectory: Directory('../relay').absolute.path,
               environment: {
                 'LOCAL_AUTH_POLICY': jsonEncode(root),
@@ -166,10 +168,21 @@ void main() {
               return code;
             });
             final ready = Completer<void>();
+            final inspection = Completer<Map<String, dynamic>>();
             final output = process.stdout
                 .transform(utf8.decoder)
                 .transform(const LineSplitter())
                 .listen((line) {
+                  if (line.startsWith('AUDIT:') && !inspection.isCompleted) {
+                    inspection.complete(
+                      jsonDecode(line.substring(6)) as Map<String, dynamic>,
+                    );
+                  } else if (line.startsWith('AUDIT-FAIL:') &&
+                      !inspection.isCompleted) {
+                    inspection.completeError(
+                      StateError('Actual roster storage audit failed'),
+                    );
+                  }
                   if (line.contains('local roster group relay listening') &&
                       !ready.isCompleted) {
                     ready.complete();
@@ -205,7 +218,7 @@ void main() {
               expect(
                 await device.setRelayUrl(
                   origin,
-                  authenticated: failure == 'default-client' && i == 0,
+                  authenticated: defaultClient && i == 0,
                 ),
                 isTrue,
               );
@@ -217,7 +230,7 @@ void main() {
                 dropAck = failure == 'lost-ack';
             final clients = <http.Client>[];
             HouseholdController restore(int i, {bool roster = true}) {
-              if (failure == 'default-client' && roster) {
+              if (defaultClient && roster) {
                 return HouseholdController(
                   stateStore: states[i],
                   configStore: configs[i],
@@ -280,7 +293,7 @@ void main() {
               await seed.append(group, entry.sequence - 1, entry.blob);
             }
             expect(await alice.syncNow(), isTrue);
-            if (failure == 'default-client') {
+            if (defaultClient) {
               expect(
                 await alice.relayBootstrapPolicy(),
                 isNull,
@@ -307,13 +320,13 @@ void main() {
               states[1].writeThenFail = failure == 'after-save';
             }
             expect(descriptor.authenticated, isTrue);
-            expect(await bob.acceptInvite(invite), failure == 'default-client');
+            expect(await bob.acceptInvite(invite), defaultClient);
             final initiallyAcknowledged =
                 failure == 'lost-ack' || failure == 'after-ack-save';
             expect(acknowledgements, initiallyAcknowledged ? 1 : 0);
             expect(
               bob.requiresRestart,
-              failure != 'lost-ack' && failure != 'default-client',
+              failure != 'lost-ack' && !defaultClient,
             );
             bob.dispose();
             states[1].fail = false;
@@ -335,7 +348,7 @@ void main() {
             addTearDown(restarted.dispose);
             await restarted.initialize();
             expect(
-              await (failure == 'default-client'
+              await (defaultClient
                   ? restarted.syncNow()
                   : restarted.acceptInvite(invite)),
               isTrue,
@@ -361,7 +374,7 @@ void main() {
             expect(legacyRequests, 0);
             expect(
               acknowledgements,
-              failure == 'default-client'
+              defaultClient
                   ? 0
                   : initiallyAcknowledged
                   ? 2
@@ -372,7 +385,7 @@ void main() {
               alice.overview!.memberIds.toSet(),
               restarted.overview!.memberIds.toSet(),
             );
-            if (failure == 'default-client') {
+            if (defaultClient) {
               expect(
                 await alice.addExpense(
                   title: 'shared-after-join',
@@ -382,6 +395,98 @@ void main() {
               );
               expect(await restarted.syncNow(), isTrue);
               expect(restarted.overview!.balanceLabel, 'USD -2.50');
+            }
+            if (audit) {
+              final aliceKey = (root as Map)['devices'][0]['key'] as String;
+              final bobKey = (await alice.relayRosterKeys()).singleWhere(
+                (key) => key != aliceKey,
+              );
+              for (var i = 0; i < 20; i++) {
+                expect(
+                  await alice.addExpense(
+                    title: 'Private audit grocery marker',
+                    amount: '2.50',
+                  ),
+                  isTrue,
+                );
+              }
+              expect(await restarted.syncNow(), isTrue);
+              final bobName = restarted.overview!.memberId;
+              expect(await alice.removeMember(bobName), isTrue);
+              // The saved retired cursor is the actual confirmed removal slot.
+              expect(await restarted.syncNow(), isTrue);
+              expect(restarted.overview!.isMember, isFalse);
+              final removalSlot = restarted.overview!.cursor.toInt();
+              final cara = HouseholdController(
+                stateStore: _Store(),
+                configStore: _Store(),
+                newMemberId: () => 'Private audit replacement member',
+              );
+              addTearDown(cara.dispose);
+              await cara.initialize();
+              final nextRequest = (await cara.prepareJoinRequest())!;
+              final nextCode = (await alice.invite(nextRequest))!;
+              final nextDescriptor = decodeInvite(nextCode);
+              final currentKeys = await alice.relayRosterKeys();
+              final caraKey = currentKeys.singleWhere((key) => key != aliceKey);
+              expect(await cara.acceptInvite(nextCode), isTrue);
+              expect(await alice.syncNow(), isTrue);
+              expect(cara.overview!.balanceLabel, 'USD -52.50');
+              final entryCount = (await seed.readAfter(group, 0)).length;
+              expect(entryCount, greaterThan(20));
+              final external = http.Client();
+              addTearDown(external.close);
+              expect(
+                (await external.get(Uri.parse('$origin/inspect'))).statusCode,
+                403,
+              );
+              process.stdin.writeln(
+                'audit:${jsonEncode({
+                  'currentPolicy': {
+                    'version': 2,
+                    'epoch': 3,
+                    'scope': {'origin': origin, 'kind': 'g', 'id': group},
+                    'devices': [
+                      for (final key in currentKeys) {
+                          'key': key,
+                          'operations': ['append', 'membership', 'read'],
+                        },
+                    ],
+                  },
+                  'publicKeys': {...currentKeys, bobKey}.toList(),
+                  'retired': [
+                    {'key': bobKey, 'through': removalSlot},
+                  ],
+                  'mailboxes': [
+                    {'id': descriptor.mailbox, 'recipient': bobKey},
+                    {'id': nextDescriptor.mailbox, 'recipient': caraKey},
+                  ],
+                  'needles': {'Private audit grocery marker', ...alice.overview!.memberIds, bobName, alice.overview!.balanceLabel, for (final account in alice.overview!.accounts) account.name, for (final transaction in alice.overview!.transactions) transaction.id}.toList(),
+                })}',
+              );
+              await process.stdin.flush();
+              expect(
+                await inspection.future.timeout(const Duration(seconds: 10)),
+                {
+                  'entries': {
+                    'entries': entryCount,
+                    'welcomes': 2,
+                    'retired': 1,
+                    'authorities': 1,
+                  },
+                  'plaintextPoisonRejected': true,
+                  'metadataPoisonRejected': true,
+                  'rosterPoisonRejected': true,
+                  'retirementPoisonRejected': true,
+                  'welcomePoisonRejected': true,
+                  'binaryPoisonRejected': true,
+                },
+              );
+              expect(
+                (await seed.readAfter(group, 0)).length,
+                entryCount,
+                reason: 'Negative controls must never change real persisted records',
+              );
             }
           },
         );
