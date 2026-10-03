@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import 'relay_policy.dart';
+
 /// Supplies a public proof for these exact bytes. Signing is not registration
 /// or server permission. Every attempt, including each page, needs a new proof.
 typedef RelayRequestSigner = Future<String> Function(
@@ -105,12 +107,32 @@ abstract interface class PagedRelayClient implements RelayClient {
   );
 }
 
+/// Explicit opt-in capability, not inferred from a proof callback's presence.
+abstract interface class RosterRelayClient implements RelayClient {
+  bool get rosterEnabled;
+  Future<RelayAuthorizationPolicy> readPolicy(String group);
+  Future<int> appendMembership(
+    String group,
+    int expectedTail,
+    Uint8List blob,
+    RelayAuthorizationPolicy nextPolicy,
+  );
+}
+
+class RelayMembershipConflict extends RelayUnavailable {
+  const RelayMembershipConflict()
+    : super(
+        'Relay permissions changed. Refresh before retrying this membership change.',
+      );
+}
+
 /// Talks to the Cloudflare Worker over HTTP.
-class HttpRelayClient implements PagedRelayClient {
+class HttpRelayClient implements PagedRelayClient, RosterRelayClient {
   HttpRelayClient(
     String baseUrl, [
     http.Client? client,
     RelayRequestSigner? signer,
+    this.rosterEnabled = false,
   ]) : _base = baseUrl.replaceAll(RegExp(r'/+$'), ''),
        _client = client ?? http.Client(),
        _signer = signer;
@@ -118,6 +140,118 @@ class HttpRelayClient implements PagedRelayClient {
   final String _base;
   final http.Client _client;
   final RelayRequestSigner? _signer;
+  @override
+  final bool rosterEnabled;
+
+  void _requireRoster(String group) {
+    if (!rosterEnabled ||
+        _signer == null ||
+        !RegExp(r'^[0-9a-f]{32}$').hasMatch(group)) {
+      throw const RelayUnavailable(
+        'Authenticated roster transport is not enabled. No request sent.',
+      );
+    }
+  }
+
+  Uri _rosterUri(String group, String operation) {
+    _requireRoster(group);
+    try {
+      final uri = _uri('/g/$group/$operation');
+      if (!['https', 'http'].contains(uri.scheme) ||
+          !uri.hasAuthority ||
+          uri.userInfo.isNotEmpty ||
+          uri.hasQuery ||
+          uri.hasFragment ||
+          uri.path != '/g/$group/$operation' ||
+          (uri.scheme == 'http' &&
+              !['127.0.0.1', 'localhost', '::1', '[::1]'].contains(uri.host))) {
+        throw const FormatException();
+      }
+      return uri;
+    } on FormatException {
+      throw const RelayUnavailable(
+        'Invalid roster relay address. No request sent.',
+      );
+    }
+  }
+
+  @override
+  Future<RelayAuthorizationPolicy> readPolicy(String group) async {
+    final uri = _rosterUri(group, 'policy');
+    final response = await _send('GET', uri);
+    if (response.statusCode != 200) {
+      throw RelayUnavailable('policy request failed (${response.statusCode})');
+    }
+    final reply = _object(response);
+    try {
+      if (reply.length != 1 || !reply.containsKey('policy')) {
+        throw const FormatException();
+      }
+      return RelayAuthorizationPolicy.fromJson(
+        reply['policy'],
+        origin: uri.origin,
+        group: group,
+      );
+    } on FormatException {
+      throw const RelayUnavailable(
+        'the relay sent an invalid authorization policy',
+      );
+    }
+  }
+
+  @override
+  Future<int> appendMembership(
+    String group,
+    int expectedTail,
+    Uint8List blob,
+    RelayAuthorizationPolicy nextPolicy,
+  ) async {
+    final uri = _rosterUri(group, 'membership');
+    if (nextPolicy.origin != uri.origin ||
+        nextPolicy.group != group ||
+        expectedTail < 0 ||
+        expectedTail >= RelayAuthorizationPolicy.maximumInteger ||
+        blob.isEmpty ||
+        blob.length > 256 * 1024) {
+      throw const RelayUnavailable(
+        'Invalid membership request. No request sent.',
+      );
+    }
+    final bytes = Uint8List.fromList(
+      utf8.encode(
+        jsonEncode({
+          'expected_tail': expectedTail,
+          'blob': base64.encode(blob),
+          'policy': nextPolicy.toJson(),
+        }),
+      ),
+    );
+    final response = await _send('POST', uri, bytes);
+    if (response.statusCode == 409) {
+      final tail = _object(response)['tail'];
+      if (tail is int &&
+          tail >= 0 &&
+          tail <= RelayAuthorizationPolicy.maximumInteger) {
+        throw RelayConflict(tail);
+      }
+      throw const RelayMembershipConflict();
+    }
+    if (response.statusCode == 507) throw const RelayCapacityReached();
+    if (response.statusCode != 200) {
+      throw RelayUnavailable(
+        'membership request failed (${response.statusCode})',
+      );
+    }
+    final reply = _object(response);
+    if (reply.length != 1 ||
+        reply['seq'] is! int ||
+        reply['seq'] != expectedTail + 1) {
+      throw const RelayUnavailable(
+        'the relay sent an invalid membership acknowledgement',
+      );
+    }
+    return reply['seq'] as int;
+  }
 
   Future<Map<String, String>> _headers(
     String method,
