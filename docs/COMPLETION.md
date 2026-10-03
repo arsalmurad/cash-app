@@ -57,6 +57,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   All 22 local relay tests and the 28-record real Rust-peer storage audit pass;
   these limits do not bound total
   retained history or authorize a public deployment.
+  A subsequent non-destructive per-log ceiling now refuses growth at 10,000
+  records or 64 MiB encoded ciphertext; full-volume paged backfill and exact
+  real-peer storage accounting pass. `RELAY-CAPACITY.md` records legacy-log
+  write refusal and remaining account-wide/authentication/deployment limits.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
@@ -65,13 +69,16 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   signed history, late-event/duplicate rebuild and old signed archive migration;
   current native-host and production WASM checks passed. This is not pruning.
 - [ ] Finish safe shared compaction or peer-snapshot recovery with offline-peer
-  acknowledgements; checkpoints retain all history and relay logs remain unbounded.
+  acknowledgements; checkpoints retain all history. Relay growth is now refused
+  at per-log ceilings, but safe pruning and peer-snapshot recovery remain open.
   A saved-archive receipt/checkpoint verifier is now implemented locally in Rust;
   see `RETENTION-RECEIPTS.md`. It requires every current MLS key and exact signed
   history/frontiers; explicit encrypted exchange has local Rust/actual-worker
   evidence, and the protected-save hook has native-bridge/host-SQLite checks.
   Final platform verification and authenticated/recoverable pruning remain open.
   A locally computed cutoff is not permission to delete relay history.
+  Current-source Android personal/household and separate production WASM flows
+  now pass; final iOS and authenticated/recoverable pruning remain open.
 - [x] Check explicit opt-in publication boundaries and chosen shared analytics;
   no private ledger or readable financial fields may reach the relay.
   Immutable opt-in totals, nonfinancial signed summary events, compatibility

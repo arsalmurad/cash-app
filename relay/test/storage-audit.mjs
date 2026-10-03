@@ -27,13 +27,23 @@ function scan(records, manifest) {
   };
   for (const record of records) {
     check(Buffer.from(JSON.stringify(record)));
+    let groupBytes = 0, groupEntries = 0;
     for (const [key, value] of record.rows) {
       if (record.kind === 'group') {
         if (key === 'tail') { assert(Number.isSafeInteger(value)); continue; }
+        if (key === 'capacity') {
+          assert.deepEqual(Object.keys(value).sort(), ['bytes', 'entries', 'version']);
+          assert.equal(value.version, 1);
+          assert(Number.isSafeInteger(value.bytes) && value.bytes >= 0);
+          assert(Number.isSafeInteger(value.entries) && value.entries >= 0);
+          continue;
+        }
         assert(/^e:\d{12}$/.test(key), 'unexpected persisted group field');
         assert.equal(typeof value, 'string');
         check(Buffer.from(value, 'base64'));
         entries++;
+        groupBytes += value.length;
+        groupEntries++;
       } else {
         assert(['item', 'consumed'].includes(key), 'unexpected persisted mailbox field');
         if (key === 'item') {
@@ -41,6 +51,11 @@ function scan(records, manifest) {
           check(Buffer.from(value.welcome, 'base64'));
         } else assert.equal(value, true);
       }
+    }
+    if (record.kind === 'group') {
+      const capacity = record.rows.find(([key]) => key === 'capacity')?.[1];
+      assert.deepEqual(capacity, { version: 1, bytes: groupBytes, entries: groupEntries },
+        'stored capacity must match every actual opaque record');
     }
   }
   assert(entries > 20, 'storage inspection must not pass on an empty/trivial log');
