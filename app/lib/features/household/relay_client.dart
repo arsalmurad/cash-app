@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -97,6 +98,54 @@ class HttpRelayClient implements RelayClient {
 
   Uri _uri(String path) => Uri.parse('$_base$path');
 
+  Future<http.Response> _readPage(Uri uri, Duration timeout) async {
+    const maxBytes = 6 * 1024 * 1024;
+    final elapsed = Stopwatch()..start();
+    final abort = Completer<void>();
+    final timer = Timer(timeout, () {
+      if (!abort.isCompleted) abort.complete();
+    });
+    StreamIterator<List<int>>? iterator;
+    try {
+      final response = await _client
+          .send(http.AbortableRequest('GET', uri, abortTrigger: abort.future))
+          .timeout(timeout);
+      iterator = StreamIterator(response.stream);
+      if ((response.contentLength ?? 0) > maxBytes) {
+        throw const RelayUnavailable(
+          'the relay response exceeds the size limit',
+        );
+      }
+      final bytes = BytesBuilder(copy: false);
+      while (true) {
+        final remaining = timeout - elapsed.elapsed;
+        if (remaining <= Duration.zero) {
+          throw TimeoutException('relay read timed out');
+        }
+        if (!await iterator.moveNext().timeout(remaining)) break;
+        if (iterator.current.length > maxBytes - bytes.length) {
+          throw const RelayUnavailable(
+            'the relay response exceeds the size limit',
+          );
+        }
+        bytes.add(iterator.current);
+      }
+      return http.Response.bytes(
+        bytes.takeBytes(),
+        response.statusCode,
+        headers: response.headers,
+      );
+    } on RelayUnavailable {
+      rethrow;
+    } on Exception catch (error) {
+      throw RelayUnavailable(error.toString());
+    } finally {
+      timer.cancel();
+      if (!abort.isCompleted) abort.complete();
+      await iterator?.cancel();
+    }
+  }
+
   Future<http.Response> _send(Future<http.Response> Function() request) async {
     try {
       return await request().timeout(const Duration(seconds: 20));
@@ -170,9 +219,17 @@ class HttpRelayClient implements RelayClient {
     final entries = <RelayLogEntry>[];
     var cursor = after;
     var previousTail = after;
+    int? targetTail;
+    var retainedBytes = 0;
+    final elapsed = Stopwatch()..start();
     while (true) {
-      final response = await _send(
-        () => _client.get(_uri('/g/$group?after=$cursor')),
+      final remaining = const Duration(seconds: 20) - elapsed.elapsed;
+      if (remaining <= Duration.zero) {
+        throw const RelayUnavailable('relay read timed out');
+      }
+      final response = await _readPage(
+        _uri('/g/$group?after=$cursor'),
+        remaining,
       );
       if (response.statusCode != 200) {
         throw RelayUnavailable('read failed (${response.statusCode})');
@@ -188,6 +245,12 @@ class HttpRelayClient implements RelayClient {
           tail < previousTail) {
         throw const RelayUnavailable('the relay sent an invalid log page');
       }
+      targetTail ??= tail;
+      if (targetTail - after > 10000) {
+        throw const RelayUnavailable(
+          'the relay backfill exceeds the entry limit',
+        );
+      }
       final pageStart = cursor;
       for (final raw in rawEntries) {
         if (raw is! Map || raw['seq'] is! int) {
@@ -201,7 +264,15 @@ class HttpRelayClient implements RelayClient {
         if (blob.isEmpty || blob.length > 256 * 1024) {
           throw const RelayUnavailable('the relay sent an invalid entry size');
         }
-        entries.add(RelayLogEntry(sequence, blob));
+        if (sequence <= targetTail) {
+          if (blob.length > 64 * 1024 * 1024 - retainedBytes) {
+            throw const RelayUnavailable(
+              'the relay backfill exceeds the size limit',
+            );
+          }
+          retainedBytes += blob.length;
+          entries.add(RelayLogEntry(sequence, blob));
+        }
         cursor = sequence;
       }
       if (more != (cursor < tail) || (more && cursor == pageStart)) {
@@ -210,7 +281,9 @@ class HttpRelayClient implements RelayClient {
         );
       }
       previousTail = tail;
-      if (!more) {
+      // Complete the first observed prefix, not an endlessly moving tail.
+      // Entries appended concurrently are fetched on the next read.
+      if (cursor >= targetTail) {
         return entries;
       }
     }

@@ -82,9 +82,44 @@ and negative control; WSASend #10053 appeared despite passing assertions/exit 0.
 The earlier full 319 app-test run precedes this page-validation change; no new
 production browser/mobile run or physical-network guarantee is inferred.
 
-This check does not authenticate the relay, cap buffered HTTP response bytes,
-or guarantee termination against a server continually inventing advancing
-tails. Those resource and authentication boundaries remain separate work.
+At that revision the check did not authenticate the relay, cap buffered HTTP
+response bytes or stop chasing continually advancing tails. The following
+separate change addresses the read-resource boundary, not authentication.
+
+## Finite bounded backfill
+
+Both clients now complete only the prefix ending at the first observed tail.
+Every returned entry through that boundary is contiguous and validated; entries
+appended concurrently above it are fetched on the next read, not skipped or
+reported as part of the original prefix. A read refuses an initial gap exceeding
+10,000 entries or an aggregate decoded payload exceeding 64 MiB. No partial
+history is returned on a failed limit/timeout check.
+
+Rust JSON replies and streamed Dart log pages are capped at 6 MiB before JSON
+parsing. Dart cancels/aborts oversized requests using the existing pinned
+HTTP 1.6.0 API, counts actual bytes even when Content-Length lies, and refuses
+oversized declarations before consuming the body. Reads share a 20-second
+network deadline across pages; Rust requests use the remaining deadline rather
+than resetting it per page. These are buffer/network-work limits, not a measured
+peak-memory or exact wall-clock/CPU-parsing guarantee. Dart append/mailbox
+responses still use the existing buffered adapter and remain separate work.
+
+Test-first Dart checks caught pre-fix buffering until its 20-second timeout and
+reading past the original tail. A declared-oversize test initially expected a
+body-stream cancellation callback, but the iterator had never subscribed:
+the corrected assertion checks request abort and no body subscription instead.
+Actual overflow after streaming starts separately checks cancellation. Current
+44 focused HTTP/native-bridge persistence/retry tests and five Rust response/
+page/window tests pass, including exact limits, aggregate overflow and fetching
+concurrent entries on the next read. Strict Rust HTTP all-target checks and
+app analysis pass. The actual-workerd 31-record encrypted-peer audit and its
+plaintext negative control pass again; WSASend #10054 remains undiagnosed.
+
+The limits match the new relay's ceilings, but legacy logs may exceed a single
+client backfill budget; they are not silently truncated. Server-side paged
+reads remain available. Safe bounded migration or peer recovery for a larger
+legacy backfill remains open, as does final production-browser/mobile runtime
+acceptance of this client change. No history deletion or public access is enabled.
 
 ## Still open
 

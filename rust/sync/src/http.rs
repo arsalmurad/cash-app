@@ -1,6 +1,8 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde_json::{Value, json};
+use std::io::Read;
+use std::time::{Duration, Instant};
 
 use crate::relay::{MailboxItem, Relay, RelayError};
 
@@ -17,7 +19,10 @@ impl HttpRelay {
             // No pooling: connections are cheap next to the round trip, and a
             // pooled connection the server has already closed turns into a
             // spurious "connection reset" on the next call.
-            agent: ureq::AgentBuilder::new().max_idle_connections(0).build(),
+            agent: ureq::AgentBuilder::new()
+                .max_idle_connections(0)
+                .timeout(Duration::from_secs(20))
+                .build(),
         }
     }
 
@@ -35,7 +40,21 @@ fn decode(text: &str) -> Result<Vec<u8>, RelayError> {
 }
 
 fn body(response: ureq::Response) -> Result<Value, RelayError> {
-    response.into_json().map_err(unavailable)
+    bounded_body(response.into_reader())
+}
+
+const MAX_RESPONSE_BYTES: usize = 6 * 1024 * 1024;
+
+fn bounded_body(reader: impl Read) -> Result<Value, RelayError> {
+    let mut bytes = Vec::new();
+    reader
+        .take(MAX_RESPONSE_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(unavailable)?;
+    if bytes.len() > MAX_RESPONSE_BYTES {
+        return Err(unavailable("relay response exceeds the size limit"));
+    }
+    serde_json::from_slice(&bytes).map_err(unavailable)
 }
 
 fn mailbox_reply(
@@ -68,6 +87,46 @@ struct CheckedPage {
     entries: Vec<(u64, Vec<u8>)>,
     tail: u64,
     more: bool,
+}
+
+struct ReadWindow {
+    after: u64,
+    target: Option<u64>,
+    bytes: usize,
+    entries: Vec<(u64, Vec<u8>)>,
+}
+
+impl ReadWindow {
+    fn new(after: u64) -> Self {
+        Self {
+            after,
+            target: None,
+            bytes: 0,
+            entries: Vec::new(),
+        }
+    }
+
+    fn accept(&mut self, page: CheckedPage) -> Result<bool, RelayError> {
+        let target = *self.target.get_or_insert(page.tail);
+        if target.saturating_sub(self.after) > 10_000 {
+            return Err(unavailable("relay backfill exceeds the entry limit"));
+        }
+        for (sequence, blob) in page.entries {
+            if sequence > target {
+                break;
+            }
+            if blob.len() > 64 * 1024 * 1024 - self.bytes {
+                return Err(unavailable("relay backfill exceeds the size limit"));
+            }
+            self.bytes += blob.len();
+            self.entries.push((sequence, blob));
+        }
+        let complete = self.entries.last().map_or(self.after, |entry| entry.0) >= target;
+        if !complete && !page.more {
+            return Err(unavailable("relay ended before the initial read frontier"));
+        }
+        Ok(complete)
+    }
 }
 
 fn checked_page(page: &Value, after: u64, previous_tail: u64) -> Result<CheckedPage, RelayError> {
@@ -142,13 +201,19 @@ impl Relay for HttpRelay {
     }
 
     fn read_after(&self, group: &str, after: u64) -> Result<Vec<(u64, Vec<u8>)>, RelayError> {
-        let mut entries = Vec::new();
+        let mut window = ReadWindow::new(after);
         let mut cursor = after;
         let mut previous_tail = after;
+        let started = Instant::now();
         loop {
+            let remaining = Duration::from_secs(20)
+                .checked_sub(started.elapsed())
+                .filter(|remaining| !remaining.is_zero())
+                .ok_or_else(|| unavailable("relay read timed out"))?;
             let raw = body(
                 self.agent
                     .get(&self.url(&format!("/g/{group}?after={cursor}")))
+                    .timeout(remaining)
                     .call()
                     .map_err(unavailable)?,
             )?;
@@ -157,9 +222,8 @@ impl Relay for HttpRelay {
                 cursor = *sequence;
             }
             previous_tail = page.tail;
-            entries.extend(page.entries);
-            if !page.more {
-                return Ok(entries);
+            if window.accept(page)? {
+                return Ok(window.entries);
             }
         }
     }

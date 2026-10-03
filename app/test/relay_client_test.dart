@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -16,6 +17,125 @@ http.Response _json(int status, Object body) => http.Response(
 );
 
 void main() {
+  test('read accepts exactly the response ceiling and refuses larger declared bodies', () async {
+    const limit = 6 * 1024 * 1024;
+    final json = jsonEncode({'entries': [], 'tail': 0, 'more': false});
+    final exact = Uint8List.fromList(
+      utf8.encode(json + ' ' * (limit - json.length)),
+    );
+    final client = HttpRelayClient(
+      'https://relay.example',
+      MockClient.streaming(
+        (_, _) async => http.StreamedResponse(
+          Stream.value(exact),
+          200,
+          contentLength: limit,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+    expect(await client.readAfter(_group, 0), isEmpty);
+
+    var aborted = false;
+    var listened = false;
+    final stream = StreamController<List<int>>(
+      onListen: () {
+        listened = true;
+      },
+    );
+    final oversized = HttpRelayClient(
+      'https://relay.example',
+      MockClient.streaming((request, _) async {
+        (request as http.AbortableRequest).abortTrigger!.then((_) {
+          aborted = true;
+        });
+        return http.StreamedResponse(
+          stream.stream,
+          200,
+          contentLength: limit + 1,
+        );
+      }),
+    );
+    await expectLater(
+      oversized.readAfter(_group, 0),
+      throwsA(isA<RelayUnavailable>()),
+    );
+    expect(aborted, isTrue);
+    expect(
+      listened,
+      isFalse,
+      reason: 'Declared oversize is refused before reading the body',
+    );
+    final closed = stream.close();
+    await stream.stream.drain<void>();
+    await closed;
+  });
+
+  test(
+    'read refuses an initial backfill beyond its finite entry budget',
+    () async {
+      var requests = 0;
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((_) async {
+          requests++;
+          return _json(200, {
+            'entries': [
+              {'seq': 1, 'blob': 'YQ=='},
+            ],
+            'tail': 10001,
+            'more': true,
+          });
+        }),
+      );
+      await expectLater(
+        client.readAfter(_group, 0),
+        throwsA(
+          isA<RelayUnavailable>().having(
+            (error) => error.message,
+            'message',
+            contains('entry limit'),
+          ),
+        ),
+      );
+      expect(requests, 1);
+    },
+  );
+
+  test('read response is cancelled at its actual byte limit despite a small declared length', () async {
+    var cancelled = false;
+    late StreamController<List<int>> stream;
+    stream = StreamController<List<int>>(
+      onListen: () => stream.add(Uint8List(6 * 1024 * 1024 + 1)),
+      onCancel: () {
+        cancelled = true;
+      },
+    );
+    final client = HttpRelayClient(
+      'https://relay.example',
+      MockClient.streaming(
+        (_, _) async => http.StreamedResponse(
+          stream.stream,
+          200,
+          contentLength: 1,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+    await expectLater(
+      client.readAfter(_group, 0),
+      throwsA(
+        isA<RelayUnavailable>().having(
+          (error) => error.message,
+          'message',
+          contains('size limit'),
+        ),
+      ),
+    );
+    expect(cancelled, isTrue);
+    await stream.close();
+  });
+
   test('invalid pages fail before a retry or partial history is returned', () async {
     final cases = <Map<String, Object?>>[
       {'entries': [], 'tail': 1, 'more': true},
@@ -144,6 +264,15 @@ void main() {
         'https://relay.example',
         MockClient((request) async {
           requests++;
+          if (request.url.queryParameters['after'] == '2') {
+            return _json(200, {
+              'entries': [
+                {'seq': 3, 'blob': 'Yw=='},
+              ],
+              'tail': 3,
+              'more': false,
+            });
+          }
           expect(
             request.url.queryParameters['after'],
             requests == 1 ? '0' : '1',
@@ -170,9 +299,12 @@ void main() {
         }),
       );
       final entries = await client.readAfter(_group, 0);
-      expect(entries.map((entry) => entry.sequence), [1, 2, 3]);
-      expect(entries.map((entry) => entry.blob.single), [97, 98, 99]);
+      expect(entries.map((entry) => entry.sequence), [1, 2]);
+      expect(entries.map((entry) => entry.blob.single), [97, 98]);
       expect(requests, 2);
+      final later = await client.readAfter(_group, 2);
+      expect(later.map((entry) => entry.sequence), [3]);
+      expect(requests, 3);
     },
   );
 
