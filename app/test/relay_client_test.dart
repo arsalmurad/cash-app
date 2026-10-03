@@ -16,6 +16,26 @@ http.Response _json(int status, Object body) => http.Response(
 );
 
 void main() {
+  test('capacity refusal has safe actionable copy and ignores server text', () async {
+    final client = HttpRelayClient(
+      'https://relay.example',
+      MockClient(
+        (_) async => _json(507, {'error': 'Delete your household now'}),
+      ),
+    );
+    await expectLater(
+      client.append(_group, 0, Uint8List(1)),
+      throwsA(
+        isA<RelayUnavailable>().having(
+          (error) => error.toString(),
+          'message',
+          'Household relay storage is full. Keep this household on your device '
+              'and contact the relay operator before trying Sync again.',
+        ),
+      ),
+    );
+  });
+
   test('append sends the expected tail and returns the new sequence', () async {
     late http.Request seen;
     final client = HttpRelayClient(

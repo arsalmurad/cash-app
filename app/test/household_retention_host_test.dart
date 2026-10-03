@@ -55,6 +55,19 @@ class _LostReplyRelay extends MemoryRelayClient {
   }
 }
 
+class _CapacityRelay extends MemoryRelayClient {
+  int accepted = 0;
+  int? refuseAt;
+
+  @override
+  Future<int> append(String group, int expectedTail, Uint8List blob) async {
+    if (accepted == refuseAt) throw const RelayCapacityReached();
+    final sequence = await super.append(group, expectedTail, blob);
+    accepted++;
+    return sequence;
+  }
+}
+
 Future<bool> _needsReceipt(_Store store) async {
   final restored = await householdRestore(
     saved: HouseholdJournal.decode(store.value!).state,
@@ -72,6 +85,56 @@ void main() {
     setUpAll(() async {
       await RustLib.init(externalLibrary: ExternalLibrary.open(library!));
     });
+
+    for (final afterFinancial in [false, true]) {
+      test('capacity refusal preserves pending work across restart '
+          '(expense accepted=$afterFinancial)', () async {
+        final relay = _CapacityRelay();
+        final store = _Store();
+        final config = _Store();
+        HouseholdController controller() => HouseholdController(
+          stateStore: store,
+          configStore: config,
+          relayFactory: (_) => relay,
+        );
+        final first = controller();
+        await first.initialize();
+        await first.setRelayUrl('https://relay.test');
+        expect(await first.createHousehold(), isTrue);
+        final group = first.overview!.groupId!;
+        final before = relay.accepted;
+        relay.refuseAt = before + (afterFinancial ? 1 : 0);
+        expect(
+          await first.addExpense(title: 'Retained expense', amount: '6.00'),
+          isFalse,
+        );
+        expect(first.requiresRestart, isFalse);
+        expect(first.errorMessage, contains('Household relay storage is full'));
+        expect(first.overview!.transactions.single.title, 'Retained expense');
+        final refused = (await relay.readAfter(group, 0)).length;
+        expect(refused, before + (afterFinancial ? 1 : 0));
+        first.dispose();
+
+        final restarted = controller();
+        addTearDown(restarted.dispose);
+        await restarted.initialize();
+        expect(
+          restarted.overview!.transactions.single.title,
+          'Retained expense',
+        );
+        expect(await restarted.syncNow(), isFalse);
+        expect((await relay.readAfter(group, 0)).length, refused);
+        relay.refuseAt =
+            null; // Models restored capacity, not an app pruning API.
+        expect(await restarted.syncNow(), isTrue);
+        expect(restarted.overview!.transactions.length, 1);
+        expect(restarted.overview!.balanceLabel, 'USD -6.00');
+        expect((await relay.readAfter(group, 0)).length, before + 2);
+        expect(await _needsReceipt(store), isFalse);
+        expect(await restarted.syncNow(), isTrue);
+        expect((await relay.readAfter(group, 0)).length, before + 2);
+      });
+    }
 
     test(
       'confirmed saves acknowledge once and restart without a loop',

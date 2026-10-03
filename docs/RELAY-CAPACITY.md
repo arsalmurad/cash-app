@@ -46,6 +46,22 @@ Only relay code/tests and documentation changed. The previously verified app,
 native bridge and production WASM source did not change, so no platform rebuild
 was performed for this guard.
 
+The following narrow client change maps append HTTP 507 to trusted local copy:
+“Household relay storage is full. Keep this household on your device and contact
+the relay operator before trying Sync again.” It does not display remote error
+instructions or suggest resetting the household. The UX-copy guidance informed
+the explanation and next step, without promising a durability guarantee.
+All 23 focused HTTP/native-bridge receipt-coordinator tests pass, including
+capacity refusal before the financial frame and after it (while the receipt is
+pending). Both restart with the expense retained, refuse further append while
+full, then retry without duplicate financial events or an ACK loop when the
+test relay accepts writes again. Capacity restoration is a test-double switch,
+not evidence of a pruning endpoint or actual-worker-to-app capacity recovery.
+The cached full native-enabled Flutter suite subsequently passes all 319 tests
+in 2 minutes 20 seconds; static analysis reports no issues. This client copy
+change has host HTTP/native-bridge evidence, not a newly rebuilt mobile or
+production browser runtime. Previous platform evidence remains revision-scoped.
+
 ## Still open
 
 There is no account-wide group/mailbox creation quota, authenticated roster,
