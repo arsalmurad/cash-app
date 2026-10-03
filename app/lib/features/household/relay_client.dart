@@ -4,6 +4,14 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+/// Supplies a public proof for these exact bytes. Signing is not registration
+/// or server permission. Every attempt, including each page, needs a new proof.
+typedef RelayRequestSigner = Future<String> Function(
+  String method,
+  Uri url,
+  Uint8List body,
+);
+
 /// One entry of a group's ordered log.
 class RelayLogEntry {
   const RelayLogEntry(this.sequence, this.blob);
@@ -99,16 +107,56 @@ abstract interface class PagedRelayClient implements RelayClient {
 
 /// Talks to the Cloudflare Worker over HTTP.
 class HttpRelayClient implements PagedRelayClient {
-  HttpRelayClient(String baseUrl, [http.Client? client])
-    : _base = baseUrl.replaceAll(RegExp(r'/+$'), ''),
-      _client = client ?? http.Client();
+  HttpRelayClient(
+    String baseUrl, [
+    http.Client? client,
+    RelayRequestSigner? signer,
+  ]) : _base = baseUrl.replaceAll(RegExp(r'/+$'), ''),
+       _client = client ?? http.Client(),
+       _signer = signer;
 
   final String _base;
   final http.Client _client;
+  final RelayRequestSigner? _signer;
+
+  Future<Map<String, String>> _headers(
+    String method,
+    Uri uri,
+    Uint8List body,
+    Duration timeout,
+  ) async {
+    final signer = _signer;
+    if (signer == null) return {};
+    try {
+      // Do not let a callback mutate the bytes that will reach the network.
+      final proof = await signer(
+        method,
+        uri,
+        Uint8List.fromList(body),
+      ).timeout(timeout);
+      if (proof.isEmpty ||
+          proof.length > 1024 ||
+          !RegExp(r'^[\x20-\x7e]+$').hasMatch(proof)) {
+        throw const FormatException('invalid proof header');
+      }
+      return {'x-cash-device-proof': proof};
+    } catch (_) {
+      // FRB can throw a Rust String, not just a Dart Exception. Never disclose
+      // callback diagnostics or fall back to an unsigned request.
+      throw const RelayUnavailable(
+        'Could not authenticate the relay request. No request sent.',
+      );
+    }
+  }
 
   Uri _uri(String path) => Uri.parse('$_base$path');
 
-  Future<http.Response> _readPage(Uri uri, Duration timeout) async {
+  Future<http.Response> _readPage(
+    Uri uri,
+    Duration timeout, {
+    String method = 'GET',
+    Uint8List? body,
+  }) async {
     const maxBytes = 6 * 1024 * 1024;
     final elapsed = Stopwatch()..start();
     final abort = Completer<void>();
@@ -117,9 +165,25 @@ class HttpRelayClient implements PagedRelayClient {
     });
     StreamIterator<List<int>>? iterator;
     try {
-      final response = await _client
-          .send(http.AbortableRequest('GET', uri, abortTrigger: abort.future))
-          .timeout(timeout);
+      final headers = await _headers(
+        method,
+        uri,
+        body ?? Uint8List(0),
+        timeout,
+      );
+      if (body != null) headers['content-type'] = 'application/json';
+      final request = http.AbortableRequest(
+        method,
+        uri,
+        abortTrigger: abort.future,
+      );
+      request.headers.addAll(headers);
+      if (body != null) request.bodyBytes = body;
+      final remaining = timeout - elapsed.elapsed;
+      if (remaining <= Duration.zero) {
+        throw TimeoutException('relay request timed out');
+      }
+      final response = await _client.send(request).timeout(remaining);
       iterator = StreamIterator(response.stream);
       if ((response.contentLength ?? 0) > maxBytes) {
         throw const RelayUnavailable(
@@ -156,13 +220,8 @@ class HttpRelayClient implements PagedRelayClient {
     }
   }
 
-  Future<http.Response> _send(Future<http.Response> Function() request) async {
-    try {
-      return await request().timeout(const Duration(seconds: 20));
-    } on Exception catch (error) {
-      throw RelayUnavailable(error.toString());
-    }
-  }
+  Future<http.Response> _send(String method, Uri uri, [Uint8List? body]) =>
+      _readPage(uri, const Duration(seconds: 20), method: method, body: body);
 
   Map<String, dynamic> _object(http.Response response) {
     try {
@@ -190,13 +249,15 @@ class HttpRelayClient implements PagedRelayClient {
   @override
   Future<int> append(String group, int expectedTail, Uint8List blob) async {
     final response = await _send(
-      () => _client.post(
-        _uri('/g/$group/append'),
-        headers: {'content-type': 'application/json'},
-        body: jsonEncode({
-          'expected_tail': expectedTail,
-          'blob': base64.encode(blob),
-        }),
+      'POST',
+      _uri('/g/$group/append'),
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({
+            'expected_tail': expectedTail,
+            'blob': base64.encode(blob),
+          }),
+        ),
       ),
     );
     if (response.statusCode == 409) {
@@ -328,14 +389,16 @@ class HttpRelayClient implements PagedRelayClient {
     Uint8List welcome,
   ) async {
     final response = await _send(
-      () => _client.put(
-        _uri('/m/$mailbox'),
-        headers: {'content-type': 'application/json'},
-        body: jsonEncode({
-          'group': group,
-          'joined_after': joinedAfter,
-          'welcome': base64.encode(welcome),
-        }),
+      'PUT',
+      _uri('/m/$mailbox'),
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({
+            'group': group,
+            'joined_after': joinedAfter,
+            'welcome': base64.encode(welcome),
+          }),
+        ),
       ),
     );
     if (response.statusCode != 200) {
@@ -347,17 +410,17 @@ class HttpRelayClient implements PagedRelayClient {
 
   @override
   Future<RelayMailboxItem?> takeMailbox(String mailbox) async {
-    final response = await _send(() => _client.post(_uri('/m/$mailbox/take')));
+    final response = await _send('POST', _uri('/m/$mailbox/take'));
     return _mailboxReply(response);
   }
 
   @override
   Future<RelayMailboxItem?> peekMailbox(String mailbox) async =>
-      _mailboxReply(await _send(() => _client.get(_uri('/m/$mailbox'))));
+      _mailboxReply(await _send('GET', _uri('/m/$mailbox')));
 
   @override
   Future<void> acknowledgeMailbox(String mailbox) async {
-    final response = await _send(() => _client.post(_uri('/m/$mailbox/ack')));
+    final response = await _send('POST', _uri('/m/$mailbox/ack'));
     if (response.statusCode != 200 && response.statusCode != 404) {
       throw RelayUnavailable(
         'could not acknowledge the welcome (${response.statusCode})',

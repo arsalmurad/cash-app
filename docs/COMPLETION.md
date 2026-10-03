@@ -110,6 +110,11 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   the new ABI, not the new signing method. `PHASE2-PROGRESS.md` records exact
   artifacts/toolchains/failures. The HTTP client is still unsigned; authenticated
   end-to-end transport and final mobile/iOS acceptance remain open.
+  The HTTP client now supports an optional exact-byte request-proof callback,
+  including fresh invocation per page, bounded/abortable replies and no-network
+  failure/deadline behavior. Scoped native/transport regressions pass; the default
+  controller still has no protected-key provider, and browser/authenticated
+  end-to-end acceptance for this Dart change remains open in `RELAY-AUTH.md`.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
