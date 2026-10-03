@@ -124,6 +124,34 @@ is activated by the new admission module.
 
 ### Open integration gates
 
+### Scoped per-device policy refinement
+
+The subsequent admission policy is version 2: `{version, epoch, scope, devices}`.
+`scope` has the exact canonical `origin`, namespace `kind` (`g`/`m`) and random
+32-character hex `id`; each sorted unique device has `{key, operations}` with a
+sorted bounded allowlist. Old unscoped version-1 policies are refused, not
+silently upgraded. This is experimental local policy metadata, not migration of
+a deployed authenticated relay.
+
+The verifier now keeps immutable request origin/method/path/query context in an
+isolate-local WeakMap, separate from returned public proof metadata. Admission
+uses that context, not caller-supplied/deserialized scope. Known group operations
+are read/append/WebSocket/membership/prune; mailbox operations are distinct
+read/write/take/ack grants. Wrong origins, namespace IDs, methods, path aliases,
+unrelated query parameters, ambiguous/unsafe read cursors and missing operation
+grants are refused without nonce/clock/mutation writes. Recognizing a membership
+or prune action does **not** implement that endpoint or its approval protocol.
+
+All 11 focused policy/admission tests pass, including actual SQLite workerd
+refusal after origin/operation-policy changes, race/revocation and rollback.
+The separate seven Rust-to-workerd proof checks also pass again with zero
+skipped. Production routes remain unchanged/default-public closed; real grant
+issuance, group creation, membership semantics, pruning certificates and app
+integration are still open. No new platform rebuild was required for unused
+server-side primitives.
+
+### Remaining production integration
+
 - Establish an authenticated bootstrap/device-registration grant and a trusted
   per-group roster anchored to creation, with explicit membership/recovery
   updates. A self-signed key or random group ID is not permission to create

@@ -11,7 +11,7 @@ const now = 1_790_000_000_000;
 const keys = await webcrypto.subtle.generateKey("Ed25519", true, ["sign", "verify"]);
 const key = Buffer.from(await webcrypto.subtle.exportKey("raw", keys.publicKey)).toString("hex");
 const other = "ac".repeat(32);
-async function signed(nonce = "01".repeat(32), expires = now + 30_000, path = "/g/0123456789abcdef0123456789abcdef") {
+async function signed(nonce = "01".repeat(32), expires = now + 30_000, path = "/g/0123456789abcdef0123456789abcdef/append") {
   const body = new Uint8Array();
   const digest = Buffer.from(await webcrypto.subtle.digest("SHA-256", body)).toString("hex");
   const payload = encodeRequestProofPayload({ origin: "https://relay.example", method: "POST",
@@ -21,10 +21,13 @@ async function signed(nonce = "01".repeat(32), expires = now + 30_000, path = "/
 }
 async function proof(nonce, expires) {
   const raw = await signed(nonce, expires);
-  return verifyRequestProof(new Request("https://relay.example/g/0123456789abcdef0123456789abcdef", { method: "POST" }),
+  return verifyRequestProof(new Request("https://relay.example/g/0123456789abcdef0123456789abcdef/append", { method: "POST" }),
     new Uint8Array(), raw, key, raw.expires - 30_000);
 }
-const roster = { version: 1, epoch: 3, keys: [key] };
+const operations = ["append", "membership", "prune", "read", "ws"];
+const roster = { version: 2, epoch: 3,
+  scope: { origin: "https://relay.example", kind: "g", id: "0123456789abcdef0123456789abcdef" },
+  devices: [{ key, operations }] };
 
 function transaction(rows = {}) {
   const values = new Map(Object.entries(rows));
@@ -42,13 +45,29 @@ test("only immutable verifier output can be admitted, not copied JSON metadata",
   assert.equal((await admitVerifiedDeviceRequest(txn, verified, now)).ok, true);
 });
 
+test("transaction policy refuses a verified request in the wrong namespace or without its operation grant", async () => {
+  const verified = await proof();
+  for (const scoped of [
+    {...roster.scope, origin: "https://other.example"},
+    {...roster.scope, id: "02".repeat(16)},
+  ]) {
+    const txn = transaction({authorized_devices: {...roster, scope: scoped}});
+    const before = structuredClone([...txn.values]);
+    assert.deepEqual(await admitVerifiedDeviceRequest(txn, verified, now), {ok: false, reason: "scope"});
+    assert.deepEqual([...txn.values], before);
+  }
+  const txn = transaction({authorized_devices: {...roster, devices: [{key, operations: ["read"]}]}});
+  assert.deepEqual(await admitVerifiedDeviceRequest(txn, verified, now), {ok: false, reason: "permission"});
+  assert.equal(txn.values.has(`request_nonces:${key}`), false);
+});
+
 test("admission requires the current transaction roster and rejects replay", async () => {
   const txn = transaction({ authorized_devices: roster });
   assert.deepEqual(await admitVerifiedDeviceRequest(txn, await proof(), now), { ok: true, epoch: 3 });
   const saved = structuredClone([...txn.values]);
   assert.deepEqual(await admitVerifiedDeviceRequest(txn, await proof(), now), { ok: false, reason: "replay" });
   assert.deepEqual([...txn.values], saved);
-  txn.values.set("authorized_devices", { ...roster, epoch: 4, keys: [other] });
+  txn.values.set("authorized_devices", { ...roster, epoch: 4, devices: [{key: other, operations}] });
   assert.deepEqual(await admitVerifiedDeviceRequest(txn, await proof("02".repeat(32)), now), { ok: false, reason: "unauthorized" });
 });
 
@@ -73,9 +92,11 @@ test("persisted monotonic server time prevents old proof revival after clock rol
 });
 
 test("missing/malformed policy, proof, clock or nonce state fails closed", async () => {
-  for (const invalid of [undefined, null, { ...roster, version: 2 },
-    { ...roster, keys: [] }, { ...roster, keys: [key, key] },
-    { ...roster, keys: [other, key].sort().reverse() }, { ...roster, epoch: -1 }]) {
+  for (const invalid of [undefined, null, { ...roster, version: 1 },
+    { ...roster, devices: [] }, { ...roster, devices: [roster.devices[0], roster.devices[0]] },
+    { ...roster, devices: [other, key].sort().reverse().map(key => ({key, operations})) },
+    { ...roster, epoch: -1 }, { ...roster, scope: { ...roster.scope, id: "bad" } },
+    { ...roster, devices: [{key, operations: ["read", "append"]}] }]) {
     const txn = transaction(invalid === undefined ? {} : { authorized_devices: invalid });
     const before = structuredClone([...txn.values]);
     assert.equal((await admitVerifiedDeviceRequest(txn, await proof(), now)).ok, false);
@@ -112,11 +133,11 @@ test("actual SQLite workerd transaction admits one racer, rolls back nonce with 
         if (path.startsWith('/__rows/')) return Response.json([...await this.state.storage.list()]);
         const raw = JSON.parse(request.headers.get('x-test-proof'));
         const initial = await this.state.storage.get('authorized_devices');
-        const trusted = initial?.keys.includes(raw.publicKey) ? raw.publicKey : undefined;
+        const trusted = initial?.devices.some(device => device.key === raw.publicKey) ? raw.publicKey : undefined;
         const verified = await verifyRequestProof(request, new Uint8Array(await request.arrayBuffer()), raw, trusted, ${now});
         if (!verified) return Response.json({ok: false}, {status: 401});
         if (request.headers.get('x-test-revoke') === '1') {
-          await this.state.storage.put('authorized_devices', {version: 1, epoch: 4, keys: ['${other}']});
+          await this.state.storage.put('authorized_devices', {...initial, epoch: 4, devices: [{key: '${other}', operations: ['append']}]});
         }
         try {
           const result = await this.state.storage.transaction(async txn => {
@@ -137,7 +158,7 @@ test("actual SQLite workerd transaction admits one racer, rolls back nonce with 
   const mf = new Miniflare({ modulesRoot: root,
     modules: [
       { type: "ESModule", path: `${root}/admission-fixture.js`, contents: wrapper },
-      ...await Promise.all(["request-proof", "request-admission"].map(async name => ({
+      ...await Promise.all(["request-proof", "request-admission", "request-scope"].map(async name => ({
         type: "ESModule", path: `${root}/${name}.js`,
         contents: await readFile(new URL(`../src/${name}.js`, import.meta.url), "utf8"),
       }))),
@@ -145,9 +166,9 @@ test("actual SQLite workerd transaction admits one racer, rolls back nonce with 
     compatibilityDate: "2026-07-01",
   });
   const call = (path, init) => mf.dispatchFetch(`https://relay.example${path}`, init);
-  const seed = id => call(`/__seed/${id}`, { method: "POST", body: JSON.stringify({authorized_devices: roster}) });
+  const seed = id => call(`/__seed/${id}`, { method: "POST", body: JSON.stringify({authorized_devices: {...roster, scope: {...roster.scope, id}}}) });
   const rows = async id => Object.fromEntries(await (await call(`/__rows/${id}`)).json());
-  const invoke = (id, raw, extra = {}) => call(`/g/${id}`, { method: "POST", body: "",
+  const invoke = (id, raw, extra = {}) => call(`/g/${id}/append`, { method: "POST", body: "",
     headers: { "x-test-proof": JSON.stringify(raw), ...extra } });
   try {
     await mf.ready;
@@ -159,6 +180,16 @@ test("actual SQLite workerd transaction admits one racer, rolls back nonce with 
     assert.equal((await rows(id)).accepted, 1);
     const nonceRows = (await rows(id))[`request_nonces:${key}`];
     assert.equal(nonceRows.records.length, 1);
+    for (const changed of [
+      {...roster, scope: {...roster.scope, origin: "https://other.example"}},
+      {...roster, devices: [{key, operations: ["read"]}]},
+    ]) {
+      await call(`/__seed/${id}`, {method: "POST", body: JSON.stringify({authorized_devices: changed})});
+      assert.equal((await invoke(id, await signed("04".repeat(32)))).status, 403);
+      assert.equal((await rows(id)).accepted, 1);
+      assert.deepEqual((await rows(id))[`request_nonces:${key}`], nonceRows);
+    }
+    await seed(id); // Preserve nonce/clock; only restores the test policy.
     const revoked = await signed("02".repeat(32));
     assert.equal((await invoke(id, revoked, {"x-test-revoke": "1"})).status, 403);
     assert.equal((await rows(id)).accepted, 1);
@@ -166,9 +197,9 @@ test("actual SQLite workerd transaction admits one racer, rolls back nonce with 
 
     const second = "00000000000000000000000000000002";
     await seed(second);
-    const retry = await signed("03".repeat(32), now + 30_000, `/g/${second}`);
+    const retry = await signed("03".repeat(32), now + 30_000, `/g/${second}/append`);
     assert.equal((await invoke(second, retry, {"x-test-fault": "1"})).status, 503);
-    assert.deepEqual(await rows(second), { authorized_devices: roster }, "Mutation rollback must also roll back nonce/clock");
+    assert.deepEqual(await rows(second), { authorized_devices: {...roster, scope: {...roster.scope, id: second}} }, "Mutation rollback must also roll back nonce/clock");
     assert.equal((await invoke(second, retry)).status, 200);
     assert.equal((await rows(second)).accepted, 1);
   } finally { await mf.dispose(); }
