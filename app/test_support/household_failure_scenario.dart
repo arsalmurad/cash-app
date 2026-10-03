@@ -159,7 +159,8 @@ Future<void> runHouseholdFailureScenario({
       expect(await restarted.syncNow(), isTrue);
       expect(
         (await relay.readAfter(group, 0)).length,
-        before.length + (saved ? 1 : 0),
+        before.length + (saved ? 2 : 0),
+        reason: 'A recovered financial frame has one saved-history receipt',
       );
       expect(
         await restarted.addExpense(title: 'After restart', amount: '4'),
@@ -189,11 +190,11 @@ Future<void> runHouseholdFailureScenario({
       expect(restarted.errorMessage, isNull);
       expect(restarted.overview!.transactions.single.title, 'Queued ratchet');
       expect(await restarted.syncNow(), isTrue);
-      expect((await relay.readAfter(group, 0)).length, before.length + 1);
+      expect((await relay.readAfter(group, 0)).length, before.length + 2);
       expect(await restarted.syncNow(), isTrue);
       expect(
         (await relay.readAfter(group, 0)).length,
-        before.length + 1,
+        before.length + 2,
         reason: 'Retry must publish the retained event exactly once',
       );
     }

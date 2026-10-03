@@ -1,7 +1,8 @@
 # Saved-state retention receipts
 
-Status: local Rust verifier and explicit MLS-encrypted exchange implemented.
-App save coordination and recoverable relay pruning are **not implemented**.
+Status: Rust verifier, MLS-encrypted exchange, checked collection persistence
+and app protected-save coordination implemented; verification below is scoped.
+Recoverable authenticated relay pruning is **not implemented**.
 No history is deleted by this component.
 
 ## Contract
@@ -36,7 +37,7 @@ The codec bounds receipt size and checks lengths, truncation and trailing data.
 Receipts contain no financial fields, event IDs, display names or private keys,
 but still carry linkable cryptographic metadata. They must travel **encrypted**
 through an authenticated channel. Never send the saved archive to the relay:
-it contains private MLS material. No receipt endpoint or bridge API is enabled.
+it contains private MLS material. No relay receipt/pruning endpoint is enabled.
 
 ## Explicit encrypted exchange
 
@@ -64,7 +65,7 @@ collected receipts retain v5 encoding; previous signed archives remain readable
 and unsigned archives remain restricted. Old apps must update before handling
 v6/v7 archives or participating in receipt collection. V1 receipts lack relay-
 log binding and are refused: recollect v2 rather than infer missing binding.
-No active app caller has been enabled for this new format.
+All household devices must update before the app's new receipt exchange is used.
 
 Received collections are now included in the peer archive, which callers must
 save in protected storage with the private MLS keys. Old archives that lack the
@@ -73,11 +74,10 @@ saved cursor. Core export/import tests do not establish actual app durability.
 
 ## Remaining integration gates
 
-1. Issue and retain a receipt only after the actual protected SQLite save has
-   completed. Refuse issuance during uncertain saves, pending invitation/mailbox
-   work or recovery. Test failures before/after durability and queued operations.
-2. Connect the verified explicit encrypted exchange to app save/sync handling,
-   with bounded coordinated recollection and no automatic acknowledgement loop.
+1. Complete final-platform verification of the protected-save hook described
+   below. Keep failure-before/after-save and queued-operation coverage.
+2. Establish coordinated recollection for missing older archives if needed by
+   a future pruning protocol; never infer missing peer receipts from cursors.
 3. Collect them against a checked current roster/checkpoint. A relay read or a
    highest actor timestamp must never be treated as another peer's durable ack.
 4. Establish authenticated pruning authorization and crash-safe cursor/floor
@@ -164,3 +164,58 @@ pass with `cargo test --manifest-path rust/Cargo.toml --locked --offline
 -p cash_sync` (1,000-event binary: 123.60 s). Strict HTTP-enabled all-targets
 Clippy also passes (3.81 s). No new app-platform run or actual protected-save
 confirmation is inferred from these core-only checks.
+
+## App protected-save hook
+
+The thin bridge exposes `household_needs_saved_state_receipt` and
+`household_enqueue_saved_state_receipt`. The serialized app sync considers at
+most one new receipt per invocation after financial/backfill work drains. It
+skips pending invitations, mailbox acknowledgements, recovery and inactive or
+queued peers. An existing own receipt for the same financial checkpoint and
+membership suppresses further generation despite control-only cursor changes.
+The persisted collection preserves this suppression across restart.
+
+When a receipt is needed, the controller completes a protected journal save,
+reads that saved journal back, validates relay/pending/recovery metadata and
+passes its state bytes to the complete-archive equality guard. It saves the
+queued receipt before encryption; the existing loop saves advanced sender state
+before append. Uncertain writes or unconfirmable read-back disable later writes
+and require restart. Protected-save success/read-back is not proof against every
+OS/power-loss failure; platform storage limits still apply.
+
+Ten real native-bridge coordinator tests cover checkpoint/restart suppression,
+six before/after-write failures at checkpoint/queue/ratchet boundaries, failed
+or stale read-back, and a lost receipt append reply. They began RED against the
+missing app hook, then pass. The lost reply may produce one encrypted retry of
+the same signed receipt, just as an uncertain financial append can retry the
+same immutable event: logical idempotency and subsequent stable relay tails
+are tested, not exactly-once network delivery. The portable interrupted-sync
+scenario also passes against actual sealed Rust SQLite (host memory key backend,
+not a native OS-key claim); inspected physical bytes contain neither v7 peer/
+receipt markers, financial sentinels nor wrapping phrases. Native-platform and
+production WASM verification of this hook remain separate until recorded.
+
+Final core/bridge acceptance passes all 66 sync plus 64 API tests with
+`cargo test --manifest-path rust/Cargo.toml --locked --offline -p cash_sync
+-p rust_lib_cash_app` (1,000-event binary: 133.86 s). HTTP-enabled strict
+all-targets Clippy passes for both packages. Regenerated pinned FRB 2.13 bindings
+and the cached native DLL pass the ten coordinator tests and two portable
+failure scenarios (28 s combined). The broad first app run passes 314 checks
+and fails one obsolete exact ciphertext-count assertion; the isolated final
+four chosen-summary checks pass after counting its new receipt and requiring
+the next sync's tail stay stable. The final analyzer reports no issues (4.2 s).
+These scoped results do not stand in for final mobile/browser runtime.
+
+The Rust/WASM release bridge rebuild passes with the existing pinned NDK Clang
+and LLVM archive tool, `CFLAGS_wasm32_unknown_unknown=-matomics -mbulk-memory`,
+nightly alias and cached dependencies (1m07s). Two initial local command attempts
+omitted the compiler path and then these existing CI flags, respectively; their
+missing-Clang and shared-memory link errors were corrected without installs,
+toolchain upgrades or source workarounds. The tracked atomics warning remains.
+Building this bridge is not a Flutter/browser runtime pass.
+
+The final-source full native-enabled Flutter suite subsequently passes all
+315 tests (2m40s), including the updated exact message counts, private-publication
+boundaries, uncertain-save ownership, sealed SQLite failure scenarios and all
+ten receipt-coordinator checks. Command from `app`: `RUST_LIB_PATH=<current
+cached DLL> flutter --no-version-check test --no-pub --reporter expanded`.

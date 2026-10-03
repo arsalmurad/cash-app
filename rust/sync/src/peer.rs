@@ -631,6 +631,24 @@ impl Peer {
         Ok(bytes)
     }
 
+    /// Whether this device lacks a published receipt for the current history
+    /// and membership. Control-only cursor changes do not require another ACK.
+    /// This does not confirm storage; the queue API still requires saved bytes.
+    pub fn needs_saved_state_receipt(&self) -> Result<bool, SyncError> {
+        let (group, epoch, checkpoint) = self.retention_context()?;
+        let Some(claims) = self.retention_receipts.get(&self.public_key()) else {
+            return Ok(true);
+        };
+        if claims.len() != 1 {
+            return Ok(true);
+        }
+        let receipt = Receipt::decode(&claims[0])?;
+        Ok(receipt.group != group
+            || receipt.relay_group != self.retention_relay_group()?
+            || receipt.epoch != epoch
+            || receipt.checkpoint != checkpoint)
+    }
+
     /// Explicit nonfinancial exchange only. The storage caller must confirm
     /// `saved` before calling; export/save this queued peer before transmitting.
     /// No automatic acknowledgement-of-acknowledgement is generated.

@@ -19,6 +19,39 @@ fn pair() -> (MemoryRelay, Peer, Peer) {
 }
 
 #[test]
+fn one_receipt_per_checkpoint_survives_restart_without_acknowledgement_loops() {
+    let (mut relay, mut alice, mut bob) = pair();
+    for peer in [&mut alice, &mut bob] {
+        assert!(peer.needs_saved_state_receipt().unwrap());
+        peer.enqueue_saved_state_receipt(&peer.export().unwrap())
+            .unwrap();
+        assert!(peer.needs_saved_state_receipt().is_err());
+        peer.sync(&mut relay).unwrap();
+    }
+    alice.sync(&mut relay).unwrap();
+    let tail = relay.len(alice.group_id().unwrap());
+    for peer in [&alice, &bob] {
+        let mut restarted = Peer::import(&peer.export().unwrap()).unwrap();
+        restarted.sync(&mut relay).unwrap();
+        assert!(!restarted.needs_saved_state_receipt().unwrap());
+        assert_eq!(relay.len(restarted.group_id().unwrap()), tail);
+    }
+    alice
+        .write(
+            20,
+            EventKind::AccountOpened {
+                account_id: AccountId::new("new-history"),
+                name: "Shared only".into(),
+                currency: usd(),
+            },
+        )
+        .unwrap();
+    assert!(alice.needs_saved_state_receipt().is_err());
+    alice.sync(&mut relay).unwrap();
+    assert!(alice.needs_saved_state_receipt().unwrap());
+}
+
+#[test]
 fn encrypted_receipts_confirm_saved_history_without_changing_money_or_looping() {
     let (mut relay, mut alice, mut bob) = pair();
     alice

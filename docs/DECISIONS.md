@@ -1327,3 +1327,14 @@ without collected receipts remain readable but require recollection. This is
 core persistence only: callers still owe a confirmed protected save, and no
 relay deletion or app receipt generation is enabled by the format change.
 
+## 2026-10-03 — Acknowledge read-back-confirmed saves without ACK loops
+
+After draining shared writes, serialized app sync considers one receipt for the
+current financial-history checkpoint/membership, reads a completed protected
+journal save back and validates its exact bytes and delivery metadata. Queue
+and sender ratchet are saved before wire append; uncertain saves/read-back
+disable mutations. Existing persisted own receipts suppress control-only and
+restart ACK loops. Lost replies can retry the same immutable event/signed
+receipt as extra ciphertext; tests require logical idempotency and stable
+subsequent tails, not exactly-once network delivery. No deletion is authorized.
+

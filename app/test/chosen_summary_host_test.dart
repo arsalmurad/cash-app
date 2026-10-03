@@ -246,7 +246,13 @@ void main() {
             expect(await restarted.syncNow(), true);
             expect(
               (await relay.readAfter(group, 0)).length,
-              before + (after ? 1 : 0),
+              before + (after ? 2 : 0),
+              reason: 'The saved shared summary has one checkpoint receipt',
+            );
+            expect(await restarted.syncNow(), true);
+            expect(
+              (await relay.readAfter(group, 0)).length,
+              before + (after ? 2 : 0),
             );
           },
         );

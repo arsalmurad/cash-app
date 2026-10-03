@@ -209,6 +209,25 @@ pub fn household_export(household: &Household) -> Result<Vec<u8>, String> {
     lock(household)?.export().map_err(|error| error.to_string())
 }
 
+/// One acknowledgement per saved financial checkpoint/current membership,
+/// not per received control message. This does not attest storage durability.
+pub fn household_needs_saved_state_receipt(household: &Household) -> Result<bool, String> {
+    lock(household)?
+        .needs_saved_state_receipt()
+        .map_err(|error| error.to_string())
+}
+
+/// Supply this device's exact latest bytes read back from a confirmed protected
+/// save. Persist the resulting queue/ratchet before transmitting any message.
+pub fn household_enqueue_saved_state_receipt(
+    household: &Household,
+    saved: Vec<u8>,
+) -> Result<(), String> {
+    lock(household)?
+        .enqueue_saved_state_receipt(&saved)
+        .map_err(|error| error.to_string())
+}
+
 /// A fresh single-use key package for someone to invite this device with.
 /// Hand it to them out of band (never through the relay).
 pub fn household_key_package(household: &Household) -> Result<Vec<u8>, String> {
@@ -626,6 +645,35 @@ mod tests {
         household_commit_accepted(&alice, sequence).unwrap();
         household_join(&bob, group, staged.welcome, sequence).unwrap();
         (log, alice, bob)
+    }
+
+    #[test]
+    fn bridge_receipts_require_exact_saved_bytes_and_do_not_loop_after_restart() {
+        let (mut log, alice, bob) = pair();
+        sync(&alice, &mut log);
+        sync(&bob, &mut log);
+        let state = lock(&alice).unwrap().state().canonical_bytes();
+        let old = household_export(&alice).unwrap();
+        assert!(household_needs_saved_state_receipt(&alice).unwrap());
+        assert!(
+            household_enqueue_saved_state_receipt(&alice, household_export(&bob).unwrap()).is_err()
+        );
+        household_enqueue_saved_state_receipt(&alice, old.clone()).unwrap();
+        assert!(household_needs_saved_state_receipt(&alice).is_err());
+        sync(&alice, &mut log);
+        sync(&bob, &mut log);
+        assert!(household_enqueue_saved_state_receipt(&alice, old).is_err());
+        household_enqueue_saved_state_receipt(&bob, household_export(&bob).unwrap()).unwrap();
+        sync(&bob, &mut log);
+        sync(&alice, &mut log);
+        let tail = log.0.len();
+        for household in [&alice, &bob] {
+            let restored = household_restore(household_export(household).unwrap()).unwrap();
+            assert!(!household_needs_saved_state_receipt(&restored).unwrap());
+            sync(&restored, &mut log);
+            assert_eq!(lock(&restored).unwrap().state().canonical_bytes(), state);
+        }
+        assert_eq!(log.0.len(), tail);
     }
 
     fn open_and_spend(household: &Household) {
