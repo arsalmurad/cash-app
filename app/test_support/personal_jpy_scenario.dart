@@ -17,7 +17,10 @@ Future<void> runPersonalJpyScenario(WidgetTester tester) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: ledgerTheme(Brightness.light),
-      home: LedgerScreen(controller: controller),
+      home: LedgerScreen(
+        key: const ValueKey('personal-jpy-entry'),
+        controller: controller,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -86,7 +89,10 @@ Future<void> runPersonalJpyScenario(WidgetTester tester) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: ledgerTheme(Brightness.light),
-      home: LedgerScreen(controller: restarted),
+      home: LedgerScreen(
+        key: const ValueKey('personal-jpy-restart'),
+        controller: restarted,
+      ),
     ),
   );
   await tester.pumpAndSettle();
