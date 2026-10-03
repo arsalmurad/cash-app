@@ -609,9 +609,10 @@ sentinels absent and a plaintext-injection negative control rejected. Its final
 WSASend #10053 cleanup diagnostic is not independently diagnosed, despite passing
 assertions and exit 0. No deployed relay or physical-network claim follows.
 
-Queued receipts persist in checked v6 archives, while ordinary archives retain
-v5. Received collections are RAM-only and block planning after restart until
-recollected. Actual protected app-save coordination, persistent collections,
+Queued receipts persist in checked v6 archives, collected original signed
+receipts in checked v7 archives, while ordinary archives retain v5. V7 import
+revalidates scope/signatures and rejects noncanonical or malformed collections;
+older archives still need explicit recollection. Actual protected app-save coordination,
 bounded coordinated recollection, bridge activation and authenticated/recoverable
 pruning remain open. No ciphertext or original signed financial history is
 deleted, and the previous app-platform binaries do not exercise this new API.

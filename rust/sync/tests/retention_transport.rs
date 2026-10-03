@@ -74,7 +74,7 @@ fn encrypted_receipts_confirm_saved_history_without_changing_money_or_looping() 
 }
 
 #[test]
-fn a_queued_receipt_survives_restart_but_collected_receipts_fail_closed_on_restart() {
+fn queued_receipts_restart_and_old_archives_without_collections_need_recollection() {
     let (mut relay, mut alice, mut bob) = pair();
     let saved_alice = alice.export().unwrap();
     alice.enqueue_saved_state_receipt(&saved_alice).unwrap();
@@ -88,10 +88,17 @@ fn a_queued_receipt_survives_restart_but_collected_receipts_fail_closed_on_resta
     alice.sync(&mut relay).unwrap();
     bob.sync(&mut relay).unwrap();
     alice.sync(&mut relay).unwrap();
-    let checkpoint = alice.export().unwrap();
+    let mut checkpoint = alice.export().unwrap();
+    // Model a v5 archive from a reader that ignored receipt control payloads,
+    // retaining the latest keys/cursor, not rewinding an old sender ratchet.
+    let receipts = alice.received_retention_receipts();
+    let metadata_bytes = 8 + receipts.iter().map(|bytes| 8 + bytes.len()).sum::<usize>();
+    checkpoint.truncate(checkpoint.len() - metadata_bytes);
+    let header = b"cash-app peer v5\0";
+    checkpoint[..header.len()].copy_from_slice(header);
     assert!(
         checkpoint.starts_with(b"cash-app peer v5\0"),
-        "Normal archives retain the existing format"
+        "Old archives remain readable without inferring missing receipts"
     );
     alice = Peer::import(&checkpoint).unwrap();
     assert!(alice.received_retention_receipts().is_empty());
