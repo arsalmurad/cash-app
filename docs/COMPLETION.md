@@ -120,6 +120,14 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   refusal checks. All 353 native-enabled app tests pass. The default factory
   remains unsigned; no enrolment, live authenticated HTTP/MLS exchange or new
   browser/mobile acceptance is inferred from the controlled transport mock.
+  A subsequent actual loopback HTTP/workerd test now restores two native app
+  identities under an explicit fixed operator policy, exchanges 19 encrypted
+  expenses across paged backfill and restart, and verifies `USD -20.50` plus
+  replay/body-change/unknown-device refusals without history mutation. All 33
+  scoped native proof, paging and HTTP checks pass (35s); analysis is clean.
+  This closes native authenticated HTTP/MLS exchange for pre-trusted devices,
+  not dynamic enrolment/mailboxes or current browser/mobile acceptance. Wire
+  ciphertext checks are not a new audit of every persisted SQLite field.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
