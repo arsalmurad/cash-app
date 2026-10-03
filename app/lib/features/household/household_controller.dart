@@ -51,6 +51,27 @@ class HouseholdController extends ChangeNotifier {
   /// operation that is itself waiting for its request proof.
   RelayRequestSigner get relayRequestSigner => _signRelayRequest;
 
+  /// Read-only public projection of the current or pending MLS roster. Like
+  /// proof signing, this must not queue behind a sync waiting for this query.
+  /// It neither confirms a pending commit nor authorizes server permissions.
+  Future<List<String>> relayRosterKeys() async {
+    if (_relaySigningClosed) {
+      throw const FormatException('This household controller is closed.');
+    }
+    final household = _requireHousehold();
+    final keys = await householdRelayRosterKeys(household: household);
+    _ensureWritable();
+    if (_relaySigningClosed || !identical(_household, household)) {
+      throw const FormatException('The household identity changed.');
+    }
+    return List.unmodifiable(
+      keys.map(
+        (key) =>
+            key.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join(),
+      ),
+    );
+  }
+
   Future<String> _signRelayRequest(
     String method,
     Uri uri,

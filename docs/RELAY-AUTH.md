@@ -756,3 +756,21 @@ the current ABI `970902974` DLL. Log:
 `app/.dart_tool/roster-transport-full-app.log`. No native/WASM rebuild was
 needed for this Dart-only transport change; browser/mobile runtime claims
 remain unchanged.
+
+## 2026-10-03 — protected controller roster access
+
+`HouseholdController.relayRosterKeys()` now owns the native query and returns
+an immutable public-key list, without changing saved state or queueing behind
+sync. Writable/identity/closed checks run before and after the native await.
+Ten focused native controller, signer, roster and actual SQLite HTTP checks
+pass (6s); analysis is clean (2.8s). Tests compare the roster key with the
+protected request identity, restore unchanged saved bytes, and refuse results
+when lock/disposal occurs in flight or persistence has abandoned the handle.
+Log: `app/.dart_tool/roster-controller-access.log`. Controlled lock flags are
+not biometric/browser-vault UI evidence. No default transport is enabled and
+durable policy/commit/Welcome orchestration is still separate work.
+
+All 23 additional journal, uncertain-save and durable paged-sync regressions
+pass (16s), recorded in `app/.dart_tool/roster-controller-regressions.log`.
+The 364-check full suite above predates this isolated getter; current revision
+verification is the 33 affected checks plus clean analysis, not a new full run.
