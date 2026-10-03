@@ -253,6 +253,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   remain recorded rather than hidden or upgraded without verification.
 - [ ] Run final acceptance checks on the final source revision for iOS, Android,
   and production web/WASM; record commands, runtime, results and artifact paths.
+  The latest authenticated production browser run now passes normal-client
+  operator bootstrap/WASM proof calls, join, summaries, sealed reload, offline
+  conflicts and fresh replacement recovery, but fails old-device removal-state
+  catch-up because relay revocation blocks its MLS removal commit. Preserve this
+  failing opt-in regression and fix bounded retired-device catch-up before
+  declaring authenticated platform acceptance; details are in `RELAY-AUTH.md`.
 - [ ] Finish concise setup, recovery, security-limit and verification docs, with
   all deliverable source and evidence synchronized to private GitHub `main`.
 
