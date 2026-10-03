@@ -273,3 +273,23 @@ requests, preflight traffic, operator setup and future mailboxes/sockets still
 need account-wide abuse controls and verified provider spending limits. Public
 access stays closed, and authenticated long backfills still need durable progress
 across nonce-budget interruptions before app-side integration is enabled.
+
+## Durable app backfill progress (2026-10-03)
+
+The Dart HTTP client now offers `PagedRelayClient.readConfirmedPages`, in
+addition to the unchanged all-or-nothing `readAfter` list contract. Each full
+page passes the existing response/entry/total limits, contiguous sequence,
+monotonic tail and continuation checks before it reaches the consumer. The
+household controller ingests and awaits local persistence before another GET.
+The first observed target tail remains fixed; concurrent later entries wait for
+the next catch-up. Network deadline accounting includes time spent saving,
+but storage callbacks are awaited rather than cancelled or raced.
+
+A later 429 or transport failure leaves earlier confirmed progress saved;
+restart resumes from that cursor. Incomplete catch-up does not enqueue a saved
+history receipt. Uncertain page persistence blocks all later requests/writes
+until restart, whether the store saved before throwing or not. The optional
+paged capability leaves in-memory/custom clients and invitation list checks
+unchanged. This is preparation for signed app networking, not evidence that
+the app already authenticates, honors Retry-After automatically, or passes a
+real 256-nonce authenticated backfill. The Rust HTTP list path is unchanged.

@@ -17,6 +17,97 @@ http.Response _json(int status, Object body) => http.Response(
 );
 
 void main() {
+  test(
+    'confirmed pages survive later refusal but list reads remain atomic',
+    () async {
+      final confirmed = <int>[];
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((request) async {
+          if (request.url.queryParameters['after'] != '0') {
+            return _json(429, {});
+          }
+          return _json(200, {
+            'entries': [
+              {'seq': 1, 'blob': 'YQ=='},
+            ],
+            'tail': 2,
+            'more': true,
+          });
+        }),
+      );
+      await expectLater(
+        client.readConfirmedPages(_group, 0, (page) async {
+          confirmed.addAll(page.map((entry) => entry.sequence));
+        }),
+        throwsA(isA<RelayUnavailable>()),
+      );
+      expect(confirmed, [1]);
+      await expectLater(
+        client.readAfter(_group, 0),
+        throwsA(isA<RelayUnavailable>()),
+      );
+    },
+  );
+
+  test('a malformed page never reaches the durable consumer', () async {
+    var delivered = false;
+    final client = HttpRelayClient(
+      'https://relay.example',
+      MockClient(
+        (_) async => _json(200, {
+          'entries': [
+            {'seq': 1, 'blob': 'YQ=='},
+            {'seq': 3, 'blob': 'Yg=='},
+          ],
+          'tail': 3,
+          'more': false,
+        }),
+      ),
+    );
+    await expectLater(
+      client.readConfirmedPages(_group, 0, (_) async {
+        delivered = true;
+      }),
+      throwsA(isA<RelayUnavailable>()),
+    );
+    expect(delivered, isFalse);
+  });
+
+  test(
+    'the next page waits for confirmation and stops on consumer failure',
+    () async {
+      var requests = 0;
+      final saved = Completer<void>();
+      final entered = Completer<void>();
+      final failure = StateError('uncertain save');
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((_) async {
+          requests++;
+          return _json(200, {
+            'entries': [
+              {'seq': 1, 'blob': 'YQ=='},
+            ],
+            'tail': 2,
+            'more': true,
+          });
+        }),
+      );
+      final read = client.readConfirmedPages(_group, 0, (_) async {
+        entered.complete();
+        await saved.future;
+        throw failure;
+      });
+      final checked = expectLater(read, throwsA(same(failure)));
+      await entered.future;
+      expect(requests, 1);
+      saved.complete();
+      await checked;
+      expect(requests, 1);
+    },
+  );
+
   test('read accepts exactly the response ceiling and refuses larger declared bodies', () async {
     const limit = 6 * 1024 * 1024;
     final json = jsonEncode({'entries': [], 'tail': 0, 'more': false});

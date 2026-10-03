@@ -828,8 +828,8 @@ class HouseholdController extends ChangeNotifier {
 
   Future<void> _catchUp(RelayClient relay, Household household) async {
     final overview = await householdOverview(household: household);
-    final entries = await relay.readAfter(_groupId(), overview.cursor.toInt());
-    if (entries.isNotEmpty) {
+    Future<void> ingest(List<RelayLogEntry> entries) async {
+      if (entries.isEmpty) return;
       await householdIngest(
         household: household,
         entries: [
@@ -840,6 +840,19 @@ class HouseholdController extends ChangeNotifier {
             ),
         ],
       );
+    }
+
+    if (relay is PagedRelayClient) {
+      await relay.readConfirmedPages(_groupId(), overview.cursor.toInt(), (
+        entries,
+      ) async {
+        await ingest(entries);
+        // Preserve MLS ratchets and validated cursor together before another
+        // request. Receipts remain queued only after catch-up succeeds.
+        await _persist();
+      });
+    } else {
+      await ingest(await relay.readAfter(_groupId(), overview.cursor.toInt()));
     }
   }
 
