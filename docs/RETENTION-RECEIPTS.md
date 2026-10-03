@@ -287,3 +287,33 @@ flows run sequentially after browser checks, without installing new tools; the
 owned emulator is stopped afterwards. These are logical peers on an emulator,
 not physical peers, enrolled biometrics or final-source iOS. Pruning remains
 disabled and the deployment/authentication gates remain open.
+
+## Missing-prefix recovery verification (2026-10-03)
+
+`rust/sync/tests/recovery_gap.rs` now checks the existing fresh-key recovery
+protocol against a relay fixture that refuses reads below an absolute sequence
+floor. The fixture does not delete ciphertext or add a production prune API.
+Its simulated floor is derived from matching receipts from both current peers;
+a missing receipt refuses the cutoff. Exports model confirmed saves here, not
+OS-backed durability or permission for the server to delete history.
+
+A stale backup with an earlier cursor fails sync without changing its exported
+archive or appending anything. The current peer then retires the old device,
+invites a distinct signing identity and sends the original signed history in
+the new epoch. Sponsor and replacement are both restarted before backfill; the
+replacement recovers byte-identical canonical state containing both the early
+backup event and later history. It joins above the missing prefix without
+skipping the stale device's cursor or exporting the sponsor's private keys.
+Membership changes invalidate the earlier cutoff receipts; the stale device
+still cannot resume afterward. This check covers two account events, not a new
+1,000-event or multi-currency acceptance run.
+
+All 19 focused recovery/receipt/transport/persistence tests pass with
+`cargo test --manifest-path rust/Cargo.toml --locked --offline -p cash_sync
+--test recovery_gap --test retention_receipts --test retention_transport
+--test retention_persistence`; log `app/.dart_tool/missing-prefix-recovery-tests.log`.
+Strict `cargo clippy --manifest-path rust/Cargo.toml --locked --offline
+-p cash_sync --all-targets --features http,relay-auth -- -D warnings` passes
+(4.44s). No production behavior, bridge ABI, platform artifact or deployed
+relay is changed. Authenticated crash-safe pruning, real peer availability,
+protected-save final platforms and mailbox/roster enrolment remain open.
