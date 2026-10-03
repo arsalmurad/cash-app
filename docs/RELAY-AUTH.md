@@ -903,3 +903,40 @@ native OpenMLS scenario now uses the production bounded client methods rather
 than raw test HTTP for upload/read/ack/retry; Bob joins from the returned bytes
 and sponsor reads fail. This still does not prove controller-managed durable
 join/save/ack ordering or current mobile/browser UI. Those remain next work.
+
+## 2026-10-04 — controller-managed scoped join and durable acknowledgement
+
+Invites now derive exactly one new recipient key from the protected pending
+MLS roster and retain it in `PendingInvitation` alongside the encrypted Welcome.
+The controller confirms the membership slot before scoped upload. Incoming
+invites use scoped peek when explicitly enabled; after native join, the same
+protected journal saves joined keys plus `pendingAck`/`ackRoster` before any
+acknowledgement. Successful ack clears both fields; failures retain intent for
+fresh-proof, idempotent retry. Restart with a missing/disabled scoped capability
+refuses rather than emitting a legacy request. Legacy/raw/v1/v2 journals still
+decode with absent mode/recipient fields defaulting to their original behavior;
+damaged mode/recipient fields fail closed. Invalid unsent projections reject
+the staged native commit before any membership write.
+
+Thirty-two focused native membership/journal/save regressions pass (16s).
+Four actual controller/native/owned SQLite HTTP scenarios pass (36s): save
+failure before commit, save-then-throw, lost successful ACK reply, and failed
+save after server acknowledgement. The observer restores the actual saved
+native keys before each outgoing ACK and verifies active membership/group;
+failed pre-ACK saves send zero ACKs, restarts recover, wrong-mode restarts emit
+zero legacy requests, and consumed Welcomes remain closed. Only initial Alice
+is operator trusted; Bob is enrolled through real MLS/membership/Welcomes,
+not a preconfigured two-device policy. Logs under `app/.dart_tool`:
+`scoped-join-journal.log` and `scoped-controller-http-join.log`.
+
+These are controlled in-memory save outcomes over real native/HTTP/SQLite
+protocol, not new OS secure-storage, arbitrary power-loss or public bootstrap
+proof. The production default factory remains unsigned/roster-disabled;
+persisted user-facing protocol configuration, authenticated browser/mobile
+acceptance, final storage audit and authorized free-plan deployment remain open.
+
+Final analysis is clean (3.2s); the full native-enabled app suite passes all
+388 checks (3m15s) on this source with ABI `970902974`, including the four actual
+scoped join cases and existing fixed-policy HTTP/storage scenarios. Log:
+`app/.dart_tool/scoped-join-full-app.log`. This is native host acceptance, not
+new browser/iOS/Android runtime evidence.

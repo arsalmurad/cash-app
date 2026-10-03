@@ -142,6 +142,7 @@ class HouseholdController extends ChangeNotifier {
   PendingInvitation? _pendingInvitation;
   PendingRelayMembership? _pendingRelayMembership;
   String? _pendingMailboxAck;
+  bool _pendingAckRoster = false;
   Uint8List? _recoveryState;
   HouseholdOverview? recoveryOverview;
   bool get needsRecoveryInvite => _recoveryState != null;
@@ -267,6 +268,7 @@ class HouseholdController extends ChangeNotifier {
     summaries = [];
     _pendingInvitation = null;
     _pendingMailboxAck = null;
+    _pendingAckRoster = false;
     _pendingRelayMembership = null;
     _recoveryState = null;
     recoveryOverview = null;
@@ -402,6 +404,7 @@ class HouseholdController extends ChangeNotifier {
         lastCode: lastInviteCode,
         lastRequest: _lastInviteRequest,
         pendingAck: _pendingMailboxAck,
+        pendingAckRoster: _pendingAckRoster,
         membership: _pendingRelayMembership,
         recoveryState: _recoveryState,
       ).encode();
@@ -424,6 +427,7 @@ class HouseholdController extends ChangeNotifier {
     lastInviteCode = saved.lastCode;
     _lastInviteRequest = saved.lastRequest;
     _pendingMailboxAck = saved.pendingAck;
+    _pendingAckRoster = saved.pendingAckRoster;
     _pendingRelayMembership = saved.membership;
     _recoveryState = saved.recoveryState;
     if (_recoveryState != null) {
@@ -535,11 +539,16 @@ class HouseholdController extends ChangeNotifier {
       for (var attempt = 0; attempt < _maxAttempts; attempt += 1) {
         await _catchUp(relay, household);
         final policy = await _membershipPolicy(relay);
+        _welcomeTransport(relay);
         final staged = await householdBeginInvite(
           household: household,
           keyPackage: keyPackage,
         );
-        await _retainMembershipPolicy(staged.commit, policy);
+        final recipient = await _retainMembershipPolicy(
+          staged.commit,
+          policy,
+          invitation: true,
+        );
         _pendingInvitation = PendingInvitation(
           invite: HouseholdInvite(
             relayUrl: relayUrl!,
@@ -551,6 +560,7 @@ class HouseholdController extends ChangeNotifier {
           welcome: staged.welcome,
           keyPackage: keyPackage,
           createdMillis: DateTime.now().millisecondsSinceEpoch,
+          recipient: recipient,
         );
         lastInviteCode = null;
         _lastInviteRequest = null;
@@ -605,12 +615,31 @@ class HouseholdController extends ChangeNotifier {
         'The pending invite expired. Remove that member and request a fresh join code.',
       );
     }
-    await relay.putMailbox(
-      pending.invite.mailbox,
-      pending.invite.group,
-      pending.expectedTail + 1,
-      pending.welcome,
+    final scoped = _welcomeTransport(
+      relay,
+      required: pending.recipient != null,
     );
+    if (scoped != null) {
+      if (pending.recipient == null) {
+        throw const RelayUnavailable(
+          'This saved invitation has no authenticated recipient binding. Keep the household and restore the original delivery mode.',
+        );
+      }
+      await scoped.putRosterWelcome(
+        pending.invite.group,
+        pending.invite.mailbox,
+        pending.recipient!,
+        pending.expectedTail + 1,
+        pending.welcome,
+      );
+    } else {
+      await relay.putMailbox(
+        pending.invite.mailbox,
+        pending.invite.group,
+        pending.expectedTail + 1,
+        pending.welcome,
+      );
+    }
     lastInviteCode = pending.code;
     _lastInviteRequest = pending.request;
     _pendingInvitation = null;
@@ -637,7 +666,10 @@ class HouseholdController extends ChangeNotifier {
       throw const FormatException('This device is already in a household.');
     }
     final relay = _relayFactory(invite.relayUrl);
-    final item = await relay.peekMailbox(invite.mailbox);
+    final scoped = _welcomeTransport(relay);
+    final item = scoped == null
+        ? await relay.peekMailbox(invite.mailbox)
+        : await scoped.peekRosterWelcome(invite.group, invite.mailbox);
     if (item == null) {
       throw const FormatException(
         'That invite was already used or has expired.',
@@ -673,6 +705,7 @@ class HouseholdController extends ChangeNotifier {
     relayUrl = invite.relayUrl;
     _relay = relay;
     _pendingMailboxAck = invite.mailbox;
+    _pendingAckRoster = scoped != null;
     await _saveConfig(invite.relayUrl);
     await _persist();
     await _refresh();
@@ -694,6 +727,7 @@ class HouseholdController extends ChangeNotifier {
       summaries = [];
       _pendingInvitation = null;
       _pendingMailboxAck = null;
+      _pendingAckRoster = false;
       _pendingRelayMembership = null;
       _recoveryState = null;
       recoveryOverview = null;
@@ -763,6 +797,7 @@ class HouseholdController extends ChangeNotifier {
     recoveryOverview = _recoveryState == null ? null : archivedOverview;
     _pendingInvitation = null;
     _pendingMailboxAck = null;
+    _pendingAckRoster = false;
     _pendingRelayMembership = null;
     lastInviteCode = null;
     _lastInviteRequest = null;
@@ -972,8 +1007,17 @@ class HouseholdController extends ChangeNotifier {
       if (_pendingMailboxAck != null) {
         // The joined keys and receipt intent were saved atomically before
         // this acknowledgement can consume the welcome.
-        await relay.acknowledgeMailbox(_pendingMailboxAck!);
+        final scoped = _welcomeTransport(relay, required: _pendingAckRoster);
+        if (scoped == null) {
+          await relay.acknowledgeMailbox(_pendingMailboxAck!);
+        } else {
+          await scoped.acknowledgeRosterWelcome(
+            _groupId(),
+            _pendingMailboxAck!,
+          );
+        }
         _pendingMailboxAck = null;
+        _pendingAckRoster = false;
         await _persist();
       }
       var conflicts = 0;
@@ -1102,6 +1146,20 @@ class HouseholdController extends ChangeNotifier {
 
   // --- Members ----------------------------------------------------------
 
+  RosterWelcomeRelayClient? _welcomeTransport(
+    RelayClient relay, {
+    bool required = false,
+  }) {
+    final enabled = relay is RosterRelayClient && relay.rosterEnabled;
+    if (!enabled && !required) return null;
+    if (relay is! RosterWelcomeRelayClient || !relay.rosterEnabled) {
+      throw const RelayUnavailable(
+        'Authenticated invitation delivery is not enabled. Restore the original relay mode; no legacy request sent.',
+      );
+    }
+    return relay;
+  }
+
   Future<RelayAuthorizationPolicy?> _membershipPolicy(
     RelayClient relay, {
     bool forChange = true,
@@ -1134,21 +1192,38 @@ class HouseholdController extends ChangeNotifier {
     return policy;
   }
 
-  Future<void> _retainMembershipPolicy(
+  Future<String?> _retainMembershipPolicy(
     OutgoingEntry commit,
-    RelayAuthorizationPolicy? current,
-  ) async {
-    if (current == null) return;
+    RelayAuthorizationPolicy? current, {
+    bool invitation = false,
+  }) async {
+    if (current == null) return null;
     try {
+      final policy = current.nextForRosterKeys(await relayRosterKeys());
+      String? recipient;
+      if (invitation) {
+        final before = current.devices.map((device) => device.key).toSet();
+        final added = policy.devices
+            .where((device) => !before.contains(device.key))
+            .toList();
+        if (added.length != 1) {
+          throw const FormatException(
+            'An invitation must add exactly one protected device.',
+          );
+        }
+        recipient = added.single.key;
+      }
       _pendingRelayMembership = PendingRelayMembership(
         expectedTail: commit.expectedTail.toInt(),
         commit: commit.blob,
-        policy: current.nextForRosterKeys(await relayRosterKeys()),
+        policy: policy,
       );
+      return recipient;
     } catch (_) {
       // Construction precedes every network write. Invalid local projections
       // may safely reject this unsent commit, never fall back to plain append.
       await householdCommitRejected(household: _requireHousehold());
+      _pendingRelayMembership = null;
       await _persist();
       rethrow;
     }

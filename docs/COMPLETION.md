@@ -1,6 +1,6 @@
 # Completion tracker
 
-Updated 2026-10-03. The active objective is to finish the private prototype
+Updated 2026-10-04. The active objective is to finish the private prototype
 against `expense-app-build-brief.md`, not merely merge individual milestones.
 Unchecked work is not a completion claim. Keep this file current as gates pass.
 
@@ -18,6 +18,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   conflicts, removed-member decryption rejection, frozen FX tests.
 - [x] Real Rust-backed two-device household controller scenario on the host;
   previous iOS/Android CI evidence is in `PHASE2-PROGRESS.md`.
+- [x] Opt-in native controller membership and recipient-only Welcome delivery
+  over the owned authenticated SQLite HTTP relay, including save-before-ACK,
+  uncertain saves, lost ACK response, restart and downgrade refusal. All 388
+  native-enabled app checks pass; `RELAY-AUTH.md` records exact evidence and
+  limits. Default/user-facing enablement, final platform and public relay gates
+  below remain open.
 
 ## Remaining gates
 
