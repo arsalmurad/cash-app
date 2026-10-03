@@ -1365,3 +1365,13 @@ unbounded buffering or silently returning partial history when a limit fails.
 Large legacy logs need explicit bounded migration/recovery; this does not grant
 deletion authority or authenticate a server.
 
+## 2026-10-03 — Separate device proof from authorization and replay admission
+
+Add a domain-separated, bounded Ed25519 request-proof verifier that requires an
+independently supplied trusted device key and binds exact request bytes/scope.
+Keep it disconnected from public routing until roster bootstrap, atomic nonce
+admission and account-wide quotas are implemented. Shared bearer identity and
+self-signature-as-permission were rejected because neither establishes a
+revocable current device roster. Verification deliberately does not deduplicate
+replays; `RELAY-AUTH.md` records that open integration boundary.
+
