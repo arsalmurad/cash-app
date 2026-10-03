@@ -650,3 +650,12 @@ See `RELAY-CAPACITY.md` for commands, seeded versus full-volume evidence and
 WSASend diagnostic. No app/Rust source changed, and no platform rebuild was
 needed. This does not close authentication, account-wide quotas, migration,
 pruning/recovery or authorized free-plan deployment.
+
+Following relay-page integrity and bounded/fixed-frontier reads, the app at
+`b7b1a3d` passes 44 focused HTTP/native-bridge persistence checks, strict checks,
+five Rust HTTP unit checks and the real-workerd encrypted-peer storage audit.
+Its rebuilt production web/WASM desktop household/quota/offline-font runtime
+also passes with the new streaming HTTP path. `RELAY-CAPACITY.md` records exact
+commands, prior RED regressions, limits, source scope and the undiagnosed WSASend
+diagnostic. Current-mobile/iOS acceptance and public authenticated deployment
+remain separate gates; no server deletion was enabled.
