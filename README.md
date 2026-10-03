@@ -67,6 +67,22 @@ credentials in test fixtures.
 
 For production WASM, follow the existing pinned web workflow to build the Rust
 bridge first, then `flutter build web --wasm --no-web-resources-cdn --no-pub`.
+On Windows, `scripts\build_web_bridge.cmd -CheckOnly` verifies the existing
+FRB 2.13.0, wasm-pack 0.15.0, pinned nightly commit and NDK 28.2 Clang/llvm-ar
+before doing any compilation. `scripts\build_web_bridge.cmd` then builds the
+release bridge with the recorded atomics/bulk-memory flags, reusing caches.
+It honours explicit `CC_wasm32_unknown_unknown`/`AR_wasm32_unknown_unknown`
+paths; otherwise it checks `ANDROID_SDK_ROOT`, `ANDROID_HOME`, then the recorded
+`D:\Android\Sdk`. Preflight installs nothing and refuses missing or changed
+versions. The actual release command retains wasm-pack's normal binding-tool
+and cache behaviour; its `Installing wasm-bindgen` message alone does not prove
+whether a tool was newly downloaded.
+The local `nightly` alias must match commit `6eeff9a52`; use
+`-WasmToolchain nightly-2026-09-24` for the equivalent CI-named toolchain if
+already installed. The atomics compatibility warning remains unresolved.
+`scripts\test_web_bridge_helper.ps1` checks fail-fast and unchanged-artifact
+behaviour without rebuilding. These are build/setup checks, not browser runtime
+acceptance or permission to launch cloud CI.
 From the repository root, `WEB_HOUSEHOLD=1 node scripts/verify_web_runtime.mjs`
 drives the rendered release UI against a fresh local workerd relay. Set
 `WEB_CSV=1` for actual file import/download checks.
