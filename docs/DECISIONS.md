@@ -1593,3 +1593,11 @@ for exact retries, and cap the small metadata index at 64 without scanning all
 payloads. Alarm cleanup is transactional, advances the observed clock floor
 and removes only expired invitation ciphertext, never financial history.
 
+## 2026-10-04 — Explicit scoped Welcome transport with no legacy fallback
+
+Expose authenticated upload/peek/ack as a distinct relay capability using the
+existing bounded, deadline-limited exact-body HTTP signer. Validate exact
+public replies, canonical nonempty ciphertext and the expected household;
+roster-enabled clients refuse legacy mailbox methods before proof/network
+instead of inferring registration or falling back to unsigned delivery.
+
