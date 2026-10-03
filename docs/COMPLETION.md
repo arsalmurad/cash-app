@@ -131,6 +131,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   household/quota flow both pass, the latter with bounded relay pages.
   Final iOS and complete accessibility acceptance remain open; exact earlier
   failures and limited verification scope remain in the progress docs.
+  Entry dropdowns now wrap fully at 200% phone text, with 40 scoped host checks
+  and current production Chrome keyboard/personal/CSV acceptance passing.
+  `PERSONAL-UX-REVIEW.md` distinguishes host enlarged-text checks from browser
+  keyboard evidence and records the undiagnosed intermittent renderer failure.
 - [x] Pin reproducible CI environments, including explicit WASM nightly,
   action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
   remain recorded rather than hidden or upgraded without verification.

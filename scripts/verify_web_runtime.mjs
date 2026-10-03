@@ -144,6 +144,10 @@ try {
   await waitForLabel(cdp, 'Rent');
   await waitForLabel(cdp, 'Groceries');
   console.log('Verified after second reload: Rent + Groceries | USD -512.34');
+  if (process.env.WEB_KEYBOARD_ENTRY === '1') {
+    const { runKeyboardEntryWebScenario } = await import('./keyboard_entry_web_scenario.mjs');
+    await runKeyboardEntryWebScenario(cdp, { evaluate, waitFor, waitForLabel, clickLabel, focusLabel });
+  }
   if (process.env.WEB_CSV === '1') {
     const { runCsvWebScenario } = await import('./csv_web_scenario.mjs');
     await runCsvWebScenario(cdp, {

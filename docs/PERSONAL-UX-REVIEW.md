@@ -141,3 +141,54 @@ browser-reliability claim are not inferred from these scoped passes.
 3. Complete final-source platform acceptance and record unsupported lock and
    backup limitations. Do not add cloud sync, bank aggregation, billing or
    telemetry to imitate the reference.
+
+## Entry keyboard and enlarged-label review (2026-10-03)
+
+The accessibility-review skill guided a scoped operability/resize-text check;
+this is not an overall WCAG pass. Four keyboard-only host cases use the actual
+production theme, 360x740/1280x900, light/dark and 200% text. They open the sheet,
+enter an expense, traverse Title/Amount in both directions, select account and
+category with Enter/arrow keys, then submit once. Escape separately cancels a
+populated entry, returns no draft and restores opener focus. Long account and
+category names, including both transfer selectors, remain complete and wrap.
+
+Both narrow theme cases initially failed with account/category horizontal
+overflow (including a 156-pixel category overflow). Expanded dropdowns and
+flexible category labels repaired it. A further long-label check exposed the
+old dense selected-field height and a menu-position assertion; non-dense,
+variable-height selected/menu rows fixed that too. The existing foreign-rate
+test needed ordinary scroll-to-submit once the fields grew; validation remained
+enabled. No amounts, FX rules, font preferences or financial IDs changed.
+
+All 40 affected entry/adaptive/category tests pass (21 s) and analysis reports
+no issues. One intervening invocation passed its 36 real tests but also named a
+nonexistent test file; it is not a green suite result. The final corrected run
+uses `flutter test --no-pub test/add_transaction_sheet_test.dart
+test/adaptive_ledger_screen_test.dart test/populated_adaptive_panes_test.dart
+test/categories_screen_test.dart`. The prior 331 full-suite pass predates this
+entry-layout change; no 338 full-suite claim is made.
+
+The cached-tool release web build passes (153.3 s). Chrome 154 / Node 24.19 at
+360x740 independently passes `WEB_KEYBOARD_ENTRY=1 WEB_PERSONAL_LIFECYCLE=1
+WEB_CSV=1 WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1
+node scripts/verify_web_runtime.mjs`. This actual production run checks forward/
+reverse browser field traversal, Escape and byte-unchanged SQLite cancellation,
+plus CSV bytes/Unicode/offline fonts, goals/recurring/removal, exact large money,
+corrections/history, recent ordering and search/filter after reload. Browser
+opening/initial activation still use pointer input; host opening/submission is
+keyboard-only. Local logs: `app/.dart_tool/keyboard-web-build.log` and
+`app/.dart_tool/keyboard-web-full-isolated.log`. Browser text is its normal scale;
+200% coverage here is host-widget evidence, not browser zoom evidence.
+
+The first browser attempt's reverse traversal failed because the driver omitted
+physical Shift down/up; the corrected event sequence passes without weakening
+assertions. An intervening combined retry failed earlier at reload with
+`skwasm.wasm` malloc memory-access-out-of-bounds and a Runtime.evaluate timeout.
+Both an isolated keyboard run and a subsequent serial full personal/CSV run pass
+at the unchanged app/build source, but the renderer's intermittent cause remains
+undiagnosed; passing retries do not establish its repair. No toolchain upgrade,
+renderer substitution or app-state injection was used.
+
+Visible keyboard-focus contrast, non-text contrast, actual VoiceOver/NVDA,
+enrolled biometrics, 200% browser zoom, RTL/localization and current-source
+mobile/iOS remain unverified by this scoped review.
