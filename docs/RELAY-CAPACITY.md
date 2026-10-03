@@ -121,6 +121,20 @@ reads remain available. Safe bounded migration or peer recovery for a larger
 legacy backfill remains open, as does final production-browser/mobile runtime
 acceptance of this client change. No history deletion or public access is enabled.
 
+The bounded-read app at `b7b1a3d` subsequently rebuilt production web/WASM with
+`flutter --no-version-check build web --wasm --no-web-resources-cdn --no-pub`
+in 171.0 seconds, reusing the unchanged Rust bridge (the changed Rust HTTP module
+is excluded from the app bridge's default features). It independently passed
+`WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_QUOTA=1 WEB_OFFLINE_FONTS=1
+WEB_VIEWPORT=1280x900 node scripts/verify_web_runtime.mjs` on existing Windows
+Chrome 154 / Node 24.19 with actual local workerd. This exercises the streamed
+browser HTTP path, confirmed-save receipt/no-loop checks, real quota failure,
+lock/reload, offline conflicts, fresh-key recovery/removal, EUR/JPY frozen rates,
+private-ledger isolation and unreadable HTTP titles. See local generated logs
+`app/.dart_tool/relay-bounded-web-build.log` and
+`app/.dart_tool/relay-bounded-web-household.log`. This is a desktop household/
+quota/font run, not a current combined personal/CSV or mobile/iOS run.
+
 ## Still open
 
 There is no account-wide group/mailbox creation quota, authenticated roster,
