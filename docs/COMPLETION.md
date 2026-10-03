@@ -83,6 +83,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   daily admitted-request budgets, independent of proof expiry. All 14 dedicated
   interoperability checks and 53 full-suite checks pass (two separately verified
   fixture skips). This does not bound anonymous traffic or account spending.
+  Confirmed HTTP pages now persist before more networking; later refusal resumes
+  from the saved cursor after restart and uncertain saves stop further requests.
+  All 344 native-enabled app tests pass, including test-first encrypted restart
+  regressions. `PHASE2-PROGRESS.md` and `RELAY-AUTH.md` distinguish mocked HTTP
+  interruption from a real authenticated nonce-limit run; signed app networking
+  and the deployment gate remain open.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

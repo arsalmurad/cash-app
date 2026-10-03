@@ -87,8 +87,18 @@ abstract class RelayClient {
   Future<void> acknowledgeMailbox(String mailbox);
 }
 
+/// Delivers only fully validated pages. The consumer must finish saving a
+/// page before the next request; failures retain earlier confirmed progress.
+abstract interface class PagedRelayClient implements RelayClient {
+  Future<void> readConfirmedPages(
+    String group,
+    int after,
+    Future<void> Function(List<RelayLogEntry>) confirmPage,
+  );
+}
+
 /// Talks to the Cloudflare Worker over HTTP.
-class HttpRelayClient implements RelayClient {
+class HttpRelayClient implements PagedRelayClient {
   HttpRelayClient(String baseUrl, [http.Client? client])
     : _base = baseUrl.replaceAll(RegExp(r'/+$'), ''),
       _client = client ?? http.Client();
@@ -217,6 +227,20 @@ class HttpRelayClient implements RelayClient {
   @override
   Future<List<RelayLogEntry>> readAfter(String group, int after) async {
     final entries = <RelayLogEntry>[];
+    await readConfirmedPages(
+      group,
+      after,
+      (page) async => entries.addAll(page),
+    );
+    return entries;
+  }
+
+  @override
+  Future<void> readConfirmedPages(
+    String group,
+    int after,
+    Future<void> Function(List<RelayLogEntry>) confirmPage,
+  ) async {
     var cursor = after;
     var previousTail = after;
     int? targetTail;
@@ -252,6 +276,7 @@ class HttpRelayClient implements RelayClient {
         );
       }
       final pageStart = cursor;
+      final pageEntries = <RelayLogEntry>[];
       for (final raw in rawEntries) {
         if (raw is! Map || raw['seq'] is! int) {
           throw const RelayUnavailable('the relay sent a malformed entry');
@@ -271,7 +296,7 @@ class HttpRelayClient implements RelayClient {
             );
           }
           retainedBytes += blob.length;
-          entries.add(RelayLogEntry(sequence, blob));
+          pageEntries.add(RelayLogEntry(sequence, blob));
         }
         cursor = sequence;
       }
@@ -281,10 +306,16 @@ class HttpRelayClient implements RelayClient {
         );
       }
       previousTail = tail;
+      // Never expose a valid-looking prefix of a malformed page. Await the
+      // durable consumer without timing it out: an uncertain save must not
+      // keep running after its caller has started another operation.
+      if (pageEntries.isNotEmpty) {
+        await confirmPage(List.unmodifiable(pageEntries));
+      }
       // Complete the first observed prefix, not an endlessly moving tail.
       // Entries appended concurrently are fetched on the next read.
       if (cursor >= targetTail) {
-        return entries;
+        return;
       }
     }
   }

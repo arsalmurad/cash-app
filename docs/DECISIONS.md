@@ -1437,3 +1437,12 @@ unknown accounting and roll back admission on quota refusal. These local
 20,000-group/10,000-device budgets do not cover unauthenticated traffic or prove
 an account-wide $0 spending limit.
 
+## 2026-10-03 — Save confirmed backfill pages before more networking
+
+Offer a separate paged relay capability while retaining all-or-nothing list
+reads for existing callers. Validate the entire page, then await ingestion and
+local persistence before requesting another; later refusal preserves the saved
+cursor without sending a receipt for an incomplete catch-up. Do not time out a
+storage callback that may still be writing: uncertain saves disable further
+networking/writes until restart instead of racing another operation.
+

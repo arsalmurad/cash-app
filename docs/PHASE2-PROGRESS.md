@@ -682,3 +682,39 @@ two widget checks and passes all 331 tests in 2m46s. Command from `app`:
 `app/.dart_tool/saved-change-full.log`. Dart analysis reports no issues.
 No Rust core/bridge API changed. This is host/runtime/widget evidence, not a
 current mobile/iOS or rebuilt production-browser pass for the new wording.
+
+## Confirmed-page backfill persistence (2026-10-03)
+
+Three new native-bridge regressions first reproduced lost progress on a later
+HTTP 429 and continued networking before an uncertain save was discovered.
+The paged HTTP capability now validates the whole page, ingests it through the
+unchanged native MLS bridge and awaits persistence before the next GET. Tests
+prove restart from the confirmed cursor, exactly 18 expenses / USD -18.00,
+no receipt during interrupted catch-up, no subsequent ACK loop, and no later
+networking on save failures both before and after the store actually saves.
+Three additional HTTP checks cover partial progress versus atomic list reads,
+malformed-page exclusion and awaiting/stopping on consumer failure.
+
+All 344 native-enabled app tests pass in 2m46s with
+`RUST_LIB_PATH=<cached native DLL> flutter test --no-pub` from `app`.
+Local detailed log: `app/.dart_tool/paged-backfill-full.log`. The new encrypted
+tests use a paginated HTTP mock around actual native peers, not an authenticated
+workerd quota run. Existing app source reuses the unchanged cached native/WASM
+bridge; Rust HTTP list reads are not changed. Current mobile/iOS acceptance,
+real authenticated nonce-limit backfill, legacy oversized-history migration,
+trusted registration and pruning remain separate gates.
+
+Dart analysis subsequently reports no issues (5.4s); the first analysis found
+only three new test-code style issues, corrected without behavior changes.
+Production web/WASM rebuild passes in 168.3s, reusing the unchanged Rust bridge:
+`flutter --no-version-check build web --wasm --no-web-resources-cdn --no-pub`.
+The rebuilt app independently passes
+`WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_QUOTA=1 WEB_OFFLINE_FONTS=1
+WEB_VIEWPORT=1280x900 node scripts/verify_web_runtime.mjs` on existing Windows
+Chrome 154 / Node 24.19 against actual owned loopback workerd. This covers the
+paged browser HTTP path, sealed restart/lock, receipt/no-loop checks, real
+browser quota failure, private summaries, offline conflict convergence,
+fresh-key recovery/removal and frozen EUR/JPY rates. It does not simulate the
+new interrupted-page case in the browser or enable signed app networking.
+Logs: `app/.dart_tool/paged-backfill-web-build.log` and
+`app/.dart_tool/paged-backfill-web-household.log`. No new mobile/iOS claim.
