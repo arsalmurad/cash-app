@@ -66,6 +66,8 @@ void main() {
         );
         expect(physical, startsWith('SQLite format 3\u0000'));
         for (final title in [
+          'cash-app peer v7\u0000',
+          'cash-app durable receipt v2\u0000',
           'Queued ratchet',
           'After interrupted invite',
           'After recovered removal',

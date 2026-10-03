@@ -850,6 +850,7 @@ class HouseholdController extends ChangeNotifier {
         await _persist();
       }
       var conflicts = 0;
+      var receiptConsidered = false;
       while (true) {
         await _catchUp(relay, household);
         if (_recoveryState != null) {
@@ -867,6 +868,12 @@ class HouseholdController extends ChangeNotifier {
         }
         final next = await householdNextOutgoing(household: household);
         if (next == null) {
+          // At most one checkpoint acknowledgement per serialized sync. A
+          // receipt-only cursor advance never generates another receipt.
+          if (!receiptConsidered) {
+            receiptConsidered = true;
+            if (await _queueConfirmedSavedReceipt(household)) continue;
+          }
           break;
         }
         // Encryption advances the sender ratchet: save it before any bytes
@@ -896,6 +903,45 @@ class HouseholdController extends ChangeNotifier {
         await _persist();
         await _refresh();
       }
+    }
+  }
+
+  Future<bool> _queueConfirmedSavedReceipt(Household household) async {
+    if (_writesDisabled ||
+        _pendingInvitation != null ||
+        _pendingMailboxAck != null ||
+        _recoveryState != null) {
+      return false;
+    }
+    final current = await householdOverview(household: household);
+    if (!current.isMember || current.pendingCount.toInt() != 0) return false;
+    if (!await householdNeedsSavedStateReceipt(household: household)) {
+      return false;
+    }
+    // Receipt generation must consume bytes read back from a successful save,
+    // never a fresh live export or a save whose result was uncertain.
+    await _persist();
+    try {
+      final bytes = await _stateStore.read();
+      if (bytes == null) throw const FormatException(_uncertainSaveMessage);
+      final saved = HouseholdJournal.decode(bytes);
+      if (saved.relayUrl != relayUrl ||
+          saved.pending != null ||
+          saved.pendingAck != null ||
+          saved.recoveryState != null) {
+        throw const FormatException(_uncertainSaveMessage);
+      }
+      await householdEnqueueSavedStateReceipt(
+        household: household,
+        saved: saved.state,
+      );
+      // Save delivery intent before encryption, then the existing loop saves
+      // the advanced ratchet before append. A failure disables later writes.
+      await _persist();
+      return true;
+    } catch (_) {
+      _disableWrites();
+      rethrow;
     }
   }
 

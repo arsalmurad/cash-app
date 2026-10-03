@@ -69,7 +69,8 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   A saved-archive receipt/checkpoint verifier is now implemented locally in Rust;
   see `RETENTION-RECEIPTS.md`. It requires every current MLS key and exact signed
   history/frontiers; explicit encrypted exchange has local Rust/actual-worker
-  evidence, but app save coordination and pruning integration remain open.
+  evidence, and the protected-save hook has native-bridge/host-SQLite checks.
+  Final platform verification and authenticated/recoverable pruning remain open.
   A locally computed cutoff is not permission to delete relay history.
 - [x] Check explicit opt-in publication boundaries and chosen shared analytics;
   no private ledger or readable financial fields may reach the relay.

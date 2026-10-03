@@ -59,6 +59,23 @@ Future<bool> householdMergeRecoveryHistory({
 Future<Uint8List> householdExport({required Household household}) =>
     RustLib.instance.api.crateApiSharedHouseholdExport(household: household);
 
+/// One acknowledgement per saved financial checkpoint/current membership,
+/// not per received control message. This does not attest storage durability.
+Future<bool> householdNeedsSavedStateReceipt({required Household household}) =>
+    RustLib.instance.api.crateApiSharedHouseholdNeedsSavedStateReceipt(
+      household: household,
+    );
+
+/// Supply this device's exact latest bytes read back from a confirmed protected
+/// save. Persist the resulting queue/ratchet before transmitting any message.
+Future<void> householdEnqueueSavedStateReceipt({
+  required Household household,
+  required List<int> saved,
+}) => RustLib.instance.api.crateApiSharedHouseholdEnqueueSavedStateReceipt(
+  household: household,
+  saved: saved,
+);
+
 /// A fresh single-use key package for someone to invite this device with.
 /// Hand it to them out of band (never through the relay).
 Future<Uint8List> householdKeyPackage({required Household household}) => RustLib

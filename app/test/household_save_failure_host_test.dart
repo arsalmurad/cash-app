@@ -495,7 +495,10 @@ void main() {
           await restart.initialize();
           expect(restart.overview!.transactions.single.title, 'Queued');
           expect(await restart.syncNow(), isTrue);
-          expect((await relay.readAfter(group, 0)).length, before.length + 1);
+          // One financial frame and one confirmed saved-history receipt.
+          expect((await relay.readAfter(group, 0)).length, before.length + 2);
+          expect(await restart.syncNow(), isTrue);
+          expect((await relay.readAfter(group, 0)).length, before.length + 2);
         },
       );
       test(

@@ -612,7 +612,11 @@ assertions and exit 0. No deployed relay or physical-network claim follows.
 Queued receipts persist in checked v6 archives, collected original signed
 receipts in checked v7 archives, while ordinary archives retain v5. V7 import
 revalidates scope/signatures and rejects noncanonical or malformed collections;
-older archives still need explicit recollection. Actual protected app-save coordination,
-bounded coordinated recollection, bridge activation and authenticated/recoverable
+older archives still need explicit recollection. A follow-up app/bridge hook
+reads confirmed protected-save bytes, persists queue/ratchet before send, and
+generates at most one receipt per history/membership checkpoint (not ACK traffic).
+Ten native-bridge coordinator tests and portable sealed-SQLite failure recovery
+pass locally; final mobile/WASM verification is not inferred. Bounded coordinated
+recollection and authenticated/recoverable
 pruning remain open. No ciphertext or original signed financial history is
 deleted, and the previous app-platform binaries do not exercise this new API.
