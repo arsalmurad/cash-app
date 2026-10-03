@@ -128,6 +128,14 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   This closes native authenticated HTTP/MLS exchange for pre-trusted devices,
   not dynamic enrolment/mailboxes or current browser/mobile acceptance. Wire
   ciphertext checks are not a new audit of every persisted SQLite field.
+  A second actual native HTTP run now directly inspects every SQLite-backed
+  group KV row through a test-only owning-process fixture, verifies the exact
+  allowed metadata/counts and rejects synthetic financial/member/money markers.
+  Deliberate plaintext and extra/nested metadata leak controls fail as required.
+  Both runtime cases pass (16s), analysis is clean, and 54 relay tests pass with
+  three optional Rust-fixture checks skipped. No shipped debug/seed endpoint is
+  added. This is authenticated group storage evidence, not mailbox/raw-file
+  forensics, final platforms or trusted dynamic enrolment.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
