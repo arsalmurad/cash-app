@@ -9,8 +9,12 @@
 //! this crate only needs each member to process the stream in that order.
 
 mod recovery;
+#[cfg(feature = "relay-auth")]
+mod relay_request;
 
 pub use recovery::{RecoveryError, RecoveryKey};
+#[cfg(feature = "relay-auth")]
+pub use relay_request::RelayRequest;
 
 use std::collections::HashSet;
 use std::fmt::Debug;

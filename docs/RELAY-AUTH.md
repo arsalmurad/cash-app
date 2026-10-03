@@ -43,6 +43,40 @@ Node 24.19 / Miniflare 4.20260730.0 on Windows. Six proof tests include the real
 workerd case and exact framing; the complete suite took 21.90 seconds. This
 does not prove Rust/app signing interoperability or end-to-end authorization.
 
+## Opt-in Rust signing and actual-workerd interoperability
+
+`cash_crypto` now has an explicit `relay-auth` feature. It uses the existing
+opaque Member's Ed25519 identity to sign the same canonical request payload,
+including before the device joins MLS. It computes the body digest internally
+and rejects noncanonical/oversized inputs and expiries outside the shared safe
+integer range. The caller still owes a fresh nonce and suitable expiry; the
+signer does not treat either as authorization or mutate MLS ratchets.
+
+The feature reuses pinned `url=2.5.8`, already in Cargo.lock/cache; only the
+direct optional dependency relation is added, with no package upgrades. The
+default app bridge does **not** enable this feature and has no new signing API.
+No Flutter/OS-key/cloud signing runtime is claimed from these host checks.
+
+Independent locked/offline Windows checks with pinned Rust 1.98.1:
+
+- `cargo test --manifest-path rust/Cargo.toml --locked --offline -p cash_crypto
+  --features relay-auth`: all 25 crypto tests pass (14 MLS/history, seven recovery,
+  four request-signing). The four new tests cover unjoined signed identity/
+  byte-identical export/restart, changed request scope/identity/body/nonce/expiry,
+  bounds/URL spellings/loopback variants, and rejection as financial history.
+- Matching all-target Clippy with `-- -D warnings` passes without suppressions.
+- `CARGO=C:/Users/ME/.cargo/bin/cargo.exe npm run test:request-proof-rust` in
+  `relay`: all seven proof tests pass, zero skipped, including a real synthetic
+  Rust Member signature accepted by actual workerd and changed-body rejection.
+  The fixture prints only a synthetic public proof, never private archives.
+
+Node-only `npm test` retains the original proof checks and conditionally skips
+only the Rust-fixture case unless its public fixture is provided; the separate
+Rust interoperability command requires it and does not skip. Phase 2 CI now
+explicitly enables the crypto feature for tests/lint and invokes interoperability
+after restoring relay dependencies. No workflow was dispatched; pushes to main
+do not trigger this PR/manual workflow. Cloud CI results are not inferred.
+
 ## Required before wiring this into public requests
 
 - Establish an authenticated bootstrap/device-registration grant and a trusted

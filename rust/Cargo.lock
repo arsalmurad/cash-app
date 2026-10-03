@@ -251,6 +251,7 @@ dependencies = [
  "openmls_rust_crypto",
  "openmls_traits",
  "sha2 0.10.9",
+ "url",
 ]
 
 [[package]]

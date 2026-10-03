@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test test/relay.test.js test/deployment-gate.test.js test/capacity.test.js test/request-proof.test.js",
     "test:storage": "node test/storage-audit.mjs",
+    "test:request-proof-rust": "node test/request-proof-rust.mjs",
     "dev": "node dev-server.mjs"
   },
   "devDependencies": {
