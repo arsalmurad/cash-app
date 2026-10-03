@@ -1,7 +1,8 @@
 # Saved-state retention receipts
 
-Status: local Rust verifier implemented; persistence/transport and recoverable
-relay pruning are **not implemented**. No history is deleted by this component.
+Status: local Rust verifier and explicit MLS-encrypted exchange implemented.
+App save coordination and recoverable relay pruning are **not implemented**.
+No history is deleted by this component.
 
 ## Contract
 
@@ -14,7 +15,8 @@ from a byte array; tests using exports exercise the verifier, not real app
 storage confirmation. Missing membership, unsigned legacy state, unsent events
 or backfill, and staged membership changes are refused.
 
-The receipt binds the cryptographic MLS group ID, membership epoch, processed
+The v2 receipt binds both cryptographic MLS group ID and relay log identifier,
+membership epoch, processed
 relay cursor, original signing key, and a SHA-256 checkpoint digest. That digest
 covers canonical folded state, the per-actor causal frontier, and every exact
 original signed proof in canonical order. Equal balances or a single high-water
@@ -36,13 +38,42 @@ but still carry linkable cryptographic metadata. They must travel **encrypted**
 through an authenticated channel. Never send the saved archive to the relay:
 it contains private MLS material. No receipt endpoint or bridge API is enabled.
 
+## Explicit encrypted exchange
+
+`Peer::enqueue_saved_state_receipt(saved)` accepts only this device's complete
+latest archive: financial checkpoint equality alone does not confirm newer
+ratchet/control-message state. It queues an authenticated nonfinancial MLS
+payload. The transport must save the queued state and advanced sender ratchet
+before append, as for existing financial messages. Normal `sync` does not
+automatically generate receipts, so there is no acknowledgement-of-ack loop.
+
+Receipts are checked against the live MLS sender, signature, epoch, cryptographic
+group, relay log ID and processed cursor before entering the RAM-only collection.
+Malformed/spoofed/future frames do not change financial state or taint confirmed
+receipts. The collector keeps up to two conflicting equal-cursor claims per key,
+rather than silently overwrite them; the cutoff verifier refuses that conflict.
+A later valid higher-cursor receipt replaces the older collection for that key.
+Membership commits/removal clear the collection.
+
+Queued receipts survive a checked v6 peer archive. Archives without queued
+receipts retain v5 encoding; previous signed archives remain readable and
+unsigned archives remain restricted. Old apps must update before handling a v6
+queued archive or participating in receipt collection. V1 receipts lack relay-
+log binding and are refused: recollect v2 rather than infer missing binding.
+No active app caller has been enabled for this new format.
+
+Received collections deliberately are not part of the peer archive yet: after
+restart, recollect explicit receipts or persist them separately in a protected
+store. Do not infer receipts from the saved cursor. This conservative loss of
+availability cannot authorize deletion and remains an app integration gate.
+
 ## Remaining integration gates
 
 1. Issue and retain a receipt only after the actual protected SQLite save has
    completed. Refuse issuance during uncertain saves, pending invitation/mailbox
    work or recovery. Test failures before/after durability and queued operations.
-2. Exchange receipts inside authenticated encrypted transport, preserving
-   ordering/retry/restart semantics without an endless acknowledgement loop.
+2. Connect the verified explicit encrypted exchange to app save/sync handling,
+   with bounded coordinated recollection and no automatic acknowledgement loop.
 3. Collect them against a checked current roster/checkpoint. A relay read or a
    highest actor timestamp must never be treated as another peer's durable ack.
 4. Establish authenticated pruning authorization and crash-safe cursor/floor
@@ -57,7 +88,7 @@ therefore not globally bounded yet. No expiry, timeout, inferred acknowledgement
 or automatic device removal is used to route around that safety requirement.
 Archive import/hash cost remains proportional to retained history.
 
-## Verification scope
+## Initial verifier verification (`2a966fe`)
 
 New tests were written before implementation and initially fail to compile
 because the receipt API did not exist. Five Rust integration checks subsequently
@@ -77,3 +108,42 @@ Strict cached-dependency `cargo clippy --locked --offline -p cash_sync
 --all-targets -- -D warnings` also passes (2.15 s) after two test-only style
 findings were corrected; checks were not disabled. The final 18-test unit rerun
 passes (0.50 s) after those test-only edits, without repeating all platforms.
+
+## Encrypted-exchange follow-up
+
+Tests were written first and fail at the absent queue/collector API, then pass
+for unchanged canonical financial state, encrypted exchange, queued restart,
+recollection after restart, stale checkpoints, another device's archive,
+membership clearing, tampered queued signatures and format downgrade refusal.
+Additional member-authored negative frames check spoofing, invalid signatures,
+future cursors and conflicting valid claims.
+
+Review exposed two further RED regressions: a receipt could cross relay labels
+with the same copied MLS keys, and an old saved ratchet could be queued when only
+control traffic had changed. V2 relay-log binding and complete-archive equality
+repair those before app integration. All 61 sync tests passed before the last
+complete-archive guard (1,000-event binary 111.63 s); final affected checks after
+that guard are recorded separately, not inferred from the previous source.
+
+The actual HTTP Rust-peer/workerd storage audit includes three encrypted receipt
+messages: 31 ciphertext records and encrypted welcome mailboxes pass, and the
+scanner rejects a plaintext-injection negative control. No readable financial
+sentinels, v2 receipt marker or exact public receipt bytes occur in inspected
+storage. The audit emits Windows WSASend #10054 cleanup diagnostics but exits 0
+after its assertions; no physical-network reliability claim is made. These
+exports model confirmed archives, not actual app SQLite confirmation. Final
+affected verification after the complete-archive guard independently passes:
+
+- All 62 `cash_sync` tests pass with `cargo test --manifest-path rust/Cargo.toml
+  --locked --offline -p cash_sync`; the 1,000-event binary takes 108.26 s.
+- The final 58-test affected subset passes, including 20 unit, 6 transport,
+  5 receipt, 8 restart, 3 recovery and 16 step checks.
+- Strict `cargo clippy --manifest-path rust/Cargo.toml --locked --offline
+  -p cash_sync --all-targets --features http -- -D warnings` passes (2.72 s).
+- The updated actual-worker audit again passes 31 ciphertext records and its
+  negative control. This final run emits WSASend #10053 rather than #10054;
+  assertions and process status pass, but the socket diagnostic is not diagnosed.
+
+No app-platform rebuild/run or actual app-save confirmation is claimed for this
+new core-only exchange. The earlier app/DLL/WASM runtime evidence predates it;
+the bridge does not yet expose or automatically invoke receipt queueing.
