@@ -152,6 +152,13 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   evidence, and the protected-save hook has native-bridge/host-SQLite checks.
   Final platform verification and authenticated/recoverable pruning remain open.
   A locally computed cutoff is not permission to delete relay history.
+  A new core recovery check simulates an unavailable acknowledged prefix:
+  stale sync preserves the archive and makes no append, while retirement and
+  fresh-key rejoin recover original signed early/later history after both peers
+  restart. All 19 affected recovery/retention checks and strict all-targets
+  HTTP/auth-enabled Clippy pass. This strengthens recovery evidence but neither
+  deletes relay history nor closes authenticated crash-safe pruning or final
+  platform acceptance; export-based acknowledgements are not OS durability.
   Current-source Android personal/household and separate production WASM flows
   now pass; final iOS and authenticated/recoverable pruning remain open.
 - [x] Check explicit opt-in publication boundaries and chosen shared analytics;

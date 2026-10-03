@@ -1,5 +1,115 @@
 use cash_core::{AccountId, Currency, EventKind};
-use cash_sync::{MemoryRelay, Peer};
+use cash_sync::{MailboxItem, MemoryRelay, Peer, Relay, RelayError};
+
+// Simulates an unavailable old prefix without deleting any real relay data or
+// adding a production prune capability. Absolute sequence numbers stay intact.
+struct MissingPrefixRelay {
+    inner: MemoryRelay,
+    floor: u64,
+}
+
+impl Relay for MissingPrefixRelay {
+    fn append(&mut self, group: &str, tail: u64, blob: Vec<u8>) -> Result<u64, RelayError> {
+        self.inner.append(group, tail, blob)
+    }
+    fn read_after(&self, group: &str, after: u64) -> Result<Vec<(u64, Vec<u8>)>, RelayError> {
+        if after < self.floor {
+            return Err(RelayError::Unavailable("old prefix unavailable".into()));
+        }
+        self.inner.read_after(group, after)
+    }
+    fn put_mailbox(&mut self, mailbox: &str, item: MailboxItem) -> Result<(), RelayError> {
+        self.inner.put_mailbox(mailbox, item)
+    }
+    fn take_mailbox(&mut self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError> {
+        self.inner.take_mailbox(mailbox)
+    }
+    fn peek_mailbox(&self, mailbox: &str) -> Result<Option<MailboxItem>, RelayError> {
+        self.inner.peek_mailbox(mailbox)
+    }
+    fn acknowledge_mailbox(&mut self, mailbox: &str) -> Result<(), RelayError> {
+        self.inner.acknowledge_mailbox(mailbox)
+    }
+}
+
+#[test]
+fn missing_relay_prefix_requires_fresh_keys_and_peer_signed_history_not_cursor_skipping() {
+    let usd = Currency::from_code("USD").unwrap();
+    let mut relay = MissingPrefixRelay {
+        inner: MemoryRelay::default(),
+        floor: 0,
+    };
+    let mut alice = Peer::new("alice", usd.clone()).unwrap();
+    let group = alice.found(&mut relay).unwrap();
+    let mut bob = Peer::new("bob", usd.clone()).unwrap();
+    let mailbox = alice
+        .invite(&mut relay, &bob.key_package().unwrap())
+        .unwrap();
+    bob.accept(&mut relay, &group, &mailbox).unwrap();
+    bob.write(
+        1,
+        EventKind::AccountOpened {
+            account_id: AccountId::new("early-offline"),
+            name: "Signed early backup history".into(),
+            currency: usd.clone(),
+        },
+    )
+    .unwrap();
+    let stale_backup = bob.export().unwrap();
+    bob.sync(&mut relay).unwrap();
+    alice.sync(&mut relay).unwrap();
+    alice
+        .write(
+            1000,
+            EventKind::AccountOpened {
+                account_id: AccountId::new("later"),
+                name: "Later retained history".into(),
+                currency: usd.clone(),
+            },
+        )
+        .unwrap();
+    alice.sync(&mut relay).unwrap();
+    bob.sync(&mut relay).unwrap();
+    // Exports model confirmed saves here, not OS-backed durability evidence.
+    let receipts = vec![
+        Peer::saved_state_receipt(&alice.export().unwrap()).unwrap(),
+        Peer::saved_state_receipt(&bob.export().unwrap()).unwrap(),
+    ];
+    assert!(alice.retention_cutoff(&receipts[..1]).is_err());
+    relay.floor = alice.retention_cutoff(&receipts).unwrap();
+    let mut stale = Peer::import(&stale_backup).unwrap();
+    assert!(stale.cursor() < relay.floor);
+    let before = stale.export().unwrap();
+    let tail = relay.inner.len(&group);
+    assert!(stale.sync(&mut relay).is_err());
+    assert_eq!(stale.export().unwrap(), before);
+    assert_eq!(relay.inner.len(&group), tail);
+
+    // A current peer retires the stale device, then sends a fresh Welcome and
+    // original signed history in the new epoch. Never export Alice's keys.
+    alice.remove(&mut relay, "bob").unwrap();
+    let mut replacement = Peer::new("replacement", usd).unwrap();
+    assert_ne!(replacement.public_key(), stale.public_key());
+    let mailbox = alice
+        .invite(&mut relay, &replacement.key_package().unwrap())
+        .unwrap();
+    replacement.accept(&mut relay, &group, &mailbox).unwrap();
+    assert!(replacement.cursor() > relay.floor);
+    assert!(alice.retention_cutoff(&receipts).is_err());
+    replacement.merge_recovery_history(&stale_backup).unwrap();
+    // Restart before the pending signed backfill is delivered.
+    let mut alice = Peer::import(&alice.export().unwrap()).unwrap();
+    let mut replacement = Peer::import(&replacement.export().unwrap()).unwrap();
+    alice.sync(&mut relay).unwrap();
+    replacement.sync(&mut relay).unwrap();
+    alice.sync(&mut relay).unwrap();
+    assert_eq!(
+        replacement.state().canonical_bytes(),
+        alice.state().canonical_bytes()
+    );
+    assert_eq!(replacement.state().ledger.accounts.len(), 2);
+    assert!(stale.sync(&mut relay).is_err());
+}
 
 #[test]
 fn an_old_backup_must_not_reuse_a_sender_ratchet_after_later_sends() {
