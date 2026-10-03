@@ -25,7 +25,8 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   limits. Persisted normal-client mode and authenticated invite/restart/expense
   delivery now pass on the native host; 393 app regressions pass before a final
   isolated invite guard, followed by five affected real HTTP cases. User-facing
-  selection/setup, final platform and public relay gates
+  mode selection now passes 32 focused UI checks; operator setup, final platform
+  and public relay gates
   below remain open.
 
 ## Remaining gates

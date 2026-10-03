@@ -1618,3 +1618,11 @@ legacy codes/configuration remain readable without inferring authorization from
 the existence of a signer. Reject damaged flags, unsafe authenticated origins
 and attempts to downgrade pending scoped work before sending legacy requests.
 
+## 2026-10-04 — User-selected development relay mode, not automatic registration
+
+Expose the saved protocol in household setup as an explicit development switch
+saved with the address. Explain operator authorization and legacy access limits
+instead of implying that encryption alone restricts transport or that choosing
+authenticated mode publicly registers a household. Keep mode edits local until
+Save, with normal Material semantics, owned keyboard focus and scrollable text.
+

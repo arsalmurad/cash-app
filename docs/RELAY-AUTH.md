@@ -978,3 +978,23 @@ code before any mailbox call; all five actual HTTP scenarios pass again (14s,
 `app/.dart_tool/relay-settings-invite-downgrade.log`) with incompatible-client
 refusal assertions, and final analysis is clean (2.8s). The full suite preceded
 that last one-line guard; the affected protocol suite was rerun afterward.
+
+## 2026-10-04 — Development mode selection in household setup
+
+The setup screen exposes the persisted mode with an `Authenticated relay
+(development)` switch. Enter the relay origin, choose the mode, then use the
+address checkmark to save both. Editing alone makes no request. The explanation
+requires operator setup and does not claim automatic registration; legacy mode
+warns that encrypted expenses do not restrict relay access to approved devices.
+The introduction now says the relay cannot read expenses, without incorrectly
+implying it receives no public transport metadata.
+
+All 32 affected pane/screen tests pass (8s,
+`app/.dart_tool/relay-mode-ui-final-acceptance.log`): controller forwarding,
+restored selection, explicit draft save, keyboard Space activation, enabled/
+toggled/label semantics, disabled busy control, minimum 44px tile target,
+360x740 phone at 200% text with actual switch activation, and existing recovery
+and household actions. Analysis is clean (3.1s). These are Flutter host widget
+checks, not production browser interaction, real screen-reader/contrast audit,
+native mobile acceptance or public operator/bootstrap setup. The full 393-check
+suite above precedes this isolated UI concern.

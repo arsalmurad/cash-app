@@ -48,6 +48,9 @@ class _FakeController extends HouseholdController {
   final calls = <String>[];
   bool nextResult = true;
   bool restartRequired = false;
+  bool relayMode = false;
+  @override
+  bool get authenticatedRelay => relayMode;
   @override
   bool get requiresRestart => restartRequired;
   String? inviteCode = 'cashinv1:INVITE';
@@ -68,6 +71,7 @@ class _FakeController extends HouseholdController {
   @override
   Future<bool> setRelayUrl(String url, {bool? authenticated}) async {
     calls.add('relay:$url');
+    relayMode = authenticated ?? relayMode;
     relayUrl = url.trim();
     notifyListeners();
     return nextResult;
@@ -269,8 +273,10 @@ void main() {
       find.byKey(const Key('relayField')),
       'https://relay.example',
     );
+    await tester.tap(find.byKey(const Key('authenticatedRelay')));
     await tester.tap(find.byKey(const Key('saveRelay')));
     await tester.pumpAndSettle();
+    expect(controller.relayMode, isTrue);
     await tester.tap(find.byKey(const Key('create')));
     await tester.pumpAndSettle();
 

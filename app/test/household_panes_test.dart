@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64Util;
@@ -261,6 +262,99 @@ void main() {
 
   group('HouseholdSetupPane', () {
     testWidgets(
+      'authenticated draft saves explicitly and busy control is disabled',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        bool? saved;
+        Widget pane({bool busy = false}) => _host(
+          HouseholdSetupPane(
+            relayUrl: 'https://relay.test',
+            authenticatedRelay: true,
+            busy: busy,
+            onSaveRelay: (_, mode) async => saved = mode,
+            onCreate: () {},
+            onJoin: () {},
+            onRestore: () {},
+          ),
+        );
+        await tester.pumpWidget(pane());
+        final control = find.byKey(const Key('authenticatedRelay'));
+        expect(
+          tester.getSemantics(control),
+          matchesSemantics(
+            label: 'Authenticated relay (development)\nRequires operator setup. Only approved devices can sync. Saving this setting does not register your household.',
+            hasSelectedState: true,
+            hasToggledState: true,
+            isToggled: true,
+            hasEnabledState: true,
+            isEnabled: true,
+            isFocusable: true,
+            hasTapAction: true,
+            hasFocusAction: true,
+          ),
+        );
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+        expect(tester.getSize(control).height, greaterThanOrEqualTo(44));
+        await tester.tap(control);
+        await tester.pump();
+        expect(saved, isNull, reason: 'Editing does not save or make requests');
+        await tester.tap(find.byKey(const Key('saveRelay')));
+        expect(saved, isFalse);
+        tester.widget<SwitchListTile>(control).focusNode!.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pump();
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+        await tester.tap(find.byKey(const Key('saveRelay')));
+        expect(saved, isTrue);
+        await tester.pumpWidget(pane(busy: true));
+        expect(tester.widget<SwitchListTile>(control).onChanged, isNull);
+        semantics.dispose();
+      },
+    );
+
+    testWidgets('relay settings remain reachable at 200 percent phone text', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 740));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: HouseholdSetupPane(
+              relayUrl: 'https://relay.test',
+              busy: false,
+              onSaveRelay: (_, _) async {},
+              onCreate: () {},
+              onJoin: () {},
+              onRestore: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('authenticatedRelay')),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.ensureVisible(find.byType(Switch));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('restore')),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(tester.takeException(), isNull);
+    });
+    testWidgets(
       'recovered history is read-only and a joined replacement can finish',
       (tester) async {
         var synced = 0;
@@ -269,7 +363,7 @@ void main() {
             HouseholdSetupPane(
               relayUrl: 'https://relay.example',
               busy: false,
-              onSaveRelay: (_) async {},
+              onSaveRelay: (_, _) async {},
               onCreate: () {},
               onJoin: () {},
               onRestore: () {},
@@ -280,16 +374,21 @@ void main() {
           ),
         );
         expect(find.text('Backup history saved'), findsOneWidget);
+        await tester.tap(find.byType(ExpansionTile));
+        await tester.pumpAndSettle();
+        expect(find.text('Dinner'), findsOneWidget);
+        expect(find.byType(PopupMenuButton), findsNothing);
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('create')),
+          150,
+          scrollable: find.byType(Scrollable).first,
+        );
         expect(
           tester
               .widget<FilledButton>(find.byKey(const Key('create')))
               .onPressed,
           isNull,
         );
-        await tester.tap(find.byType(ExpansionTile));
-        await tester.pumpAndSettle();
-        expect(find.text('Dinner'), findsOneWidget);
-        expect(find.byType(PopupMenuButton), findsNothing);
         await tester.scrollUntilVisible(
           find.byKey(const Key('join')),
           250,
@@ -311,7 +410,7 @@ void main() {
           HouseholdSetupPane(
             relayUrl: null,
             busy: false,
-            onSaveRelay: (url) async => saved = url,
+            onSaveRelay: (url, _) async => saved = url,
             onCreate: () => created += 1,
             onJoin: () => joined += 1,
             onRestore: () => restored += 1,
@@ -347,7 +446,7 @@ void main() {
           HouseholdSetupPane(
             relayUrl: 'https://relay.example',
             busy: false,
-            onSaveRelay: (_) async {},
+            onSaveRelay: (_, _) async {},
             onCreate: () => created += 1,
             onJoin: () {},
             onRestore: () {},
