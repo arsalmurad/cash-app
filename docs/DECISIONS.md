@@ -1551,3 +1551,11 @@ Verify actual native staged/restart/rejection and defensive result ownership;
 do not infer browser runtime, controller unlock authority or relay permission
 from a successful build or a public-key list.
 
+## 2026-10-03 — Explicit roster transport capability, strict public policy
+
+Enable membership-policy HTTP calls only through an explicit capability flag
+and protected signer, rather than inferring protocol support from signing.
+Accept exact bounded public metadata and confirm only the expected log slot;
+keep immutable policy, stale-tail and stale-policy results distinct so later
+durable retries cannot mistake malformed replies for acceptance or rejection.
+

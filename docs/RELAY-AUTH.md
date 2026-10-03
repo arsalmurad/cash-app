@@ -715,3 +715,44 @@ The full native-enabled `flutter test --no-pub` suite subsequently passes all
 actual fixed-policy HTTP/storage cases. Log:
 `app/.dart_tool/roster-bridge-full-app.log`. This closes current native ABI
 compatibility for these app tests, not browser/mobile roster acceptance.
+
+## 2026-10-03 — opt-in app policy/membership HTTP transport
+
+`RosterRelayClient` is a separate, explicitly enabled capability. The default
+factory remains unsigned and roster-disabled; supplying a proof callback alone
+does not enable policy or membership requests. `RelayAuthorizationPolicy`
+accepts only exact v2 public fields, canonical scoped origins/groups, bounded
+sorted unique signing keys/grants and a safe integer epoch. Defensive immutable
+copies prevent parsed or exported objects from mutating policy. Projected MLS
+survivors retain their grants; new members receive the app's three standard
+capabilities. This is public authorization metadata, not an MLS certificate.
+
+Policy reads and membership writes use the existing bounded, deadline-limited
+HTTP reader and fresh exact-body signer. Membership acknowledges only the
+expected next log slot; malformed responses and refused requests do not prove
+rejection. Tail conflicts remain distinct from policy conflicts; no remote
+diagnostic is presented as trusted app text. Noncanonical/insecure addresses
+are refused before proof generation or networking.
+
+Independent Windows checks: analysis has no issues (2.4s); all 31 focused
+policy/HTTP checks pass (24s). The real native bridge plus owned loopback
+Node/workerd SQLite relay passes `household_roster_http_host_test.dart` (1s):
+an actual pending MLS invite is exported/restored, its exact encrypted commit
+and projected public roster are atomically accepted, retry confirms tail 1
+without a second entry, and Bob joins using the returned Welcome. A real
+removal commits tail 2 and revokes Bob's fresh and previously signed requests;
+Bob applies the removal and cannot project an active roster. Logs:
+`app/.dart_tool/roster-policy-transport.log` and `roster-native-http.log`.
+
+The retry is explicit after an observed successful response, not an injected
+network loss or implemented controller recovery. Bootstrap is operator-trusted,
+Welcome delivery is out of band, native handles are test-owned, and no public
+relay is deployed. Durable controller policy/commit/Welcome orchestration,
+protected roster access and final browser/mobile acceptance remain open.
+
+Full native-enabled `flutter test --no-pub` then passes all 364 checks (2m37s),
+including existing fixed-policy HTTP/storage and new roster HTTP cases, with
+the current ABI `970902974` DLL. Log:
+`app/.dart_tool/roster-transport-full-app.log`. No native/WASM rebuild was
+needed for this Dart-only transport change; browser/mobile runtime claims
+remain unchanged.
