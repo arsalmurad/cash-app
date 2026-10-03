@@ -219,3 +219,47 @@ The final-source full native-enabled Flutter suite subsequently passes all
 boundaries, uncertain-save ownership, sealed SQLite failure scenarios and all
 ten receipt-coordinator checks. Command from `app`: `RUST_LIB_PATH=<current
 cached DLL> flutter --no-version-check test --no-pub --reporter expanded`.
+
+## Current production browser evidence (`98bc07a`)
+
+Both the app and rebuilt Rust/WASM bridge use this source; Flutter release
+`build web --wasm --no-web-resources-cdn --no-pub` passes (171.7 s). Windows
+Chrome 154.0.8037.58 / Node 24.19.0 at 1280x900 against the original local
+workerd relay passes the household/quota/offline-font scenario. New captured
+HTTP-count checks require one summary frame plus one saved-history receipt,
+and repeated control-only sync produces no append. Existing default-off preview,
+keep-private cancellation, explicit lock/unlock, uncertain-save quota/no-send/
+restart, offline conflicts, fresh-key recovery/removal, EUR/JPY frozen FX,
+private-ledger isolation and unreadable financial HTTP fixtures also pass.
+No private state or application debug hooks were injected. This is two logical
+peers plus a replacement in isolated browser contexts, not physical devices.
+
+The first combined personal/CSV/household run fails before household checks with
+renderer `$paragraph_layout` / `canvaskit/skwasm.wasm` memory-access-out-of-bounds
+and a stalled evaluation while an owned emulator was booting. Its cause is not
+established; stopping the emulator and passing the isolated household run does
+not prove a general renderer repair. The first isolated run passes household
+security/receipt checks but its newly added idle helper incorrectly waits for a
+Sync button after removal; recognizing the correctly rendered removed-member
+state repairs that driver-only failure. The final run passes without app-source
+changes or disabling privacy/no-loop assertions. Failure diagnostics now keep
+bounded messages/frames and value-free editor metadata.
+
+The current actual-worker Rust-peer audit independently passes 31 ciphertext
+records/encrypted mailboxes and the plaintext-injection negative control.
+Windows WSASend #10053 and #10054 diagnostics both occur while assertions and
+exit 0 pass; neither is diagnosed as a physical-network guarantee. Mobile
+and final full accessibility acceptance remain distinct gates.
+
+Separate production personal/CSV runs at the same app/bridge source also pass:
+360x740 with `WEB_CSV=1 WEB_CSV_LINE_ENDINGS=LF WEB_PERSONAL_LIFECYCLE=1
+WEB_OFFLINE_FONTS=1`, and 1280x900 with `WEB_CSV=1
+WEB_CSV_LINE_ENDINGS=CRLF` for exact import/export bytes. The LF phone run checks
+Unicode/offline glyphs, definitions, exact large money, corrections/removal/history,
+recent activity/search/filter and durable reload. The CRLF run preserves the
+selected fixture and downloaded bytes; it does not claim warning-free glyph
+coverage. An intervening phone invocation omitted the required LF option and
+failed the documented CRLF font-warning assertion. A preflight guard now rejects
+that inconsistent strict-glyph option combination before launching Chrome; its
+expected failure is verified. No quoted carriage returns or money were normalized
+to hide a renderer warning. Browser runs are sequential, without the emulator.

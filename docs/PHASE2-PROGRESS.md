@@ -620,3 +620,12 @@ pass locally; final mobile/WASM verification is not inferred. Bounded coordinate
 recollection and authenticated/recoverable
 pruning remain open. No ciphertext or original signed financial history is
 deleted, and the previous app-platform binaries do not exercise this new API.
+
+The follow-up at `98bc07a` now passes all 315 native-enabled Flutter tests,
+66 sync and 64 Rust API tests, strict checks, and the rebuilt production WASM
+household/quota/offline-font flow. Browser HTTP checks verify one receipt per
+published checkpoint and no control-only ACK loop. The actual-worker storage
+audit again passes 31 encrypted records/mailboxes with its negative control.
+`RETENTION-RECEIPTS.md` records exact scope, the preceding combined renderer
+failure and corrected removed-member idle-driver failure. This does not close
+mobile-source acceptance, full accessibility or authenticated pruning gates.

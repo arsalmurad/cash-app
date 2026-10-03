@@ -202,6 +202,10 @@ export async function runHouseholdWebScenario(alice, api) {
   async function sync(peer) {
     await clickLabel(peer, 'Sync', 'button');
     await Promise.race([workerFailure, delay(350)]);
+    await waitFor(peer, `document.body.textContent.includes('You are no longer in this household.') ||
+      [...document.querySelectorAll('flt-semantics-host [role="button"]')]
+        .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim()) === 'Sync' &&
+          e.getAttribute('aria-disabled') !== 'true')`);
   }
 
   try {
@@ -249,11 +253,26 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickLabel(bob, 'Everyone in this household has updated to the summary-capable app.');
     await clickLabel(bob, 'Share these totals', 'button');
     await waitForLabel(bob, 'Expense total: USD 12.34');
+    await sync(bob);
+    assert.equal(relayEntries(), canceledBefore + 2,
+      'A shared summary sends one financial frame and one confirmed-save receipt');
     await sync(alice);
     await waitForLabel(alice, 'Expense total: USD 12.34');
     await waitForLabel(alice, 'USD 0.00');
     assert.equal(await evaluate(alice, `document.body.textContent.includes('Private summary-only lunch')`), false);
     assert.equal(await evaluate(alice, `document.body.textContent.includes('Income total:')`), false);
+    const stableReceipts = [alice, ...peers].flatMap(peer => peer.events).filter(event =>
+      event.method === 'Network.requestWillBeSent' && event.params.request.method === 'POST' &&
+      event.params.request.url.startsWith(relayUrl) && event.params.request.url.endsWith('/append')).length;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await sync(bob);
+      await sync(alice);
+    }
+    const afterControlSync = [alice, ...peers].flatMap(peer => peer.events).filter(event =>
+      event.method === 'Network.requestWillBeSent' && event.params.request.method === 'POST' &&
+      event.params.request.url.startsWith(relayUrl) && event.params.request.url.endsWith('/append')).length;
+    assert.equal(afterControlSync, stableReceipts, 'Control-only sync must not create an ACK loop');
+    console.log('Verified saved receipts: one per published checkpoint and no control-only ACK loop.');
     console.log('Verified household summaries: default-off selection, exact preview, keep-private cancellation, explicit sharing and no private title or balance change.');
     scenarioStage = 'locking Bob';
     await clickLabel(bob, 'Lock household in this browser', 'button');
