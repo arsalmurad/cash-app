@@ -293,3 +293,23 @@ paged capability leaves in-memory/custom clients and invitation list checks
 unchanged. This is preparation for signed app networking, not evidence that
 the app already authenticates, honors Retry-After automatically, or passes a
 real 256-nonce authenticated backfill. The Rust HTTP list path is unchanged.
+
+## Actual authenticated nonce-limited page resumption (2026-10-03)
+
+A subsequent SQLite/workerd regression uses the original authenticated read
+route with fresh Node Ed25519 proofs. Test-only controls seed 320 opaque sample
+records and 255 short-lived replay rows; the first 16-entry page fills the
+256-record nonce table and the next page receives 429 with every stored row,
+budget and clock unchanged. After those seeded rows expire in real time, the
+first page's still-live proof remains a rejected replay, while reads resume
+from sequence 16 and collect exactly sequences 1..320 without gaps or duplicates.
+No entry/capacity data changes; only the bootstrap and 20 successful page reads
+spend daily request budget. Production code has no fixture seed/inspection route.
+
+The focused test passes (2.96s). The complete relay suite passes 54 checks with
+the two explicit Rust-fixture skips (56 total, 24.05s); the dedicated cached
+Rust/workerd command separately passes all 15 checks with zero skips (7.80s).
+Log: `app/.dart_tool/authenticated-backfill-relay.log`. This verifies server
+refusal/resumption with synthetic opaque payloads, not real app-signed MLS
+networking, disk-backed Node progress or a new financial-plaintext audit.
+Combined app-to-authenticated-relay acceptance remains open.
