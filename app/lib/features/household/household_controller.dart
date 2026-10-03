@@ -31,7 +31,9 @@ class HouseholdController extends ChangeNotifier {
     String Function()? newMemberId,
   }) : _stateStore = stateStore ?? SecretBlobStore(BlobStore('household')),
        _configStore = configStore ?? BlobStore('household-config'),
-       _relayFactory = relayFactory ?? HttpRelayClient.new,
+       // Preserve the public injection parameter and private factory ownership.
+       // ignore: prefer_initializing_formals
+       _relayFactory = relayFactory,
        _clockMillis =
            clockMillis ?? (() => DateTime.now().millisecondsSinceEpoch),
        _newMemberId = newMemberId ?? _randomId;
@@ -42,7 +44,7 @@ class HouseholdController extends ChangeNotifier {
 
   final BlobStore _stateStore;
   final BlobStore _configStore;
-  final RelayClient Function(String url) _relayFactory;
+  final RelayClient Function(String url)? _relayFactory;
   final int Function() _clockMillis;
   final String Function() _newMemberId;
   bool _relaySigningClosed = false;
@@ -133,6 +135,24 @@ class HouseholdController extends ChangeNotifier {
   HouseholdOverview? overview;
   List<PublishedSummaryView> summaries = [];
   String? relayUrl;
+  bool _authenticatedRelay = false;
+  bool get authenticatedRelay =>
+      _authenticatedRelay ||
+      (_relay is RosterRelayClient &&
+          (_relay as RosterRelayClient).rosterEnabled);
+
+  RelayClient _makeRelay(String url, {bool? authenticated}) {
+    final enabled = authenticated ?? _authenticatedRelay;
+    RelaySettings(url, authenticated: enabled);
+    return _relayFactory?.call(url) ??
+        HttpRelayClient(
+          url,
+          null,
+          enabled ? relayRequestSigner : null,
+          enabled,
+        );
+  }
+
   bool isBusy = false;
   String? errorMessage;
   bool isLoading = true;
@@ -180,8 +200,10 @@ class HouseholdController extends ChangeNotifier {
       if (_writesDisabled) throw const FormatException(_uncertainSaveMessage);
       final config = await _configStore.read();
       if (config != null && config.isNotEmpty) {
-        relayUrl = decodeRelayConfig(config);
-        _relay = _relayFactory(relayUrl!);
+        final settings = decodeRelaySettings(config);
+        relayUrl = settings.address;
+        _authenticatedRelay = settings.authenticated;
+        _relay = _makeRelay(relayUrl!);
       }
       final saved = await _stateStore.read();
       if (saved != null) {
@@ -280,13 +302,14 @@ class HouseholdController extends ChangeNotifier {
 
   /// Sets the relay address (an `http(s)` URL). The relay sees only
   /// ciphertext, but it is still the one place everyone's traffic passes.
-  Future<bool> setRelayUrl(String url) => _run(() async {
+  Future<bool> setRelayUrl(String url, {bool? authenticated}) => _run(() async {
     final trimmed = url.trim().replaceAll(RegExp(r'/+$'), '');
+    final enabled = authenticated ?? authenticatedRelay;
     final uri = Uri.tryParse(trimmed);
     if ((_pendingInvitation != null ||
             _pendingMailboxAck != null ||
             _pendingRelayMembership != null) &&
-        trimmed != relayUrl) {
+        (trimmed != relayUrl || enabled != authenticatedRelay)) {
       throw const FormatException(
         'Finish the pending invitation before changing relays.',
       );
@@ -298,9 +321,11 @@ class HouseholdController extends ChangeNotifier {
         'Enter a relay address starting with https://',
       );
     }
-    await _saveConfig(trimmed);
+    RelaySettings(trimmed, authenticated: enabled);
+    await _saveConfig(trimmed, authenticated: enabled);
     relayUrl = trimmed;
-    _relay = _relayFactory(trimmed);
+    _authenticatedRelay = enabled;
+    _relay = _makeRelay(trimmed);
     errorMessage = null;
     notifyListeners();
   });
@@ -364,6 +389,12 @@ class HouseholdController extends ChangeNotifier {
     if (relay == null) {
       throw const FormatException('Set the relay address first.');
     }
+    if (_authenticatedRelay &&
+        (relay is! RosterRelayClient || !relay.rosterEnabled)) {
+      throw const RelayUnavailable(
+        'The saved authenticated relay mode is unavailable. No legacy request sent.',
+      );
+    }
     return relay;
   }
 
@@ -386,8 +417,14 @@ class HouseholdController extends ChangeNotifier {
 
   /// A failed save may already be durable. Drop the live handle rather than
   /// allowing later writes to publish or persist unconfirmed mutations.
-  Future<void> _persist({String? relayOverride}) async {
-    final bytes = await _savedBytes(relayOverride: relayOverride);
+  Future<void> _persist({
+    String? relayOverride,
+    bool? authenticatedOverride,
+  }) async {
+    final bytes = await _savedBytes(
+      relayOverride: relayOverride,
+      authenticatedOverride: authenticatedOverride,
+    );
     try {
       await _stateStore.write(bytes);
     } catch (_) {
@@ -396,18 +433,21 @@ class HouseholdController extends ChangeNotifier {
     }
   }
 
-  Future<Uint8List> _savedBytes({String? relayOverride}) async =>
-      HouseholdJournal(
-        state: await householdExport(household: _requireHousehold()),
-        relayUrl: relayOverride ?? relayUrl,
-        pending: _pendingInvitation,
-        lastCode: lastInviteCode,
-        lastRequest: _lastInviteRequest,
-        pendingAck: _pendingMailboxAck,
-        pendingAckRoster: _pendingAckRoster,
-        membership: _pendingRelayMembership,
-        recoveryState: _recoveryState,
-      ).encode();
+  Future<Uint8List> _savedBytes({
+    String? relayOverride,
+    bool? authenticatedOverride,
+  }) async => HouseholdJournal(
+    state: await householdExport(household: _requireHousehold()),
+    relayUrl: relayOverride ?? relayUrl,
+    authenticatedRelay: authenticatedOverride ?? authenticatedRelay,
+    pending: _pendingInvitation,
+    lastCode: lastInviteCode,
+    lastRequest: _lastInviteRequest,
+    pendingAck: _pendingMailboxAck,
+    pendingAckRoster: _pendingAckRoster,
+    membership: _pendingRelayMembership,
+    recoveryState: _recoveryState,
+  ).encode();
 
   Future<void> _loadSaved(Uint8List bytes) async {
     final saved = HouseholdJournal.decode(bytes);
@@ -421,7 +461,12 @@ class HouseholdController extends ChangeNotifier {
     }
     if (saved.relayUrl != null) {
       relayUrl = saved.relayUrl;
-      _relay = _relayFactory(relayUrl!);
+      _authenticatedRelay =
+          saved.authenticatedRelay ??
+          (saved.membership != null ||
+              saved.pendingAckRoster ||
+              saved.pending?.recipient != null);
+      _relay = _makeRelay(relayUrl!);
     }
     _pendingInvitation = saved.pending;
     lastInviteCode = saved.lastCode;
@@ -438,13 +483,14 @@ class HouseholdController extends ChangeNotifier {
     }
   }
 
-  Future<void> _saveConfig(String url) async {
+  Future<void> _saveConfig(String url, {bool? authenticated}) async {
+    final enabled = authenticated ?? authenticatedRelay;
     if (_household != null) {
-      await _persist(relayOverride: url);
+      await _persist(relayOverride: url, authenticatedOverride: enabled);
       return;
     }
     try {
-      await _configStore.write(encodeRelayConfig(url));
+      await _configStore.write(encodeRelayConfig(url, authenticated: enabled));
     } catch (_) {
       _disableWrites();
       rethrow;
@@ -554,6 +600,7 @@ class HouseholdController extends ChangeNotifier {
             relayUrl: relayUrl!,
             group: _groupId(),
             mailbox: _randomId(),
+            authenticated: authenticatedRelay,
           ),
           expectedTail: staged.commit.expectedTail.toInt(),
           commit: staged.commit.blob,
@@ -665,8 +712,9 @@ class HouseholdController extends ChangeNotifier {
       }
       throw const FormatException('This device is already in a household.');
     }
-    final relay = _relayFactory(invite.relayUrl);
-    final scoped = _welcomeTransport(relay);
+    final authenticated = invite.authenticated || authenticatedRelay;
+    final relay = _makeRelay(invite.relayUrl, authenticated: authenticated);
+    final scoped = _welcomeTransport(relay, required: authenticated);
     final item = scoped == null
         ? await relay.peekMailbox(invite.mailbox)
         : await scoped.peekRosterWelcome(invite.group, invite.mailbox);
@@ -703,6 +751,7 @@ class HouseholdController extends ChangeNotifier {
       rethrow;
     }
     relayUrl = invite.relayUrl;
+    _authenticatedRelay = authenticated;
     _relay = relay;
     _pendingMailboxAck = invite.mailbox;
     _pendingAckRoster = scoped != null;
@@ -810,7 +859,7 @@ class HouseholdController extends ChangeNotifier {
     await _persist();
     await _refresh();
     if (_relay == null && relayUrl != null) {
-      _relay = _relayFactory(relayUrl!);
+      _relay = _makeRelay(relayUrl!);
     }
     // No automatic sync: the replacement has no group until a fresh invite.
   }, allowRecovery: true);

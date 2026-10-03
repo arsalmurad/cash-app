@@ -64,6 +64,7 @@ void main() {
         'after-save',
         'lost-ack',
         'after-ack-save',
+        'default-client',
       ]) {
         test(
           '$failure never consumes Welcome before saved joined keys, and restart resumes',
@@ -161,8 +162,15 @@ void main() {
                     throw StateError('Owned relay exited before ready: $code'),
               ),
             ]).timeout(const Duration(seconds: 15));
-            for (final device in initial) {
-              expect(await device.setRelayUrl(origin), isTrue);
+            for (var i = 0; i < initial.length; i++) {
+              final device = initial[i];
+              expect(
+                await device.setRelayUrl(
+                  origin,
+                  authenticated: failure == 'default-client' && i == 0,
+                ),
+                isTrue,
+              );
               device.dispose();
             }
             var failAfterAck = failure == 'after-ack-save';
@@ -171,6 +179,12 @@ void main() {
                 dropAck = failure == 'lost-ack';
             final clients = <http.Client>[];
             HouseholdController restore(int i, {bool roster = true}) {
+              if (failure == 'default-client' && roster) {
+                return HouseholdController(
+                  stateStore: states[i],
+                  configStore: configs[i],
+                );
+              }
               late HouseholdController device;
               device = HouseholdController(
                 stateStore: states[i],
@@ -230,17 +244,31 @@ void main() {
             expect(await alice.syncNow(), isTrue);
             final invite = (await alice.invite(request))!;
             final descriptor = decodeInvite(invite);
+            final downgraded = restore(1, roster: false);
+            await downgraded.initialize();
+            expect(await downgraded.acceptInvite(invite), isFalse);
+            expect(
+              legacyRequests,
+              0,
+              reason: 'An explicitly authenticated invite cannot use legacy delivery',
+            );
+            expect(downgraded.overview!.isMember, isFalse);
+            downgraded.dispose();
             final bob = restore(1);
             await bob.initialize();
             if (failure == 'before-save' || failure == 'after-save') {
               states[1].fail = true;
               states[1].writeThenFail = failure == 'after-save';
             }
-            expect(await bob.acceptInvite(invite), isFalse);
+            expect(descriptor.authenticated, isTrue);
+            expect(await bob.acceptInvite(invite), failure == 'default-client');
             final initiallyAcknowledged =
                 failure == 'lost-ack' || failure == 'after-ack-save';
             expect(acknowledgements, initiallyAcknowledged ? 1 : 0);
-            expect(bob.requiresRestart, failure != 'lost-ack');
+            expect(
+              bob.requiresRestart,
+              failure != 'lost-ack' && failure != 'default-client',
+            );
             bob.dispose();
             states[1].fail = false;
             failAfterAck = false;
@@ -260,9 +288,16 @@ void main() {
             final restarted = restore(1);
             addTearDown(restarted.dispose);
             await restarted.initialize();
-            expect(await restarted.acceptInvite(invite), isTrue);
+            expect(
+              await (failure == 'default-client'
+                  ? restarted.syncNow()
+                  : restarted.acceptInvite(invite)),
+              isTrue,
+            );
+            expect(restarted.authenticatedRelay, isTrue);
             expect(restarted.overview!.isMember, isTrue);
             final saved = HouseholdJournal.decode(states[1].value!);
+            expect(saved.authenticatedRelay, isTrue);
             expect(saved.pendingAck, isNull);
             expect(saved.pendingAckRoster, isFalse);
             final bobClient = http.Client();
@@ -278,12 +313,30 @@ void main() {
               isNull,
             );
             expect(legacyRequests, 0);
-            expect(acknowledgements, initiallyAcknowledged ? 2 : 1);
+            expect(
+              acknowledgements,
+              failure == 'default-client'
+                  ? 0
+                  : initiallyAcknowledged
+                  ? 2
+                  : 1,
+            );
             expect(await alice.syncNow(), isTrue);
             expect(
               alice.overview!.memberIds.toSet(),
               restarted.overview!.memberIds.toSet(),
             );
+            if (failure == 'default-client') {
+              expect(
+                await alice.addExpense(
+                  title: 'shared-after-join',
+                  amount: '2.50',
+                ),
+                isTrue,
+              );
+              expect(await restarted.syncNow(), isTrue);
+              expect(restarted.overview!.balanceLabel, 'USD -2.50');
+            }
           },
         );
       }

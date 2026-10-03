@@ -66,7 +66,7 @@ class _FakeController extends HouseholdController {
   }
 
   @override
-  Future<bool> setRelayUrl(String url) async {
+  Future<bool> setRelayUrl(String url, {bool? authenticated}) async {
     calls.add('relay:$url');
     relayUrl = url.trim();
     notifyListeners();

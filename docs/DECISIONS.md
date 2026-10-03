@@ -1609,3 +1609,12 @@ joined keys. Do not let restart/configuration changes downgrade a pending
 authenticated upload or acknowledgement to legacy routes; clear intent only
 after confirmed acknowledgement, with the existing uncertain-save guard.
 
+## 2026-10-04 — Explicit authenticated configuration and invite protocol
+
+Persist the relay protocol alongside protected household state (or versioned
+standalone settings before identity creation), and construct the normal signed
+client from that setting. New scoped invite codes carry an explicit protocol;
+legacy codes/configuration remain readable without inferring authorization from
+the existence of a signer. Reject damaged flags, unsafe authenticated origins
+and attempts to downgrade pending scoped work before sending legacy requests.
+

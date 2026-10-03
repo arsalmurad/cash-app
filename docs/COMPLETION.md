@@ -22,7 +22,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   over the owned authenticated SQLite HTTP relay, including save-before-ACK,
   uncertain saves, lost ACK response, restart and downgrade refusal. All 388
   native-enabled app checks pass; `RELAY-AUTH.md` records exact evidence and
-  limits. Default/user-facing enablement, final platform and public relay gates
+  limits. Persisted normal-client mode and authenticated invite/restart/expense
+  delivery now pass on the native host; 393 app regressions pass before a final
+  isolated invite guard, followed by five affected real HTTP cases. User-facing
+  selection/setup, final platform and public relay gates
   below remain open.
 
 ## Remaining gates

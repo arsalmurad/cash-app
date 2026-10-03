@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'relay_config.dart';
+
 /// Text codes for the two out-of-band steps of joining a household.
 ///
 /// Joining is a short two-way exchange because MLS needs the invitee's key
@@ -24,11 +26,13 @@ class HouseholdInvite {
     required this.relayUrl,
     required this.group,
     required this.mailbox,
+    this.authenticated = false,
   });
 
   final String relayUrl;
   final String group;
   final String mailbox;
+  final bool authenticated;
 }
 
 String _clean(String code) => code.replaceAll(RegExp(r'\s+'), '');
@@ -64,6 +68,7 @@ String encodeInvite(HouseholdInvite invite) {
     'relay': invite.relayUrl,
     'group': invite.group,
     'mailbox': invite.mailbox,
+    if (invite.authenticated) 'authenticated': true,
   });
   return '$_invitePrefix${_encode(utf8.encode(json))}';
 }
@@ -97,6 +102,12 @@ HouseholdInvite decodeInvite(String code) {
   final relay = decoded['relay'] as String;
   final group = decoded['group'] as String;
   final mailbox = decoded['mailbox'] as String;
+  final authenticated = decoded.containsKey('authenticated')
+      ? decoded['authenticated']
+      : false;
+  if (authenticated is! bool) {
+    throw const FormatException('That invite has an invalid relay protocol.');
+  }
   final uri = Uri.tryParse(relay);
   if (uri == null ||
       !(uri.scheme == 'https' || uri.scheme == 'http') ||
@@ -106,7 +117,13 @@ HouseholdInvite decodeInvite(String code) {
   if (!_hexId.hasMatch(group) || !_hexId.hasMatch(mailbox)) {
     throw const FormatException('That invite has an invalid identifier.');
   }
-  return HouseholdInvite(relayUrl: relay, group: group, mailbox: mailbox);
+  RelaySettings(relay, authenticated: authenticated);
+  return HouseholdInvite(
+    relayUrl: relay,
+    group: group,
+    mailbox: mailbox,
+    authenticated: authenticated,
+  );
 }
 
 /// A sealed device backup as text, for pasting into a note or file. It is
