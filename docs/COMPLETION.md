@@ -1,287 +1,101 @@
 # Completion tracker
 
-Updated 2026-10-04. The active objective is to finish the private prototype
-against `expense-app-build-brief.md`, not merely merge individual milestones.
-Unchecked work is not a completion claim. Keep this file current as gates pass.
+Updated 2026-10-04. Complete the private prototype against
+`expense-app-build-brief.md`, not just individual milestones. This is a
+current-status index; detailed history, failures and exact commands remain in
+the linked evidence documents and Git. Unchecked gates are not achieved.
 
-## Verified baseline
+## Verified implementation and scoped evidence
 
-- [x] Phase 0 OpenMLS bridge runtime on iOS, Android, web/WASM: see exact
-  platforms and evidence in `PHASE0-RESULT.md`.
-- [x] Phase 1 deterministic ledger acceptance tests and previous clean-checkout
-  platform runs: `PHASE1-PROGRESS.md`.
-- [x] Torn personal-log recovery repaired before further writes, with backups.
-  PR #6, `2107d52`; native host and Chrome storage checks passed.
-- [x] Failed saves stop further/queued mutations until restart; native file
-  flush; 150 Windows app tests and Linux/Chrome checks. PR #7, `fdbd929`.
-- [x] Shared-core three-peer, 1,000-event convergence, visible concurrent
-  conflicts, removed-member decryption rejection, frozen FX tests.
-- [x] Real Rust-backed two-device household controller scenario on the host;
-  previous iOS/Android CI evidence is in `PHASE2-PROGRESS.md`.
-- [x] Opt-in native controller membership and recipient-only Welcome delivery
-  over the owned authenticated SQLite HTTP relay, including save-before-ACK,
-  uncertain saves, lost ACK response, restart and downgrade refusal. All 388
-  native-enabled app checks pass; `RELAY-AUTH.md` records exact evidence and
-  limits. Persisted normal-client mode and authenticated invite/restart/expense
-  delivery now pass on the native host; 393 app regressions pass before a final
-  isolated invite guard, followed by five affected real HTTP cases. User-facing
-  mode selection now passes 32 focused UI checks; public operator setup export
-  and normal-client founding without test-seeded history pass locally. Final platform
-  and public relay gates
-  below remain open.
+- [x] Phase 0 OpenMLS add/remove/decryption bridge runtime on iOS, Android and
+  web/WASM; pinned tools, size deltas and compatibility warnings:
+  [PHASE0-RESULT.md](PHASE0-RESULT.md).
+- [x] Personal app/core acceptance: deterministic 1,000-event folds, frozen FX,
+  zero-decimal currencies, per-actor-frontier snapshots and no floating money.
+  Earlier clean-checkout platform runs and personal feature/runtime history:
+  [PHASE1-PROGRESS.md](PHASE1-PROGRESS.md).
+- [x] Immutable storage and save safety: torn-log repair, checked SQLite
+  revisions/migration, uncertain-save write refusal and sealed household state.
+  [SQLITE-STORAGE.md](SQLITE-STORAGE.md), [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).
+  Controlled faults/process interruption are not arbitrary power-loss proof.
+- [x] Shared crypto/sync core: three-peer 1,000-event convergence, visible
+  conflicts, original-author authentication including forwarded signed history,
+  removed-member decryption rejection and frozen historical FX.
+  [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md) records historical-author limitations.
+- [x] Invite safety-number comparison and phrase-sealed backup/wrong-phrase/
+  replacement recovery have scoped native/Chrome evidence in
+  [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md); final-platform coverage remains below.
+- [x] Opt-in chosen sharing, immutable summary events and publication UI with
+  native/Chrome/Android evidence: [SHARED-SUMMARIES.md](SHARED-SUMMARIES.md).
+  Private ledgers remain separate; all devices must update before summaries.
+- [x] Authenticated owned-loopback HTTP: normal factory, protected request
+  signatures, public operator bootstrap, atomic MLS/relay roster transitions,
+  recipient-only Welcomes, saved-before-ACK/restart/downgrade guards and bounded
+  retired-device catch-up. Native host, production Chrome and actual Android
+  three-identity/OS-vault runs pass: [RELAY-AUTH.md](RELAY-AUTH.md),
+  [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).
+- [x] Real SQLite relay KV privacy audits, including roster/Welcome/retirement
+  fields, exact public schemas and deliberate plaintext/binary/metadata controls.
+  [RELAY-AUTH.md](RELAY-AUTH.md). Known-fixture KV inspection is not raw-file
+  forensics, metadata anonymity or a formal encryption proof.
+- [x] Non-destructive relay limits: streamed bodies, bounded pages, 10,000-record/
+  64MiB log ceilings, replay inventories and admitted device/group budgets.
+  [RELAY-CAPACITY.md](RELAY-CAPACITY.md), [RELAY-AUTH.md](RELAY-AUTH.md).
+- [x] Checked shared checkpoints and encrypted saved-state receipts with exact
+  signed history/frontiers; stale-prefix retirement/fresh-key rejoin recovery:
+  [RETENTION-RECEIPTS.md](RETENTION-RECEIPTS.md). These do not prune history.
+- [x] Pinned CI/toolchains and action revisions. Existing source-specific iOS/
+  Android/Chrome runs are evidence only for their recorded revisions.
 
-## Remaining gates
+## Remaining completion gates
 
-- [x] Authenticate original authors through live messages **and forwarded
-  history**, including tampering, impersonation, replay, restart, removed
-  authors' historical events, and explicit legacy-data handling. PR #8,
-  `d27bdf1`, passed locked Rust, real-worker and native-bridge scenarios plus
-  GitHub Rust/worker and app/Chrome checks; historical membership limitations
-  remain explicit in `PHASE2-PROGRESS.md`.
-- [x] Make household mutations, membership commits, persistence and network
-  retries safe under storage failures, concurrency and interrupted invitations.
-  Current host/native-bridge regressions, sealed SQLite/Android OS-key recovery,
-  interrupted invite/removal and real production Chrome quota checks passed;
-  see `PHASE2-PROGRESS.md`. Tested controlled exceptions, logical peers and actual
-  quota exhaustion are not arbitrary hardware/power-loss proof. Final-revision
-  cross-platform acceptance and authenticated public deployment remain open.
-- [x] Protect the working household private-key state at rest on native and web;
-  PR #13, `494253c`: real OS secure-storage/file checks on iOS and Android,
-  Chrome RAM-only/exclusive-lock checks, and 185 host app tests passed.
-  Production household WASM and stale-backup recovery remain separate gates.
-- [x] Drive the complete household scenario in the production web/WASM app,
-  including browser-to-worker CORS, restart, offline edits, recovery and removal.
-  Independently passed 2026-10-02 on Windows Chrome against the release app and
-  real local workerd relay; details and commands are in `PHASE2-PROGRESS.md`.
-- [x] Inspect real workerd Durable Object records for ciphertext-only contents,
-  with original production storage methods, real encrypted Rust peers, and a
-  plaintext-injection negative control: 27 log records and welcome mailboxes
-  passed locally; the deployment itself remains unverified and unauthorized.
-- [ ] Establish an authenticated, abuse-controlled, bounded-retention relay on
-  the free-plan deployment path. Do not purchase services or expose a public
-  unauthenticated relay. Account authorization may require the owner.
-  The default worker is now closed; only explicit loopback development is
-  enabled. This safety guard is not production authentication or deployment.
-  Request bodies now have a streamed 512 KiB parsing bound, and decoded
-  invitations share the 256 KiB blob limit. Storage reads are limited to 16
-  records before values are loaded, with maximum-size page continuation tested.
-  All 22 local relay tests and the 28-record real Rust-peer storage audit pass;
-  these limits do not bound total
-  retained history or authorize a public deployment.
-  A subsequent non-destructive per-log ceiling now refuses growth at 10,000
-  records or 64 MiB encoded ciphertext; full-volume paged backfill and exact
-  real-peer storage accounting pass. `RELAY-CAPACITY.md` records legacy-log
-  write refusal and remaining account-wide/authentication/deployment limits.
-  `RELAY-AUTH.md` now records a separately tested request-proof primitive, with
-  Node-to-workerd signatures and 33 relay tests passing. It is not imported by
-  production routing and does not implement trusted registration, replay
-  admission or permission to expose the relay publicly.
-  An opt-in Rust signer and a separate bounded transactional nonce-admission
-  primitive now also pass host-to-workerd and actual SQLite race/rollback tests.
-  The full relay suite passes 39 checks plus one explicit Rust-fixture skip;
-  that fixture independently passes all seven dedicated interoperability checks.
-  Neither primitive is wired into public/app authorization yet.
-  Exact namespace/operation grants now pass the full local relay suite: 44
-  checks plus its explicit Rust-fixture skip (45 total). Dedicated Rust
-  interoperability remains separately verified, not inferred from that skip.
-  A separate explicit loopback worker now authenticates actual group read/append
-  transactions, with a fixed operator policy, rollback/replay and real launcher
-  checks. All 13 Rust/workerd interoperability checks pass; the full relay suite
-  passes 49 checks with two separately verified fixture skips. This is not
-  public/app authentication: roster transitions, mailbox/socket authorization,
-  request/account quotas and authorized deployment remain open in `RELAY-AUTH.md`.
-  The experimental group path now also has transaction-local per-device/group
-  daily admitted-request budgets, independent of proof expiry. All 14 dedicated
-  interoperability checks and 53 full-suite checks pass (two separately verified
-  fixture skips). This does not bound anonymous traffic or account spending.
-  Confirmed HTTP pages now persist before more networking; later refusal resumes
-  from the saved cursor after restart and uncertain saves stop further requests.
-  All 344 native-enabled app tests pass, including test-first encrypted restart
-  regressions. `PHASE2-PROGRESS.md` and `RELAY-AUTH.md` distinguish mocked HTTP
-  interruption from a real authenticated nonce-limit run; signed app networking
-  and the deployment gate remain open.
-  A subsequent actual SQLite/workerd read regression verifies 320-entry
-  resumption after nonce-table refusal and real-time expiry, with unchanged
-  history and live-proof replay rejection. The full relay suite passes 54
-  checks with two separately verified skips; all 15 dedicated interoperability
-  checks pass. Fixture-seeded replay rows and opaque sample entries are not
-  evidence of combined app-signed MLS networking.
-  The optional sync-peer signer now generates fresh random request nonces from
-  the protected existing identity without modifying saved MLS/ledger state.
-  Its restored-peer proof is accepted/replay-rejected by actual workerd, with
-  all 16 dedicated interoperability checks passing. Full sync acceptance passes
-  74 tests (two explicit live-HTTP tests remain ignored), and the complete relay
-  suite passes 54 checks plus three separately verified fixture skips. CI now
-  includes the peer feature without dispatching any cloud job. App bridge/client
-  enablement and trusted registration/membership/mailboxes remain open.
-  The app API now exposes public request proofs through regenerated FRB bindings
-  (content hash `-155377132`). All 66 API tests, 346 native-enabled Flutter tests
-  and the rebuilt production browser household/quota flow pass. Native signing
-  itself is directly verified; the browser run exercises existing calls through
-  the new ABI, not the new signing method. `PHASE2-PROGRESS.md` records exact
-  artifacts/toolchains/failures. The HTTP client is still unsigned; authenticated
-  end-to-end transport and final mobile/iOS acceptance remain open.
-  The HTTP client now supports an optional exact-byte request-proof callback,
-  including fresh invocation per page, bounded/abortable replies and no-network
-  failure/deadline behavior. Scoped native/transport regressions pass; the default
-  controller still has no protected-key provider, and browser/authenticated
-  end-to-end acceptance for this Dart change remains open in `RELAY-AUTH.md`.
-  The protected controller provider now connects its existing identity to that
-  opt-in callback, with exact-byte verifier conformance and post-await lifetime
-  refusal checks. All 353 native-enabled app tests pass. The default factory
-  remains unsigned; no enrolment, live authenticated HTTP/MLS exchange or new
-  browser/mobile acceptance is inferred from the controlled transport mock.
-  A subsequent actual loopback HTTP/workerd test now restores two native app
-  identities under an explicit fixed operator policy, exchanges 19 encrypted
-  expenses across paged backfill and restart, and verifies `USD -20.50` plus
-  replay/body-change/unknown-device refusals without history mutation. All 33
-  scoped native proof, paging and HTTP checks pass (35s); analysis is clean.
-  This closes native authenticated HTTP/MLS exchange for pre-trusted devices,
-  not dynamic enrolment/mailboxes or current browser/mobile acceptance. Wire
-  ciphertext checks are not a new audit of every persisted SQLite field.
-  A second actual native HTTP run now directly inspects every SQLite-backed
-  group KV row through a test-only owning-process fixture, verifies the exact
-  allowed metadata/counts and rejects synthetic financial/member/money markers.
-  Deliberate plaintext and extra/nested metadata leak controls fail as required.
-  Both runtime cases pass (16s), analysis is clean, and 54 relay tests pass with
-  three optional Rust-fixture checks skipped. No shipped debug/seed endpoint is
-  added. This is authenticated group storage evidence, not mailbox/raw-file
-  forensics, final platforms or trusted dynamic enrolment.
-  An unrouted membership primitive now rotates policy in the same SQLite
-  transaction as an exact signed ciphertext append, checking current grants,
-  sequential epochs, body binding, nonces and budgets. Actual rollback,
-  revocation and malformed-policy checks pass; 55 relay checks and both real
-  native HTTP/storage cases pass. Trusted routing, bounded retired-key replay
-  state and app commit/Welcome retries remain required before enablement.
-  Retired replay-key storage is now bounded inside that primitive: at most 128
-  current/reserved/live-retired keys, bounded 129-row legacy detection, no live
-  eviction, monotonic expiry and transactional cleanup rollback. Test-first
-  real SQLite capacity/retry/corrupt-state checks pass in the 55-check relay
-  suite; three optional checks are skipped. The primitive is still unrouted;
-  trusted bootstrap/current-policy routing and app retry integration remain open.
-  A subsequent explicit loopback roster worker now supplies immutable operator
-  bootstrap, live transaction-grant rechecks, signed policy reads and atomic
-  membership routing with real server-time admission. Actual SQLite/launcher
-  race, revocation, authority-change and legacy-refusal checks pass in the
-  58-check relay suite (three optional skips). Both existing native fixed-policy
-  HTTP/storage cases remain compatible. App MLS/Welcome/retry/recovery and public
-  bootstrap/account-abuse integration remain open; app defaults are unchanged.
-  Read-only Rust roster projection now derives actual current/staged MLS public
-  signing keys without names, private-archive cloning or early commit merge.
-  Exact committed keys, archive immutability, staged restart/rejection, removed
-  devices and actual 64/65-member boundaries pass in 35 affected sync and 25
-  crypto integration checks; strict Clippy is clean. Bridge/policy transport and
-  durable app membership coordination are still required before app enablement.
-  The bridge now exposes those public bytes through regenerated native/web
-  bindings (ABI `970902974`). All 67 API and 356 native-enabled app tests pass,
-  including staged roster/restart/rejection/result-ownership and real HTTP
-  compatibility; analysis and strict API Clippy are clean. Native/WASM libraries
-  are rebuilt with preserved backups, but browser/mobile artifacts predate this
-  ABI. Controller guards, validated policy transport and durable membership
-  coordination remain open; a WASM build is not new-method browser acceptance.
-- [x] Rust-side SQLite stores immutable frames and sealed household documents;
-  checked revisions, migration, recovery and process-interruption checks passed.
-  PR #18 merged after native host, iOS, Android and production WASM acceptance.
-  Browser whole-image/quota and protection limits remain in `SQLITE-STORAGE.md`.
-- [x] Persist checked shared fold checkpoints with per-actor frontiers, original
-  signed history, late-event/duplicate rebuild and old signed archive migration;
-  current native-host and production WASM checks passed. This is not pruning.
-- [ ] Finish safe shared compaction or peer-snapshot recovery with offline-peer
-  acknowledgements; checkpoints retain all history. Relay growth is now refused
-  at per-log ceilings, but safe pruning and peer-snapshot recovery remain open.
-  A saved-archive receipt/checkpoint verifier is now implemented locally in Rust;
-  see `RETENTION-RECEIPTS.md`. It requires every current MLS key and exact signed
-  history/frontiers; explicit encrypted exchange has local Rust/actual-worker
-  evidence, and the protected-save hook has native-bridge/host-SQLite checks.
-  Final platform verification and authenticated/recoverable pruning remain open.
-  A locally computed cutoff is not permission to delete relay history.
-  A new core recovery check simulates an unavailable acknowledged prefix:
-  stale sync preserves the archive and makes no append, while retirement and
-  fresh-key rejoin recover original signed early/later history after both peers
-  restart. All 19 affected recovery/retention checks and strict all-targets
-  HTTP/auth-enabled Clippy pass. This strengthens recovery evidence but neither
-  deletes relay history nor closes authenticated crash-safe pruning or final
-  platform acceptance; export-based acknowledgements are not OS durability.
-  Current-source Android personal/household and separate production WASM flows
-  now pass; final iOS and authenticated/recoverable pruning remain open.
-- [x] Check explicit opt-in publication boundaries and chosen shared analytics;
-  no private ledger or readable financial fields may reach the relay.
-  Immutable opt-in totals, nonfinancial signed summary events, compatibility
-  guards and publication UI now have local Rust/native-bridge/SQLite/host-widget
-  evidence in `SHARED-SUMMARIES.md`. Production WASM UI and actual-worker summary
-  storage audit also passed, followed by actual Android native UI/SQLite/OS-key
-  restart and signed backfill. Final-source iOS/platform acceptance remains a
-  separate gate. Mixed-version live support is not negotiated; all household
-  devices must update before summaries are published.
-  Confirmed local household writes now distinguish failed delivery from an
-  uncertain save, without automatically reopening/repeating the expense form.
-  All 331 native-enabled host app tests pass after this change; platform limits
-  and exact commands are in `PHASE2-PROGRESS.md`.
-  The explicit browser lock/reload regression passes at `d004ad9`, along
-  with all 283 native-enabled host tests. The complete combined personal/CSV/
-  quota/household browser runtime subsequently passes on production `43871c4`
-  with driver `016d5ba`; current Android personal and household runtime also
-  pass at `43871c4`. Exact evidence and remaining limits are recorded above.
-- [ ] Review personal UX coverage against the stated Cashew quality bar, not
-  just widget presence; fix functional gaps and verify phone/tablet/web layouts.
-  Budget/goal removal, recurring stop, future-rule management and stale-post
-  protection are now implemented. Goal currency/category/deadline controls
-  and recurring category selection have native-host/phone widget checks and
-  production Chrome runtime evidence. Remaining functional/adaptive review
-  remains open. Recent-activity creation ordering is now verified, including
-  same-tick queues and six-entry production-browser reload. Personal amount/category
-  corrections and non-erasing removal/history have actual SQLite failure/reload
-  tests, production Chrome evidence and actual Android emulator runtime evidence.
-  These checks do not close the whole UX gate.
-  `PERSONAL-UX-REVIEW.md` records the scoped Cashew review, repaired populated
-  layout failures, permanent search/clear labels and real-production-theme
-  enlarged-text/labeled/48-pixel checks. All 305 host tests and both Android
-  integrations pass on app source `eb09a27`. Combined desktop Chrome passes
-  there with driver `b07c1c7`, including the uncertain-save household ownership
-  repair, actual search/filter and unchanged SQLite bytes. After a subsequent
-  narrow title-editor readiness failure, driver `d4561e7` uses real pointer
-  activation: the current 360×740 personal/CSV flow and separate desktop
-  household/quota flow both pass, the latter with bounded relay pages.
-  Final iOS and complete accessibility acceptance remain open; exact earlier
-  failures and limited verification scope remain in the progress docs.
-  Entry dropdowns now wrap fully at 200% phone text, with 40 scoped host checks
-  and current production Chrome keyboard/personal/CSV acceptance passing.
-  `PERSONAL-UX-REVIEW.md` distinguishes host enlarged-text checks from browser
-  keyboard evidence and records the undiagnosed intermittent renderer failure.
-- [x] Pin reproducible CI environments, including explicit WASM nightly,
-  action revisions, Node and caches. PR #15 merged; known Flutter/FRB warnings
-  remain recorded rather than hidden or upgraded without verification.
-- [ ] Run final acceptance checks on the final source revision for iOS, Android,
-  and production web/WASM; record commands, runtime, results and artifact paths.
-  The latest authenticated production browser run now passes normal-client
-  operator bootstrap/WASM proof calls, join, summaries, sealed reload, offline
-  conflicts and fresh replacement recovery, but fails old-device removal-state
-  catch-up because relay revocation blocks its MLS removal commit. Preserve this
-  failing opt-in regression and fix bounded retired-device catch-up before
-  declaring authenticated platform acceptance; details are in `RELAY-AUTH.md`.
-  That regression is now repaired by transaction-authorized historical reads
-  capped at removal; the unchanged authenticated Chrome removed-state flow and
-  complete household scenario pass. Six affected native HTTP cases and real
-  SQLite cutoff/rollback/capacity/expiry/paging tests also pass. Final iOS/Android,
-  sockets/pruning and authorized
-  public/free-plan deployment remain open; do not treat the browser gate as
-  whole-project completion.
-  The actual authenticated-roster SQLite KV audit now passes with normal native
-  clients, encrypted expenses, a removed member and a replacement invitation.
-  Exact schema and deliberate plaintext/binary/missing-record controls pass;
-  scope and reproducible commands are recorded in `RELAY-AUTH.md`.
-  Current source/bridge ABI `970902974` also passes the Android household and
-  personal-ledger integration journeys on the owned API 36 x86_64 emulator.
-  `PHASE2-PROGRESS.md` records build/runtime evidence, full-disk/missing-kernel
-  failures and the successful retry. Release APK and current iOS remain distinct
-  unverified gates. Authenticated Android HTTP
-  now also passes through the normal factory with three OS-key-protected peers,
-  consumed Welcomes, protected restart, encrypted balances and actual removal
-  catch-up. Exact runtime evidence/limits are in `PHASE2-PROGRESS.md`.
-- [ ] Finish concise setup, recovery, security-limit and verification docs, with
-  all deliverable source and evidence synchronized to private GitHub `main`.
+1. [ ] Authorized free-plan relay: trusted public registration/authorization,
+   anonymous/account-wide abuse and spending bounds, authenticated sockets with
+   hibernation, and actual deployment verification. Default public routing stays
+   closed. Do not deploy or dispatch cloud jobs until the owner verifies a $0
+   spending cap; do not buy services or expose an anonymous relay.
+2. [ ] Crash-safe authenticated pruning or peer-snapshot recovery with confirmed
+   offline-peer acknowledgements and recoverable availability. Every current MLS
+   key must acknowledge the exact checkpoint; a computed cutoff/TTL is never
+   permission to delete financial history. Retained checkpoints/receipts and
+   per-log growth refusal alone do not close this gate.
+3. [ ] Implement and verify the brief's explicit MLS key-rotation operation,
+   including immutable/durable commit retry and authenticated epoch coordination.
+   Current tests prove membership-driven rekeying, not a standalone self-update.
+4. [ ] Finish the personal functional/adaptive/accessibility review against the
+   requested Cashew quality bar and Phase 1 scope, across phone/tablet/web.
+   Accounts/multi-currency; expense/income/transfer/recurring/upcoming; categories/
+   icons/custom titles with automatic category assignment; custom-period/category
+   budgets; saving/spending goals; search/filter; local persistence/native
+   biometric lock; CSV; light/dark Material 3.
+   [PERSONAL-UX-REVIEW.md](PERSONAL-UX-REVIEW.md) records scoped repairs and
+   unverified behavior. Widget presence or limited guideline checks are not an
+   overall UX/accessibility pass.
+5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
+   reproducible release artifacts, exact runtime commands and platform limits.
+   Current ABI `970902974` passes production authenticated Chrome and Android
+   personal/household/authenticated-HTTP journeys; final iOS and current Android
+   release APK remain open. Earlier clean-checkout/platform runs are not a
+   final-source completion claim.
+6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
+   source and evidence synchronized to private GitHub `main`. Local diagnostic
+   logs/caches are ignored; repeatable tests and evidence summaries are tracked.
+   Start with [LOCAL-RELAY-SETUP.md](LOCAL-RELAY-SETUP.md),
+   [RELAY-AUTH.md](RELAY-AUTH.md), [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).
 
-App-store publication, billing, telemetry, bank integrations and changing the
-repository's visibility are not authorized completion shortcuts or required
-prototype features. Existing reported evidence must remain distinguished from
-new independent runs. No milestone completion should end the active project goal.
+## Scope and local build safety
+
+Preserve private ledgers, ciphertext-only selected sharing, no shared login,
+i64/rational money, immutable idempotent events, deterministic total order,
+causal frontiers, canonical convergence and visible conflicts (`AGENTS.md`).
+App-store publication, billing, telemetry, bank integration and repo visibility
+changes are not completion shortcuts or required prototype features.
+
+On this Windows host, generated Android output, Flutter build cache and native
+Rust cache use ignored junctions to D:. Preserve the junctions and backing
+directories; check free space before builds. A full-disk APK once omitted its
+Dart kernel despite a successful build. Exact recovery/toolchain details are
+in [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).
+
+Keep the full active objective. Never mark completion from a milestone, build
+alone, older platform evidence or merely compatible/narrow tests.

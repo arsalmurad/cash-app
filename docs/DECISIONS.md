@@ -1666,3 +1666,10 @@ the production roster worker and an isolated loopback reverse tunnel. Use normal
 mobile clients and actual OS-wrapped stores, not injected memory transport or
 seeded history; keep all control/cleanup outside production app and relay routes.
 
+## 2026-10-04 — Keep the completion tracker as a current evidence index
+
+Replace the growing milestone chronicle with checked scoped evidence and explicit
+remaining full-brief gates, linking the existing detailed progress/security docs
+and Git history. Retain every requirement and verification limit; membership
+rekeying must not silently stand in for the brief's named key-rotation operation.
+
