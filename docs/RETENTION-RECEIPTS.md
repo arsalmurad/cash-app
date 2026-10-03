@@ -263,3 +263,27 @@ failed the documented CRLF font-warning assertion. A preflight guard now rejects
 that inconsistent strict-glyph option combination before launching Chrome; its
 expected failure is verified. No quoted carriage returns or money were normalized
 to hide a renderer warning. Browser runs are sequential, without the emulator.
+
+## Current Android evidence
+
+Production app/Rust source is independently checked unchanged since `98bc07a`;
+subsequent commits add acceptance fixtures, drivers and documentation only.
+Android 16/API 36 AOSP ATD x86_64 on WHPX (`emulator-5580`) passes both actual
+integrations using pinned cached tools. Personal acceptance includes the new
+whole-JPY UI/frozen-rate/SQLite-restart fixture (1 test, 94 s runtime, 118.5 s
+cached build, 1.834 s install); its earlier fixture-state failure and repair are
+recorded in `PHASE1-PROGRESS.md`. Household acceptance passes protected native
+vault/OS-key use, shared delivery, interrupted-save and sender-state recovery,
+fresh-key replacement/removal and chosen-summary UI (1 test, 33 s runtime,
+82.5 s build, 2.082 s install). Commands from `app`: `flutter --no-version-check
+test --no-pub integration_test/ledger_test.dart -d emulator-5580 --reporter
+expanded`, then the same command for `integration_test/household_test.dart`.
+
+The app's bounded receipt hook is exercised by these shared writes and their
+checked financial-frame-plus-receipt counts. The six new receipt-specific
+checkpoint/queue/ratchet fault boundaries and failed/stale read-back remain
+native-host tests, not six separate Android fault-injection passes. Both native
+flows run sequentially after browser checks, without installing new tools; the
+owned emulator is stopped afterwards. These are logical peers on an emulator,
+not physical peers, enrolled biometrics or final-source iOS. Pruning remains
+disabled and the deployment/authentication gates remain open.

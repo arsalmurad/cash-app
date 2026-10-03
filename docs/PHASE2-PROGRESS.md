@@ -629,3 +629,12 @@ audit again passes 31 encrypted records/mailboxes with its negative control.
 `RETENTION-RECEIPTS.md` records exact scope, the preceding combined renderer
 failure and corrected removed-member idle-driver failure. This does not close
 mobile-source acceptance, full accessibility or authenticated pruning gates.
+
+The same unchanged production app/Rust source now also passes actual Android
+personal (including whole-JPY entry/two frozen rates/restart) and household
+integrations on the pinned API 36 x86_64 ATD/WHPX emulator. Household runtime is
+33 s after its 82.5 s cached build, exercising real protected SQLite/OS-key,
+interrupted saves, fresh-key recovery/removal and chosen-summary UI. Exact
+commands, receipt-test scope and limits are in `RETENTION-RECEIPTS.md`; iOS,
+enrolled biometrics, complete accessibility and authenticated pruning are not
+inferred. No cloud workflow, public relay deployment or deletion was enabled.
