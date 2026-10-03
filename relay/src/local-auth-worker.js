@@ -4,6 +4,7 @@ import { GroupLog } from "./worker.js";
 import { verifyRequestProof, verifiedRequestContext } from "./request-proof.js";
 import { admitVerifiedDeviceRequest } from "./request-admission.js";
 import { validDevicePolicy, requestOperation } from "./request-scope.js";
+import { emptyRequestBudget, spendRequestBudget, RequestBudgetRefused } from "./request-budget.js";
 
 const fail = (status, message) => new Response(JSON.stringify({ error: message }), {
   status, headers: { "content-type": "application/json" } });
@@ -48,6 +49,15 @@ async function boundedBody(request) {
 export class AuthenticatedGroupLog extends GroupLog {
   constructor(state, env) { super(state); this.env = env; }
   async fetch(request) {
+    try { return await this.authenticatedFetch(request); }
+    catch (error) {
+      if (!(error instanceof RequestBudgetRefused)) throw error;
+      const response = fail(error.status, "local request budget refused; history preserved");
+      if (error.retryAfter !== null) response.headers.set("retry-after", String(error.retryAfter));
+      return response;
+    }
+  }
+  async authenticatedFetch(request) {
     const url = new URL(request.url);
     if (this.env.LOCAL_DEVELOPMENT !== "true" || !loopback(url)) return fail(503, "public relay disabled");
     const policy = configuredPolicy(this.env);
@@ -76,12 +86,18 @@ export class AuthenticatedGroupLog extends GroupLog {
         // Never turn an old unauthenticated log into a newly owned log.
         if ((await txn.list({ limit: 1 })).size !== 0) return 503;
         await txn.put("authorized_devices", policy);
+        await txn.put("request_budget", emptyRequestBudget(Date.now()));
       } else if (JSON.stringify(saved) !== JSON.stringify(policy)) {
         // No silent policy replacement, downgrade or replay-clock reset.
         return 503;
       }
       const result = await admitVerifiedDeviceRequest(txn, verified, Date.now());
-      if (result.ok) return 0;
+      if (result.ok) {
+        // A refusal throws so policy, nonce, clock and mutation roll back too.
+        // Use the admitted monotonic time, not a client's chosen proof TTL.
+        await spendRequestBudget(txn, verified, await txn.get("request_clock"));
+        return 0;
+      }
       return result.reason === "replay" ? 409 : result.reason === "expired" ? 401 :
         result.reason === "capacity" ? 429 : 503;
     };

@@ -116,7 +116,7 @@ async function instrumented(fault = false) {
     export default worker;`;
   return new Miniflare({ modulesRoot: root,
     modules: [{ type: "ESModule", path: `${root}/fixture.js`, contents: wrapper },
-      ...await Promise.all(["local-auth-worker", "worker", "request-proof", "request-admission", "request-scope"].map(async name => ({
+      ...await Promise.all(["local-auth-worker", "worker", "request-proof", "request-admission", "request-scope", "request-budget"].map(async name => ({
         type: "ESModule", path: `${root}/${name}.js`,
         contents: await readFile(new URL(`../src/${name}.js`, import.meta.url), "utf8"),
       })))], durableObjects: { GROUP: { className: "AuthFixture", useSQLite: true } },
@@ -138,6 +138,32 @@ test("real authenticated append rollback rolls back policy, nonce, clock and cip
     assert.deepEqual(rows.capacity, { version: 1, bytes: 4, entries: 1 });
     assert.equal(rows[`request_nonces:${publicKey}`].records.length, 1);
     assert.equal(rows["e:000000000001"], "AQ==");
+    assert.equal(rows.request_budget.used, 1);
+  } finally { await mf.dispose(); }
+});
+
+test("actual request-budget refusal rolls back nonce and clock without changing history", async () => {
+  const mf = await instrumented();
+  const path = `/g/${group}`;
+  const inspect = async () => (await mf.dispatchFetch(`${origin}${path}`, { headers: { "x-test-control": "inspect" } })).json();
+  const seed = value => mf.dispatchFetch(`${origin}/g/${group}/append`, { method: "POST",
+    headers: { "x-test-control": "seed" }, body: JSON.stringify(value) });
+  try {
+    assert.equal((await mf.dispatchFetch(`${origin}${path}`, await signed(path))).status, 200);
+    await seed({ request_budget: {version: 1, day: Math.floor(Date.now() / 86_400_000), used: 10_000,
+      devices: [{key: publicKey, used: 10_000}]} });
+    const before = await inspect();
+    const response = await mf.dispatchFetch(`${origin}${path}`, await signed(path));
+    assert.equal(response.status, 429);
+    assert(Number(response.headers.get("retry-after")) >= 1);
+    assert(Number(response.headers.get("retry-after")) <= 86_400);
+    assert.deepEqual(await inspect(), before, "A budget refusal cannot consume the nonce or move the clock");
+    await seed({ request_budget: {version: 1, day: Math.floor(Date.now() / 86_400_000) - 1,
+      used: 10_000, devices: [{key: publicKey, used: 10_000}]} });
+    assert.equal((await mf.dispatchFetch(`${origin}${path}`, await signed(path))).status, 200);
+    const reset = Object.fromEntries(await inspect()).request_budget;
+    assert.equal(reset.used, 1);
+    assert.deepEqual(reset.devices, [{key: publicKey, used: 1}]);
   } finally { await mf.dispose(); }
 });
 
