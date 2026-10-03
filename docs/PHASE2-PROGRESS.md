@@ -718,3 +718,57 @@ fresh-key recovery/removal and frozen EUR/JPY rates. It does not simulate the
 new interrupted-page case in the browser or enable signed app networking.
 Logs: `app/.dart_tool/paged-backfill-web-build.log` and
 `app/.dart_tool/paged-backfill-web-household.log`. No new mobile/iOS claim.
+
+## Public request-proof app API (2026-10-03)
+
+`household_sign_relay_request` now invokes the protected peer signer and returns
+only public key, fresh random nonce, signed-64-bit expiry and signature. Negative
+expiry and values above the crypto layer's JS-safe ceiling are rejected. No
+ledger/MLS state changes, network request or server authorization is performed.
+The pinned FRB bindings were regenerated; the new content hash is `-155377132`,
+so old native/WASM binaries are not interchangeable with these bindings.
+
+Two test-first Rust API checks failed before implementation, then passed along
+with all 66 API tests (0.73s runtime). Strict API/all-target Clippy passes
+(17.68s); Dart analysis has no issues (4.9s). The rebuilt native library directly
+passes 21 focused bridge/proof/encrypted-backfill/receipt checks, followed by all
+346 native-enabled Flutter tests in 2m07s. The first proof bridge test incorrectly
+expected a Dart Exception type; FRB returns the Rust String error as a thrown
+string. The corrected test checks both exact refusal messages and unchanged
+saved bytes, not a broader catch-all. Commands use cached pinned tools:
+`cargo test --manifest-path rust/Cargo.toml -p rust_lib_cash_app --locked --offline
+-j 1`, `cargo build --manifest-path rust/Cargo.toml -p rust_lib_cash_app --locked
+--offline -j 1`, then from `app`,
+`RUST_LIB_PATH=<rebuilt native DLL> flutter test --no-pub`.
+Logs: `app/.dart_tool/request-proof-api-full.log` and
+`app/.dart_tool/request-proof-app-full.log`.
+
+The initial default/dev WASM helper build failed because SQLite's C compiler
+was not on PATH; no tool was installed. The production retry explicitly uses
+the existing NDK 28.2 Clang 19.0.1 / llvm-ar, C flags `-matomics -mbulk-memory`,
+and installed pinned nightly Rust 1.100.0 (`6eeff9a52`, 2026-09-23). Prior native
+and WASM bridge artifacts were preserved under ignored `app/.dart_tool` paths.
+Building an artifact is not proof that its signing API runs in the browser;
+web/mobile/iOS and authenticated app transport remain separate gates.
+
+The production Rust/WASM retry succeeds in 3m03s using
+`flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release
+--wasm-pack-rustup-toolchain nightly`, with the verified installed compiler
+paths/flags above. Its known unstable-atomics warning remains visible; it was
+not suppressed or resolved by upgrading. The rebuilt WASM asset is 6,281,876
+bytes; the rebuilt native DLL is 14,902,784 bytes. These are artifact sizes,
+not controlled size deltas versus a baseline or a current mobile build.
+
+`flutter --no-version-check build web --wasm --no-web-resources-cdn --no-pub`
+then succeeds in 145.2s. The actual production Chrome 154 / Node 24.19 household
+run passes against owned loopback workerd with
+`WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_QUOTA=1 WEB_OFFLINE_FONTS=1
+WEB_VIEWPORT=1280x900 node scripts/verify_web_runtime.mjs`. It exercises the new
+bridge ABI's existing ledger/MLS calls, private summaries, sealed restart,
+receipts/no-loop, actual browser quota failure, offline conflict convergence,
+fresh-key recovery/removal and frozen EUR/JPY rates. The HTTP client is still
+unsigned; this scenario does not call the newly added signing method in WASM.
+No authenticated browser-signing, current mobile/iOS or cloud deployment claim
+follows. Logs: `app/.dart_tool/request-proof-web-bridge-release.log`,
+`app/.dart_tool/request-proof-production-web-build.log` and
+`app/.dart_tool/request-proof-production-web-runtime.log`.

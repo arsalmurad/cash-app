@@ -11,7 +11,7 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 cash_core = { path = "../core" }
 cash_crypto = { path = "../crypto" }
-cash_sync = { path = "../sync" }
+cash_sync = { path = "../sync", features = ["relay-auth"] }
 cash_storage = { path = "../storage" }
 flutter_rust_bridge = "=2.13.0"
 
