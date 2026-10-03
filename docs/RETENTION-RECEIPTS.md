@@ -48,24 +48,28 @@ before append, as for existing financial messages. Normal `sync` does not
 automatically generate receipts, so there is no acknowledgement-of-ack loop.
 
 Receipts are checked against the live MLS sender, signature, epoch, cryptographic
-group, relay log ID and processed cursor before entering the RAM-only collection.
+group, relay log ID and processed cursor before entering the collection.
 Malformed/spoofed/future frames do not change financial state or taint confirmed
 receipts. The collector keeps up to two conflicting equal-cursor claims per key,
 rather than silently overwrite them; the cutoff verifier refuses that conflict.
 A later valid higher-cursor receipt replaces the older collection for that key.
 Membership commits/removal clear the collection.
 
-Queued receipts survive a checked v6 peer archive. Archives without queued
-receipts retain v5 encoding; previous signed archives remain readable and
-unsigned archives remain restricted. Old apps must update before handling a v6
-queued archive or participating in receipt collection. V1 receipts lack relay-
+Queued receipts survive a checked v6 peer archive. Archives with collected
+receipts use v7, retaining exact original signed bytes in canonical key order.
+Import rechecks current roster, epoch, group/log, cursor and signatures; bounded
+counts and exact collection round-trip reject duplicates, reordered rows,
+oversized lengths, truncation and trailing bytes. Archives without queued or
+collected receipts retain v5 encoding; previous signed archives remain readable
+and unsigned archives remain restricted. Old apps must update before handling
+v6/v7 archives or participating in receipt collection. V1 receipts lack relay-
 log binding and are refused: recollect v2 rather than infer missing binding.
 No active app caller has been enabled for this new format.
 
-Received collections deliberately are not part of the peer archive yet: after
-restart, recollect explicit receipts or persist them separately in a protected
-store. Do not infer receipts from the saved cursor. This conservative loss of
-availability cannot authorize deletion and remains an app integration gate.
+Received collections are now included in the peer archive, which callers must
+save in protected storage with the private MLS keys. Old archives that lack the
+collection still require explicit recollection: never infer receipts from their
+saved cursor. Core export/import tests do not establish actual app durability.
 
 ## Remaining integration gates
 
@@ -147,3 +151,16 @@ affected verification after the complete-archive guard independently passes:
 No app-platform rebuild/run or actual app-save confirmation is claimed for this
 new core-only exchange. The earlier app/DLL/WASM runtime evidence predates it;
 the bridge does not yet expose or automatically invoke receipt queueing.
+
+## Collection-persistence verification
+
+The first collection restart/signature tests were RED because exported archives
+contained no collected receipt bytes. Checked v7 persistence repairs that;
+three integration tests now pass for byte-identical restart/cutoff/financial
+state, corrupted signatures, downgrade, every collection-truncated prefix,
+count/length overflow, duplicates, row reordering and trailing bytes. The 20-test
+affected persistence/transport/restart/recovery subset passes. All 65 sync tests
+pass with `cargo test --manifest-path rust/Cargo.toml --locked --offline
+-p cash_sync` (1,000-event binary: 123.60 s). Strict HTTP-enabled all-targets
+Clippy also passes (3.81 s). No new app-platform run or actual protected-save
+confirmation is inferred from these core-only checks.

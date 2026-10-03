@@ -15,6 +15,7 @@ use crate::relay::{MailboxItem, Relay, RelayError};
 
 const EXPORT_MAGIC: &[u8] = b"cash-app peer v5\0";
 const RECEIPT_EXPORT_MAGIC: &[u8] = b"cash-app peer v6\0";
+const COLLECTION_EXPORT_MAGIC: &[u8] = b"cash-app peer v7\0";
 const SIGNED_V4_EXPORT_MAGIC: &[u8] = b"cash-app peer v4\0";
 const SIGNED_V3_EXPORT_MAGIC: &[u8] = b"cash-app peer v3\0";
 const SIGNED_V2_EXPORT_MAGIC: &[u8] = b"cash-app peer v2\0";
@@ -196,8 +197,8 @@ pub struct Peer {
     /// The staged commit adds a member (rather than removes one), so
     /// accepting it owes them a history backfill.
     staged_adds_member: bool,
-    /// RAM-only collection: loss on restart blocks planning until recollected.
     /// At most two conflicting same-cursor claims per current signing key.
+    /// Protected archive persistence must include these original signed bytes.
     retention_receipts: BTreeMap<Vec<u8>, Vec<Vec<u8>>>,
 }
 
@@ -234,6 +235,8 @@ impl Peer {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(if self.legacy_unverified {
             LEGACY_EXPORT_MAGIC
+        } else if !self.retention_receipts.is_empty() {
+            COLLECTION_EXPORT_MAGIC
         } else if self
             .outbox
             .iter()
@@ -302,6 +305,13 @@ impl Peer {
                 }
             }
             write_field(&mut bytes, &self.snapshot.checkpoint_bytes());
+            if !self.retention_receipts.is_empty() {
+                let receipts = self.received_retention_receipts();
+                bytes.extend_from_slice(&(receipts.len() as u64).to_be_bytes());
+                for receipt in receipts {
+                    write_field(&mut bytes, &receipt);
+                }
+            }
         }
         Ok(bytes)
     }
@@ -313,7 +323,8 @@ impl Peer {
         let magic = reader.take(EXPORT_MAGIC.len()).ok_or_else(malformed)?;
         let legacy_unverified = if magic == LEGACY_EXPORT_MAGIC {
             true
-        } else if magic == RECEIPT_EXPORT_MAGIC
+        } else if magic == COLLECTION_EXPORT_MAGIC
+            || magic == RECEIPT_EXPORT_MAGIC
             || magic == EXPORT_MAGIC
             || magic == SIGNED_V4_EXPORT_MAGIC
             || magic == SIGNED_V3_EXPORT_MAGIC
@@ -383,7 +394,7 @@ impl Peer {
                     }
                     outbox.push_back(Outbound::Backfill { ids, offset });
                 }
-                2 if magic == RECEIPT_EXPORT_MAGIC => {
+                2 if magic == COLLECTION_EXPORT_MAGIC || magic == RECEIPT_EXPORT_MAGIC => {
                     let bytes = reader.field().ok_or_else(malformed)?;
                     Receipt::decode(bytes)?;
                     outbox.push_back(Outbound::Receipt(bytes.to_vec()));
@@ -393,7 +404,8 @@ impl Peer {
         }
         let member = Member::import(reader.field().ok_or_else(malformed)?)?;
         let mut staged_adds_member = false;
-        let staged_frame = if magic == RECEIPT_EXPORT_MAGIC
+        let staged_frame = if magic == COLLECTION_EXPORT_MAGIC
+            || magic == RECEIPT_EXPORT_MAGIC
             || magic == EXPORT_MAGIC
             || magic == SIGNED_V4_EXPORT_MAGIC
             || magic == SIGNED_V3_EXPORT_MAGIC
@@ -421,7 +433,8 @@ impl Peer {
         } else {
             None
         };
-        let checkpoint = if magic == RECEIPT_EXPORT_MAGIC
+        let checkpoint = if magic == COLLECTION_EXPORT_MAGIC
+            || magic == RECEIPT_EXPORT_MAGIC
             || magic == EXPORT_MAGIC
             || magic == SIGNED_V4_EXPORT_MAGIC
         {
@@ -429,6 +442,19 @@ impl Peer {
         } else {
             None
         };
+        let mut collected = Vec::new();
+        if magic == COLLECTION_EXPORT_MAGIC {
+            let count =
+                usize::try_from(reader.u64().ok_or_else(malformed)?).map_err(|_| malformed())?;
+            if count == 0 || count > member.member_keys()?.len().saturating_mul(2) {
+                return Err(malformed());
+            }
+            for _ in 0..count {
+                let bytes = reader.field().ok_or_else(malformed)?;
+                Receipt::decode(bytes)?;
+                collected.push(bytes.to_vec());
+            }
+        }
         if !reader.bytes.is_empty() {
             return Err(malformed());
         }
@@ -464,7 +490,7 @@ impl Peer {
                 "shared checkpoint does not match authenticated history".to_owned(),
             ));
         }
-        Ok(Self {
+        let mut peer = Self {
             member,
             member_id,
             reporting_currency,
@@ -482,7 +508,15 @@ impl Peer {
             staged_frame,
             staged_adds_member,
             retention_receipts: BTreeMap::new(),
-        })
+        };
+        for bytes in &collected {
+            let receipt = Receipt::decode(bytes)?;
+            peer.remember_receipt(bytes, &receipt.public_key)?;
+        }
+        if peer.received_retention_receipts() != collected {
+            return Err(SyncError("Noncanonical receipt collection.".to_owned()));
+        }
+        Ok(peer)
     }
 
     /// How many local events, backfills, receipts or commits await sending.
@@ -628,8 +662,8 @@ impl Peer {
         Ok(())
     }
 
-    /// RAM-only, signature-checked collection. Persist it separately in a
-    /// protected store or recollect after restart; never infer lost receipts.
+    /// Signature-checked original receipts, included in protected v7 archives.
+    /// Older archives without a collection still require explicit recollection.
     pub fn received_retention_receipts(&self) -> Vec<Vec<u8>> {
         self.retention_receipts
             .values()

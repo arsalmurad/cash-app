@@ -1317,3 +1317,13 @@ negative control pass. The final audit emits WSASend #10053 but exits 0 after
 assertions, not a diagnosed physical-network guarantee. No actual app save hook,
 bridge activation, pruning authority or history deletion is enabled.
 
+## 2026-10-03 — Retain verified acknowledgements in protected peer archives
+
+V7 archives retain original signed receipt collections alongside private MLS
+state rather than discard them on restart or trust a saved cursor as proof.
+Import bounds collection counts against the current roster, rechecks every
+signature/scope and requires canonical collection round-trip. V5/v6 archives
+without collected receipts remain readable but require recollection. This is
+core persistence only: callers still owe a confirmed protected save, and no
+relay deletion or app receipt generation is enabled by the format change.
+
