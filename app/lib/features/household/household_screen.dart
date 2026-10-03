@@ -79,8 +79,8 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
     }
   }
 
-  Future<void> _saveRelay(String url) async {
-    if (!await controller.setRelayUrl(url)) {
+  Future<void> _saveRelay(String url, bool authenticated) async {
+    if (!await controller.setRelayUrl(url, authenticated: authenticated)) {
       _reportFailure('That relay address is not valid');
     }
   }
@@ -526,6 +526,7 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
               else
                 HouseholdSetupPane(
                   relayUrl: controller.relayUrl,
+                  authenticatedRelay: controller.authenticatedRelay,
                   busy: controller.isBusy,
                   onSaveRelay: _saveRelay,
                   onCreate: _create,

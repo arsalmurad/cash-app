@@ -16,12 +16,14 @@ class HouseholdSetupPane extends StatefulWidget {
     this.recoveryOverview,
     this.recoveryJoined = false,
     this.onFinishRecovery,
+    this.authenticatedRelay = false,
     super.key,
   });
 
   final String? relayUrl;
   final bool busy;
-  final Future<void> Function(String url) onSaveRelay;
+  final Future<void> Function(String url, bool authenticated) onSaveRelay;
+  final bool authenticatedRelay;
   final VoidCallback onCreate;
   final VoidCallback onJoin;
   final VoidCallback onRestore;
@@ -34,12 +36,23 @@ class HouseholdSetupPane extends StatefulWidget {
 }
 
 class _HouseholdSetupPaneState extends State<HouseholdSetupPane> {
+  final modeFocus = FocusNode();
+  late bool authenticated = widget.authenticatedRelay;
   late final TextEditingController relayController = TextEditingController(
     text: widget.relayUrl ?? '',
   );
 
   @override
+  void didUpdateWidget(covariant HouseholdSetupPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.authenticatedRelay != widget.authenticatedRelay) {
+      authenticated = widget.authenticatedRelay;
+    }
+  }
+
+  @override
   void dispose() {
+    modeFocus.dispose();
     relayController.dispose();
     super.dispose();
   }
@@ -77,7 +90,7 @@ class _HouseholdSetupPaneState extends State<HouseholdSetupPane> {
         const Text(
           'A household keeps your private ledger private: you publish only '
           'the shared expenses you choose. Everything is end-to-end '
-          'encrypted; the relay that carries it sees only ciphertext.',
+          'encrypted; the relay cannot read your expenses.',
         ),
         const SizedBox(height: 24),
         Text('Relay', style: theme.textTheme.titleMedium),
@@ -95,11 +108,31 @@ class _HouseholdSetupPaneState extends State<HouseholdSetupPane> {
               tooltip: 'Save relay address',
               onPressed: widget.busy
                   ? null
-                  : () => widget.onSaveRelay(relayController.text),
+                  : () =>
+                        widget.onSaveRelay(relayController.text, authenticated),
               icon: const Icon(Icons.check_rounded),
             ),
           ),
         ),
+        SwitchListTile(
+          focusNode: modeFocus,
+          key: const Key('authenticatedRelay'),
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Authenticated relay (development)'),
+          subtitle: const Text(
+            'Requires operator setup. Only approved devices can sync. '
+            'Saving this setting does not register your household.',
+          ),
+          value: authenticated,
+          onChanged: widget.busy
+              ? null
+              : (value) => setState(() => authenticated = value),
+        ),
+        if (!authenticated)
+          const Text(
+            'Legacy development mode: expenses stay encrypted, but relay access '
+            'is not restricted to approved devices.',
+          ),
         const SizedBox(height: 24),
         FilledButton.icon(
           key: const Key('create'),
