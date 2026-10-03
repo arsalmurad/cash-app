@@ -1559,3 +1559,10 @@ Accept exact bounded public metadata and confirm only the expected log slot;
 keep immutable policy, stale-tail and stale-policy results distinct so later
 durable retries cannot mistake malformed replies for acceptance or rejection.
 
+## 2026-10-03 — Keep roster projection behind controller identity ownership
+
+Expose immutable public hex keys through the controller, checking writable
+state and identity both before and after the read-only native call. Do not
+serialize this query behind a sync that may await it, or expose raw private
+handles; lock, disposal or uncertain persistence must discard its result.
+
