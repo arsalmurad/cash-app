@@ -591,6 +591,18 @@ impl Peer {
         self.member.public_key()
     }
 
+    /// Current or staged-post-commit public signing keys for relay permissions.
+    /// This read-only projection neither authorizes server access nor confirms
+    /// the staged commit. Persist/append/acknowledge it through the normal flow.
+    pub fn relay_roster_keys(&self) -> Result<Vec<Vec<u8>>, SyncError> {
+        if !self.is_member() {
+            return Err(SyncError(
+                "no active household for relay permissions".to_owned(),
+            ));
+        }
+        Ok(self.member.relay_roster_keys(self.staged)?)
+    }
+
     fn retention_relay_group(&self) -> Result<[u8; 32], SyncError> {
         let id = self
             .group

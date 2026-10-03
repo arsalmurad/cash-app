@@ -638,3 +638,39 @@ checks skipped (17.82s); log `app/.dart_tool/bounded-membership-relay.log`.
 No routed worker/app/ABI was changed or rebuilt. Trusted bootstrap/current-policy
 routing, actual time integration, app membership retries and deployment gates
 remain open.
+
+## Derive relay keys from the actual staged MLS tree (2026-10-03)
+
+`Peer::relay_roster_keys()` now returns only sorted, unique 32-byte signing
+keys for the current roster or the staged post-commit roster. Its crypto helper
+uses the pinned OpenMLS 0.9.0 pending commit's public tree export, not a cloned
+private archive, a hand-assembled identity list or an early merge of the real
+commit. The API was checked against installed dependency source:
+[StagedCommit public-tree export](https://docs.rs/openmls/0.9.0/src/openmls/group/mls_group/staged_commit.rs.html).
+Member names, financial data and private/encryption keys are not returned.
+Unjoined/inactive peers, missing pending member trees, duplicate/wrong-size
+keys and projections exceeding 64 devices fail closed.
+
+Four test-first core regressions initially fail at the absent method, then pass
+for founded/unjoined peers, exact staged invite/removal projections, unchanged
+byte-identical archives/current rosters, rejected commits and staged restarts.
+Projected keys match both the committed sponsor and welcomed member. Removed
+devices are refused. A real 64-member tree passes; the 65th staged key fails
+before confirmation, remains refused after restart, and rejection restores the
+previous roster without silently truncating it. Initial test-only unnecessary
+mutable bindings were removed rather than suppressing warnings.
+
+All 35 affected sync checks pass with locked/offline `cash_sync --features
+relay-auth` tests `relay_roster`, `relay_request`, `restart`, `steps` and
+`recovery_gap`; log `app/.dart_tool/relay-roster-sync.log`. All 25 crypto
+integration checks pass with `cash_crypto --features relay-auth` tests `group`,
+`recovery` and `relay_request`; log
+`app/.dart_tool/relay-roster-crypto-integration.log`. The initial library-only
+target had zero tests and is not counted as verification. Strict all-targets
+Clippy for both crates with HTTP/relay-auth features passes (7.26s).
+
+This is a read-only Rust capability, not an app bridge or server enrolment
+change. Generated ABI, cached native/WASM artifacts and app defaults are
+unchanged; no current-platform runtime claim follows. App bridge exposure,
+validated policy transport, durable membership/Welcome/retry coordination and
+public deployment remain open.

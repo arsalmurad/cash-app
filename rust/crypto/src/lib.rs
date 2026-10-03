@@ -431,6 +431,47 @@ impl Member {
             .collect())
     }
 
+    /// Sorted public signing keys for relay authorization. A pending projection
+    /// uses OpenMLS's staged public tree without merging the actual commit or
+    /// exporting private state. Names and encryption keys are not returned.
+    pub fn relay_roster_keys(&self, pending: bool) -> Result<Vec<Vec<u8>>, Error> {
+        let group = self.group()?;
+        if !group.is_active() {
+            return Err(Error(
+                "inactive member cannot project relay permissions".to_owned(),
+            ));
+        }
+        let tree = if pending {
+            group
+                .pending_commit()
+                .ok_or_else(|| Error("no pending membership commit".to_owned()))?
+                .export_ratchet_tree(self.provider.crypto(), group.export_ratchet_tree())
+                .map_err(fail)?
+                .ok_or_else(|| Error("pending membership has no member tree".to_owned()))?
+        } else {
+            group.export_ratchet_tree()
+        };
+        let mut keys = Vec::new();
+        for node in tree.nodes() {
+            if let Node::LeafNode(leaf) = node {
+                let key = leaf.signature_key().as_slice();
+                if key.len() != 32 || keys.len() >= 64 {
+                    return Err(Error(
+                        "relay roster exceeds supported signing-key bounds".to_owned(),
+                    ));
+                }
+                keys.push(key.to_vec());
+            }
+        }
+        keys.sort();
+        if keys.is_empty() || keys.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(Error(
+                "relay roster contains missing or duplicate keys".to_owned(),
+            ));
+        }
+        Ok(keys)
+    }
+
     /// Stages a commit adding the holder of `key_package`. The group stays at
     /// its current epoch until [`Self::confirm_commit`].
     pub fn add(&mut self, key_package: &[u8]) -> Result<Invite, Error> {
@@ -620,7 +661,9 @@ pub fn safety_number(key_a: &[u8], key_b: &[u8]) -> String {
     hasher.update((second.len() as u64).to_be_bytes());
     hasher.update(second);
     let hash = hasher.finalize();
-    hash.as_chunks::<5>().0.iter()
+    hash.as_chunks::<5>()
+        .0
+        .iter()
         .take(6)
         .map(|chunk| {
             let value = chunk.iter().fold(0_u64, |accumulator, byte| {
