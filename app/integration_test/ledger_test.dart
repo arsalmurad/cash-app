@@ -6,6 +6,8 @@ import 'package:private_ledger/features/ledger/ledger_controller.dart';
 import 'package:private_ledger/features/ledger/ledger_screen.dart';
 import 'package:private_ledger/main.dart' as app;
 
+import '../test_support/personal_jpy_scenario.dart';
+
 /// Pumps until [finder] matches, up to [timeout]. `pumpAndSettle` returns as
 /// soon as animations stop, which can be before an asynchronous bridge call
 /// (a real Rust call on a real thread) has delivered its result, so an
@@ -552,5 +554,8 @@ void main() {
     expect(find.text('Transaction history'), findsOneWidget);
     expect(find.text('Reporting: USD 92.44'), findsOneWidget);
     expect(find.text('Removed from balances'), findsWidgets);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await runPersonalJpyScenario(tester);
   });
 }

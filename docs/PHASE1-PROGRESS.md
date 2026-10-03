@@ -1447,3 +1447,19 @@ WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 node scripts/verify_web_runtime.mjs`
 passes in Chrome 154.0.8037.58, including recent entries and title search/clear/
 expense/all filters with unchanged SQLite bytes. The preceding failed run is
 not retroactively a pass. This is browser, not physical-device evidence.
+
+## 2026-10-03 — Strengthen personal whole-yen platform acceptance
+
+`personal_jpy_host_test.dart` independently passes through the actual current
+native bridge and default Rust SQLite: 123 JPY at 0.0065 USD/JPY retains its
+80-cent frozen conversion after a later 100 JPY entry at 0.01, and restart
+restores JPY -223 / USD -1.80. Fractional JPY is refused without changing the
+saved event log. This host controller check does not claim UI entry or a device.
+`personal_jpy_scenario.dart` adds corresponding real UI entry/display/restart
+checks to the native personal integration, whose Android result is still pending.
+No money-path implementation changed. The new fixtures pass the pinned analyzer.
+
+An initial duplicate host-widget harness stalled at asynchronous setup and was
+stopped, not recorded as a pass or an app regression. The existing plain
+real-controller/SQLite host pattern now passes; actual UI remains assigned to
+the native integration rather than inferred from that controller test.
