@@ -239,3 +239,37 @@ quotas, authenticated long-backfill behavior at the 256-live-nonce limit,
 recoverable pruning and owner-authorized $0 deployment. One configured local
 namespace bounds this experiment, not all account charges or abuse. No cloud
 job, public route or history deletion was enabled.
+
+## Request counts independent of proof lifetime (2026-10-03)
+
+The local authenticated group path now also enforces 10,000 admitted requests
+per device and 20,000 per configured group per UTC day, independently of nonce
+expiry. It stores an exact-schema version-1 `request_budget` record with at most
+64 sorted public-key counters; the group count must equal their sum. All counters
+are bounded integers. Shortening a proof's lifetime cannot reset these counts.
+Rollover uses the admission transaction's monotonic server-time high-water mark,
+not client time; backwards time, unknown/malformed budget state and extra metadata
+fail closed. An older initialized authenticated object without budget accounting
+requires explicit migration rather than guessing its prior daily usage.
+
+Admission, budget spending and the group operation remain in one transaction.
+Budget refusal throws, rolling back nonce/clock/policy/operation changes, then
+returns 429 with a bounded numeric Retry-After to the next UTC day. Existing
+history stays intact. Replay refusals do not spend budget; ordinary admitted
+append conflicts/capacity responses can spend budget. Fresh empty-object setup
+and a deliberately failed real append roll back budget initialization too.
+
+Three test-first unit checks and an actual SQLite workerd refusal/rollover case
+pass. The final complete `npm test` passes 53 checks and explicitly skips the two
+Rust-fixture cases (55 total, 35.23 s). The dedicated fixture command passes all
+14 Rust/workerd/launcher checks with zero skips (4.61 s), so the skips are not
+interoperability evidence by themselves. Local full log:
+`app/.dart_tool/relay-request-budget-final.log`. No app/Rust implementation or
+platform artifact changed for this isolated experimental-server concern.
+
+These are admitted-operation budgets for one configured local group, not a
+complete rate limiter or account spending guarantee. Unauthenticated/invalid
+requests, preflight traffic, operator setup and future mailboxes/sockets still
+need account-wide abuse controls and verified provider spending limits. Public
+access stays closed, and authenticated long backfills still need durable progress
+across nonce-budget interruptions before app-side integration is enabled.

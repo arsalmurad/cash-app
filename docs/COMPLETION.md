@@ -79,6 +79,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   passes 49 checks with two separately verified fixture skips. This is not
   public/app authentication: roster transitions, mailbox/socket authorization,
   request/account quotas and authorized deployment remain open in `RELAY-AUTH.md`.
+  The experimental group path now also has transaction-local per-device/group
+  daily admitted-request budgets, independent of proof expiry. All 14 dedicated
+  interoperability checks and 53 full-suite checks pass (two separately verified
+  fixture skips). This does not bound anonymous traffic or account spending.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

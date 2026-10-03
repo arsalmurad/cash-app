@@ -1428,3 +1428,12 @@ of proving authentication only against a synthetic counter. Refuse legacy
 adoption or silent policy replacement; dynamic roster/mailbox/socket/app
 integration and free-plan deployment remain separate gates.
 
+## 2026-10-03 — Do not equate nonce capacity with a request quota
+
+A signer controls proof expiry, so bounded live replay records cannot reliably
+limit admitted operations. Add independent bounded per-device/group UTC-day
+counters using monotonic server time in the same operation transaction; refuse
+unknown accounting and roll back admission on quota refusal. These local
+20,000-group/10,000-device budgets do not cover unauthenticated traffic or prove
+an account-wide $0 spending limit.
+
