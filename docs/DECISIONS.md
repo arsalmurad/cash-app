@@ -1348,3 +1348,11 @@ and receipt-based deletion were rejected because offline recovery and authentica
 deletion authority are not established. This is not account-wide abuse control
 or a free-plan spending guarantee; public access stays closed.
 
+## 2026-10-03 — Treat incomplete relay pages as failure, not shared history
+
+Both transport clients require typed tail/continuation metadata, contiguous
+sequences, nondecreasing tails and continuation consistent with actual progress.
+Reject silent gaps, empty continuation loops and rollback instead of accepting
+partial history or inventing a recovery cursor. This does not authorize pruning
+and does not authenticate a relay or bound its HTTP response stream.
+

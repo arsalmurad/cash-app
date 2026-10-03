@@ -16,6 +16,166 @@ http.Response _json(int status, Object body) => http.Response(
 );
 
 void main() {
+  test('invalid pages fail before a retry or partial history is returned', () async {
+    final cases = <Map<String, Object?>>[
+      {'entries': [], 'tail': 1, 'more': true},
+      {'entries': [], 'tail': 1, 'more': false},
+      {'entries': [], 'tail': -1, 'more': false},
+      {'entries': [], 'tail': 0},
+      {'entries': [], 'tail': 0, 'more': 'false'},
+      {
+        'entries': [
+          {'seq': 2, 'blob': 'YQ=='},
+        ],
+        'tail': 2,
+        'more': false,
+      },
+      {
+        'entries': [
+          {'seq': 1, 'blob': 'YQ=='},
+          {'seq': 1, 'blob': 'YQ=='},
+        ],
+        'tail': 1,
+        'more': false,
+      },
+      {
+        'entries': [
+          {'seq': 1, 'blob': 'YQ=='},
+        ],
+        'tail': 0,
+        'more': false,
+      },
+      {
+        'entries': [
+          {'seq': 1, 'blob': 'YQ=='},
+        ],
+        'tail': 2,
+        'more': false,
+      },
+      {
+        'entries': [
+          {'seq': 1, 'blob': 'YQ=='},
+        ],
+        'tail': 1,
+        'more': true,
+      },
+      {
+        'entries': [
+          {'seq': 1, 'blob': ''},
+        ],
+        'tail': 1,
+        'more': false,
+      },
+    ];
+    for (final page in cases) {
+      var requests = 0;
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((_) async {
+          requests++;
+          // Keep the pre-fix failure finite instead of hanging the test runner.
+          return requests == 1 ? _json(200, page) : _json(500, {});
+        }),
+      );
+      await expectLater(
+        client.readAfter(_group, 0),
+        throwsA(isA<RelayUnavailable>()),
+      );
+      expect(
+        requests,
+        1,
+        reason: 'Reject malformed page before following more',
+      );
+    }
+  });
+
+  test(
+    'tail rollback and sequence gaps between valid-looking pages fail',
+    () async {
+      for (final second in [
+        {
+          'entries': [
+            {'seq': 2, 'blob': 'Yg=='},
+          ],
+          'tail': 2,
+          'more': false,
+        },
+        {
+          'entries': [
+            {'seq': 3, 'blob': 'Yg=='},
+          ],
+          'tail': 3,
+          'more': false,
+        },
+      ]) {
+        var requests = 0;
+        final client = HttpRelayClient(
+          'https://relay.example',
+          MockClient((_) async {
+            requests++;
+            return _json(
+              200,
+              requests == 1
+                  ? {
+                      'entries': [
+                        {'seq': 1, 'blob': 'YQ=='},
+                      ],
+                      'tail': 3,
+                      'more': true,
+                    }
+                  : second,
+            );
+          }),
+        );
+        await expectLater(
+          client.readAfter(_group, 0),
+          throwsA(isA<RelayUnavailable>()),
+        );
+        expect(requests, 2);
+      }
+    },
+  );
+
+  test(
+    'valid paging accepts concurrent tail growth without skipping entries',
+    () async {
+      var requests = 0;
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((request) async {
+          requests++;
+          expect(
+            request.url.queryParameters['after'],
+            requests == 1 ? '0' : '1',
+          );
+          return _json(
+            200,
+            requests == 1
+                ? {
+                    'entries': [
+                      {'seq': 1, 'blob': 'YQ=='},
+                    ],
+                    'tail': 2,
+                    'more': true,
+                  }
+                : {
+                    'entries': [
+                      {'seq': 2, 'blob': 'Yg=='},
+                      {'seq': 3, 'blob': 'Yw=='},
+                    ],
+                    'tail': 3,
+                    'more': false,
+                  },
+          );
+        }),
+      );
+      final entries = await client.readAfter(_group, 0);
+      expect(entries.map((entry) => entry.sequence), [1, 2, 3]);
+      expect(entries.map((entry) => entry.blob.single), [97, 98, 99]);
+      expect(requests, 2);
+    },
+  );
+
   test('capacity refusal has safe actionable copy and ignores server text', () async {
     final client = HttpRelayClient(
       'https://relay.example',
