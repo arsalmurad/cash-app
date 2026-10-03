@@ -1490,3 +1490,12 @@ with original ciphertext via real signed appends. Restore app journals and
 exercise actual HTTP/workerd sync rather than extending a mock-only proof test;
 do not mistake this fixed operator trust for dynamic signup or mailbox authority.
 
+## 2026-10-03 — Keep authenticated storage inspection outside shipped routing
+
+Use a test-only authenticated-group subclass and an owning-process stdin/direct
+Durable Object binding to inspect actual SQLite-backed rows. Keep network
+inspection and seeding out of the shipped relay; verify exact allowed metadata,
+opaque-record counts and synthetic financial markers with deliberate leak
+controls rather than treating absence of readable titles on HTTP as a full
+storage audit.
+

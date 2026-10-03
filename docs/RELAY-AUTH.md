@@ -502,3 +502,34 @@ test/household_paged_backfill_host_test.dart test/relay_client_test.dart` — al
 brace-style notice was repaired; the actual HTTP scenario passed before and
 after that formatting repair. No bridge regeneration or platform rebuild was
 needed for this test-only concern.
+
+## Inspect authenticated storage from the native app run (2026-10-03)
+
+The native HTTP test now runs a second case with
+`relay/test/native-app-audit-relay.mjs`. This test-only launcher loads the same
+authenticated group implementation into SQLite-backed workerd and adds an
+inspection method to its fixture subclass. Its owning Node process invokes that
+method through a direct Durable Object binding after a stdin command; the
+externally routed worker does not expose the inspection URL (HTTP 403 is tested).
+Neither the production worker nor the development launcher is changed, and no
+storage seeding is available.
+
+`authenticated-storage-audit.js` inspects every persisted KV row, requires the
+exact trusted operator policy and only the documented fields for ciphertext,
+capacity, public keys, nonce/expiry records, server clock and request budgets.
+It matches all contiguous ciphertext records to the stored tail/byte counts,
+requires a nontrivial log, and scans encoded metadata plus decoded payloads for
+synthetic account/member/transaction/title/balance markers, signed i64 amount
+representations in both byte orders and the durable-receipt marker. Deliberate
+plaintext ciphertext, extra budget amount and nested roster-name injections
+must each make the scanner fail. Legitimate public-key/scope/timing/counter
+metadata remains visible; this is not a claim of metadata anonymity.
+
+Both native HTTP cases pass (16s), including the original unmodified launcher
+case; `app/.dart_tool/authenticated-storage-native.log` records the run.
+Analysis reports no issues (3.2s). The cached relay regression suite passes
+54 tests with three optional Rust-fixture checks skipped, not counted as
+passes (18.86s); log `app/.dart_tool/authenticated-storage-relay-tests.log`.
+No rebuild, install, cloud job or deployment was needed. This strengthens
+authenticated native-group storage evidence, not mailbox storage, raw database
+file forensics, disk/vault persistence, dynamic enrolment or final platforms.
