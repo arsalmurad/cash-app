@@ -1634,3 +1634,12 @@ locked, uncertain-save or non-loopback households. Keep operator acceptance out
 of app networking: an explicit public policy starts the existing local worker,
 not an anonymous registration endpoint or a reset of existing relay authority.
 
+## 2026-10-04 — Retired-device historical catch-up, never current access
+
+Mint bounded seven-day public read cutoffs only when an accepted membership
+transaction removes a previously read-authorized device. Recheck that authority
+and admit proof/nonces/budget in the read transaction, limiting the storage query
+and reported tail to the removal slot. Do not re-grant current policy, Welcome,
+write or post-removal access, and never delete financial history to expire this
+permission. Reserve these grantable keys inside the existing replay-key bound.
+

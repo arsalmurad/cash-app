@@ -248,17 +248,29 @@ void main() {
         headers: {'x-cash-device-proof': oldProof},
       );
       expect(rejected.statusCode, 401);
+      expect(await restarted.append(group, 2, Uint8List.fromList([4])), 3);
+      final retired = await invitee.readAfter(group, 1);
+      expect(retired, hasLength(1));
+      expect(retired.single.sequence, 2);
+      expect(
+        retired.single.blob,
+        removal.blob,
+        reason: 'HTTP delivers the actual MLS removal, never the later slot',
+      );
       await householdIngest(
         household: bob,
         entries: [
-          RelayEntry(sequence: PlatformInt64Util.from(2), blob: removal.blob),
+          RelayEntry(
+            sequence: PlatformInt64Util.from(retired.single.sequence),
+            blob: retired.single.blob,
+          ),
         ],
       );
       await expectLater(
         householdRelayRosterKeys(household: bob),
         throwsA('no active household for relay permissions'),
       );
-      expect(await restarted.readAfter(group, 0), hasLength(2));
+      expect(await restarted.readAfter(group, 0), hasLength(3));
     },
     skip: library == null
         ? 'Requires the rebuilt native bridge and cached relay dependencies'

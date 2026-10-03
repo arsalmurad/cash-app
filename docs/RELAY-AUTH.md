@@ -1056,3 +1056,67 @@ proof/replay/request limits and no post-removal read/append/membership rights.
 Do not bypass the removed-state assertion, re-grant current access, label a 401
 as cryptographic removal, or delete financial history to make this test pass.
 Current native crypto/removal evidence remains distinct from this browser gap.
+
+## 2026-10-04 — Bounded retired-device catch-up repairs browser removal
+
+The accepted membership transaction now maintains at most 64 sorted public
+`retired_readers` records `{key, through, expires}`. Only removed devices that
+previously had read permission qualify. Cutoff is the accepted removal slot;
+expiry is the admitted monotonic server time plus seven days. Unchanged epochs
+do not refresh it; re-add removes the old record. Corruption, duplicate/oversized
+records and capacity refusal fail closed with full ciphertext/policy/nonce/
+budget/authority rollback. No financial history or payload copy is deleted.
+
+Only the exact signed group-history GET path can use this separate authority.
+The current root/policy and live stored cutoff are rechecked inside the same
+SQLite transaction as proof ownership, replay admission and spending. The
+storage-list upper bound and response tail stop at removal, including across
+16-entry page boundaries; current policy/Welcome/append/membership access is
+still denied. Current, retired-grantable and live replay keys share the existing
+128-key reservation bound, so a retired read cannot create an unreserved key
+outside membership accounting. This is historical ciphertext access the device
+had before removal, not a current grant or a substitute for MLS processing.
+
+Three focused authority/admission tests pass; six actual SQLite routing/
+rollback tests pass (4.37s, `app/.dart_tool/retired-routing-rollback.log`). The
+full relay run passes 65 checks with three optional Rust-fixture skips (30.94s,
+`retired-readers-full-relay.log`); a subsequently added real SQLite two-page
+cutoff scenario passes separately (1.20s). All six affected native HTTP cases
+pass serially (19s, `retired-catchup-native-serial.log`). The actual native MLS
+removal is fetched over HTTP while a later stored slot is hidden, then Bob
+processes it and has no active roster. No removal bytes are directly injected
+for that ingestion anymore.
+
+The unchanged production-browser removed-state assertion now passes. Windows
+Chrome 154.0.8037.58, production app built in the preceding entry (app source
+`6e871a0`, ABI `970902974`), isolated profiles and real local SQLite worker:
+
+```powershell
+$env:WEB_HOUSEHOLD='1'
+$env:WEB_HOUSEHOLD_AUTH='1'
+node scripts/verify_web_runtime.mjs
+```
+
+`app/.dart_tool/authenticated-retired-catchup-web-final.log` confirms public
+bootstrap without seeded history, HTTP/CORS join, private-ledger separation,
+default-off selected totals, sealed reload/lock/unlock, offline conflicting
+edits, stale-backup replacement with fresh keys, old-device MLS removal and
+frozen EUR/JPY convergence through `USD -74.67`. Requests expose no readable
+fixture titles, and the final harness refuses any legacy mailbox request.
+This is current authenticated browser runtime evidence, not iOS/Android or a
+new inspection of every persisted roster/retirement/Welcome field.
+
+Earlier parallel native/browser runs hit 15s worker-startup timeouts; a separate
+browser retry left the bootstrap popup open after Escape. The driver now
+dismisses its modal barrier with a real pointer and waits for Shared balance,
+without changing the removal assertion. Passing runs above are independent
+serial checks; failed logs remain under `app/.dart_tool`. Anonymous/account-wide
+spending, sockets, safe peer-snapshot pruning and public/free-plan deployment
+remain separate gates. Default public routing is still closed.
+
+Final native-enabled Flutter acceptance passes all 397 tests (4m01s,
+`app/.dart_tool/retired-catchup-full-app.log`), including the existing actual
+fixed-policy storage audit through the updated dependency fixture. This does
+not inspect the new retired-roster records in a real financial household; that
+separate audit remains open. Final static analysis is clean. No Rust ABI,
+production app source, toolchain or public deployment changed in this concern.

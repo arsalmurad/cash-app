@@ -5,6 +5,7 @@ import { validDevicePolicy, requestOperation } from './request-scope.js';
 import { admitVerifiedDeviceRequest } from './request-admission.js';
 import { spendRequestBudget } from './request-budget.js';
 import { updateInviteAuthorities } from './invite-authority.js';
+import { updateRetiredReaders } from './retired-readers.js';
 
 export class MembershipRefused extends Error {
   constructor(status) { super('membership transition refused'); this.status = status; }
@@ -19,13 +20,13 @@ export function validMembershipPolicy(policy) {
     policy.devices.some(device => device.operations.includes('membership'));
 }
 
-async function boundReplayKeys(txn, nextPolicy, effectiveNow) {
+async function boundReplayKeys(txn, nextPolicy, effectiveNow, retired) {
   const maximum = 128;
   // Bound the storage read itself. Do not scan/adopt an oversized legacy set.
   const stored = await txn.list({ prefix: 'request_nonces:', limit: maximum + 1 });
   if (stored.size > maximum) throw new MembershipRefused(503);
   const active = new Set(nextPolicy.devices.map(device => device.key));
-  const retained = new Set(active);
+  const retained = new Set([...active,...retired.map(record=>record.key)]);
   const expiredRetired = [];
   for (const [name, value] of stored) {
     const key = name.slice('request_nonces:'.length);
@@ -75,7 +76,8 @@ export async function applyMembershipTransition(txn, verified, suppliedBody, now
     admission.reason === 'expired' ? 401 : admission.reason === 'capacity' ? 429 : 403);
   const effectiveNow = await txn.get('request_clock');
   await spendRequestBudget(txn, verified, effectiveNow);
-  await boundReplayKeys(txn, proposal.policy, effectiveNow);
+  const retired=await updateRetiredReaders(txn,current,proposal.policy,sequence,effectiveNow);
+  await boundReplayKeys(txn, proposal.policy, effectiveNow, retired);
   await updateInviteAuthorities(txn, current, proposal.policy, verified.publicKey, sequence, effectiveNow);
   // Retain live revoked replay records and all spent budgets. Only expired
   // retired nonce keys are removed, never ciphertext or current-device state.

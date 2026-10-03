@@ -167,13 +167,20 @@ export class GroupLog {
     return json({ seq: result.seq });
   }
 
-  async read(url, authorize = null) {
+  async read(url, authorize = null, historicalLimit = null) {
     const after = Number(url.searchParams.get("after") ?? "0");
     if (!Number.isSafeInteger(after) || after < 0) {
       return fail(400, "after must be a non-negative integer");
     }
     const read = async storage => {
-      const tail = (await storage.get("tail")) ?? 0;
+      const storedTail = (await storage.get("tail")) ?? 0;
+      // Trusted authorizer sets this limit in the SAME transaction, never the
+      // caller/query. Bound the storage read, not merely its returned values.
+      const cutoff = historicalLimit?.() ?? storedTail;
+      if (!Number.isSafeInteger(cutoff) || cutoff < 0 || cutoff > storedTail) {
+        return fail(503, "invalid historical read limit");
+      }
+      const tail = cutoff;
       if (after >= tail) {
         return json({ entries: [], tail, more: false });
       }

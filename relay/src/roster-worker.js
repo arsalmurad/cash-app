@@ -4,9 +4,10 @@ import { configuredPolicy, boundedBody } from './local-auth-worker.js';
 import { verifyRequestProof, verifiedRequestContext } from './request-proof.js';
 import { requestOperation, inviteRequest } from './request-scope.js';
 import { applyWelcomeRequest, expireWelcomes, WelcomeRefused } from './roster-welcome.js';
-import { admitVerifiedDeviceRequest } from './request-admission.js';
+import { admitVerifiedDeviceRequest, admitRetiredReadRequest } from './request-admission.js';
 import { emptyRequestBudget, spendRequestBudget, RequestBudgetRefused } from './request-budget.js';
 import { validMembershipPolicy, applyMembershipTransition, MembershipRefused } from './request-membership.js';
+import { retiredReader, RetiredReaderRefused } from './retired-readers.js';
 
 const json = (body, status = 200) => Response.json(body, {status});
 const fail = status => json({error:'local roster request refused; history preserved'},status);
@@ -27,7 +28,7 @@ export class RosterGroupLog extends GroupLog {
   async fetch(request) {
     try {return await this.authenticatedFetch(request);}
     catch (error) {
-      const response = fail(error instanceof MembershipRefused || error instanceof RequestBudgetRefused || error instanceof WelcomeRefused ? error.status : 503);
+      const response = fail(error instanceof MembershipRefused || error instanceof RequestBudgetRefused || error instanceof WelcomeRefused || error instanceof RetiredReaderRefused ? error.status : 503);
       if (error instanceof RequestBudgetRefused && error.retryAfter !== null) response.headers.set('retry-after',String(error.retryAfter));
       return response;
     }
@@ -48,12 +49,15 @@ export class RosterGroupLog extends GroupLog {
     // request's desired policy. The transaction rechecks grants after awaits.
     const snapshot = await this.state.storage.get('authorized_devices') ?? root;
     if (!acceptable(snapshot,root)) return fail(503);
-    const device=snapshot.devices.find(device=>device.key===proof?.publicKey);
+    const historical=operation==='read'&&url.pathname===`/g/${root.scope.id}`;
+    const device=snapshot.devices.find(device=>device.key===proof?.publicKey)??
+      (historical ? await retiredReader(this.state.storage,proof?.publicKey,Date.now()) : null);
     if (!device) return fail(401);
     const bytes=await boundedBody(request);
     if (bytes===null) return fail(413);
     const verified=await verifyRequestProof(request,bytes,proof,device.key,Date.now());
     if (!verified) return fail(401);
+    let historicalLimit=null;
     const authorize=async txn => {
       const deny=status=>{throw new MembershipRefused(status);};
       let current=await txn.get('authorized_devices');
@@ -69,10 +73,20 @@ export class RosterGroupLog extends GroupLog {
       }
       if (!acceptable(current,root)) deny(503);
       const actor=current.devices.find(device=>device.key===verified.publicKey);
-      if (!actor || !actor.operations.includes(requestOperation(verifiedRequestContext(verified),current.scope))) deny(403);
+      if (actor) {
+        if(!actor.operations.includes(requestOperation(verifiedRequestContext(verified),current.scope))) deny(403);
+      } else {
+        const retired=historical ? await retiredReader(txn,verified.publicKey,Date.now()) : null;
+        if(!retired) deny(403);
+        const tail=await txn.get('tail');
+        if(!Number.isSafeInteger(tail)||retired.through>tail) deny(503);
+        historicalLimit=retired.through;
+      }
       if (operation==='membership' && !inviteRequest(verifiedRequestContext(verified),current.scope)) return 0; // Commit admission occurs in afterAppend.
-      const admission=await admitVerifiedDeviceRequest(txn,verified,Date.now());
+      const admission=historicalLimit===null ? await admitVerifiedDeviceRequest(txn,verified,Date.now()) :
+        await admitRetiredReadRequest(txn,verified,Date.now());
       if (!admission.ok) deny(admission.reason==='replay' ? 409 : admission.reason==='expired' ? 401 : admission.reason==='capacity' ? 429 : 503);
+      if(historicalLimit!==null) historicalLimit=admission.through;
       await spendRequestBudget(txn,verified,await txn.get('request_clock'));
       return 0;
     };
@@ -89,7 +103,7 @@ export class RosterGroupLog extends GroupLog {
           return denied ? fail(denied) : json({policy:await txn.get('authorized_devices')});
         });
       }
-      return this.read(url,authorize);
+      return this.read(url,authorize,()=>historicalLimit);
     }
     return this.append(new Request(request.url,{method:request.method,headers:request.headers,body:bytes}),authorize,
       operation==='membership' ? txn=>applyMembershipTransition(txn,verified,bytes,Date.now()) : null);
