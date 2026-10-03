@@ -1482,3 +1482,11 @@ the read-only native call completes. Revoke proof access on disposal without
 freeing a Rust handle underneath existing queued borrows; return only bounded
 public metadata, never an archive or a self-registration grant.
 
+## 2026-10-03 — Test authenticated app traffic without inventing enrolment
+
+Prepare synthetic MLS membership through the existing memory fixture, pin the
+known public keys out of band, and populate a fresh loopback authenticated group
+with original ciphertext via real signed appends. Restore app journals and
+exercise actual HTTP/workerd sync rather than extending a mock-only proof test;
+do not mistake this fixed operator trust for dynamic signup or mailbox authority.
+

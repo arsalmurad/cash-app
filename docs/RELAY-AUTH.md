@@ -465,3 +465,40 @@ runtime, actual authenticated HTTP/MLS exchange, trusted registration, dynamic
 roster/mailbox authorization and authorized deployment remain open. The lock
 test manipulates controlled controller lock state; it is not new native
 biometric or vault-UI acceptance.
+
+## Native app exchange over actual authenticated HTTP (2026-10-03)
+
+`app/test/household_authenticated_http_host_test.dart` runs two real native
+controller identities through HTTP sockets to the owned loopback development
+launcher and its authenticated SQLite/workerd group. Membership and the welcome
+are prepared using `MemoryRelayClient`, then the test operator explicitly pins
+those two public keys in the fixed group policy. Original MLS ciphertext is
+appended into fresh authenticated storage using genuine signed HTTP requests;
+no legacy adoption, debug endpoint or request-supplied self-enrolment is used.
+
+Both controllers are restored from saved journals and explicitly supplied with
+the signing callback. Alice produces 18 expenses while Bob is offline, Bob
+backfills across multiple pages and adds one expense, and both agree on
+`USD -20.50`. A further restored Bob agrees too. Idle sync does not append an
+ACK-of-ACK loop. Actual responses reject unsigned/unknown-device requests (401),
+replayed proofs (409) and a changed signed body (401), without advancing history.
+Returned opaque log bytes do not contain the synthetic expense titles. This is
+a wire-content check, not a new direct inspection of every SQLite storage field.
+
+The scoped Windows native test passed in 8 seconds with the cached current DLL,
+Node 24.19.0 and local workerd. It starts only its own loopback process and cleans
+up that process tree. No public deployment or CI run is dispatched. This closes
+the native authenticated HTTP/MLS exchange gap for the fixed pre-trusted policy,
+not trusted dynamic enrolment, invite/mailbox authorization, membership changes,
+real disk/vault persistence or browser/mobile acceptance. Default app transport
+remains unsigned until those enablement gates are resolved.
+
+Verification from `app`: `RUST_LIB_PATH=<cached current native DLL> flutter test
+--no-pub test/household_authenticated_http_host_test.dart
+test/household_request_proof_host_test.dart
+test/household_paged_backfill_host_test.dart test/relay_client_test.dart` — all
+33 tests pass (35s), recorded in `app/.dart_tool/authenticated-http-host.log`.
+`flutter analyze --no-pub` reports no issues (3.2s). An initial analysis-only
+brace-style notice was repaired; the actual HTTP scenario passed before and
+after that formatting repair. No bridge regeneration or platform rebuild was
+needed for this test-only concern.
