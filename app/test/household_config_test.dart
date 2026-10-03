@@ -24,6 +24,70 @@ class _Store implements BlobStore {
 }
 
 void main() {
+  test(
+    'authenticated settings survive restart without constructing requests',
+    () async {
+      final config = _Store();
+      final first = HouseholdController(
+        stateStore: _Store(),
+        configStore: config,
+      );
+      await first.initialize();
+      expect(
+        await first.setRelayUrl('https://relay.test', authenticated: true),
+        isTrue,
+      );
+      expect(first.authenticatedRelay, isTrue);
+      expect(decodeRelaySettings(config.value!).authenticated, isTrue);
+      first.dispose();
+      final restored = HouseholdController(
+        stateStore: _Store(),
+        configStore: config,
+      );
+      addTearDown(restored.dispose);
+      await restored.initialize();
+      expect(restored.authenticatedRelay, isTrue);
+      expect(restored.relayUrl, 'https://relay.test');
+      expect(config.writes, 1);
+    },
+  );
+  test('authenticated mode refuses unsafe origins and ambiguous saved flags', () {
+    for (final address in [
+      'http://relay.test',
+      'https://user@relay.test',
+      'https://relay.test/path',
+      'https://relay.test?x=1',
+      'https://relay.test#x',
+    ]) {
+      expect(
+        () => encodeRelayConfig(address, authenticated: true),
+        throwsFormatException,
+      );
+    }
+    for (final value in ['"true"', '1', 'null']) {
+      expect(
+        () => decodeRelaySettings(
+          Uint8List.fromList(
+            utf8.encode(
+              'cash-app relay config v2\u0000{"relay":"https://relay.test","authenticated":$value}',
+            ),
+          ),
+        ),
+        throwsFormatException,
+      );
+    }
+    expect(
+      decodeRelaySettings(
+        encodeRelayConfig('http://127.0.0.1:8787', authenticated: true),
+      ).authenticated,
+      isTrue,
+    );
+    expect(
+      decodeRelaySettings(encodeRelayConfig('https://relay.test'))
+          .authenticated,
+      isFalse,
+    );
+  });
   for (final address in [
     'https://relay.test',
     'https://relay.test/چائے/🍵',

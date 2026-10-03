@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'invite_codes.dart';
 import 'relay_policy.dart';
+import 'relay_config.dart';
 
 const _magic = 'cash-app household journal v2\u0000';
 const _legacyMagic = 'cash-app household journal v1\u0000';
@@ -20,6 +21,7 @@ class HouseholdJournal {
     this.recoveryState,
     this.membership,
     this.pendingAckRoster = false,
+    this.authenticatedRelay,
   });
   final Uint8List state;
   final String? relayUrl;
@@ -30,6 +32,7 @@ class HouseholdJournal {
   final Uint8List? recoveryState;
   final PendingRelayMembership? membership;
   final bool pendingAckRoster;
+  final bool? authenticatedRelay;
 
   Uint8List encode() => Uint8List.fromList([
     ...utf8.encode(_magic),
@@ -42,6 +45,8 @@ class HouseholdJournal {
         'lastRequest': lastRequest,
         'pendingAck': pendingAck,
         'ackRoster': pendingAckRoster,
+        if (authenticatedRelay != null)
+          'relayAuthenticated': authenticatedRelay,
         'membership': membership?.toJson(),
         'recoveryState': recoveryState == null
             ? null
@@ -74,6 +79,10 @@ class HouseholdJournal {
       final relay = json['relay'] as String?;
       final pendingAck = json['pendingAck'] as String?;
       final ackRoster = json['ackRoster'] ?? false;
+      final authenticated = json['relayAuthenticated'];
+      if (json.containsKey('relayAuthenticated') && authenticated is! bool) {
+        throw const FormatException();
+      }
       if (ackRoster is! bool || (ackRoster && pendingAck == null)) {
         throw const FormatException();
       }
@@ -93,18 +102,26 @@ class HouseholdJournal {
       if (membership != null && relay != membership.policy.origin) {
         throw const FormatException();
       }
+      final pending = json['pending'] == null
+          ? null
+          : PendingInvitation.fromJson(json['pending'] as Map<String, dynamic>);
+      if (authenticated == false &&
+          (membership != null || ackRoster || pending?.recipient != null)) {
+        throw const FormatException();
+      }
+      if (authenticated == true) {
+        if (relay == null) throw const FormatException();
+        RelaySettings(relay, authenticated: true);
+      }
       return HouseholdJournal(
         state: base64.decode(json['state'] as String),
         relayUrl: relay,
-        pending: json['pending'] == null
-            ? null
-            : PendingInvitation.fromJson(
-                json['pending'] as Map<String, dynamic>,
-              ),
+        pending: pending,
         lastCode: json['lastCode'] as String?,
         lastRequest: json['lastRequest'] as String?,
         pendingAck: pendingAck,
         pendingAckRoster: ackRoster,
+        authenticatedRelay: authenticated as bool?,
         membership: membership,
         recoveryState: json['recoveryState'] == null
             ? null
@@ -200,7 +217,14 @@ class PendingInvitation {
   bool committed;
   final String? recipient;
   String get request => base64.encode(keyPackage);
-  String get code => encodeInvite(invite);
+  String get code => encodeInvite(
+    HouseholdInvite(
+      relayUrl: invite.relayUrl,
+      group: invite.group,
+      mailbox: invite.mailbox,
+      authenticated: recipient != null || invite.authenticated,
+    ),
+  );
   bool get expired =>
       DateTime.now().millisecondsSinceEpoch - createdMillis >=
       const Duration(days: 7).inMilliseconds;

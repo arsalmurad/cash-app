@@ -940,3 +940,41 @@ Final analysis is clean (3.2s); the full native-enabled app suite passes all
 scoped join cases and existing fixed-policy HTTP/storage scenarios. Log:
 `app/.dart_tool/scoped-join-full-app.log`. This is native host acceptance, not
 new browser/iOS/Android runtime evidence.
+
+## 2026-10-04 — Persisted protocol and normal-client HTTP acceptance
+
+The default controller can now construct the authenticated client with the
+protected native signer from explicit persisted configuration. Protocol and URL
+save atomically with household keys; standalone v2 configuration supports setup
+before identity creation. Legacy raw/v1 settings stay unsigned. New scoped
+invites carry `authenticated: true`, so an ordinary recipient selects the scoped
+Welcome route without a test factory; damaged protocol flags fail closed.
+Authenticated origins must be canonical HTTPS or loopback development HTTP.
+
+Thirty-six focused configuration, invite, journal and actual HTTP checks pass
+(19s, `app/.dart_tool/relay-settings-default-client.log`). The fifth real HTTP
+scenario uses normal default controllers: only Alice is operator trusted, Bob
+upgrades from legacy settings through the invite, joins, acknowledges, restarts,
+and receives an encrypted shared expense with balance `USD -2.50`. Injected
+network observers are used only in the four controlled failure scenarios.
+Analysis is clean (3.8s). This is native Windows host + owned workerd SQLite
+evidence, not new browser/mobile, OS power-loss, or public enrolment evidence.
+User-facing selection/setup and final cross-platform acceptance remain open.
+
+Saved protocol formats: standalone `cash-app relay config v1\0` remains the
+legacy `{relay}` record; v2 stores exact `{relay, authenticated}` with a boolean
+flag. Protected household journals optionally add `relayAuthenticated`; absent
+old fields remain readable, but explicit null/nonboolean values and false mode
+with scoped membership/Welcome intent are rejected. Older pending signed
+invites retain their recipient binding and emit explicit authenticated codes
+when resumed. Nine journal checks pass on the strict final guard
+(`app/.dart_tool/relay-mode-journal.log`); this covers damaged mode, unsafe origin,
+missing authenticated origin and scoped-intent downgrade refusal.
+
+The frozen settings/journal revision passes all 393 native-enabled Flutter
+tests (3m10s, `app/.dart_tool/relay-settings-final-app.log`). A subsequent isolated
+incoming-invite guard requires scoped capability for an explicit authenticated
+code before any mailbox call; all five actual HTTP scenarios pass again (14s,
+`app/.dart_tool/relay-settings-invite-downgrade.log`) with incompatible-client
+refusal assertions, and final analysis is clean (2.8s). The full suite preceded
+that last one-line guard; the affected protocol suite was rerun afterward.

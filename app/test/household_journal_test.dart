@@ -7,6 +7,63 @@ import 'package:private_ledger/features/household/invite_codes.dart';
 import 'package:private_ledger/features/household/relay_policy.dart';
 
 void main() {
+  test(
+    'authenticated journal mode is strict and cannot downgrade scoped intent',
+    () {
+      final legacy = HouseholdJournal(state: Uint8List.fromList([1])).encode();
+      expect(HouseholdJournal.decode(legacy).authenticatedRelay, isNull);
+      final valid = HouseholdJournal(
+        state: Uint8List.fromList([1]),
+        relayUrl: 'https://relay.test',
+        authenticatedRelay: true,
+      ).encode();
+      expect(HouseholdJournal.decode(valid).authenticatedRelay, isTrue);
+      final encoded = utf8.decode(valid);
+      for (final value in ['null', '1', '"true"']) {
+        expect(
+          () => HouseholdJournal.decode(
+            Uint8List.fromList(
+              utf8.encode(
+                encoded.replaceFirst(
+                  '"relayAuthenticated":true',
+                  '"relayAuthenticated":$value',
+                ),
+              ),
+            ),
+          ),
+          throwsFormatException,
+        );
+      }
+      for (final relay in [
+        null,
+        'http://remote.test',
+        'https://relay.test/path',
+      ]) {
+        expect(
+          () => HouseholdJournal.decode(
+            HouseholdJournal(
+              state: Uint8List.fromList([1]),
+              relayUrl: relay,
+              authenticatedRelay: true,
+            ).encode(),
+          ),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => HouseholdJournal.decode(
+          HouseholdJournal(
+            state: Uint8List.fromList([1]),
+            relayUrl: 'https://relay.test',
+            authenticatedRelay: false,
+            pendingAckRoster: true,
+            pendingAck: 'fedcba9876543210fedcba9876543210',
+          ).encode(),
+        ),
+        throwsFormatException,
+      );
+    },
+  );
   RelayAuthorizationPolicy policy() => RelayAuthorizationPolicy.fromJson(
     {
       'version': 2,

@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:private_ledger/features/household/invite_codes.dart';
@@ -49,6 +50,27 @@ void main() {
       expect(decoded.relayUrl, invite.relayUrl);
       expect(decoded.group, invite.group);
       expect(decoded.mailbox, invite.mailbox);
+      expect(decoded.authenticated, isFalse);
+    });
+    test('explicit authenticated invites preserve protocol and reject malformed flags', () {
+      final scoped = HouseholdInvite(
+        relayUrl: invite.relayUrl,
+        group: invite.group,
+        mailbox: invite.mailbox,
+        authenticated: true,
+      );
+      expect(decodeInvite(encodeInvite(scoped)).authenticated, isTrue);
+      for (final flag in ['true', 1, null]) {
+        final value = {
+          'relay': invite.relayUrl,
+          'group': invite.group,
+          'mailbox': invite.mailbox,
+          'authenticated': flag,
+        };
+        final code =
+            'cashinv1:${base64Url.encode(utf8.encode(jsonEncode(value))).replaceAll('=', '')}';
+        expect(() => decodeInvite(code), throwsFormatException);
+      }
     });
 
     test('rejects damaged, incomplete, and wrong-kind codes', () {
@@ -87,10 +109,15 @@ void main() {
 
   group('backup', () {
     test('round-trips sealed bytes, forgiving wrapping', () {
-      final sealed = Uint8List.fromList(List.generate(500, (i) => (i * 7) % 256));
+      final sealed = Uint8List.fromList(
+        List.generate(500, (i) => (i * 7) % 256),
+      );
       final code = encodeBackup(sealed);
       expect(code, startsWith('cashbk1:'));
-      final wrapped = code.replaceAllMapped(RegExp(r'.{60}'), (m) => '${m[0]}\n');
+      final wrapped = code.replaceAllMapped(
+        RegExp(r'.{60}'),
+        (m) => '${m[0]}\n',
+      );
       expect(decodeBackup(wrapped), sealed);
     });
 
