@@ -90,8 +90,7 @@ test("request payload uses the documented big-endian length-framed byte layout",
   assert.equal(hex(encodeRequestProofPayload(fields)), expected);
 });
 
-test("actual workerd verifies the Node-signed request and rejects body substitution", async () => {
-  const { proof } = await fixture();
+async function verifyInWorkerd(proof) {
   const root = fileURLToPath(new URL("./", import.meta.url));
   const mf = new Miniflare({
     modulesRoot: root,
@@ -115,4 +114,15 @@ test("actual workerd verifies the Node-signed request and rejects body substitut
     assert.equal((await mf.dispatchFetch(origin + path, init)).status, 200);
     assert.equal((await mf.dispatchFetch(origin + path, { ...init, body: new Uint8Array([...body, 32]) })).status, 401);
   } finally { await mf.dispose(); }
+}
+
+test("actual workerd verifies the Node-signed request and rejects body substitution", async () => {
+  await verifyInWorkerd((await fixture()).proof);
+});
+
+test("actual workerd verifies the Rust device identity signer", {
+  skip: !process.env.RUST_RELAY_PROOF_FIXTURE,
+}, async () => {
+  const proof = JSON.parse(process.env.RUST_RELAY_PROOF_FIXTURE);
+  await verifyInWorkerd(proof);
 });

@@ -1375,3 +1375,12 @@ self-signature-as-permission were rejected because neither establishes a
 revocable current device roster. Verification deliberately does not deduplicate
 replays; `RELAY-AUTH.md` records that open integration boundary.
 
+## 2026-10-03 — Keep relay request signing separate from MLS state changes
+
+An explicit crypto feature signs domain-separated request bytes with the existing
+opaque device identity, including unjoined devices, without exporting keys or
+advancing a group ratchet. Reuse the exact cached URL parser version instead of
+hand-rolling canonical origins/paths. Default app builds do not enable the
+feature until trusted authorization/replay handling and app integration are
+verified; host-to-workerd interoperability is not OS-key or mobile evidence.
+
