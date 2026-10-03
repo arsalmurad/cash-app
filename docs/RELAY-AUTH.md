@@ -122,8 +122,6 @@ required and passes in `test:request-proof-rust`; the skip is not a claim that
 interoperability ran during the Node-only suite. No production worker/app source
 is activated by the new admission module.
 
-### Open integration gates
-
 ### Scoped per-device policy refinement
 
 The subsequent admission policy is version 2: `{version, epoch, scope, devices}`.
@@ -149,6 +147,12 @@ skipped. Production routes remain unchanged/default-public closed; real grant
 issuance, group creation, membership semantics, pruning certificates and app
 integration are still open. No new platform rebuild was required for unused
 server-side primitives.
+
+The full local Node suite subsequently passes 44 checks and explicitly skips
+its one optional Rust fixture (45 total, 54.43 seconds while the full app suite
+also ran). The separate Rust-fixture command has already passed seven checks
+with zero skips at this same scoped-policy source. No cloud job or deployment
+was started.
 
 ### Remaining production integration
 

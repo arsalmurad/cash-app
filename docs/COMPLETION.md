@@ -70,6 +70,9 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   The full relay suite passes 39 checks plus one explicit Rust-fixture skip;
   that fixture independently passes all seven dedicated interoperability checks.
   Neither primitive is wired into public/app authorization yet.
+  Exact namespace/operation grants now pass the full local relay suite: 44
+  checks plus its explicit Rust-fixture skip (45 total). Dedicated Rust
+  interoperability remains separately verified, not inferred from that skip.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
@@ -97,6 +100,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   restart and signed backfill. Final-source iOS/platform acceptance remains a
   separate gate. Mixed-version live support is not negotiated; all household
   devices must update before summaries are published.
+  Confirmed local household writes now distinguish failed delivery from an
+  uncertain save, without automatically reopening/repeating the expense form.
+  All 331 native-enabled host app tests pass after this change; platform limits
+  and exact commands are in `PHASE2-PROGRESS.md`.
   The explicit browser lock/reload regression passes at `d004ad9`, along
   with all 283 native-enabled host tests. The complete combined personal/CSV/
   quota/household browser runtime subsequently passes on production `43871c4`

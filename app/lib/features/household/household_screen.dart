@@ -247,9 +247,7 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
       accountId: expense.accountId,
       rate: rate.value,
     )) {
-      _reportFailure(
-        "Couldn't send the expense yet. It is saved and will send.",
-      );
+      _reportFailure('Could not finish saving and sending the expense.');
     }
   }
 
@@ -370,15 +368,13 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
       amount,
       rate: rate.value,
     )) {
-      _reportFailure(
-        "Couldn't send the change yet. It is saved and will send.",
-      );
+      _reportFailure('Could not finish saving and sending the change.');
     }
   }
 
   Future<void> _void(SharedTransactionView transaction) async {
     if (!await controller.voidTransaction(transaction.id)) {
-      _reportFailure("Couldn't send the void yet. It is saved and will send.");
+      _reportFailure('Could not finish saving and sending the void.');
     }
   }
 

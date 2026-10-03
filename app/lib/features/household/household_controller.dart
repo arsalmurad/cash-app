@@ -803,7 +803,15 @@ class HouseholdController extends ChangeNotifier {
     await write();
     await _persist();
     await _refresh();
-    await _sync();
+    try {
+      await _sync();
+    } on RelayUnavailable catch (error) {
+      // Only a confirmed local write followed by a network failure gets this
+      // reassurance. _sync's final save must also have succeeded; uncertain
+      // storage still disables writes and reports the restart warning.
+      if (_writesDisabled) rethrow;
+      throw _SavedChangePending(error);
+    }
   });
 
   // --- Sync -------------------------------------------------------------
@@ -984,4 +992,16 @@ class HouseholdController extends ChangeNotifier {
       return null;
     }
   });
+}
+
+/// Keeps a failed send distinct from an unsaved mutation without changing the
+/// existing false result (which means the whole save-and-send did not finish).
+class _SavedChangePending extends RelayUnavailable {
+  _SavedChangePending(this.cause) : super(cause.message);
+
+  final RelayUnavailable cause;
+
+  @override
+  String toString() =>
+      'Saved on this device. Do not repeat this change. ${cause.toString()}';
 }
