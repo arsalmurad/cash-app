@@ -61,6 +61,10 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   records or 64 MiB encoded ciphertext; full-volume paged backfill and exact
   real-peer storage accounting pass. `RELAY-CAPACITY.md` records legacy-log
   write refusal and remaining account-wide/authentication/deployment limits.
+  `RELAY-AUTH.md` now records a separately tested request-proof primitive, with
+  Node-to-workerd signatures and 33 relay tests passing. It is not imported by
+  production routing and does not implement trusted registration, replay
+  admission or permission to expose the relay publicly.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
