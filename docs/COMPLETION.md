@@ -89,6 +89,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   regressions. `PHASE2-PROGRESS.md` and `RELAY-AUTH.md` distinguish mocked HTTP
   interruption from a real authenticated nonce-limit run; signed app networking
   and the deployment gate remain open.
+  A subsequent actual SQLite/workerd read regression verifies 320-entry
+  resumption after nonce-table refusal and real-time expiry, with unchanged
+  history and live-proof replay rejection. The full relay suite passes 54
+  checks with two separately verified skips; all 15 dedicated interoperability
+  checks pass. Fixture-seeded replay rows and opaque sample entries are not
+  evidence of combined app-signed MLS networking.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

@@ -167,6 +167,66 @@ test("actual request-budget refusal rolls back nonce and clock without changing 
   } finally { await mf.dispose(); }
 });
 
+test("authenticated paged reads resume after nonce capacity without evicting history or live proofs", async () => {
+  const mf = await instrumented();
+  const path = `/g/${group}`;
+  const inspect = async () => (await mf.dispatchFetch(`${origin}${path}`, {
+    headers: { "x-test-control": "inspect" },
+  })).json();
+  try {
+    assert.equal((await mf.dispatchFetch(`${origin}${path}`, await signed(path))).status, 200);
+    // Test-only storage controls populate opaque sample entries and a nearly
+    // full replay table. Production routing has no seed/inspection endpoint.
+    const expires = Date.now() + 2000;
+    const entries = Object.fromEntries(Array.from({ length: 320 }, (_, index) =>
+      [`e:${String(index + 1).padStart(12, "0")}`, "AQ=="]));
+    const records = Array.from({ length: 255 }, (_, index) => ({
+      nonce: `ff${index.toString(16).padStart(62, "0")}`, expires,
+    }));
+    assert.equal((await mf.dispatchFetch(`${origin}${path}/append`, {
+      method: "POST", headers: { "x-test-control": "seed" },
+      body: JSON.stringify({ ...entries, tail: 320,
+        capacity: { version: 1, bytes: 1280, entries: 320 },
+        [`request_nonces:${publicKey}`]: { version: 1, records } }),
+    })).status, 200);
+    const firstPath = `${path}?after=0`;
+    const firstProof = await signed(firstPath);
+    const first = await mf.dispatchFetch(`${origin}${firstPath}`, firstProof);
+    assert.equal(first.status, 200);
+    const page = await first.json();
+    assert.equal(page.entries.length, 16);
+    assert.equal(page.more, true);
+    let cursor = page.entries.at(-1).seq;
+    const confirmed = page.entries.map(entry => entry.seq);
+    const before = await inspect();
+    const blockedPath = `${path}?after=${cursor}`;
+    assert.equal((await mf.dispatchFetch(`${origin}${blockedPath}`, await signed(blockedPath))).status, 429);
+    assert.deepEqual(await inspect(), before, "Nonce refusal preserves history, budget and clock");
+    // Wait only for the seeded short-lived records. The first page's real
+    // request proof remains live and must still be rejected as a replay.
+    await new Promise(resolve => setTimeout(resolve, Math.max(0, expires - Date.now() + 30)));
+    assert.equal((await mf.dispatchFetch(`${origin}${firstPath}`, firstProof)).status, 409);
+    while (cursor < 320) {
+      const nextPath = `${path}?after=${cursor}`;
+      const response = await mf.dispatchFetch(`${origin}${nextPath}`, await signed(nextPath));
+      assert.equal(response.status, 200);
+      const next = await response.json();
+      assert.equal(next.tail, 320);
+      assert(next.entries.length > 0 && next.entries.length <= 16);
+      confirmed.push(...next.entries.map(entry => entry.seq));
+      cursor = next.entries.at(-1).seq;
+      assert.equal(next.more, cursor < 320);
+    }
+    assert.deepEqual(confirmed, Array.from({ length: 320 }, (_, index) => index + 1));
+    const rows = Object.fromEntries(await inspect());
+    for (const [key, value] of Object.entries(entries)) assert.equal(rows[key], value);
+    assert.equal(rows.tail, 320);
+    assert.deepEqual(rows.capacity, { version: 1, bytes: 1280, entries: 320 });
+    assert.equal(rows.request_budget.used, 21, "Only bootstrap and successful pages spend request budget");
+    assert.equal(rows[`request_nonces:${publicKey}`].records.length, 20);
+  } finally { await mf.dispose(); }
+});
+
 test("local auth cannot adopt legacy history or replace changed stored policy", async () => {
   const mf = await instrumented();
   const path = `/g/${group}/append`;
