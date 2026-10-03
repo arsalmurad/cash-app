@@ -270,6 +270,11 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   clients, encrypted expenses, a removed member and a replacement invitation.
   Exact schema and deliberate plaintext/binary/missing-record controls pass;
   scope and reproducible commands are recorded in `RELAY-AUTH.md`.
+  Current source/bridge ABI `970902974` also passes the Android household and
+  personal-ledger integration journeys on the owned API 36 x86_64 emulator.
+  `PHASE2-PROGRESS.md` records build/runtime evidence, full-disk/missing-kernel
+  failures and the successful retry. Android authenticated HTTP, release APK
+  and current iOS remain distinct unverified gates.
 - [ ] Finish concise setup, recovery, security-limit and verification docs, with
   all deliverable source and evidence synchronized to private GitHub `main`.
 

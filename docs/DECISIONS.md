@@ -1651,3 +1651,11 @@ exact public metadata schemas and known plaintext/binary financial markers;
 negative controls operate on copies, never on the real ledger. This is scoped
 storage evidence, not a raw-file forensic audit or a formal encryption proof.
 
+## 2026-10-04 — Preserve generated Android/Flutter caches off the full system disk
+
+Move only validated, inactive generated app output and Flutter build-cache trees
+intact to D:, retaining their original local paths through ignored junctions.
+Reject broad cache deletion or toolchain upgrades: the full-disk build omitted
+the packaged Dart kernel, and a complete regenerated APK passed the unchanged
+ledger test with the normal Flutter debug-service layer.
+
