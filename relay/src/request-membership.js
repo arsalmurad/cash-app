@@ -18,6 +18,34 @@ function policyShape(policy) {
     policy.devices.some(device => device.operations.includes('membership'));
 }
 
+async function boundReplayKeys(txn, nextPolicy, effectiveNow) {
+  const maximum = 128;
+  // Bound the storage read itself. Do not scan/adopt an oversized legacy set.
+  const stored = await txn.list({ prefix: 'request_nonces:', limit: maximum + 1 });
+  if (stored.size > maximum) throw new MembershipRefused(503);
+  const active = new Set(nextPolicy.devices.map(device => device.key));
+  const retained = new Set(active);
+  const expiredRetired = [];
+  for (const [name, value] of stored) {
+    const key = name.slice('request_nonces:'.length);
+    if (!/^[0-9a-f]{64}$/.test(key) || !exact(value, ['version', 'records']) ||
+        value.version !== 1 || !Array.isArray(value.records) || value.records.length > 256 ||
+        value.records.some((record, index) => !exact(record, ['nonce', 'expires']) ||
+          typeof record.nonce !== 'string' || !/^[0-9a-f]{64}$/.test(record.nonce) ||
+          !Number.isSafeInteger(record.expires) || record.expires < 0 ||
+          (index > 0 && record.nonce <= value.records[index - 1].nonce))) {
+      throw new MembershipRefused(503);
+    }
+    if (!active.has(key) && value.records.every(record => record.expires <= effectiveNow)) {
+      expiredRetired.push(name);
+    } else {
+      retained.add(key);
+    }
+  }
+  if (retained.size > maximum) throw new MembershipRefused(429);
+  for (const name of expiredRetired) await txn.delete(name);
+}
+
 export async function applyMembershipTransition(txn, verified, suppliedBody, now) {
   const refuse = status => { throw new MembershipRefused(status); };
   const context = verifiedRequestContext(verified);
@@ -44,8 +72,11 @@ export async function applyMembershipTransition(txn, verified, suppliedBody, now
   const admission = await admitVerifiedDeviceRequest(txn, verified, now);
   if (!admission.ok) refuse(admission.reason === 'replay' ? 409 :
     admission.reason === 'expired' ? 401 : admission.reason === 'capacity' ? 429 : 403);
-  await spendRequestBudget(txn, verified, await txn.get('request_clock'));
-  // Keep old replay records and spent budgets: remove/re-add must not reset them.
+  const effectiveNow = await txn.get('request_clock');
+  await spendRequestBudget(txn, verified, effectiveNow);
+  await boundReplayKeys(txn, proposal.policy, effectiveNow);
+  // Retain live revoked replay records and all spent budgets. Only expired
+  // retired nonce keys are removed, never ciphertext or current-device state.
   await txn.put('authorized_devices', proposal.policy);
   return sequence;
 }

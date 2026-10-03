@@ -101,5 +101,44 @@ test('SQLite membership transition binds ciphertext, current grant, epoch and re
     rows = Object.fromEntries(afterRemoval);
     assert.equal(rows.request_budget.used,2);
     assert.equal(rows[`request_nonces:${identities[0].key}`].records.length,2,'revocation must not erase replay records');
+    // 128 retained keys is a hard inventory bound, not permission to evict a
+    // recently removed device's replay records when adding another key.
+    const retired = Array.from({length:126}, (_, index) => `ff${index.toString(16).padStart(62,'0')}`);
+    await seed(Object.fromEntries(retired.map(key => [`request_nonces:${key}`, {
+      version:1,records:[{nonce:'01'.repeat(32),expires:now+10000}],
+    }])));
+    // Account for the current device even if it has not issued a request yet.
+    await seed({[`request_nonces:${identities[1].key}`]:{version:1,records:[]}});
+    const full = await inspect();
+    const added = {...removed,epoch:3,devices:[
+      ...removed.devices,{key:'fe'.repeat(32),operations},
+    ].sort((a,b) => a.key.localeCompare(b.key))};
+    const churnRequest = await signed({expected_tail:2,blob:'Aw==',policy:added},identities[1]);
+    assert.equal((await mf.dispatchFetch(url,churnRequest)).status,429);
+    assert.deepEqual(await inspect(),full,'live-key capacity refusal must roll back all writes');
+    // Server's admitted monotonic floor, not a rolled-back wall clock, decides
+    // expiry. The retired rows still expire in the future relative to `now`.
+    await seed({request_clock:now+10001});
+    const beforeCleanup = await inspect();
+    assert.equal((await mf.dispatchFetch(url,{...churnRequest,headers:{...churnRequest.headers,'x-control':'fault'}})).status,503);
+    assert.deepEqual(await inspect(),beforeCleanup,'failed commit must also roll back expired-key deletion');
+    assert.equal((await mf.dispatchFetch(url,churnRequest)).status,200,'refused nonce remains retryable once retired records expire');
+    rows = Object.fromEntries(await inspect());
+    assert(retired.every(key => !(`request_nonces:${key}` in rows)));
+    assert.equal(rows[`request_nonces:${identities[0].key}`].records.length,2,'unexpired revoked replay records must remain');
+    assert.equal(rows.request_budget.used,3,'membership churn must not reset spending');
+    const fourth = await signed({expected_tail:3,blob:'BA==',policy:{...added,epoch:4}},identities[1]);
+    const corruptKey = `request_nonces:${'fc'.repeat(32)}`;
+    await seed({[corruptKey]:{version:1,records:[{nonce:'01'.repeat(32),expires:-1}]}});
+    const corrupt = await inspect();
+    assert.equal((await mf.dispatchFetch(url,fourth)).status,503);
+    assert.deepEqual(await inspect(),corrupt,'corrupt retired state must not be silently discarded');
+    await seed({[corruptKey]:{version:1,records:[]}});
+    await seed(Object.fromEntries(Array.from({length:128}, (_, index) => [
+      `request_nonces:fd${index.toString(16).padStart(62,'0')}`,{version:1,records:[]},
+    ])));
+    const oversized = await inspect();
+    assert.equal((await mf.dispatchFetch(url,fourth)).status,503);
+    assert.deepEqual(await inspect(),oversized,'oversized legacy inventory needs explicit migration, not an unbounded scan');
   } finally {await mf.dispose();}
 });

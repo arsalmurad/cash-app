@@ -142,6 +142,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   revocation and malformed-policy checks pass; 55 relay checks and both real
   native HTTP/storage cases pass. Trusted routing, bounded retired-key replay
   state and app commit/Welcome retries remain required before enablement.
+  Retired replay-key storage is now bounded inside that primitive: at most 128
+  current/reserved/live-retired keys, bounded 129-row legacy detection, no live
+  eviction, monotonic expiry and transactional cleanup rollback. Test-first
+  real SQLite capacity/retry/corrupt-state checks pass in the 55-check relay
+  suite; three optional checks are skipped. The primitive is still unrouted;
+  trusted bootstrap/current-policy routing and app retry integration remain open.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

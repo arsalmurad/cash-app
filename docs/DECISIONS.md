@@ -1515,3 +1515,12 @@ scope and sequential authorization epoch, retain replay/budget history, and
 roll back every write on failure. Keep it unrouted until trusted bootstrap,
 bounded retired-key state and app retries are integrated; it cannot inspect MLS.
 
+## 2026-10-03 — Refuse membership churn before evicting live replay protection
+
+Reserve replay-key slots for the proposed roster and keep recently retired keys
+until all their records expire at the monotonic admission clock. Read at most
+129 rows, cap retained/reserved keys at 128, and refuse oversized or corrupt
+legacy state rather than scan or silently discard it. Delete only expired
+retired nonce metadata in the membership transaction, retaining spent budgets
+and rolling cleanup back with the ciphertext commit on any failure.
+
