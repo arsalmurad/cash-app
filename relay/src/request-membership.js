@@ -10,7 +10,7 @@ export class MembershipRefused extends Error {
 }
 const exact = (value, fields) => value && typeof value === 'object' && !Array.isArray(value) &&
   JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...fields].sort());
-function policyShape(policy) {
+export function validMembershipPolicy(policy) {
   return validDevicePolicy(policy) && exact(policy, ['version', 'epoch', 'scope', 'devices']) &&
     exact(policy.scope, ['origin', 'kind', 'id']) && policy.scope.kind === 'g' &&
     policy.devices.every(device => exact(device, ['key', 'operations']) &&
@@ -60,9 +60,9 @@ export async function applyMembershipTransition(txn, verified, suppliedBody, now
   catch { refuse(400); }
   if (!exact(proposal, ['expected_tail', 'blob', 'policy']) ||
       !Number.isSafeInteger(proposal.expected_tail) || proposal.expected_tail < 0 ||
-      proposal.expected_tail >= Number.MAX_SAFE_INTEGER || !policyShape(proposal.policy)) refuse(400);
+      proposal.expected_tail >= Number.MAX_SAFE_INTEGER || !validMembershipPolicy(proposal.policy)) refuse(400);
   const current = await txn.get('authorized_devices');
-  if (!policyShape(current)) refuse(503);
+  if (!validMembershipPolicy(current)) refuse(503);
   if (requestOperation(context, current.scope) !== 'membership') refuse(403);
   if (['origin', 'kind', 'id'].some(field => proposal.policy.scope[field] !== current.scope[field]) ||
       current.epoch >= Number.MAX_SAFE_INTEGER || proposal.policy.epoch !== current.epoch + 1) refuse(409);

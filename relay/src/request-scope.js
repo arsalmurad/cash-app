@@ -25,6 +25,8 @@ export function validDevicePolicy(policy) {
 export function requestOperation(context, scope) {
   if (!context || context.origin !== scope.origin) return null;
   const prefix = `/${scope.kind}/${scope.id}`;
+  if (scope.kind === "g" && context.method === "GET" &&
+      context.path === `${prefix}/policy` && !context.query) return "read";
   if (scope.kind === "g" && context.method === "GET" && context.path === prefix) {
     if (context.query) {
       const params = new URLSearchParams(context.query);

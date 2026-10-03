@@ -65,6 +65,14 @@ native HTTP networking setup is a separate check, not a deployed-relay claim.
 Do not place financial data or
 credentials in test fixtures.
 
+Experimental local roster routing is opt-in: set `LOCAL_AUTH_MEMBERSHIP=true`
+and `LOCAL_AUTH_POLICY` to a strict operator-trusted public-key group policy
+before `npm run dev`. Its origin must exactly match the loopback address/port,
+and at least one trusted device needs the `membership` grant. It refuses existing
+fixed-policy/legacy storage without its immutable bootstrap root. See
+[relay authorization limits](docs/RELAY-AUTH.md); this mode is not public signup
+or app-level invite/recovery integration, and must not be exposed publicly.
+
 For production WASM, follow the existing pinned web workflow to build the Rust
 bridge first, then `flutter build web --wasm --no-web-resources-cdn --no-pub`.
 On Windows, `scripts\build_web_bridge.cmd -CheckOnly` verifies the existing
