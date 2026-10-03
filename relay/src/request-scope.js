@@ -38,6 +38,8 @@ export function requestOperation(context, scope) {
   }
   if (context.query) return null;
   if (scope.kind === "g") {
+    const invitation = inviteRequest(context, scope);
+    if (invitation) return invitation.action === 'put' ? 'membership' : 'read';
     if (context.method === "GET" && context.path === `${prefix}/ws`) return "ws";
     if (context.method === "POST") {
       for (const operation of ["append", "membership", "prune"]) {
@@ -53,5 +55,19 @@ export function requestOperation(context, scope) {
       }
     }
   }
+  return null;
+}
+
+// Group-scoped, proof-bound routes; there is no consume-before-save operation.
+export function inviteRequest(context, scope) {
+  if (!context || scope.kind !== 'g' || context.origin !== scope.origin || context.query) return null;
+  const prefix = `/g/${scope.id}/invite/`;
+  if (!context.path.startsWith(prefix)) return null;
+  const remainder = context.path.slice(prefix.length);
+  const [id, suffix, ...extra] = remainder.split('/');
+  if (typeof id !== 'string' || id.length !== 32 || !ID.test(id) || extra.length) return null;
+  if (suffix === undefined && context.method === 'PUT') return {id,action:'put'};
+  if (suffix === undefined && context.method === 'GET') return {id,action:'get'};
+  if (suffix === 'ack' && context.method === 'POST') return {id,action:'ack'};
   return null;
 }

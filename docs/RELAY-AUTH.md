@@ -842,3 +842,45 @@ roster relay still passes (1s). Logs under `app/.dart_tool`:
 This establishes the authority needed by authenticated Welcome delivery; it
 does not yet route upload/read/ack requests or prove mailbox lifecycle. Default
 public access remains closed and no account/deployment authorization changed.
+
+## 2026-10-04 — authenticated group Welcome routes
+
+The explicit loopback roster worker now accepts `PUT /g/{group}/invite/{id}`
+with exact `{recipient,joined_after,welcome}`, recipient-only GET, and
+recipient-only empty POST `/ack`. All calls use exact scope/body device proofs,
+current grants, nonce admission and spending inside the operation transaction.
+Uploads must match authority minted by an accepted membership slot and its
+original sponsor. Random IDs, a generic membership grant, another recipient
+or a fabricated slot do not authorize upload/read/ack. There is no `/take`.
+
+A bounded sorted 64-entry metadata index avoids reading all Welcome blobs
+for normal capacity checks. The first upload binds its mailbox ID; conflicting
+bytes/IDs cannot replace it. Acknowledgement is idempotent and retains an opaque
+tombstone until the original seven-day expiry, so exact upload retries cannot
+resurrect a consumed Welcome. Full inventory refuses new growth (507); corrupt
+or oversized inventory fails closed. The transactional alarm validates expired
+payloads, deletes only `welcome:` ciphertext, updates its bounded index and
+next alarm, and preserves the maximum observed server/admitted clock floor.
+Ledger ciphertext and current permission policy are never pruned by this path.
+
+Actual SQLite/workerd checks cover sponsor/recipient refusal, extra financial
+fields, replay, idempotent read/ack/upload, immutable expiry, one-mailbox binding,
+64/65-record inventory refusal and a fault after all writes (including alarm)
+with exact rollback/reusable nonce. Expiry is driven by a controlled admitted
+clock floor, not seven days of wall-clock waiting. Eight focused route/scope
+checks pass (3.34s), including 256 KiB maximum-size delivery, refusal of empty,
+noncanonical and one-byte-oversize blobs, and browser preflight for paged `?after=0` reads and
+PUT routes. The broader relay suite passes 62 checks plus three optional
+Rust-fixture skips (26.46s) before the final isolated alarm clock-floor guard
+and added size-boundary assertions; these pass the eight affected checks. Logs under `app/.dart_tool`:
+`roster-welcome-routing.log` and `roster-welcome-full-relay.log`.
+
+The actual native HTTP test now uploads an OpenMLS-produced encrypted Welcome
+with Alice's protected request identity; Bob retrieves it before joining,
+joins from the HTTP-returned bytes, then acknowledges/retries without reopening
+delivery. Sponsor read is refused and later removal still revokes Bob. Analysis
+is clean (4.2s) and this owned loopback native scenario passes (2s), recorded in
+`roster-welcome-native-http.log`. Raw test requests are not durable controller
+save ordering, app UI, browser/mobile runtime or storage-audit acceptance.
+Controller/client mailbox capability, public enrolment/account caps and final
+platform verification remain open; default/public routing is still closed.

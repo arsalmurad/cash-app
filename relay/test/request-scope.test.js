@@ -30,6 +30,18 @@ test("group read permits only unambiguous bounded after cursors", () => {
   }
 });
 
+test('group invitations bind exact delivery methods and forbid premature take or query aliases',()=>{
+  const path=`/g/${scope.id}/invite/${'02'.repeat(16)}`;
+  for(const [method,suffix,operation] of [['PUT','','membership'],['GET','','read'],['POST','/ack','read']]) {
+    assert.equal(requestOperation({...context,method,path:path+suffix},scope),operation);
+  }
+  for(const [method,suffix] of [['POST',''],['GET','/ack'],['POST','/take'],['PUT','/'],['GET','/extra']]) {
+    assert.equal(requestOperation({...context,method,path:path+suffix},scope),null);
+  }
+  assert.equal(requestOperation({...context,method:'GET',path,query:'?after=0'},scope),null);
+  assert.equal(requestOperation({...context,method:'GET',path:path.replace('/invite/','/invite/%')},scope),null);
+});
+
 test("mailbox actions are distinct from group actions and from each other", () => {
   const mailbox = {...scope, kind: "m"};
   for (const [method, suffix, expected] of [

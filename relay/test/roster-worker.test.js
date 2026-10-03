@@ -32,18 +32,27 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
   const wrapper = `
     import worker, { RosterGroupLog } from './roster-worker.js';
     export class Fixture extends RosterGroupLog {
+      async welcomeRequest(txn,verified,bytes) {
+        const value=await super.welcomeRequest(txn,verified,bytes);
+        if(this.welcomeFault) throw new Error('controlled Welcome transaction rollback');
+        return value;
+      }
       async fetch(request) {
         if (request.headers.get('x-test') === 'inspect') return Response.json([...await this.state.storage.list()]);
+        if (request.headers.get('x-test') === 'alarm-time') return Response.json(await this.state.storage.getAlarm());
         if (request.headers.get('x-test') === 'seed') {await this.state.storage.put(await request.json());return Response.json({ok:true});}
+        if (request.headers.get('x-test') === 'alarm') {await this.alarm();return Response.json({ok:true});}
         const previous = this.env.LOCAL_AUTH_POLICY;
+        const previousFault=this.welcomeFault;
+        this.welcomeFault=request.headers.get('x-test')==='welcome-fault';
         if (request.headers.has('x-test-root')) this.env.LOCAL_AUTH_POLICY=request.headers.get('x-test-root');
-        try {return await super.fetch(request);} finally {this.env.LOCAL_AUTH_POLICY=previous;}
+        try {return await super.fetch(request);} finally {this.env.LOCAL_AUTH_POLICY=previous;this.welcomeFault=previousFault;}
       }
     }
     export default worker;`;
   const mf = new Miniflare({modulesRoot:moduleRoot,
     modules:[{type:'ESModule',path:`${moduleRoot}/fixture.js`,contents:wrapper},
-      ...await Promise.all(['roster-worker','local-auth-worker','worker','request-proof','request-membership','invite-authority','request-scope','request-admission','request-budget'].map(async name => ({
+      ...await Promise.all(['roster-worker','roster-welcome','local-auth-worker','worker','request-proof','request-membership','invite-authority','request-scope','request-admission','request-budget'].map(async name => ({
         type:'ESModule',path:`${moduleRoot}/${name}.js`,contents:await readFile(new URL(`../src/${name}.js`,import.meta.url),'utf8'),
       })))],durableObjects:{GROUP:{className:'Fixture',useSQLite:true}},
     bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(root)},compatibilityDate:'2026-07-01'});
@@ -66,6 +75,56 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
     assert.deepEqual(race.map(response=>response.status).sort(),[200,409]);
     const policyReply = await call(prefix+'/policy',await signed(prefix+'/policy','GET',undefined,devices[1]));
     assert.deepEqual(await policyReply.json(),{policy:next});
+    const mailbox=prefix+'/invite/'+'04'.repeat(16);
+    const welcome={recipient:devices[1].key,joined_after:1,welcome:Buffer.alloc(256*1024).toString('base64')};
+    assert.equal((await call(mailbox)).status,401);
+    assert.equal((await call(mailbox,await signed(mailbox,'GET',undefined,devices[1]))).status,404);
+    assert.equal((await call(mailbox,await signed(mailbox,'PUT',welcome,devices[1]))).status,403,'membership grant is not original sponsorship');
+    assert.equal((await call(mailbox,await signed(mailbox,'PUT',{...welcome,joined_after:2}))).status,403);
+    assert.equal((await call(mailbox,await signed(mailbox,'PUT',{...welcome,amount:2050}))).status,400);
+    for(const invalid of ['', 'AA', Buffer.alloc(256*1024+1).toString('base64')]) {
+      assert.equal((await call(mailbox,await signed(mailbox,'PUT',{...welcome,welcome:invalid}))).status,400);
+    }
+    const seedIndex=async records=>call(prefix+'/append',{method:'POST',headers:{'x-test':'seed'},body:JSON.stringify({welcome_index:{version:1,records}})});
+    for(const count of [64,65]) {
+      const records=Array.from({length:count},(_,i)=>({id:(i+16).toString(16).padStart(32,'0'),recipient:devices[0].key,sequence:1,expires:Date.now()+7*86400000}));
+      assert.equal((await seedIndex(records)).status,200);
+      const before=await inspect();
+      assert.equal((await call(mailbox,await signed(mailbox,'PUT',welcome))).status,count===64?507:503);
+      assert.deepEqual(await inspect(),before,'inventory/capacity refusal rolls back admission and authority');
+    }
+    assert.equal((await seedIndex([])).status,200);
+    const beforeWrite=await inspect();
+    const alarmTime=async()=> (await call(prefix,{headers:{'x-test':'alarm-time'}})).json();
+    const beforeAlarm=await alarmTime();
+    const upload=await signed(mailbox,'PUT',welcome);
+    assert.equal((await call(mailbox,{...upload,headers:{...upload.headers,'x-test':'welcome-fault'}})).status,503);
+    assert.deepEqual(await inspect(),beforeWrite,'fault after payload/index/authority/alarm writes must roll back every record');
+    assert.equal(await alarmTime(),beforeAlarm,'alarm scheduling must roll back too');
+    assert.equal((await call(mailbox,upload)).status,200,'rolled-back nonce remains reusable');
+    assert.equal((await call(mailbox,await signed(mailbox,'PUT',welcome))).status,200);
+    const delivered=Object.fromEntries(await inspect());
+    const expiry=delivered.welcome_index.records[0].expires;
+    assert.equal(await alarmTime(),expiry);
+    assert.equal(delivered.invite_authorities.records[0].mailbox,'04'.repeat(16));
+    assert.deepEqual(await (await call(mailbox,await signed(mailbox,'GET',undefined,devices[1]))).json(),
+      {group:scope.id,joined_after:1,welcome:welcome.welcome});
+    assert.equal((await call(mailbox,await signed(mailbox))).status,403,'random ID and sponsorship do not grant recipient read access');
+    const get=await signed(mailbox,'GET',undefined,devices[1]);
+    assert.equal((await call(mailbox,get)).status,200);
+    const seen=await inspect();
+    assert.equal((await call(mailbox,get)).status,409);
+    assert.deepEqual(await inspect(),seen,'replayed read cannot spend budget');
+    assert.equal((await call(mailbox,await signed(mailbox,'PUT',{...welcome,welcome:'AQ=='}))).status,409);
+    assert.deepEqual(await inspect(),seen,'failed replacement cannot reset bytes or expiry');
+    const ack=mailbox+'/ack';
+    assert.equal((await call(ack,await signed(ack,'POST',undefined,devices[1]))).status,200);
+    assert.equal((await call(ack,await signed(ack,'POST',undefined,devices[1]))).status,200);
+    assert.equal((await call(mailbox,await signed(mailbox,'PUT',welcome))).status,200,'exact retry must preserve consumed state');
+    assert.equal((await call(mailbox,await signed(mailbox,'GET',undefined,devices[1]))).status,404);
+    const other=prefix+'/invite/'+'05'.repeat(16);
+    assert.equal((await call(other,await signed(other,'PUT',welcome))).status,409,'one accepted addition cannot recreate its Welcome in another mailbox');
+    assert.equal(Object.fromEntries(await inspect()).welcome_index.records[0].expires,expiry);
     assert.equal((await call(prefix+'/append',await signed(prefix+'/append','POST',{expected_tail:1,blob:'Ag=='},devices[1]))).status,200);
     const revokedProof = await signed(prefix+'?after=0','GET',undefined,devices[1]);
     const removed = {...root,epoch:2};
@@ -84,6 +143,15 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
     assert.deepEqual(rows.authorization_root,root);
     assert.deepEqual(rows.authorized_devices,removed);
     assert.equal(rows.tail,3);
+    const beforeExpiry=await inspect();
+    assert.equal((await call(prefix+'/append',{method:'POST',headers:{'x-test':'seed'},body:JSON.stringify({request_clock:expiry})})).status,200);
+    assert.equal((await call(prefix,{headers:{'x-test':'alarm'}})).status,200);
+    const expired=Object.fromEntries(await inspect());
+    assert.deepEqual(expired.welcome_index,{version:1,records:[]});
+    assert.equal(await alarmTime(),null);
+    assert(!Object.keys(expired).some(key=>key.startsWith('welcome:')));
+    assert.deepEqual(expired.authorized_devices,rows.authorized_devices);
+    for(const [key,value] of beforeExpiry.filter(([key])=>key.startsWith('e:'))) assert.deepEqual(expired[key],value,'expiry must never delete ledger ciphertext');
     // Fixed/legacy storage cannot acquire new bootstrap authority merely by
     // enabling the mode. Direct binding inspection exists only in this fixture.
     const namespace=await mf.getDurableObjectNamespace('GROUP');
@@ -107,6 +175,12 @@ test('roster mode requires explicit loopback authority and rejects unsafe routin
     assert.equal((await rosterWorker.fetch(new Request(scope.origin+path),env)).status,403);
   }
   assert.equal((await rosterWorker.fetch(new Request('https://relay.example'+`/g/${scope.id}`),env)).status,503);
+  for(const path of [`/g/${scope.id}?after=0`,`/g/${scope.id}/invite/${'04'.repeat(16)}`]) {
+    const response=await rosterWorker.fetch(new Request(scope.origin+path,{method:'OPTIONS'}),env);
+    assert.equal(response.status,204);
+    assert(response.headers.get('access-control-allow-methods').includes('PUT'));
+  }
+  assert.equal((await rosterWorker.fetch(new Request(scope.origin+`/g/${scope.id}?after=-1`,{method:'OPTIONS'}),env)).status,403);
   assert.equal(allocated,0);
 });
 

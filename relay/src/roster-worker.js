@@ -2,7 +2,8 @@
 import { GroupLog } from './worker.js';
 import { configuredPolicy, boundedBody } from './local-auth-worker.js';
 import { verifyRequestProof, verifiedRequestContext } from './request-proof.js';
-import { requestOperation } from './request-scope.js';
+import { requestOperation, inviteRequest } from './request-scope.js';
+import { applyWelcomeRequest, expireWelcomes, WelcomeRefused } from './roster-welcome.js';
 import { admitVerifiedDeviceRequest } from './request-admission.js';
 import { emptyRequestBudget, spendRequestBudget, RequestBudgetRefused } from './request-budget.js';
 import { validMembershipPolicy, applyMembershipTransition, MembershipRefused } from './request-membership.js';
@@ -26,7 +27,7 @@ export class RosterGroupLog extends GroupLog {
   async fetch(request) {
     try {return await this.authenticatedFetch(request);}
     catch (error) {
-      const response = fail(error instanceof MembershipRefused || error instanceof RequestBudgetRefused ? error.status : 503);
+      const response = fail(error instanceof MembershipRefused || error instanceof RequestBudgetRefused || error instanceof WelcomeRefused ? error.status : 503);
       if (error instanceof RequestBudgetRefused && error.retryAfter !== null) response.headers.set('retry-after',String(error.retryAfter));
       return response;
     }
@@ -69,12 +70,18 @@ export class RosterGroupLog extends GroupLog {
       if (!acceptable(current,root)) deny(503);
       const actor=current.devices.find(device=>device.key===verified.publicKey);
       if (!actor || !actor.operations.includes(requestOperation(verifiedRequestContext(verified),current.scope))) deny(403);
-      if (operation==='membership') return 0; // Admission occurs in afterAppend.
+      if (operation==='membership' && !inviteRequest(verifiedRequestContext(verified),current.scope)) return 0; // Commit admission occurs in afterAppend.
       const admission=await admitVerifiedDeviceRequest(txn,verified,Date.now());
       if (!admission.ok) deny(admission.reason==='replay' ? 409 : admission.reason==='expired' ? 401 : admission.reason==='capacity' ? 429 : 503);
       await spendRequestBudget(txn,verified,await txn.get('request_clock'));
       return 0;
     };
+    if (inviteRequest(verifiedRequestContext(verified),root.scope)) {
+      return this.state.storage.transaction(async txn=>{
+        await authorize(txn);
+        return json(await this.welcomeRequest(txn,verified,bytes));
+      });
+    }
     if (operation==='read') {
       if (url.pathname.endsWith('/policy')) {
         return this.state.storage.transaction(async txn => {
@@ -87,6 +94,8 @@ export class RosterGroupLog extends GroupLog {
     return this.append(new Request(request.url,{method:request.method,headers:request.headers,body:bytes}),authorize,
       operation==='membership' ? txn=>applyMembershipTransition(txn,verified,bytes,Date.now()) : null);
   }
+  async welcomeRequest(txn,verified,bytes) {return applyWelcomeRequest(txn,verified,bytes,Date.now());}
+  async alarm() {await this.state.storage.transaction(txn=>expireWelcomes(txn,Date.now()));}
 }
 
 export default {
@@ -95,12 +104,18 @@ export default {
     if (!root || !loopback(url)) return fail(503);
     const prefix=`/g/${root.scope.id}`;
     const read=[prefix,`${prefix}/policy`], write=[`${prefix}/append`,`${prefix}/membership`];
+    const context={origin:url.origin,method:request.method,path:url.pathname,query:url.search};
+    const invitation=inviteRequest(context,root.scope);
+    const preflight=url.pathname.match(new RegExp(`^${prefix}/invite/[0-9a-f]{32}(?:/ack)?$`));
+    const validPreflight=(preflight && !url.search) ||
+      (read.includes(url.pathname) && requestOperation({...context,method:'GET'},root.scope)==='read') ||
+      (write.includes(url.pathname) && !url.search);
     if (url.origin!==root.scope.origin || !((request.method==='GET' && read.includes(url.pathname)) ||
         (request.method==='POST' && write.includes(url.pathname)) ||
-        (request.method==='OPTIONS' && [...read,...write].includes(url.pathname)))) return fail(403);
+        invitation || (request.method==='OPTIONS' && validPreflight))) return fail(403);
     if (request.method!=='OPTIONS' && !requestOperation({origin:url.origin,method:request.method,
       path:url.pathname,query:url.search},root.scope)) return fail(403);
-    const cors={'access-control-allow-origin':'*','access-control-allow-methods':'GET, POST, OPTIONS',
+    const cors={'access-control-allow-origin':'*','access-control-allow-methods':'GET, POST, PUT, OPTIONS',
       'access-control-allow-headers':'content-type, x-cash-device-proof'};
     if (request.method==='OPTIONS') return new Response(null,{status:204,headers:cors});
     const response=await env.GROUP.get(env.GROUP.idFromName(root.scope.id)).fetch(request);
