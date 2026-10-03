@@ -568,3 +568,32 @@ and app MLS commit/Welcome/retry/recovery coordination. The relay cannot inspect
 the opaque MLS commit: permission grants do not prove its cryptographic roster.
 Default/fixed local routes are not dynamically enrolled. Public deployment,
 mailbox, socket, pruning and final-platform gates remain open.
+
+## Bound replay-key retention during membership churn (2026-10-03)
+
+The unrouted membership primitive now performs a bounded prefix read of at most
+129 nonce-key rows and refuses oversized legacy inventories (503), rather than
+scanning them without a limit. It strictly validates each bounded nonce record
+collection and reserves capacity for every proposed current device, including
+devices that have not sent a request yet. At most 128 current/reserved plus live
+retired keys may remain. A change exceeding that bound is refused (429) without
+evicting replay protection, changing policy/history or consuming the retry nonce.
+
+Only retired keys whose entire record collection has expired at the admitted
+monotonic server clock are deleted; current keys, unexpired revoked records and
+spent request budgets remain. Cleanup is inside the same transaction as the
+encrypted membership append. It deletes no financial ciphertext. Corrupt record
+collections require repair (503), not silent cleanup. Oversized legacy state
+requires explicit bounded migration; this is not an account-wide free-plan cap.
+
+The test-first SQLite regression initially accepted a 129th reserved/live key
+(200 instead of 429), then passes with the bound. Real workerd checks preserve
+every row on capacity refusal, safely reuse the refused signed request after
+retired expiry, reject corrupt/oversized state unchanged, and roll back expired
+key deletion when a subsequent injected commit failure occurs. Expiry follows
+the stored monotonic clock even when the test wall clock is behind it.
+The full `npm test` suite passes 55 checks with three optional Rust-fixture
+checks skipped (17.82s); log `app/.dart_tool/bounded-membership-relay.log`.
+No routed worker/app/ABI was changed or rebuilt. Trusted bootstrap/current-policy
+routing, actual time integration, app membership retries and deployment gates
+remain open.
