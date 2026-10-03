@@ -44,6 +44,67 @@ class HouseholdController extends ChangeNotifier {
   final RelayClient Function(String url) _relayFactory;
   final int Function() _clockMillis;
   final String Function() _newMemberId;
+  bool _relaySigningClosed = false;
+
+  /// Opt-in protected-key provider for HTTP transport. This does not register
+  /// a device or confer relay permissions. It must not enqueue behind a sync
+  /// operation that is itself waiting for its request proof.
+  RelayRequestSigner get relayRequestSigner => _signRelayRequest;
+
+  Future<String> _signRelayRequest(
+    String method,
+    Uri uri,
+    Uint8List body,
+  ) async {
+    if (_relaySigningClosed) {
+      throw const FormatException('This household controller is closed.');
+    }
+    final household = _requireHousehold();
+    if (!['https', 'http'].contains(uri.scheme) ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasFragment) {
+      throw const FormatException('Invalid relay request address.');
+    }
+    final origin = uri.origin;
+    final exactUrl = uri.toString();
+    if (!exactUrl.startsWith('$origin/')) {
+      throw const FormatException('Invalid relay request address.');
+    }
+    final now = _clockMillis();
+    if (now < 0 || now > 9007199254740991 - 50000) {
+      throw const FormatException('Invalid relay request clock.');
+    }
+    final proof = await householdSignRelayRequest(
+      household: household,
+      origin: origin,
+      method: method,
+      path: exactUrl.substring(origin.length),
+      body: body,
+      expires: PlatformInt64Util.from(now + 50000),
+    );
+    // Lock/recovery/uncertain-save/disposal may occur while the read-only
+    // native call is pending. Never release a proof for an abandoned handle.
+    _ensureWritable();
+    if (_relaySigningClosed || !identical(_household, household)) {
+      throw const FormatException('The household identity changed.');
+    }
+    String hex(Uint8List bytes) =>
+        bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return jsonEncode({
+      'publicKey': hex(proof.publicKey),
+      'nonce': hex(proof.nonce),
+      'expires': proof.expires.toInt(),
+      'signature': hex(proof.signature),
+    });
+  }
+
+  @override
+  void dispose() {
+    // Existing queued work owns its current Rust borrows. Revoke proof access
+    // immediately without freeing a handle underneath an in-flight call.
+    _relaySigningClosed = true;
+    super.dispose();
+  }
 
   Household? _household;
   RelayClient? _relay;
