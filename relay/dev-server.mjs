@@ -4,17 +4,20 @@ import { Miniflare } from "miniflare";
 import { fileURLToPath } from "node:url";
 
 const port = Number(process.argv[2] ?? process.env.PORT ?? 8787);
+const authenticated = process.env.LOCAL_AUTH_POLICY !== undefined;
 const mf = new Miniflare({
   modules: true,
-  scriptPath: fileURLToPath(new URL("./src/worker.js", import.meta.url)),
-  durableObjects: { GROUP: "GroupLog", MAILBOX: "Mailbox" },
-  bindings: { LOCAL_DEVELOPMENT: "true" },
+  modulesRules: [{ type: "ESModule", include: ["**/*.js"] }],
+  scriptPath: fileURLToPath(new URL(authenticated ? "./src/local-auth-worker.js" : "./src/worker.js", import.meta.url)),
+  durableObjects: authenticated ? { GROUP: { className: "AuthenticatedGroupLog", useSQLite: true } } :
+    { GROUP: "GroupLog", MAILBOX: "Mailbox" },
+  bindings: { LOCAL_DEVELOPMENT: "true", ...(authenticated ? { LOCAL_AUTH_POLICY: process.env.LOCAL_AUTH_POLICY } : {}) },
   compatibilityDate: "2026-07-01",
   host: "127.0.0.1",
   port,
 });
 await mf.ready;
-console.log(`relay listening on http://127.0.0.1:${port}`);
+console.log(`${authenticated ? 'local authenticated group relay' : 'relay'} listening on http://127.0.0.1:${port}`);
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     await mf.dispose();

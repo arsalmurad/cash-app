@@ -73,6 +73,12 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   Exact namespace/operation grants now pass the full local relay suite: 44
   checks plus its explicit Rust-fixture skip (45 total). Dedicated Rust
   interoperability remains separately verified, not inferred from that skip.
+  A separate explicit loopback worker now authenticates actual group read/append
+  transactions, with a fixed operator policy, rollback/replay and real launcher
+  checks. All 13 Rust/workerd interoperability checks pass; the full relay suite
+  passes 49 checks with two separately verified fixture skips. This is not
+  public/app authentication: roster transitions, mailbox/socket authorization,
+  request/account quotas and authorized deployment remain open in `RELAY-AUTH.md`.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
