@@ -1533,3 +1533,12 @@ admission refusal so bootstrap writes also roll back. Keep public signup,
 mailboxes and app enablement separate rather than infer them from a signed
 permission list or an opaque MLS commit.
 
+## 2026-10-03 — Derive pending relay keys without merging private MLS state
+
+Use the pinned OpenMLS staged public-tree export to project post-commit signing
+keys, instead of copying private archives or constructing a roster by member
+name. Return only sorted unique Ed25519 keys, cap at 64 and refuse inactive or
+incomplete projections. Byte-identical archive checks and actual committed
+roster comparisons verify this query cannot confirm a commit or advance a
+ratchet; exposing it through the app bridge remains a separate change.
+
