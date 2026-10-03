@@ -1384,3 +1384,13 @@ hand-rolling canonical origins/paths. Default app builds do not enable the
 feature until trusted authorization/replay handling and app integration are
 verified; host-to-workerd interoperability is not OS-key or mobile evidence.
 
+## 2026-10-03 — Couple replay admission to current policy and the mutation
+
+Accept only immutable verifier-branded evidence, recheck the current roster
+inside the mutation's transaction, and retain a bounded per-device live nonce
+set plus monotonic server-time high-water mark. Refuse full/corrupt state instead
+of evicting unexpired nonce records or trusting a copied signature-result object.
+Actual SQLite workerd race/rollback/revocation tests pass, but the helper remains
+disconnected from public/app routing until registration, operation permissions
+and account-wide quotas are implemented.
+

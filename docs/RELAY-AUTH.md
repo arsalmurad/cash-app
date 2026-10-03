@@ -79,6 +79,51 @@ do not trigger this PR/manual workflow. Cloud CI results are not inferred.
 
 ## Required before wiring this into public requests
 
+### Transactional admission primitive
+
+`request-admission.js` now consumes only immutable, identity-branded output from
+the verifier in the same isolate. A raw/copy-deserialized `{publicKey, nonce,
+expires}` object is not verified evidence. The future caller must verify inside
+the target Durable Object against that exact request/namespace scope; a worker
+cannot serialize this result and expect another isolate to trust it.
+
+Inside the same storage transaction as an authorized operation, the helper
+rechecks `authorized_devices` (version 1, nonnegative safe epoch, one to 64 sorted
+unique public keys). Removed keys are rejected even if signature verification
+occurred before revocation. It persists at most 256 sorted live nonce/expiry
+records per device and a group clock high-water mark. A full live set refuses
+admission; it does not evict an unexpired replay record. Expired rows are
+reclaimed only on successful admission, and monotonic effective server time
+prevents purged proofs becoming fresh again after clock rollback. Malformed or
+missing required policy/counter/clock data fail closed without state writes.
+
+The helper is still not imported by production routing. The caller must validate
+operation-specific permissions, exact namespace/request binding and quotas,
+then run admission **and mutation in one transaction**. Returning an error
+instead of rolling back a failed mutation can consume a nonce; lost responses
+must use a newly signed nonce with existing safe app retries. Membership updates
+must preserve unexpired replay records and the clock high-water mark. This is
+not roster bootstrap, a grant/role policy, account-wide quotas or crash-proof
+delivery attestation.
+
+Tests initially failed at the absent helper. Unit checks cover verifier-output
+branding, live roster rechecks, replay/capacity, expiration/clock rollback and
+malformed-state refusal. An in-memory test-only wrapper in actual workerd with
+SQLite Durable Objects verifies signed requests, admits exactly one of two
+racing nonce uses, rolls nonce/clock back with a deliberately failed mutation,
+retries successfully, and rejects a key revoked after verification but before
+the transaction. Its seed/read/fault/revocation routes never enter production
+configuration. This is local primitive evidence, not a deployed/app auth claim.
+All six admission tests pass locally; the separate Rust-to-workerd command again
+passes all seven proof tests with zero skipped.
+The subsequent full `npm test` run passes 39 tests and conditionally skips the
+one Rust-fixture case (40 total), in 22.90 seconds. That case is independently
+required and passes in `test:request-proof-rust`; the skip is not a claim that
+interoperability ran during the Node-only suite. No production worker/app source
+is activated by the new admission module.
+
+### Open integration gates
+
 - Establish an authenticated bootstrap/device-registration grant and a trusted
   per-group roster anchored to creation, with explicit membership/recovery
   updates. A self-signed key or random group ID is not permission to create
@@ -86,10 +131,12 @@ do not trigger this PR/manual workflow. Cloud CI results are not inferred.
 - Have the app's protected device identity sign the same canonical bytes, without
   using a shared login or exposing private signing keys to Dart/the relay.
   Verify Rust-to-workerd interoperability and actual native/WASM app runtime.
-- Atomically admit an unexpired nonce with authorized scope, quotas and mutation.
-  A repeated proof deliberately verifies twice at this primitive level; there
-  is **no replay protection yet**. Never evict an unexpired replay record to make
-  room and thereby allow it again. Refuse capacity safely instead.
+- Wire the tested admission primitive into production authorization and mutation
+  transactions with operation-specific scope/quotas. A repeated proof still
+  deliberately verifies twice at the standalone signature level; the helper
+  prevents repeat admission only where correctly integrated. Production/app
+  replay protection remains unimplemented. Never evict an unexpired record to
+  make room and thereby allow it again.
 - Bound account-wide group/mailbox creation, requests, sockets and retained data;
   preserve lost-response retries and revocation. Per-log limits alone cannot
   constrain an attacker creating many logs.

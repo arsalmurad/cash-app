@@ -5,6 +5,10 @@ const HEX64 = /^[0-9a-f]{128}$/;
 const utf8 = new TextEncoder();
 const domain = utf8.encode("cash-app authenticated relay request v1\0");
 const schema = ["expires", "nonce", "publicKey", "signature"];
+const verifiedProofs = new WeakSet();
+
+// Identity-local, frozen verifier output cannot be fabricated from JSON.
+export const isVerifiedRequestProof = proof => verifiedProofs.has(proof);
 
 function bytes(hex) {
   return Uint8Array.from(hex.match(/../g), value => Number.parseInt(value, 16));
@@ -68,7 +72,9 @@ export async function verifyRequestProof(request, body, proof, expectedKey, now)
       digest, publicKey: expectedKey, nonce: proof.nonce, expires: proof.expires });
     const key = await crypto.subtle.importKey("raw", bytes(expectedKey), "Ed25519", false, ["verify"]);
     if (!await crypto.subtle.verify("Ed25519", key, bytes(proof.signature), payload)) return null;
-    return { publicKey: expectedKey, nonce: proof.nonce, expires: proof.expires };
+    const verified = Object.freeze({ publicKey: expectedKey, nonce: proof.nonce, expires: proof.expires });
+    verifiedProofs.add(verified);
+    return verified;
   } catch {
     return null;
   }

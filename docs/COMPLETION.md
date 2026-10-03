@@ -65,6 +65,11 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   Node-to-workerd signatures and 33 relay tests passing. It is not imported by
   production routing and does not implement trusted registration, replay
   admission or permission to expose the relay publicly.
+  An opt-in Rust signer and a separate bounded transactional nonce-admission
+  primitive now also pass host-to-workerd and actual SQLite race/rollback tests.
+  The full relay suite passes 39 checks plus one explicit Rust-fixture skip;
+  that fixture independently passes all seven dedicated interoperability checks.
+  Neither primitive is wired into public/app authorization yet.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.
