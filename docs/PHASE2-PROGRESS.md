@@ -1,5 +1,44 @@
 # Phase 2 progress
 
+## Actual authenticated Android HTTP (2026-10-04)
+
+The new `integration_test/authenticated_household_test.dart` and owning host
+driver `scripts/verify_android_authenticated.mjs` pass on the existing owned
+read-only `Phase0Api36` emulator, serial 5580, Android 16/API 36 x86_64/WHPX.
+Production app/Rust source is unchanged from `2778dd0`; current bridge ABI is
+`970902974`. Pinned tools and preserved D: caches are those recorded below.
+
+```powershell
+# From repository root with the recorded Android/JDK/Gradle/temp environment:
+node scripts/verify_android_authenticated.mjs
+```
+
+Build 76.7s, installation 1.314s, all Android assertions passed at 25s:
+`app/.dart_tool/android-authenticated-http.log`; owning driver exits 0:
+`app/.dart_tool/android-authenticated-driver.log`. Affected-file static analysis
+is clean (6.1s); Node syntax check passes. This is a new actual mobile networking
+result, not reuse of the earlier in-memory household transport run.
+
+Three identities use normal authenticated controller clients, actual Android
+OS wrapping keys and sealed SQLite-backed journals. Alice exports only public
+founding setup; the owning host starts the production roster worker with real
+SQLite storage and no seeded history. A randomly allocated, scoped ADB reverse
+tunnel carries loopback HTTP; anonymous history returns 401. Bob and Cara join
+via recipient-only encrypted Welcomes; signed peeks verify each is consumed.
+Bob and Alice restore from newly created protected-store objects; membership,
+authentication mode and encrypted balances survive. Bob fetches and processes
+the actual removal commit over HTTP, becomes inactive and cannot write; Alice
+and Cara then converge to `USD -5.00` while Bob stays at `USD -2.50`.
+
+Physical SQLite bytes and each raw household record contain the sealed marker,
+not the synthetic financial title. This is a scoped native vault check; the
+independent full relay KV audit is in `RELAY-AUTH.md`. Finally blocks delete only
+the uniquely named test journals/configuration/OS keys, dispose the owned worker
+and remove its one reverse tunnel; the post-run reverse inventory is empty.
+C: retains about 3.3GB free. No app reset, real-phone changes, deployment,
+toolchain install or cloud job occurred. Logical peers share one emulator;
+TLS/physical-network faults, release APK and current iOS remain distinct gates.
+
 ## Current Android household runtime (2026-10-04)
 
 Source `744ab3e` passes `integration_test/household_test.dart` on the owned

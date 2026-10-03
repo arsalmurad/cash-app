@@ -273,8 +273,11 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   Current source/bridge ABI `970902974` also passes the Android household and
   personal-ledger integration journeys on the owned API 36 x86_64 emulator.
   `PHASE2-PROGRESS.md` records build/runtime evidence, full-disk/missing-kernel
-  failures and the successful retry. Android authenticated HTTP, release APK
-  and current iOS remain distinct unverified gates.
+  failures and the successful retry. Release APK and current iOS remain distinct
+  unverified gates. Authenticated Android HTTP
+  now also passes through the normal factory with three OS-key-protected peers,
+  consumed Welcomes, protected restart, encrypted balances and actual removal
+  catch-up. Exact runtime evidence/limits are in `PHASE2-PROGRESS.md`.
 - [ ] Finish concise setup, recovery, security-limit and verification docs, with
   all deliverable source and evidence synchronized to private GitHub `main`.
 
