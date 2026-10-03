@@ -372,3 +372,23 @@ C: now has about 6.7 GB free; the unchanged suites pass after this cache move.
 This local cache placement is not a repository/CI dependency or a toolchain
 upgrade. Authentication/deployment, bridge signing, roster and mailbox gates
 remain open.
+
+## Public app bridge signing interface (2026-10-03)
+
+The app API now enables the protected-peer signer through its existing sync
+dependency. `household_sign_relay_request` accepts exact request fields and a
+signed-64-bit expiry, refuses negative or JS-unsafe expiry values, and returns
+only public proof bytes. The API does not send requests, register devices or
+change MLS/ledger state. Two test-first API checks and the full 66 API tests
+pass; a rebuilt native FRB library directly passes the fresh-nonce/restored-key
+and exact invalid-expiry checks. All 346 native-enabled Flutter tests pass.
+`PHASE2-PROGRESS.md` records exact commands, prior test/environment failures,
+artifact paths and verification limits.
+
+Bindings now require Rust content hash `-155377132`; older bridge binaries do
+not match. Native and production WASM artifacts were rebuilt with the pinned
+toolchains; the old artifacts were preserved locally. This is not a claim that
+the app HTTP client signs requests yet, that the new signing method ran inside
+the browser, or that current Android/iOS binaries passed. Trusted registration,
+dynamic roster/mailbox/socket authorization, authenticated end-to-end transport,
+safe recoverable pruning and authorized $0 deployment remain open.

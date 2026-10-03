@@ -27,6 +27,38 @@ pub struct RelayEntry {
     pub blob: Vec<u8>,
 }
 
+/// Public request proof only: never contains private identity or ledger state.
+/// This is not authorization or evidence of current group membership.
+pub struct HouseholdRequestProof {
+    pub public_key: Vec<u8>,
+    pub nonce: Vec<u8>,
+    pub expires: i64,
+    pub signature: Vec<u8>,
+}
+
+/// Signs the exact HTTP request bytes using this protected device identity.
+/// Fresh random nonces do not require advancing or saving an MLS ratchet.
+/// The relay must independently check trusted policy, expiry and replay state.
+pub fn household_sign_relay_request(
+    household: &Household,
+    origin: String,
+    method: String,
+    path: String,
+    body: Vec<u8>,
+    expires: i64,
+) -> Result<HouseholdRequestProof, String> {
+    let expiry = u64::try_from(expires).map_err(|_| "Invalid request expiry.".to_owned())?;
+    let proof = lock(household)?
+        .sign_relay_request(&origin, &method, &path, &body, expiry)
+        .map_err(|error| error.to_string())?;
+    Ok(HouseholdRequestProof {
+        public_key: proof.public_key,
+        nonce: proof.nonce.to_vec(),
+        expires,
+        signature: proof.signature,
+    })
+}
+
 #[derive(Debug, PartialEq)]
 pub struct PublishedSummaryView {
     pub event_id: String,
@@ -592,6 +624,73 @@ fn overview_from_state(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn request_signing_exposes_only_public_proof_and_preserves_saved_state() {
+        let device = household_new("opaque-device".into(), "USD".into()).unwrap();
+        let saved = household_export(&device).unwrap();
+        let sign = |device: &Household| {
+            household_sign_relay_request(
+                device,
+                "https://relay.example".into(),
+                "POST".into(),
+                "/g/0123456789abcdef0123456789abcdef/append".into(),
+                b"exact encrypted request bytes".to_vec(),
+                1_790_000_030_000,
+            )
+        };
+        let first = sign(&device).unwrap();
+        let second = sign(&device).unwrap();
+        assert_eq!(first.public_key.len(), 32);
+        assert_eq!(first.signature.len(), 64);
+        assert_eq!(first.nonce.len(), 32);
+        assert_eq!(first.expires, 1_790_000_030_000);
+        assert_ne!(first.nonce, second.nonce);
+        assert_eq!(household_export(&device).unwrap(), saved);
+        let restored = household_restore(saved.clone()).unwrap();
+        let restarted = sign(&restored).unwrap();
+        assert_eq!(restarted.public_key, first.public_key);
+        assert_ne!(restarted.nonce, first.nonce);
+        assert_eq!(household_export(&restored).unwrap(), saved);
+        let verifier = cash_crypto::Member::new("verifier").unwrap();
+        verifier
+            .verify_relay_request(
+                &first.public_key,
+                &cash_crypto::RelayRequest {
+                    origin: "https://relay.example",
+                    method: "POST",
+                    path: "/g/0123456789abcdef0123456789abcdef/append",
+                    body: b"exact encrypted request bytes",
+                    nonce: first.nonce.try_into().unwrap(),
+                    expires: first.expires.try_into().unwrap(),
+                },
+                &first.signature,
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn request_signing_rejects_bad_expiry_and_scope_without_saved_state_changes() {
+        let device = household_new("opaque-device".into(), "USD".into()).unwrap();
+        let saved = household_export(&device).unwrap();
+        for (origin, expires) in [
+            ("https://relay.example", -1),
+            ("https://relay.example", 9_007_199_254_740_992),
+            ("http://relay.example", 1_790_000_030_000),
+        ] {
+            assert!(
+                household_sign_relay_request(
+                    &device,
+                    origin.into(),
+                    "GET".into(),
+                    "/g/0123456789abcdef0123456789abcdef?after=0".into(),
+                    vec![],
+                    expires
+                )
+                .is_err()
+            );
+            assert_eq!(household_export(&device).unwrap(), saved);
+        }
+    }
     use super::*;
 
     /// Dart's half of the protocol, in miniature: an ordered log with

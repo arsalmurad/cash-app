@@ -11,6 +11,25 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `lock`, `outgoing`, `overview_from_state`, `unsigned`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
+/// Signs the exact HTTP request bytes using this protected device identity.
+/// Fresh random nonces do not require advancing or saving an MLS ratchet.
+/// The relay must independently check trusted policy, expiry and replay state.
+Future<HouseholdRequestProof> householdSignRelayRequest({
+  required Household household,
+  required String origin,
+  required String method,
+  required String path,
+  required List<int> body,
+  required PlatformInt64 expires,
+}) => RustLib.instance.api.crateApiSharedHouseholdSignRelayRequest(
+  household: household,
+  origin: origin,
+  method: method,
+  path: path,
+  body: body,
+  expires: expires,
+);
+
 /// Publishes exactly the prepared preview, never recomputing private totals.
 /// Persist the household before encrypting/sending, as for any other local write.
 Future<void> householdPublishSummary({
@@ -358,6 +377,39 @@ class HouseholdOverview {
           transactions == other.transactions &&
           conflicts == other.conflicts &&
           rejected == other.rejected;
+}
+
+/// Public request proof only: never contains private identity or ledger state.
+/// This is not authorization or evidence of current group membership.
+class HouseholdRequestProof {
+  final Uint8List publicKey;
+  final Uint8List nonce;
+  final PlatformInt64 expires;
+  final Uint8List signature;
+
+  const HouseholdRequestProof({
+    required this.publicKey,
+    required this.nonce,
+    required this.expires,
+    required this.signature,
+  });
+
+  @override
+  int get hashCode =>
+      publicKey.hashCode ^
+      nonce.hashCode ^
+      expires.hashCode ^
+      signature.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HouseholdRequestProof &&
+          runtimeType == other.runtimeType &&
+          publicKey == other.publicKey &&
+          nonce == other.nonce &&
+          expires == other.expires &&
+          signature == other.signature;
 }
 
 /// Something for Dart to append to the relay log, only if the log's tail is

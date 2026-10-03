@@ -103,6 +103,13 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   suite passes 54 checks plus three separately verified fixture skips. CI now
   includes the peer feature without dispatching any cloud job. App bridge/client
   enablement and trusted registration/membership/mailboxes remain open.
+  The app API now exposes public request proofs through regenerated FRB bindings
+  (content hash `-155377132`). All 66 API tests, 346 native-enabled Flutter tests
+  and the rebuilt production browser household/quota flow pass. Native signing
+  itself is directly verified; the browser run exercises existing calls through
+  the new ABI, not the new signing method. `PHASE2-PROGRESS.md` records exact
+  artifacts/toolchains/failures. The HTTP client is still unsigned; authenticated
+  end-to-end transport and final mobile/iOS acceptance remain open.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

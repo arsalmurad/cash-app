@@ -1455,3 +1455,12 @@ leave MLS ratchets, pending financial frames and staged commits unchanged;
 signing is not server authorization. Keep bridge/network enablement separate
 until trusted registration, mailbox and roster transitions are implemented.
 
+## 2026-10-03 — Expose public request proofs across the app bridge
+
+Enable the existing protected-peer signer in the app API and return only four
+public proof fields through regenerated pinned FRB bindings. Use signed 64-bit
+expiry input with explicit negative rejection and the crypto layer's JS-safe
+ceiling, while preserving byte-identical saved household state. Do not enable
+network authorization by treating a signature as registration or current MLS
+membership; rebuild and test each changed ABI artifact before runtime claims.
+
