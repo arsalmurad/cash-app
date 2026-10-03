@@ -9,20 +9,21 @@ import { emptyRequestBudget, spendRequestBudget, RequestBudgetRefused } from "./
 const fail = (status, message) => new Response(JSON.stringify({ error: message }), {
   status, headers: { "content-type": "application/json" } });
 const loopback = url => ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
-function configuredPolicy(env) {
+export function configuredPolicy(env, membership = false) {
   if (typeof env.LOCAL_AUTH_POLICY !== "string" || env.LOCAL_AUTH_POLICY.length > 32 * 1024) return null;
   try {
     const input = JSON.parse(env.LOCAL_AUTH_POLICY);
     if (!validDevicePolicy(input) || input.scope.kind !== "g" ||
         !loopback(new URL(input.scope.origin)) ||
-        input.devices.some(device => device.operations.some(operation => !["append", "read"].includes(operation)))) return null;
+        input.devices.some(device => device.operations.some(operation =>
+          !(membership ? ["append", "membership", "read"] : ["append", "read"]).includes(operation)))) return null;
     // Persist only the documented, nonfinancial fields, never extra config.
     return { version: 2, epoch: input.epoch,
       scope: { origin: input.scope.origin, kind: "g", id: input.scope.id },
       devices: input.devices.map(device => ({ key: device.key, operations: [...device.operations] })) };
   } catch { return null; }
 }
-async function boundedBody(request) {
+export async function boundedBody(request) {
   if (Number(request.headers.get("content-length")) > 512 * 1024) {
     await request.body?.cancel();
     return null;

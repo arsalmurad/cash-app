@@ -373,6 +373,47 @@ This local cache placement is not a repository/CI dependency or a toolchain
 upgrade. Authentication/deployment, bridge signing, roster and mailbox gates
 remain open.
 
+## Explicit operator-rooted local roster routing (2026-10-03)
+
+`roster-worker.js` now routes the transaction primitive only when both
+`LOCAL_DEVELOPMENT=true` and `LOCAL_AUTH_MEMBERSHIP=true` are explicit and a
+strict trusted `LOCAL_AUTH_POLICY` names one exact loopback origin/group. The
+development launcher selects its SQLite `RosterGroupLog` only for the membership
+flag; selecting the mode without a policy fails closed, not unsigned. Wrangler
+and the shipped default worker remain unchanged/public-closed.
+
+The first authorized operation initializes only empty storage, saving an
+immutable `authorization_root`, current policy and request budget. Existing
+fixed/legacy storage without that root is refused; changing operator authority
+does not overwrite a saved root or reset replay clocks/budgets. Verification
+uses a trusted saved roster snapshot, then every transaction rechecks the live
+scope/grant after asynchronous work. Admission refusals throw to roll back even
+bootstrap writes. Unknown scopes, malformed cursors and unsupported routes are
+rejected before allocating a Durable Object.
+
+Authorized group reads/appends and `GET /g/<id>/policy` use fresh nonce/budget
+admission. The policy response contains only bounded public authorization
+metadata. `POST /g/<id>/membership` combines exact signed opaque ciphertext and
+next policy with current permissions, monotonic server time and bounded retired
+replay cleanup in one transaction. Authorization epoch is distinct from proof
+of MLS epoch/roster. No welcome/mailbox, socket, pruning or anonymous signup
+route is enabled, and app membership coordination is not yet integrated.
+
+Test-first actual SQLite/workerd checks pass for empty trusted bootstrap,
+concurrent membership CAS (one winner), newly granted-device access, immediate
+revocation of an already signed request, immutable root/config-change refusal,
+legacy-adoption refusal and no unauthorized allocation. The actual owned Node
+launcher independently serves policy/membership and admits the newly granted
+device. Fixture inspection/seed/config controls exist only in its test subclass.
+
+The complete relay suite passes 58 checks with three optional Rust-fixture
+checks skipped (30.42s); log `app/.dart_tool/roster-routing-final-relay.log`.
+Both actual native fixed-policy HTTP/storage cases pass (38s), recorded in
+`app/.dart_tool/roster-routing-native-compat.log`; this is compatibility evidence,
+not app-level roster integration. No Rust ABI rebuild, install, cloud job or
+deployment was needed. Public bootstrap/account abuse, app MLS commit/retry/
+Welcome/recovery coordination and final platform gates remain open.
+
 ## Public app bridge signing interface (2026-10-03)
 
 The app API now enables the protected-peer signer through its existing sync

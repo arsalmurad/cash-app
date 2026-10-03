@@ -148,6 +148,13 @@ Unchecked work is not a completion claim. Keep this file current as gates pass.
   real SQLite capacity/retry/corrupt-state checks pass in the 55-check relay
   suite; three optional checks are skipped. The primitive is still unrouted;
   trusted bootstrap/current-policy routing and app retry integration remain open.
+  A subsequent explicit loopback roster worker now supplies immutable operator
+  bootstrap, live transaction-grant rechecks, signed policy reads and atomic
+  membership routing with real server-time admission. Actual SQLite/launcher
+  race, revocation, authority-change and legacy-refusal checks pass in the
+  58-check relay suite (three optional skips). Both existing native fixed-policy
+  HTTP/storage cases remain compatible. App MLS/Welcome/retry/recovery and public
+  bootstrap/account-abuse integration remain open; app defaults are unchanged.
 - [x] Rust-side SQLite stores immutable frames and sealed household documents;
   checked revisions, migration, recovery and process-interruption checks passed.
   PR #18 merged after native host, iOS, Android and production WASM acceptance.

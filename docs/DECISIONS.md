@@ -1524,3 +1524,12 @@ legacy state rather than scan or silently discard it. Delete only expired
 retired nonce metadata in the membership transaction, retaining spent budgets
 and rolling cleanup back with the ciphertext commit on any failure.
 
+## 2026-10-03 — Anchor local dynamic permissions to immutable operator trust
+
+Add a separate explicit loopback roster mode with a saved immutable bootstrap
+root, refusing legacy adoption and changed operator authority. Verify against
+trusted saved keys and recheck permissions inside each transaction; throw on
+admission refusal so bootstrap writes also roll back. Keep public signup,
+mailboxes and app enablement separate rather than infer them from a signed
+permission list or an opaque MLS commit.
+

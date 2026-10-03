@@ -4,20 +4,22 @@ import { Miniflare } from "miniflare";
 import { fileURLToPath } from "node:url";
 
 const port = Number(process.argv[2] ?? process.env.PORT ?? 8787);
-const authenticated = process.env.LOCAL_AUTH_POLICY !== undefined;
+const membership = process.env.LOCAL_AUTH_MEMBERSHIP === "true";
+const authenticated = process.env.LOCAL_AUTH_POLICY !== undefined || membership;
 const mf = new Miniflare({
   modules: true,
   modulesRules: [{ type: "ESModule", include: ["**/*.js"] }],
-  scriptPath: fileURLToPath(new URL(authenticated ? "./src/local-auth-worker.js" : "./src/worker.js", import.meta.url)),
-  durableObjects: authenticated ? { GROUP: { className: "AuthenticatedGroupLog", useSQLite: true } } :
+  scriptPath: fileURLToPath(new URL(membership ? "./src/roster-worker.js" : authenticated ? "./src/local-auth-worker.js" : "./src/worker.js", import.meta.url)),
+  durableObjects: authenticated ? { GROUP: { className: membership ? "RosterGroupLog" : "AuthenticatedGroupLog", useSQLite: true } } :
     { GROUP: "GroupLog", MAILBOX: "Mailbox" },
-  bindings: { LOCAL_DEVELOPMENT: "true", ...(authenticated ? { LOCAL_AUTH_POLICY: process.env.LOCAL_AUTH_POLICY } : {}) },
+  bindings: { LOCAL_DEVELOPMENT: "true", ...(process.env.LOCAL_AUTH_POLICY !== undefined ? { LOCAL_AUTH_POLICY: process.env.LOCAL_AUTH_POLICY } : {}),
+    ...(membership ? { LOCAL_AUTH_MEMBERSHIP: "true" } : {}) },
   compatibilityDate: "2026-07-01",
   host: "127.0.0.1",
   port,
 });
 await mf.ready;
-console.log(`${authenticated ? 'local authenticated group relay' : 'relay'} listening on http://127.0.0.1:${port}`);
+console.log(`${membership ? 'local roster group relay' : authenticated ? 'local authenticated group relay' : 'relay'} listening on http://127.0.0.1:${port}`);
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     await mf.dispose();
