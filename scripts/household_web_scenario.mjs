@@ -11,12 +11,17 @@ export async function runHouseholdWebScenario(alice, api) {
   const { appUrl, debugPort, repoRoot, connectCdp, waitForPage, openApp,
     evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay } = api;
   const { Miniflare } = createRequire(import.meta.url)('../relay/node_modules/miniflare');
-  const relay = new Miniflare({
-    modules: true, scriptPath: join(repoRoot, 'relay/src/worker.js'),
-    durableObjects: { GROUP: 'GroupLog', MAILBOX: 'Mailbox' },
-    bindings: { LOCAL_DEVELOPMENT: 'true' },
+  const authenticated = process.env.WEB_HOUSEHOLD_AUTH === '1';
+  const relayOptions = {
+    modules: true,
+    modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
+    scriptPath: join(repoRoot, authenticated ? 'relay/src/roster-worker.js' : 'relay/src/worker.js'),
+    durableObjects: authenticated ? { GROUP: { className: 'RosterGroupLog', useSQLite: true } } :
+      { GROUP: 'GroupLog', MAILBOX: 'Mailbox' },
+    bindings: { LOCAL_DEVELOPMENT: 'true', ...(authenticated ? { LOCAL_AUTH_MEMBERSHIP: 'true' } : {}) },
     compatibilityDate: '2026-07-01', host: '127.0.0.1', port: 0,
-  });
+  };
+  const relay = new Miniflare(relayOptions);
   const relayUrl = String(await relay.ready).replace(/\/$/, '');
   const version = await (await fetch(`http://127.0.0.1:${debugPort}/json/version`)).json();
   let rejectWorkerFailure;
@@ -212,9 +217,35 @@ export async function runHouseholdWebScenario(alice, api) {
     await alice.send('Network.enable');
     const alicePhrase = await protect(alice);
     await fill(alice, 'Relay address', relayUrl);
+    if (authenticated) {
+      await clickLabel(alice, 'Authenticated relay (development)\nRequires operator setup. Only approved devices can sync. Saving this setting does not register your household.', 'switch');
+    }
     await clickLabel(alice, 'Save relay address', 'button');
     await clickLabel(alice, 'Create a household', 'button');
     await waitForLabel(alice, 'Shared balance');
+    if (authenticated) {
+      scenarioStage = 'exporting public operator bootstrap';
+      await clickLabel(alice, 'Household options', 'button');
+      await clickLabel(alice, 'Export local relay setup');
+      await waitForLabel(alice, 'Relay operator setup');
+      const policy = JSON.parse(await textMatching(alice, '^\\{"version":2,"epoch":0,"scope":'));
+      assert.deepEqual(Object.keys(policy).sort(), ['devices', 'epoch', 'scope', 'version']);
+      assert.equal(policy.devices.length, 1);
+      assert.deepEqual(policy.devices[0].operations, ['append', 'membership', 'read']);
+      assert.match(policy.devices[0].key, /^[0-9a-f]{64}$/);
+      assert.equal(policy.scope.origin, relayUrl);
+      assert.equal(policy.scope.kind, 'g');
+      assert.match(policy.scope.id, /^[0-9a-f]{32}$/);
+      await relay.setOptions({ ...relayOptions, port: Number(new URL(relayUrl).port),
+        bindings: { ...relayOptions.bindings, LOCAL_AUTH_POLICY: JSON.stringify(policy) } });
+      await clickLabel(alice, 'Close', 'button');
+      await sync(alice);
+      await clickLabel(alice, 'Household options', 'button');
+      assert.equal(await evaluate(alice, `document.body.textContent.includes('Export local relay setup')`), false);
+      await alice.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      await alice.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+      console.log('Verified authenticated bootstrap: production app public roster export starts owned SQLite relay; no pre-seeded history.');
+    }
     const bob = await newPeer();
     await clickLabel(bob, 'Add', 'button');
     await fill(bob, 'Title', 'Private summary-only lunch');
@@ -388,6 +419,11 @@ export async function runHouseholdWebScenario(alice, api) {
       .filter(event => event.method === 'Network.requestWillBeSent' && event.params.request.url.startsWith(relayUrl));
     assert(requests.some(event => event.params.request.method === 'POST'));
     assert(requests.some(event => event.params.request.method === 'GET'));
+    if (authenticated) {
+      assert(requests.some(event => event.params.request.method === 'PUT' && event.params.request.url.includes('/invite/')));
+      assert(!requests.some(event => new URL(event.params.request.url).pathname.startsWith('/m/')),
+        'Authenticated production peers must never use legacy mailbox routes');
+    }
     for (const event of requests) {
       const body = event.params.request.postData ?? '';
       for (const title of ['Groceries', 'Rent', 'Private summary-only lunch', 'Quota blocked entry', 'After quota clears', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',

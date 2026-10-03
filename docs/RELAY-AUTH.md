@@ -1022,3 +1022,37 @@ text. Final analysis is clean (2.8s). The five real HTTP cases are rerun with
 explicit unjoined-identity export refusal in `relay-bootstrap-final-native.log`.
 This remains owned native/host-widget evidence, not public enrolment, durable
 hosting, browser/mobile runtime or a new raw storage audit.
+
+## 2026-10-04 — Production authenticated browser run exposes removal catch-up gap
+
+Built `app` with pinned Flutter 3.47.5/Dart 3.13.4 using
+`flutter --no-version-check build web --wasm --no-web-resources-cdn --no-pub`
+(146s). Main WASM is 2,743,741 bytes; matching bridge ABI remains `970902974`.
+The copied 6,305,277-byte bridge equals `app/web/pkg` by SHA-256:
+`2150574bc95661bf72f5a4437ec85a6b06c4f43491f44eae6dbfa3dd2763a4a3`.
+Build log: `app/.dart_tool/authenticated-web-build.log`.
+
+The opt-in `WEB_HOUSEHOLD_AUTH=1` browser scenario runs the production UI in
+owned Chrome 154.0.8037.58 contexts with a real loopback SQLite roster worker.
+It begins closed/unconfigured, accepts only the app's public operator export,
+and seeds no log or identity. Normal-client bootstrap, protected WASM roster/
+proof calls, HTTP/CORS join, private-ledger separation, explicit selected totals,
+sealed reload/RAM-only vault phrase, lock/unlock and offline concurrent-edit
+convergence passed. Backup restoration with a fresh invited replacement also
+reached the expected `USD -50.00`.
+
+**The full run failed** when old Bob synced after removal: revoking his relay
+read grant prevents delivery of the encrypted MLS removal commit, so the app
+retains stale membership instead of displaying the removed state. The failure
+is at `household_web_scenario.mjs`'s removed-member expectation; it is not a
+finished authenticated browser acceptance claim. Log:
+`app/.dart_tool/authenticated-household-web.log`; synthetic failure screenshots
+are under `app/.dart_tool/household-web-failure-*.png`. The harness cleans up its
+owned browser contexts and local worker after failure.
+
+Next work must bound any retired-device catch-up to its accepted removal slot
+and existing historical ciphertext, with trusted transaction-local authority,
+proof/replay/request limits and no post-removal read/append/membership rights.
+Do not bypass the removed-state assertion, re-grant current access, label a 401
+as cryptographic removal, or delete financial history to make this test pass.
+Current native crypto/removal evidence remains distinct from this browser gap.
