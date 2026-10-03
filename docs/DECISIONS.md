@@ -1499,3 +1499,11 @@ opaque-record counts and synthetic financial markers with deliberate leak
 controls rather than treating absence of readable titles on HTTP as a full
 storage audit.
 
+## 2026-10-03 — Fail before costly builds when pinned Windows tools differ
+
+Make the Windows web helper select the verified release mode/compiler flags
+and check existing tool versions before invoking code generation. Reuse explicit
+paths or the recorded NDK, restore caller environment even on failure, and offer
+a no-build preflight instead of downloading another compiler or repeating the
+known failing default dev invocation.
+

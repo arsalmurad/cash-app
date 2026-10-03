@@ -772,3 +772,30 @@ No authenticated browser-signing, current mobile/iOS or cloud deployment claim
 follows. Logs: `app/.dart_tool/request-proof-web-bridge-release.log`,
 `app/.dart_tool/request-proof-production-web-build.log` and
 `app/.dart_tool/request-proof-production-web-runtime.log`.
+
+## Fail-fast pinned Windows web build (2026-10-03)
+
+The Windows web helper now delegates to `scripts/build_web_bridge.ps1`, verifies
+the recorded FRB 2.13.0/wasm-pack 0.15.0, nightly commit `6eeff9a52` and Clang/
+llvm-ar 19.0.1 before compilation, and selects the known-working release command
+with `-matomics -mbulk-memory`. Explicit compiler paths are honoured; otherwise
+only NDK 28.2.13676358 under configured SDK roots/the recorded D: path is used.
+No opportunistic SDK upgrade or installation is part of preflight.
+
+`scripts/build_web_bridge.cmd -CheckOnly` succeeds. Permanent regression checks
+in `scripts/test_web_bridge_helper.ps1` pass under both the current PowerShell
+and Windows PowerShell: missing compiler and wrong installed Rust version fail
+before building, caller environment is restored and check-only leaves the
+existing WASM checksum unchanged. The first regression run exposed null values
+being converted into empty environment settings through .NET; explicit removal
+of previously absent settings repairs the helper and its test. Warnings and
+failure checks are not suppressed.
+
+The actual wrapper release build passes in about one minute (Rust compiler
+58.69s; wasm-pack reports 1m00s), preserving the known unstable-atomics warning.
+Log: `app/.dart_tool/pinned-web-helper-release.log`. Wasm-pack also reports
+`Installing wasm-bindgen`; that message is not evidence of a new download, and
+the helper retains normal binding-tool/cache behaviour. README documents the
+preflight/release commands and equivalent already-installed CI toolchain name.
+No Flutter production build, browser/mobile signing acceptance or cloud job was
+run for this build/setup concern; those gates remain distinct.
