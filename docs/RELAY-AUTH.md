@@ -1120,3 +1120,44 @@ fixed-policy storage audit through the updated dependency fixture. This does
 not inspect the new retired-roster records in a real financial household; that
 separate audit remains open. Final static analysis is clean. No Rust ABI,
 production app source, toolchain or public deployment changed in this concern.
+
+## Actual native roster storage audit (2026-10-04)
+
+`household_scoped_join_http_host_test.dart` now includes `storage-audit`: three
+real native MLS clients use the normal authenticated HTTP factory and production
+roster worker with real SQLite-backed Durable Object KV storage. Alice publishes
+21 expenses, Bob is removed and processes the removal commit, and Cara joins
+through a new consumed encrypted Welcome; surviving balances are `USD -52.50`.
+Client save storage in this host test is controlled in-memory, not an OS vault
+or power-loss test.
+
+The owning-process inspection verifies contiguous ciphertext history, capacity,
+immutable bootstrap/current public grants, replay records, clock/budgets, both
+Welcome records, the retired read cutoff and live invitation authority. Every
+metadata object has an exact schema; keys match independently exported protected
+native rosters, including retired Bob. Known synthetic member names, account
+names, transaction IDs, titles, balances, receipt headers and binary i64 amounts
+must not appear in metadata or decoded stored ciphertext. Clone-only negative
+controls inject financial plaintext into ledger/Welcome records, binary amounts,
+unexpected financial/name metadata and missing required authority records; all
+are rejected. Real storage remains unchanged and `/inspect` is refused over HTTP.
+No debug route or audit scanner ships in the production worker.
+
+Verified on Windows with pinned Flutter 3.47.5/Dart 3.13.4, native bridge ABI
+`970902974`, Node 24.19 and cached Miniflare/workerd:
+
+```powershell
+$env:RUST_LIB_PATH='C:/Users/ME/code/cash-app/rust/target/debug/rust_lib_cash_app.dll'
+# From app/:
+..\.toolchains\flutter\bin\flutter.bat test --no-pub --concurrency=1 test/household_scoped_join_http_host_test.dart test/household_authenticated_http_host_test.dart
+..\.toolchains\flutter\bin\flutter.bat analyze --no-pub
+```
+
+All eight affected native HTTP cases pass (64s,
+`app/.dart_tool/roster-storage-regression.log`), including the earlier fixed-policy
+storage audit. Analysis is clean (4.2s).
+Full relay regression also passes 66 checks with three optional Rust-fixture
+skips (69 total, 27.51s, `app/.dart_tool/roster-storage-relay-regression.log`).
+This inspects the actual live SQLite KV
+view and known fixture markers, not raw database pages/WAL, all possible secrets,
+network metadata anonymity, or final Android/iOS acceptance.
