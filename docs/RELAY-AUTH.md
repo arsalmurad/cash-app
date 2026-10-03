@@ -392,3 +392,39 @@ the app HTTP client signs requests yet, that the new signing method ran inside
 the browser, or that current Android/iOS binaries passed. Trusted registration,
 dynamic roster/mailbox/socket authorization, authenticated end-to-end transport,
 safe recoverable pruning and authorized $0 deployment remain open.
+
+## Opt-in HTTP proof provider (2026-10-03)
+
+`HttpRelayClient` now accepts an optional `RelayRequestSigner` callback. For
+every page and append/mailbox request it supplies the exact method, URI and
+encoded body bytes, then attaches the returned public proof header. Body
+encoding happens once; the provider receives a defensive copy and cannot alter
+the bytes later sent. Proof headers are bounded to 1,024 printable ASCII
+characters. Their cryptographic validity and trusted grants remain server
+responsibilities, not a client-header-validation claim.
+
+Signing is awaited within the request's 20-second budget. A timeout, thrown
+Rust string/Dart error, empty/oversized/header-injection result prevents any
+request, reports trusted local copy and never falls back to unsigned traffic.
+A regression actually waits out the deadline and completes the provider later:
+no late transmission follows. Reads and mutations share abortable streaming
+and the existing 6 MiB reply bound. Existing paged validation, fixed-frontier
+reads and durably confirmed progress are preserved.
+
+Test-first wire regressions cover all six route variants, exact bytes despite
+provider mutation, failure/no-network behavior, per-page invocation and late
+completion. The first implementation used an unsupported constructor header
+argument; installed http 1.6.0 instead requires populating request headers.
+The corrected path passes 42 combined transport/native-bridge encrypted
+backfill/receipt tests in 20 seconds before the final per-page check was added.
+Dart analysis is clean (2.4s). Final focused log:
+`app/.dart_tool/signed-http-tests.log`. No Rust API/bridge changed in this concern.
+The final focused transport run passes all 24 checks in 20 seconds, including
+the added exact continuation-URL/per-page provider check.
+
+This is an opt-in wire capability, not controller enrolment or a real app-signed
+HTTP/MLS acceptance run. Tests use a controlled proof callback and HTTP mock;
+the default controller still supplies no signer. Native/WASM protected-key
+adapter, trusted device registration, mailbox/roster authorization and final
+platform verification remain open. The production browser artifact still
+predates these Dart transport changes; no current-browser claim follows.

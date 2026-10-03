@@ -18,6 +18,172 @@ http.Response _json(int status, Object body) => http.Response(
 
 void main() {
   test(
+    'each page requests its own proof for the exact continuation URL',
+    () async {
+      var proofs = 0;
+      final urls = <Uri>[];
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((request) async {
+          urls.add(request.url);
+          expect(request.headers['x-cash-device-proof'], 'page-$proofs');
+          final after = int.parse(request.url.queryParameters['after']!);
+          return _json(200, {
+            'entries': [
+              {'seq': after + 1, 'blob': 'AQ=='},
+            ],
+            'tail': 2,
+            'more': after == 0,
+          });
+        }),
+        (method, url, body) async {
+          expect(method, 'GET');
+          expect(body, isEmpty);
+          expect(url.queryParameters['after'], proofs.toString());
+          return 'page-${++proofs}';
+        },
+      );
+      expect(
+        (await client.readAfter(_group, 0)).map((entry) => entry.sequence),
+        [1, 2],
+      );
+      expect(proofs, 2);
+      expect(urls.map((url) => url.queryParameters['after']), ['0', '1']);
+    },
+  );
+
+  test(
+    'a signing deadline prevents later transmission when the callback finishes',
+    () async {
+      final proof = Completer<String>();
+      var requests = 0;
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((_) async {
+          requests++;
+          return _json(200, {'seq': 1});
+        }),
+        (_, _, _) => proof.future,
+      );
+      await expectLater(
+        client.append(_group, 0, Uint8List(1)),
+        throwsA(
+          isA<RelayUnavailable>().having(
+            (error) => error.message,
+            'trusted error',
+            'Could not authenticate the relay request. No request sent.',
+          ),
+        ),
+      );
+      expect(requests, 0);
+      proof.complete('late-proof');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(requests, 0);
+    },
+  );
+
+  test(
+    'signed transport binds exact method, URL and sent bytes on every route',
+    () async {
+      final signed = <({String method, Uri url, List<int> bytes})>[];
+      final sent = <http.Request>[];
+      final client = HttpRelayClient(
+        'https://relay.example',
+        MockClient((request) async {
+          sent.add(request);
+          expect(
+            request.headers['x-cash-device-proof'],
+            'proof-${sent.length}',
+          );
+          final input = signed[sent.length - 1];
+          expect(request.method, input.method);
+          expect(request.url, input.url);
+          expect(request.bodyBytes, input.bytes);
+          if (request.url.path.endsWith('/append')) {
+            return _json(200, {'seq': 1});
+          }
+          if (request.url.path.startsWith('/g/')) {
+            return _json(200, {'entries': [], 'tail': 0, 'more': false});
+          }
+          return request.method == 'GET' || request.url.path.endsWith('/take')
+              ? _json(404, {})
+              : _json(200, {'ok': true});
+        }),
+        (method, url, body) async {
+          signed.add((method: method, url: url, bytes: body.toList()));
+          // The callback cannot change the request bytes after receiving them.
+          if (body.isNotEmpty) body[0] ^= 1;
+          return 'proof-${signed.length}';
+        },
+      );
+      await client.append(_group, 0, Uint8List.fromList([0, 255]));
+      await client.readAfter(_group, 0);
+      await client.putMailbox(_mailbox, _group, 1, Uint8List.fromList([128]));
+      await client.peekMailbox(_mailbox);
+      await client.takeMailbox(_mailbox);
+      await client.acknowledgeMailbox(_mailbox);
+      expect(sent.length, 6);
+      expect(signed.map((value) => value.method), [
+        'POST',
+        'GET',
+        'PUT',
+        'GET',
+        'POST',
+        'POST',
+      ]);
+    },
+  );
+
+  test(
+    'signer errors and unusable proof headers never send or retry unsigned',
+    () async {
+      for (final failure in [
+        'private diagnostic',
+        StateError('private diagnostic'),
+        '',
+        'x' * 1025,
+        'bad\nheader',
+      ]) {
+        var requests = 0;
+        final client = HttpRelayClient(
+          'https://relay.example',
+          MockClient((_) async {
+            requests++;
+            return _json(200, {});
+          }),
+          (_, _, _) async {
+            if (failure == 'private diagnostic' || failure is StateError) {
+              throw failure;
+            }
+            return failure as String;
+          },
+        );
+        for (final operation in <Future<void> Function()>[
+          () async {
+            await client.append(_group, 0, Uint8List(1));
+          },
+          () async {
+            await client.readAfter(_group, 0);
+          },
+          () => client.acknowledgeMailbox(_mailbox),
+        ]) {
+          await expectLater(
+            operation(),
+            throwsA(
+              isA<RelayUnavailable>().having(
+                (error) => error.message,
+                'trusted error',
+                'Could not authenticate the relay request. No request sent.',
+              ),
+            ),
+          );
+        }
+        expect(requests, 0);
+      }
+    },
+  );
+
+  test(
     'confirmed pages survive later refusal but list reads remain atomic',
     () async {
       final confirmed = <int>[];

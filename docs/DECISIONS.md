@@ -1464,3 +1464,12 @@ ceiling, while preserving byte-identical saved household state. Do not enable
 network authorization by treating a signature as registration or current MLS
 membership; rebuild and test each changed ABI artifact before runtime claims.
 
+## 2026-10-03 — Bind optional HTTP proofs to the transmitted bytes
+
+Invoke the proof provider for the exact method, URI and already-encoded body
+on every request/page, giving it a defensive body copy. Await signing inside
+the existing deadline and refuse before transmission on callback/invalid-header
+failure; never retry unsigned or let a late callback start networking. Share
+the existing bounded, abortable response reader across HTTP routes rather than
+adding another unbounded signed-request path.
+
