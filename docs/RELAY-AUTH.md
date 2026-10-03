@@ -1161,3 +1161,21 @@ skips (69 total, 27.51s, `app/.dart_tool/roster-storage-relay-regression.log`).
 This inspects the actual live SQLite KV
 view and known fixture markers, not raw database pages/WAL, all possible secrets,
 network metadata anonymity, or final Android/iOS acceptance.
+
+## Actual Android authenticated client runtime (2026-10-04)
+
+`node scripts/verify_android_authenticated.mjs` now verifies the normal mobile
+factory against the production owned SQLite roster worker. On Android 16/API 36
+x86_64, three OS-key-wrapped identities perform public operator bootstrap,
+authenticated join/consumed Welcome checks, protected restart, encrypted expense
+delivery and actual removed-member catch-up. Alice/Cara converge to `USD -5.00`;
+inactive Bob stays at `USD -2.50` and cannot write. No history is seeded and
+anonymous reads return 401. The runtime and owned driver both pass, with exact
+commands/limits/logs in `PHASE2-PROGRESS.md`.
+
+The host accepts only a bounded valid one-device epoch-zero public policy for
+its allocated loopback origin. It refuses physical devices and unexpected AVDs;
+one scoped reverse tunnel, one isolated worker and the owned Flutter command
+tree are cleaned independently. This adds no production control/inspection
+route and no public enrolment. It is mobile HTTP/OS-vault evidence on one
+emulator, not final release/iOS, public signup, TLS or a physical-device rollout.

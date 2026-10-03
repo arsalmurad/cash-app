@@ -1659,3 +1659,10 @@ Reject broad cache deletion or toolchain upgrades: the full-disk build omitted
 the packaged Dart kernel, and a complete regenerated APK passed the unchanged
 ledger test with the normal Flutter debug-service layer.
 
+## 2026-10-04 — Verify authenticated mobile transport without a public control route
+
+Send only the app's public founding export to an owning host driver, which starts
+the production roster worker and an isolated loopback reverse tunnel. Use normal
+mobile clients and actual OS-wrapped stores, not injected memory transport or
+seeded history; keep all control/cleanup outside production app and relay routes.
+
