@@ -1356,3 +1356,12 @@ Reject silent gaps, empty continuation loops and rollback instead of accepting
 partial history or inventing a recovery cursor. This does not authorize pruning
 and does not authenticate a relay or bound its HTTP response stream.
 
+## 2026-10-03 — Bound one backfill to its first observed prefix
+
+Finish at the first observed tail rather than chase concurrent growth; later
+entries remain available on the next read. Bound response parsing, aggregate
+payload/entry counts and the shared network deadline instead of accepting
+unbounded buffering or silently returning partial history when a limit fails.
+Large legacy logs need explicit bounded migration/recovery; this does not grant
+deletion authority or authenticate a server.
+
