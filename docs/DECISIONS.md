@@ -1757,3 +1757,10 @@ hidden app state or weakening the browser test: the production request was
 visually present but absent from its accessible DOM. Maximum-length request and
 approval regression tests cover wrapping without truncating the accessible code.
 
+## 2026-10-04 — Exercise shared browser identity through foreground tabs
+
+Use a second same-origin/context tab to verify lease refusal and ordinary
+lock/close transfer, with normal foreground tab switching before interaction.
+Do not disable Web Locks or infer a background renderer repair from stale
+semantics; check unchanged confirmed storage and no duplicate relay writes.
+
