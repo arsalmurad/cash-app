@@ -123,6 +123,7 @@ changes are not completion shortcuts or required prototype features.
 On this Windows host, generated Android output, Flutter build cache and native
 Rust cache use ignored junctions to D:. Preserve the junctions and backing
 directories, including the native plugin's `intermediates` relocation recorded
+and the four-file `jniLibs` cache relocation recorded
 in [ANDROID-RELEASE.md](ANDROID-RELEASE.md); check free space before builds. A full-disk APK once omitted its
 Dart kernel despite a successful build. Exact recovery/toolchain details are
 in [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).

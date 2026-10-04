@@ -1795,3 +1795,10 @@ explicit in the Android-64 final `cdylib` link, rejecting dependency-wide
 compiler flag changes/toolchain upgrades; reuse native caches and distinguish
 ARM packaging from actual phone/16 KB runtime (see ANDROID-RELEASE.md).
 
+## 2026-10-04 — Preserve generated JNI libraries on D
+
+Relocate only the validated four-file native-plugin JNI cache, compare all
+SHA-256 hashes, and retain its original path as a junction. Reject deleting
+working native libraries or financial data to gain C: headroom; the exact
+backing path and remaining capacity are in ANDROID-RELEASE.md.
+
