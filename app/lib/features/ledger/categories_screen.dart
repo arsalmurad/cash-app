@@ -26,6 +26,7 @@ class CategoriesScreen extends StatelessWidget {
       body: categories.isEmpty
           ? const Center(child: Text('No categories yet'))
           : ListView.builder(
+              padding: const EdgeInsets.only(bottom: 112),
               itemCount: categories.length,
               itemBuilder: (context, index) {
                 final category = categories[index];

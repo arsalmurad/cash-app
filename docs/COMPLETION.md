@@ -89,6 +89,9 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    [PERSONAL-UX-REVIEW.md](PERSONAL-UX-REVIEW.md) records scoped repairs and
    unverified behavior. Widget presence or limited guideline checks are not an
    overall UX/accessibility pass.
+   The latest category-list bottom-action repair passes a six-case 200%-text
+   pointer/cancel matrix and 28 adjacent host tests; updated production
+   browser/mobile verification of that newer UI change remains open.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android
@@ -122,8 +125,8 @@ changes are not completion shortcuts or required prototype features.
 
 On this Windows host, generated Android output, Flutter build cache and native
 Rust cache use ignored junctions to D:. Preserve the junctions and backing
-directories, including the native plugin's `intermediates` relocation recorded
-and the four-file `jniLibs` cache relocation recorded
+directories, including the native plugin's `intermediates` and four-file
+`jniLibs` cache relocations recorded
 in [ANDROID-RELEASE.md](ANDROID-RELEASE.md); check free space before builds. A full-disk APK once omitted its
 Dart kernel despite a successful build. Exact recovery/toolchain details are
 in [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).

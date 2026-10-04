@@ -1802,3 +1802,11 @@ SHA-256 hashes, and retain its original path as a junction. Reject deleting
 working native libraries or financial data to gain C: headroom; the exact
 backing path and remaining capacity are in ANDROID-RELEASE.md.
 
+## 2026-10-04 — Keep the final category action reachable
+
+Reserve bottom scroll space in Categories, matching the existing ledger
+panes, after six enlarged-text cases reproduced the final Edit control hidden
+under New category. Reject shrinking touch targets or changing categories to
+work around the overlay; verify actual pointer opening/cancellation and zero
+writes in the host matrix (PERSONAL-UX-REVIEW.md).
+
