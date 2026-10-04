@@ -1068,7 +1068,11 @@ class HouseholdController extends ChangeNotifier {
     return group;
   }
 
-  Future<void> _catchUp(RelayClient relay, Household household) async {
+  Future<void> _catchUp(
+    RelayClient relay,
+    Household household, {
+    void Function(RelayLogEntry)? onConfirmed,
+  }) async {
     final overview = await householdOverview(household: household);
     Future<void> ingest(List<RelayLogEntry> entries) async {
       if (entries.isEmpty) return;
@@ -1082,6 +1086,9 @@ class HouseholdController extends ChangeNotifier {
             ),
         ],
       );
+      for (final entry in entries) {
+        onConfirmed?.call(entry);
+      }
       final pending = _pendingRelayMembership;
       if (pending != null && entries.last.sequence > pending.expectedTail) {
         // Only successful ordered MLS ingestion settles an uncertain commit.
@@ -1104,12 +1111,21 @@ class HouseholdController extends ChangeNotifier {
     }
   }
 
-  Future<void> _sync() async {
+  Future<void> _sync({OutgoingEntry? requiredCommit}) async {
     final relay = _requireRelay();
     final household = _requireHousehold();
     if (!isMember) {
       return;
     }
+    var requiredAccepted = requiredCommit == null;
+    void confirmRequired(RelayLogEntry entry) {
+      if (requiredCommit != null &&
+          entry.sequence == requiredCommit.expectedTail.toInt() + 1 &&
+          listEquals(entry.blob, requiredCommit.blob)) {
+        requiredAccepted = true;
+      }
+    }
+
     try {
       if (_pendingMailboxAck != null) {
         // The joined keys and receipt intent were saved atomically before
@@ -1130,7 +1146,7 @@ class HouseholdController extends ChangeNotifier {
       var conflicts = 0;
       var receiptConsidered = false;
       while (true) {
-        await _catchUp(relay, household);
+        await _catchUp(relay, household, onConfirmed: confirmRequired);
         if (_recoveryState != null) {
           final recovered = await householdMergeRecoveryHistory(
             household: household,
@@ -1178,6 +1194,11 @@ class HouseholdController extends ChangeNotifier {
             );
           } else {
             if (relay is RosterRelayClient && relay.rosterEnabled) {
+              if (await householdHasPendingCommit(household: household)) {
+                throw const RelayUnavailable(
+                  'The saved membership transition is missing its relay permissions. Keep the household and restore its original saved state. No request sent.',
+                );
+              }
               // Older journals have no policy intent. A pending add/removal
               // projects different keys and must never become a plain append.
               await _membershipPolicy(relay, forChange: false);
@@ -1192,6 +1213,7 @@ class HouseholdController extends ChangeNotifier {
             household: household,
             sequence: PlatformInt64Util.from(sequence),
           );
+          confirmRequired(RelayLogEntry(sequence, next.blob));
           _pendingRelayMembership = null;
         } on RelayConflict {
           conflicts += 1;
@@ -1201,6 +1223,11 @@ class HouseholdController extends ChangeNotifier {
         }
       }
       await _finishInvitation(relay);
+      if (!requiredAccepted) {
+        throw const RelayUnavailable(
+          'Another change won the relay slot. Your key refresh was not confirmed; sync and try again.',
+        );
+      }
     } finally {
       // Whatever happened, keep what was learned and what is still queued.
       if (!_writesDisabled) {
@@ -1364,6 +1391,31 @@ class HouseholdController extends ChangeNotifier {
       }
     }
     throw const RelayUnavailable('the relay stayed busy; try again');
+  });
+
+  /// Saves the exact self-update and matching public permission epoch before
+  /// sending. A failed/lost send resumes through Sync, not a second rotation.
+  Future<bool> refreshEncryptionKeys() => _run(() async {
+    if (needsRecoveryInvite) {
+      throw const FormatException('Finish recovery before refreshing keys.');
+    }
+    final relay = _requireRelay();
+    final household = _requireHousehold();
+    await _catchUp(relay, household);
+    final policy = await _membershipPolicy(relay);
+    final commit = await householdBeginRotation(household: household);
+    await _retainMembershipPolicy(commit, policy);
+    await _persist();
+    await _refresh();
+    try {
+      await _sync(requiredCommit: commit);
+    } on RelayUnavailable catch (error) {
+      if (_writesDisabled) rethrow;
+      if (await householdHasPendingCommit(household: household)) {
+        throw _SavedChangePending(error);
+      }
+      rethrow;
+    }
   });
 
   Future<String?> safetyNumberWith(String memberId) => _enqueue(() async {

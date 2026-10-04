@@ -117,6 +117,15 @@ void main() {
       expect(await bob.syncNow(), isTrue);
       expect(bob.overview!.balanceLabel, 'USD -2.50');
 
+      final keysBeforeRefresh = await alice.relayRosterKeys();
+      final membersBeforeRefresh = List<String>.of(alice.overview!.memberIds);
+      expect(await alice.refreshEncryptionKeys(), isTrue);
+      expect(await bob.syncNow(), isTrue);
+      expect(await alice.relayRosterKeys(), keysBeforeRefresh);
+      expect(await bob.relayRosterKeys(), keysBeforeRefresh);
+      expect(alice.overview!.memberIds, membersBeforeRefresh);
+      expect(bob.overview!.balanceLabel, 'USD -2.50');
+
       final cara = restore('cara');
       await cara.initialize();
       expect(await cara.setRelayUrl(origin, authenticated: true), isTrue);

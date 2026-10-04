@@ -395,6 +395,16 @@ void main() {
               );
               expect(await restarted.syncNow(), isTrue);
               expect(restarted.overview!.balanceLabel, 'USD -2.50');
+              final keysBeforeRefresh = await alice.relayRosterKeys();
+              final membersBeforeRefresh = List<String>.of(
+                alice.overview!.memberIds,
+              );
+              expect(await alice.refreshEncryptionKeys(), isTrue);
+              expect(await restarted.syncNow(), isTrue);
+              expect(await alice.relayRosterKeys(), keysBeforeRefresh);
+              expect(await restarted.relayRosterKeys(), keysBeforeRefresh);
+              expect(alice.overview!.memberIds, membersBeforeRefresh);
+              expect(restarted.overview!.balanceLabel, 'USD -2.50');
             }
             if (audit) {
               final aliceKey = (root as Map)['devices'][0]['key'] as String;
@@ -444,7 +454,7 @@ void main() {
                 'audit:${jsonEncode({
                   'currentPolicy': {
                     'version': 2,
-                    'epoch': 3,
+                    'epoch': 4,
                     'scope': {'origin': origin, 'kind': 'g', 'id': group},
                     'devices': [
                       for (final key in currentKeys) {
@@ -489,6 +499,12 @@ void main() {
               );
             }
           },
+          // Audit adds 21 expense sends, rotation, retirement/rejoin and six
+          // poison controls. Keep request/startup deadlines unchanged; only
+          // this intentionally long end-to-end case gets a bounded allowance.
+          timeout: failure == 'storage-audit'
+              ? const Timeout(Duration(seconds: 90))
+              : null,
         );
       }
     },

@@ -144,6 +144,18 @@ Future<OutgoingEntry> householdBeginRemoval({
   memberId: memberId,
 );
 
+/// Reports a staged MLS transition without mutating or exporting private state.
+Future<bool> householdHasPendingCommit({required Household household}) =>
+    RustLib.instance.api.crateApiSharedHouseholdHasPendingCommit(
+      household: household,
+    );
+
+/// Stages an encryption-key refresh without changing the household membership.
+Future<OutgoingEntry> householdBeginRotation({required Household household}) =>
+    RustLib.instance.api.crateApiSharedHouseholdBeginRotation(
+      household: household,
+    );
+
 Future<void> householdCommitAccepted({
   required Household household,
   required PlatformInt64 sequence,

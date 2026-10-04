@@ -1,5 +1,14 @@
 # Phase 2 progress
 
+## Standalone encryption-key refresh (2026-10-04)
+
+OpenMLS self-update, immutable saved commit retries, same-roster authenticated
+permission transitions and the household confirmation action are implemented.
+Core convergence, native controller recovery and actual authenticated HTTP/
+SQLite privacy checks pass; detailed scope, failures, commands and limits are
+in [KEY-ROTATION.md](KEY-ROTATION.md). New bridge ABI `-1323392253` supersedes
+the bindings below; old platform evidence is not current-source verification.
+
 ## Actual authenticated Android HTTP (2026-10-04)
 
 The new `integration_test/authenticated_household_test.dart` and owning host

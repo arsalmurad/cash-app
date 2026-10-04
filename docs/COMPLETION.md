@@ -61,7 +61,9 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    per-log growth refusal alone do not close this gate.
 3. [ ] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.
-   Current tests prove membership-driven rekeying, not a standalone self-update.
+   Standalone self-update now has native core/bridge/controller and actual
+   authenticated HTTP evidence in [KEY-ROTATION.md](KEY-ROTATION.md).
+   Final-source mobile/browser runtime verification is still required.
 4. [ ] Finish the personal functional/adaptive/accessibility review against the
    requested Cashew quality bar and Phase 1 scope, across phone/tablet/web.
    Accounts/multi-currency; expense/income/transfer/recurring/upcoming; categories/
@@ -73,9 +75,9 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    overall UX/accessibility pass.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
-   Current ABI `970902974` passes production authenticated Chrome and Android
-   personal/household/authenticated-HTTP journeys; final iOS and current Android
-   release APK remain open. Earlier clean-checkout/platform runs are not a
+   Previous ABI `970902974` passed production authenticated Chrome and Android
+   journeys. New key-refresh ABI `-1323392253` has native-host evidence only;
+   final iOS, Android/release APK and production web remain open. Older runs are not a
    final-source completion claim.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to private GitHub `main`. Local diagnostic

@@ -1,5 +1,15 @@
 # Decisions
 
+## 2026-10-04 — Refresh encryption paths through the durable commit protocol
+
+Use pinned OpenMLS 0.9.0 self-update without changing credentials, signing keys
+or members, and reuse the saved non-add commit plus authenticated permission
+transition. A signing-roster equality check alone cannot detect a rotation whose
+permission journal was lost, so a read-only pending-commit projection refuses
+that downgrade; confirmed sync alone cannot prove the initiating commit won.
+Do not substitute remove/reinvite or claim this revokes a compromised device.
+Pinned API and scoped runtime evidence: [KEY-ROTATION.md](KEY-ROTATION.md).
+
 ## 2026-10-01 — Acknowledge a welcome only after the receiver saves its keys
 
 Retryable mailbox reads replace destructive collection in the app, and joined

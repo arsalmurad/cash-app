@@ -89,6 +89,89 @@ fn three() -> (Member, Member, Member) {
 }
 
 #[test]
+fn standalone_rotation_stages_restarts_and_preserves_signing_identities() {
+    let (mut alice, mut bob, mut carol) = three();
+    let epoch = alice.epoch();
+    let keys = alice.member_keys().unwrap();
+    let roster = alice.relay_roster_keys(false).unwrap();
+    let signature = alice.sign_history(b"original signed history").unwrap();
+    let mut stale = Member::import(&alice.export().unwrap()).unwrap();
+    let commit = alice.rotate_keys().unwrap();
+    assert_eq!(alice.epoch(), epoch, "staging is not acceptance");
+    assert_eq!(alice.relay_roster_keys(true).unwrap(), roster);
+    assert!(alice.rotate_keys().is_err());
+    assert!(alice.encrypt(b"do not write before acceptance").is_err());
+    alice = Member::import(&alice.export().unwrap()).unwrap();
+    alice.confirm_commit().unwrap();
+    assert_eq!(alice.epoch(), epoch + 1);
+    for peer in [&mut bob, &mut carol] {
+        assert_eq!(
+            peer.receive(&commit).unwrap(),
+            Received::Commit { epoch: epoch + 1 }
+        );
+        assert_eq!(peer.member_keys().unwrap(), keys);
+        peer.verify_history(&alice.public_key(), b"original signed history", &signature)
+            .unwrap();
+    }
+    assert_eq!(alice.member_keys().unwrap(), keys);
+    assert_eq!(alice.relay_roster_keys(false).unwrap(), roster);
+    assert!(
+        stale.receive(&commit).is_err(),
+        "an old copy lacks the new self-update state"
+    );
+    let message = alice.encrypt(b"new rotation epoch").unwrap();
+    assert!(stale.receive(&message).is_err());
+    assert_eq!(
+        bob.receive(&message).unwrap(),
+        Received::Application(b"new rotation epoch".to_vec())
+    );
+    assert_eq!(
+        carol.receive(&message).unwrap(),
+        Received::Application(b"new rotation epoch".to_vec())
+    );
+    let reply = bob.encrypt(b"reply after rotation").unwrap();
+    assert_eq!(
+        alice.receive(&reply).unwrap(),
+        Received::Application(b"reply after rotation".to_vec())
+    );
+}
+
+#[test]
+fn standalone_rotation_rejection_keeps_current_epoch_usable() {
+    let (mut alice, mut bob, _) = three();
+    let epoch = alice.epoch();
+    let rejected = alice.rotate_keys().unwrap();
+    alice = Member::import(&alice.export().unwrap()).unwrap();
+    alice.discard_commit().unwrap();
+    assert_eq!(alice.epoch(), epoch);
+    let message = alice.encrypt(b"after definitive rejection").unwrap();
+    assert_eq!(
+        bob.receive(&message).unwrap(),
+        Received::Application(b"after definitive rejection".to_vec())
+    );
+    let retried = alice.rotate_keys().unwrap();
+    assert_ne!(retried, rejected);
+    alice.confirm_commit().unwrap();
+    bob.receive(&retried).unwrap();
+    assert_eq!(alice.epoch(), bob.epoch());
+}
+
+#[test]
+fn standalone_rotation_refuses_unjoined_and_removed_members_without_mutation() {
+    let mut fresh = Member::new("unjoined").unwrap();
+    let saved = fresh.export().unwrap();
+    assert!(fresh.rotate_keys().is_err());
+    assert_eq!(fresh.export().unwrap(), saved);
+    let (mut alice, mut bob, _) = three();
+    let removed = alice.remove("bob").unwrap();
+    alice.confirm_commit().unwrap();
+    assert_eq!(bob.receive(&removed).unwrap(), Received::Removed);
+    let saved = bob.export().unwrap();
+    assert!(bob.rotate_keys().is_err());
+    assert_eq!(bob.export().unwrap(), saved);
+}
+
+#[test]
 fn three_members_share_one_epoch_and_read_each_others_messages() {
     let (mut alice, mut bob, mut carol) = three();
     assert_eq!(alice.epoch(), bob.epoch());

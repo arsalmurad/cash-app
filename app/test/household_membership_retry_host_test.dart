@@ -33,6 +33,7 @@ class _RosterRelay extends MemoryRelayClient
   final _Store store;
   String mode = 'success';
   bool failMailbox = false;
+  Uint8List? competingEntry;
   final attempts = <PendingRelayMembership>[];
   @override
   bool get rosterEnabled => true;
@@ -83,6 +84,11 @@ class _RosterRelay extends MemoryRelayClient
     expect(saved.expectedTail, expectedTail);
     expect(saved.policy.toJson(), nextPolicy.toJson());
     attempts.add(saved);
+    final competing = competingEntry;
+    if (competing != null) {
+      competingEntry = null;
+      throw RelayConflict(await super.append(group, expectedTail, competing));
+    }
     if (mode == 'offline') throw const RelayUnavailable('controlled offline');
     if (mode == 'policy') throw const RelayMembershipConflict();
     if (mode == 'capacity') throw const RelayCapacityReached();
@@ -182,172 +188,214 @@ void main() {
       expect(relay.attempts, hasLength(1));
       expect(relay.policy.epoch, 1);
     });
-    for (final mode in [
-      'offline',
-      'lost',
-      'policy',
-      'capacity',
-      'save',
-      'missing',
-      'foreign',
-      'exhausted',
-    ]) {
-      test(
-        'removal retains exact transition after $mode and resumes after restart',
-        () async {
-          final memory = MemoryRelayClient();
-          final store = _Store();
-          final config = _Store();
-          final alice = HouseholdController(
-            stateStore: store,
-            configStore: config,
-            relayFactory: (_) => memory,
-          );
-          final bob = HouseholdController(
-            stateStore: _Store(),
-            configStore: _Store(),
-            relayFactory: (_) => memory,
-          );
-          addTearDown(bob.dispose);
-          for (final device in [alice, bob]) {
-            await device.initialize();
-            expect(await device.setRelayUrl('https://relay.test'), isTrue);
-          }
-          expect(await alice.createHousehold(), isTrue);
-          final invitation = await alice.invite(
-            (await bob.prepareJoinRequest())!,
-          );
-          expect(await bob.acceptInvite(invitation!), isTrue);
-          expect(await alice.syncNow(), isTrue);
-          final group = alice.overview!.groupId!;
-          final policy = RelayAuthorizationPolicy.fromJson(
-            {
-              'version': 2,
-              'epoch': 0,
-              'scope': {
-                'origin': 'https://relay.test',
-                'kind': 'g',
-                'id': group,
-              },
-              'devices': [
-                for (final key in await alice.relayRosterKeys())
-                  {
-                    'key': key,
-                    'operations': ['append', 'membership', 'read'],
-                  },
-              ],
-            },
-            origin: 'https://relay.test',
-            group: group,
-          );
-          final relay = _RosterRelay(policy, store);
-          for (final entry in await memory.readAfter(group, 0)) {
-            await relay.append(group, entry.sequence - 1, entry.blob);
-          }
-          alice.dispose();
-          HouseholdController restore() => HouseholdController(
-            stateStore: store,
-            configStore: config,
-            relayFactory: (_) => relay,
-          );
-          final first = restore();
-          await first.initialize();
-          relay.mode = mode == 'missing' ? 'offline' : mode;
-          final bobId = bob.overview!.memberId;
-          if (mode == 'foreign' || mode == 'exhausted') {
-            final origin = mode == 'foreign'
-                ? 'https://foreign.test'
-                : policy.origin;
-            relay.policy = RelayAuthorizationPolicy.fromJson(
+    for (final rotation in [false, true]) {
+      for (final mode in [
+        'offline',
+        'lost',
+        'policy',
+        'capacity',
+        'save',
+        'missing',
+        'foreign',
+        'exhausted',
+        if (rotation) 'race',
+      ]) {
+        test(
+          '${rotation ? 'rotation' : 'removal'} retains exact transition after $mode and resumes after restart',
+          () async {
+            final memory = MemoryRelayClient();
+            final store = _Store();
+            final config = _Store();
+            final alice = HouseholdController(
+              stateStore: store,
+              configStore: config,
+              relayFactory: (_) => memory,
+            );
+            final bob = HouseholdController(
+              stateStore: _Store(),
+              configStore: _Store(),
+              relayFactory: (_) => memory,
+            );
+            addTearDown(bob.dispose);
+            for (final device in [alice, bob]) {
+              await device.initialize();
+              expect(await device.setRelayUrl('https://relay.test'), isTrue);
+            }
+            expect(await alice.createHousehold(), isTrue);
+            final invitation = await alice.invite(
+              (await bob.prepareJoinRequest())!,
+            );
+            expect(await bob.acceptInvite(invitation!), isTrue);
+            expect(await alice.syncNow(), isTrue);
+            final group = alice.overview!.groupId!;
+            final policy = RelayAuthorizationPolicy.fromJson(
               {
-                ...policy.toJson(),
-                'epoch': mode == 'exhausted'
-                    ? RelayAuthorizationPolicy.maximumInteger
-                    : 0,
-                'scope': {'origin': origin, 'kind': 'g', 'id': group},
+                'version': 2,
+                'epoch': 0,
+                'scope': {
+                  'origin': 'https://relay.test',
+                  'kind': 'g',
+                  'id': group,
+                },
+                'devices': [
+                  for (final key in await alice.relayRosterKeys())
+                    {
+                      'key': key,
+                      'operations': ['append', 'membership', 'read'],
+                    },
+                ],
               },
-              origin: origin,
+              origin: 'https://relay.test',
               group: group,
             );
-            final saved = Uint8List.fromList(store.value!);
-            expect(await first.removeMember(bobId), isFalse);
-            expect(relay.attempts, isEmpty);
-            expect(store.value, saved);
+            final relay = _RosterRelay(policy, store);
+            for (final entry in await memory.readAfter(group, 0)) {
+              await relay.append(group, entry.sequence - 1, entry.blob);
+            }
+            alice.dispose();
+            HouseholdController restore() => HouseholdController(
+              stateStore: store,
+              configStore: config,
+              relayFactory: (_) => relay,
+            );
+            final first = restore();
+            await first.initialize();
+            final originalKeys = await first.relayRosterKeys();
+            final originalMembers = List<String>.of(first.overview!.memberIds);
+            relay.mode = mode == 'missing' ? 'offline' : mode;
+            final bobId = bob.overview!.memberId;
+            Future<bool> change(HouseholdController device) => rotation
+                ? device.refreshEncryptionKeys()
+                : device.removeMember(bobId);
+            if (mode == 'race') {
+              final before = first.overview!.cursor.toInt();
+              expect(
+                await bob.addExpense(
+                  title: 'Competing expense',
+                  amount: '1.25',
+                ),
+                isTrue,
+              );
+              relay.competingEntry = (await memory.readAfter(
+                group,
+                before,
+              )).first.blob;
+              expect(await change(first), isFalse);
+              expect(first.errorMessage, contains('not confirmed'));
+              expect(first.overview!.balanceLabel, 'USD -1.25');
+              expect(first.overview!.memberIds, originalMembers);
+              expect(relay.policy.epoch, 0);
+              expect(HouseholdJournal.decode(store.value!).membership, isNull);
+              expect(await change(first), isTrue);
+              expect(relay.policy.epoch, 1);
+              expect(first.overview!.balanceLabel, 'USD -1.25');
+              first.dispose();
+              return;
+            }
+            if (mode == 'foreign' || mode == 'exhausted') {
+              final origin = mode == 'foreign'
+                  ? 'https://foreign.test'
+                  : policy.origin;
+              relay.policy = RelayAuthorizationPolicy.fromJson(
+                {
+                  ...policy.toJson(),
+                  'epoch': mode == 'exhausted'
+                      ? RelayAuthorizationPolicy.maximumInteger
+                      : 0,
+                  'scope': {'origin': origin, 'kind': 'g', 'id': group},
+                },
+                origin: origin,
+                group: group,
+              );
+              final saved = Uint8List.fromList(store.value!);
+              expect(await change(first), isFalse);
+              expect(relay.attempts, isEmpty);
+              expect(store.value, saved);
+              expect(first.overview!.memberIds, contains(bobId));
+              first.dispose();
+              return;
+            }
+            if (mode == 'save') store.fail = true;
+            expect(await change(first), isFalse);
+            if (mode == 'save') {
+              expect(first.requiresRestart, isTrue);
+              expect(relay.attempts, isEmpty);
+              expect(HouseholdJournal.decode(store.value!).membership, isNull);
+              first.dispose();
+              store.fail = false;
+              relay.mode = 'success';
+              final restarted = restore();
+              addTearDown(restarted.dispose);
+              await restarted.initialize();
+              expect(await change(restarted), isTrue);
+              expect(relay.policy.epoch, 1);
+              return;
+            }
+            final pending = HouseholdJournal.decode(store.value!).membership!;
             expect(first.overview!.memberIds, contains(bobId));
+            expect(await first.setRelayUrl('https://foreign.test'), isFalse);
+            expect(relay.attempts, hasLength(1));
             first.dispose();
-            return;
-          }
-          if (mode == 'save') store.fail = true;
-          expect(await first.removeMember(bobId), isFalse);
-          if (mode == 'save') {
-            expect(first.requiresRestart, isTrue);
-            expect(relay.attempts, isEmpty);
-            expect(HouseholdJournal.decode(store.value!).membership, isNull);
-            first.dispose();
-            store.fail = false;
-            relay.mode = 'success';
+            if (mode == 'missing') {
+              final journal = HouseholdJournal.decode(store.value!);
+              store.value = HouseholdJournal(
+                state: journal.state,
+                relayUrl: journal.relayUrl,
+                pending: journal.pending,
+                lastCode: journal.lastCode,
+                lastRequest: journal.lastRequest,
+                pendingAck: journal.pendingAck,
+                recoveryState: journal.recoveryState,
+              ).encode();
+            }
             final restarted = restore();
             addTearDown(restarted.dispose);
             await restarted.initialize();
-            expect(await restarted.removeMember(bobId), isTrue);
+            relay.mode = 'success';
+            if (mode == 'missing') {
+              expect(await restarted.syncNow(), isFalse);
+              expect(restarted.errorMessage, contains('saved membership'));
+              expect(relay.attempts, hasLength(1));
+              expect(
+                await relay.readAfter(group, pending.expectedTail),
+                isEmpty,
+              );
+              expect(relay.policy.epoch, 0);
+              return;
+            }
+            expect(await restarted.syncNow(), isTrue);
+            if (rotation) {
+              expect(restarted.overview!.memberIds, originalMembers);
+              expect(await restarted.relayRosterKeys(), originalKeys);
+              expect(
+                relay.policy.devices.map((device) => device.key),
+                originalKeys,
+              );
+            } else {
+              expect(restarted.overview!.memberIds, isNot(contains(bobId)));
+            }
+            expect(HouseholdJournal.decode(store.value!).membership, isNull);
+            if (mode == 'lost') {
+              expect(relay.attempts, hasLength(1));
+            } else {
+              expect(relay.attempts, hasLength(2));
+              expect(relay.attempts.last.commit, pending.commit);
+              expect(
+                relay.attempts.last.policy.toJson(),
+                pending.policy.toJson(),
+              );
+            }
             expect(relay.policy.epoch, 1);
-            return;
-          }
-          final pending = HouseholdJournal.decode(store.value!).membership!;
-          expect(first.overview!.memberIds, contains(bobId));
-          expect(await first.setRelayUrl('https://foreign.test'), isFalse);
-          expect(relay.attempts, hasLength(1));
-          first.dispose();
-          if (mode == 'missing') {
-            final journal = HouseholdJournal.decode(store.value!);
-            store.value = HouseholdJournal(
-              state: journal.state,
-              relayUrl: journal.relayUrl,
-              pending: journal.pending,
-              lastCode: journal.lastCode,
-              lastRequest: journal.lastRequest,
-              pendingAck: journal.pendingAck,
-              recoveryState: journal.recoveryState,
-            ).encode();
-          }
-          final restarted = restore();
-          addTearDown(restarted.dispose);
-          await restarted.initialize();
-          relay.mode = 'success';
-          if (mode == 'missing') {
-            expect(await restarted.syncNow(), isFalse);
             expect(
-              restarted.errorMessage,
-              contains('confirmed household roster'),
+              (await relay.readAfter(
+                group,
+                pending.expectedTail,
+              )).where((entry) => entry.sequence == pending.expectedTail + 1),
+              hasLength(1),
             );
-            expect(relay.attempts, hasLength(1));
-            expect(await relay.readAfter(group, pending.expectedTail), isEmpty);
-            expect(relay.policy.epoch, 0);
-            return;
-          }
-          expect(await restarted.syncNow(), isTrue);
-          expect(restarted.overview!.memberIds, isNot(contains(bobId)));
-          expect(HouseholdJournal.decode(store.value!).membership, isNull);
-          if (mode == 'lost') {
-            expect(relay.attempts, hasLength(1));
-          } else {
-            expect(relay.attempts, hasLength(2));
-            expect(relay.attempts.last.commit, pending.commit);
-            expect(
-              relay.attempts.last.policy.toJson(),
-              pending.policy.toJson(),
-            );
-          }
-          expect(relay.policy.epoch, 1);
-          expect(
-            (await relay.readAfter(
-              group,
-              pending.expectedTail,
-            )).where((entry) => entry.sequence == pending.expectedTail + 1),
-            hasLength(1),
-          );
-        },
-      );
+          },
+        );
+      }
     }
   }, skip: library == null ? 'Requires the rebuilt native bridge' : false);
 }

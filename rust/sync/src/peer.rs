@@ -194,7 +194,7 @@ pub struct Peer {
     /// A commit this peer created is awaiting the relay's verdict.
     staged: bool,
     staged_frame: Option<Outgoing>,
-    /// The staged commit adds a member (rather than removes one), so
+    /// The staged commit adds a member (rather than removes/rotates), so
     /// accepting it owes them a history backfill.
     staged_adds_member: bool,
     /// At most two conflicting same-cursor claims per current signing key.
@@ -555,6 +555,12 @@ impl Peer {
     /// How many local events, backfills, receipts or commits await sending.
     pub fn pending_count(&self) -> usize {
         self.outbox.len() + usize::from(self.staged)
+    }
+
+    /// Distinguishes an MLS transition from ordinary queued ledger events.
+    /// Read-only, including after restoring an uncertain append.
+    pub fn has_pending_commit(&self) -> bool {
+        self.staged
     }
 
     pub fn reporting_currency(&self) -> &Currency {
@@ -1121,6 +1127,22 @@ impl Peer {
             expected_tail: self.cursor,
             blob: commit,
         })
+    }
+
+    /// Stages a standalone MLS encryption-key rotation, not identity/device
+    /// revocation. The non-add commit frame already persists exact retry bytes
+    /// and reconciles uncertain delivery against its reserved ordered-log slot.
+    pub fn begin_rotation(&mut self) -> Result<Outgoing, SyncError> {
+        self.ensure_not_staged()?;
+        let commit = self.member.rotate_keys()?;
+        self.staged = true;
+        self.staged_adds_member = false;
+        let frame = Outgoing {
+            expected_tail: self.cursor,
+            blob: commit,
+        };
+        self.staged_frame = Some(frame.clone());
+        Ok(frame)
     }
 
     /// The relay appended the staged commit as `sequence`.

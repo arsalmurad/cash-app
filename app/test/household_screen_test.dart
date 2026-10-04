@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
     show PlatformInt64Util;
 import 'package:flutter_test/flutter_test.dart';
@@ -172,6 +173,12 @@ class _FakeController extends HouseholdController {
   }
 
   @override
+  Future<bool> refreshEncryptionKeys() async {
+    calls.add('refresh-keys');
+    return nextResult;
+  }
+
+  @override
   Future<String?> safetyNumberWith(String memberId) async {
     calls.add('safety:$memberId');
     return '11111 22222 33333 44444 55555 66666';
@@ -195,6 +202,7 @@ Future<_FakeController> _pump(
   WidgetTester tester, {
   bool member = false,
   Duration syncInterval = const Duration(hours: 1),
+  double textScale = 1,
 }) async {
   final controller = _FakeController();
   await controller.initialize();
@@ -204,6 +212,11 @@ Future<_FakeController> _pump(
   }
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: HouseholdScreen(controller: controller, syncInterval: syncInterval),
     ),
   );
@@ -213,6 +226,80 @@ Future<_FakeController> _pump(
 }
 
 void main() {
+  testWidgets(
+    'key refresh dialog supports large text, semantics and keyboard cancellation',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final semantics = tester.ensureSemantics();
+      try {
+        final controller = await _pump(tester, member: true, textScale: 2);
+        await tester.tap(find.byTooltip('Household options'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Refresh encryption keys'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getSemantics(
+            find.widgetWithText(FilledButton, 'Refresh keys'),
+          ),
+          matchesSemantics(
+            label: 'Refresh keys',
+            isButton: true,
+            hasTapAction: true,
+            hasFocusAction: true,
+            isFocusable: true,
+            hasEnabledState: true,
+            isEnabled: true,
+          ),
+        );
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(textContrastGuideline));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        expect(find.text('Refresh encryption keys?'), findsNothing);
+        expect(controller.calls, isNot(contains('refresh-keys')));
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+  testWidgets(
+    'key refresh requires confirmation and reports the actual result',
+    (tester) async {
+      final controller = await _pump(tester, member: true);
+      Future<void> open() async {
+        await tester.tap(find.byTooltip('Household options'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Refresh encryption keys'));
+        await tester.pumpAndSettle();
+      }
+
+      await open();
+      expect(find.textContaining('remove that device'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(controller.calls, isNot(contains('refresh-keys')));
+      await open();
+      await tester.tap(find.text('Refresh keys'));
+      await tester.pumpAndSettle();
+      expect(
+        controller.calls.where((call) => call == 'refresh-keys'),
+        hasLength(1),
+      );
+      expect(find.text('Encryption keys refreshed'), findsOneWidget);
+      controller.nextResult = false;
+      controller.errorMessage = 'Saved on this device. Use Sync to finish.';
+      await open();
+      await tester.tap(find.text('Refresh keys'));
+      await tester.pumpAndSettle();
+      expect(find.text(controller.errorMessage!), findsOneWidget);
+      expect(find.text('Encryption keys refreshed'), findsNothing);
+    },
+  );
   testWidgets('public setup menu is conditional and shows export failure', (
     tester,
   ) async {
