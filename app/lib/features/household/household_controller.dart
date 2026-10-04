@@ -1281,6 +1281,23 @@ class HouseholdController extends ChangeNotifier {
 
   // --- Explicit relay retention -----------------------------------------
 
+  bool get canManageRelayRetention =>
+      !isBusy &&
+      !_relaySigningClosed &&
+      !_writesDisabled &&
+      !needsVaultUnlock &&
+      !needsRecoveryInvite &&
+      overview?.isMember == true &&
+      overview?.pendingCount.toInt() == 0 &&
+      authenticatedRelay &&
+      _relay is RetentionRelayClient &&
+      [
+        '127.0.0.1',
+        'localhost',
+        '::1',
+        '[::1]',
+      ].contains(Uri.tryParse(relayUrl ?? '')?.host);
+
   RetentionRelayClient _retentionRelay() {
     final relay = _requireRelay();
     if (_relaySigningClosed ||

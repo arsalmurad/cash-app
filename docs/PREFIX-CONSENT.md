@@ -145,7 +145,37 @@ under `app/.dart_tool`; tracked tests are repeatable evidence.
 
 ## Remaining integration and limits
 
-Connect explicit app controls, verify actual protected OS/browser store
+The loopback authenticated household menu now offers **Manage relay copies**
+only for an active, unlocked, idle, confirmed member. Opening/closing does not
+sign. Prepare a request, have every other current device review/approve it, then
+paste one complete approval per line and review deletion. Both approval and
+deletion require explicit consequences-first confirmation. Renewal clears prior
+approvals; editing a received request hides its old approval. The holder keeps
+its complete archive. Collection pauses this screen's background sync, not other
+devices; any intervening change still invalidates signatures through core checks.
+Keep encrypted backups and a current device available. The operator must opt in;
+this screen does not enable retention or deploy/register a relay.
+
+Windows widget tests for this dialog and household screen: **27 passed**, 16 s
+runtime, from `app` with pinned Flutter:
+
+```text
+flutter --no-version-check test --no-pub --concurrency=1 test/retention_dialog_test.dart test/household_screen_test.dart
+```
+
+Log `app/.dart_tool/prefix-consent-dialog-final-retry.log`. Tests verify no
+automatic signing, separate confirmations/cancellation, exact copied codes,
+renewal, malformed-code refusal, partial-deletion failure wording, conditional
+menu, suspended/resumed background sync, disabled busy controls, and 360x740
+phone layout at 200% text. Scoped Android tap-target, labeled-target and text
+contrast guidelines pass; Tab/Enter reaches Close without signing. This is
+not real VoiceOver/NVDA or full app accessibility evidence. Targeted Dart
+analysis and diff whitespace checks pass. An initial test invocation used the
+wrong directory; corrected before running. Tests caught an unnecessary progress
+animation during confirmation, now suppressed. A semantics test cleanup ordering
+failure was corrected before the passing rerun.
+
+Verify actual protected OS/browser store
 availability and lifecycle faults, and exercise lost responses and roster
 changes in the normal controller flow. Current recovery stores are memory-backed
 confirmed writes, not OS storage or arbitrary power-loss proof. No new production

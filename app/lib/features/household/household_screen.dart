@@ -12,8 +12,16 @@ import 'household_dialogs.dart';
 import 'household_pane.dart';
 import 'household_setup_pane.dart';
 import 'vault_pane.dart';
+import 'retention_dialog.dart';
 
-enum _MenuAction { addAccount, backup, leave, relaySetup, refreshKeys }
+enum _MenuAction {
+  addAccount,
+  backup,
+  leave,
+  relaySetup,
+  refreshKeys,
+  retention,
+}
 
 /// The shared layer's screen: set up or join a household, then share
 /// expenses with it. It syncs on open, on demand, and every half minute
@@ -36,6 +44,7 @@ class HouseholdScreen extends StatefulWidget {
 
 class _HouseholdScreenState extends State<HouseholdScreen> {
   Timer? timer;
+  bool retentionOpen = false;
 
   HouseholdController get controller => widget.controller;
 
@@ -53,7 +62,8 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
   }
 
   Future<void> _autoSync() async {
-    if (controller.isMember &&
+    if (!retentionOpen &&
+        controller.isMember &&
         !controller.isBusy &&
         controller.relayUrl != null) {
       // Quiet: a failed background sync shows only as "waiting to send".
@@ -90,6 +100,46 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
       context: context,
       builder: (context) => RelaySetupDialog(policy: policy),
     );
+  }
+
+  Future<void> _retention() async {
+    if (!controller.canManageRelayRetention || retentionOpen) return;
+    retentionOpen = true;
+    try {
+      final completed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => RetentionDialog(
+          prepare: () async {
+            final code = await controller.prepareRetentionRequest();
+            if (code == null) {
+              throw FormatException(
+                controller.errorMessage ?? 'Sync every device and try again.',
+              );
+            }
+            return code;
+          },
+          approve: (request) async {
+            final code = await controller.approveRetentionRequest(request);
+            if (code == null) {
+              throw FormatException(
+                controller.errorMessage ??
+                    'Ask for a new request and try again.',
+              );
+            }
+            return code;
+          },
+          reclaim: controller.reclaimRelayHistory,
+        ),
+      );
+      if (completed == true) {
+        _tell(
+          'Approved old relay copies deleted. Saved history stays on devices.',
+        );
+      }
+    } finally {
+      retentionOpen = false;
+    }
   }
 
   Future<void> _saveRelay(String url, bool authenticated) async {
@@ -494,8 +544,14 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                     _MenuAction.leave => _leave(),
                     _MenuAction.relaySetup => _relaySetup(),
                     _MenuAction.refreshKeys => _refreshKeys(),
+                    _MenuAction.retention => _retention(),
                   },
                   itemBuilder: (context) => [
+                    if (controller.canManageRelayRetention)
+                      const PopupMenuItem(
+                        value: _MenuAction.retention,
+                        child: Text('Manage relay copies'),
+                      ),
                     if (controller.isMember &&
                         !controller.needsRecoveryInvite &&
                         !controller.needsVaultUnlock &&
