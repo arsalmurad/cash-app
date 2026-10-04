@@ -24,6 +24,20 @@ export async function admitVerifiedDeviceRequest(txn, verified, now) {
   return admitNonce(txn,verified,now,roster.epoch);
 }
 
+// Tail notifications reveal only the same group's read metadata. Keep their
+// exact signed /ws scope distinct: a history proof cannot open a connection.
+export async function admitVerifiedNotificationRequest(txn, verified, now) {
+  if (!isVerifiedRequestProof(verified) || !time(now)) return refuse('invalid');
+  const roster = await txn.get('authorized_devices');
+  if (!validDevicePolicy(roster)) return refuse('policy');
+  const context = verifiedRequestContext(verified);
+  if (roster.scope.kind !== 'g' || requestOperation(context, roster.scope) !== 'ws') return refuse('scope');
+  const actor = roster.devices.find(device => device.key === verified.publicKey);
+  if (!actor) return refuse('unauthorized');
+  if (!actor.operations.includes('read')) return refuse('permission');
+  return admitNonce(txn, verified, now, roster.epoch);
+}
+
 // A separate authority check, never a caller-supplied bypass flag. Only exact
 // group-history GETs by an absent current device with live stored cutoff qualify.
 export async function admitRetiredReadRequest(txn,verified,now) {

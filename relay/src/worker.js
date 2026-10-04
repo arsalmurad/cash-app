@@ -183,7 +183,12 @@ export class GroupLog {
     }
     if (result.unavailable) return fail(503, "log capacity accounting requires migration or repair");
     if (result.full) return fail(507, "log capacity reached; history preserved, append refused");
-    const note = JSON.stringify({ tail: result.seq });
+    await this.notifyTail(result.seq);
+    return json({ seq: result.seq });
+  }
+
+  notifyTail(sequence) {
+    const note = JSON.stringify({ tail: sequence });
     for (const socket of this.state.getWebSockets()) {
       try {
         socket.send(note);
@@ -191,7 +196,6 @@ export class GroupLog {
         // A dead socket is cleaned up by webSocketClose.
       }
     }
-    return json({ seq: result.seq });
   }
 
   async read(url, authorize = null, historicalLimit = null) {

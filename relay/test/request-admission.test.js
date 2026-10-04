@@ -4,7 +4,7 @@ import { webcrypto } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Miniflare } from "miniflare";
-import { admitVerifiedDeviceRequest } from "../src/request-admission.js";
+import { admitVerifiedDeviceRequest, admitVerifiedNotificationRequest } from "../src/request-admission.js";
 import { encodeRequestProofPayload, verifyRequestProof } from "../src/request-proof.js";
 
 const now = 1_790_000_000_000;
@@ -34,6 +34,34 @@ function transaction(rows = {}) {
   return { values, get: async key => structuredClone(values.get(key)),
     put: async (key, value) => { values.set(key, structuredClone(value)); } };
 }
+
+test('notification admission requires immutable exact-scope proof and a current read grant', async () => {
+  async function notification(path = '/g/0123456789abcdef0123456789abcdef/ws') {
+    const raw = {publicKey:key,nonce:'af'.repeat(32),expires:now+30000};
+    const digest = Buffer.from(await webcrypto.subtle.digest('SHA-256',new Uint8Array())).toString('hex');
+    const payload = encodeRequestProofPayload({origin:roster.scope.origin,method:'GET',path,digest,...raw});
+    raw.signature = Buffer.from(await webcrypto.subtle.sign('Ed25519',keys.privateKey,payload)).toString('hex');
+    return verifyRequestProof(new Request(roster.scope.origin+path),new Uint8Array(),raw,key,now);
+  }
+  const verified = await notification();
+  const readPolicy = {...roster,devices:[{key,operations:['read']}]};
+  for (const [policy, candidate, reason] of [
+    [readPolicy,{...verified},'invalid'],
+    [{...readPolicy,scope:{...readPolicy.scope,id:'02'.repeat(16)}},verified,'scope'],
+    [{...readPolicy,devices:[{key:other,operations:['read']}]},verified,'unauthorized'],
+    [{...readPolicy,devices:[{key,operations:['append','membership']}]},verified,'permission'],
+    [readPolicy,await notification('/g/'+roster.scope.id),'scope'],
+    [readPolicy,await proof(),'scope'],
+  ]) {
+    const txn = transaction({authorized_devices:policy});
+    const before = structuredClone([...txn.values]);
+    assert.deepEqual(await admitVerifiedNotificationRequest(txn,candidate,now),{ok:false,reason});
+    assert.deepEqual([...txn.values],before,'Notification refusal must preserve all saved admission state');
+  }
+  const txn = transaction({authorized_devices:readPolicy});
+  assert.deepEqual(await admitVerifiedNotificationRequest(txn,verified,now),{ok:true,epoch:3});
+  assert.deepEqual(await admitVerifiedNotificationRequest(txn,verified,now),{ok:false,reason:'replay'});
+});
 
 test("only immutable verifier output can be admitted, not copied JSON metadata", async () => {
   const verified = await proof();

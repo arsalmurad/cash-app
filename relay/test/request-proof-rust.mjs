@@ -38,8 +38,9 @@ assert.equal(built.code, 0, `Rust fixture build failed: ${built.stderr.slice(-24
 const proof = await fixtureProof();
 const localProof = await fixtureProof(["--", "local-group"]);
 const peerProof = await fixtureProof([], "cash_sync", "peer_request_proof");
-const verified = await run(process.execPath, ["--test", "test/request-proof.test.js", "test/local-auth.test.js"], relay,
+const verified = await run(process.execPath, ["--test", "test/request-proof.test.js", "test/local-auth.test.js", "test/roster-sockets.test.js"], relay,
   { ...process.env, RUST_RELAY_PROOF_FIXTURE: JSON.stringify(proof),
-    RUST_LOCAL_GROUP_PROOF_FIXTURE: JSON.stringify(localProof), RUST_PEER_GROUP_PROOF_FIXTURE: JSON.stringify(peerProof) });
+    RUST_LOCAL_GROUP_PROOF_FIXTURE: JSON.stringify(localProof), RUST_PEER_GROUP_PROOF_FIXTURE: JSON.stringify(peerProof),
+    RUST_NOTIFICATION_INTEROP: '1' });
 assert.equal(verified.code, 0, `workerd proof interoperability failed: ${verified.stderr.slice(-2400)}\n${verified.stdout.slice(-2400)}`);
 process.stdout.write(verified.stdout);

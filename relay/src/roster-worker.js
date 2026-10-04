@@ -4,7 +4,7 @@ import { configuredPolicy, boundedBody } from './local-auth-worker.js';
 import { verifyRequestProof, verifiedRequestContext } from './request-proof.js';
 import { requestOperation, inviteRequest } from './request-scope.js';
 import { applyWelcomeRequest, expireWelcomes, WelcomeRefused } from './roster-welcome.js';
-import { admitVerifiedDeviceRequest, admitRetiredReadRequest, admitVerifiedPrefixRequest } from './request-admission.js';
+import { admitVerifiedDeviceRequest, admitRetiredReadRequest, admitVerifiedPrefixRequest, admitVerifiedNotificationRequest } from './request-admission.js';
 import {verifyPrefixConsentBundle} from './prefix-consent.js';
 import { emptyRequestBudget, spendRequestBudget, RequestBudgetRefused } from './request-budget.js';
 import { validMembershipPolicy, applyMembershipTransition, MembershipRefused } from './request-membership.js';
@@ -24,14 +24,43 @@ function trustedRoot(env) {
 const acceptable = (policy, root) => validMembershipPolicy(policy) &&
   sameScope(policy.scope,root.scope) && policy.epoch >= root.epoch;
 
+function refused(error) {
+  const response = fail(error instanceof MembershipRefused || error instanceof RequestBudgetRefused ||
+    error instanceof WelcomeRefused || error instanceof RetiredReaderRefused ? error.status : 503);
+  if (error instanceof RequestBudgetRefused && error.retryAfter !== null) response.headers.set('retry-after',String(error.retryAfter));
+  return response;
+}
+function socketProof(request) {
+  const header = request.headers.get('x-cash-device-proof');
+  const protocol = request.headers.get('sec-websocket-protocol');
+  if (protocol === null) {
+    if (!header || header.length > 1024) throw new Error('missing bounded proof');
+    return { proof: JSON.parse(header), protocol: null };
+  }
+  if (header !== null || protocol.length > 1024) throw new Error('ambiguous proof');
+  const match = /^cash-request\.([A-Za-z0-9_-]+)$/.exec(protocol);
+  if (!match) throw new Error('invalid protocol');
+  const encoded = match[1], text = atob(encoded.replaceAll('-','+').replaceAll('_','/'));
+  if (btoa(text).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'') !== encoded) throw new Error('noncanonical protocol');
+  return { proof: JSON.parse(text), protocol };
+}
+function socketKey(socket, root) {
+  try {
+    const saved = socket.deserializeAttachment();
+    if (!saved || JSON.stringify(Object.keys(saved).sort()) !== '["group","origin","publicKey","version"]' ||
+      saved.version !== 1 || saved.origin !== root.scope.origin || saved.group !== root.scope.id ||
+      typeof saved.publicKey !== 'string' || !/^[0-9a-f]{64}$/.test(saved.publicKey)) return null;
+    return saved.publicKey;
+  } catch { return null; }
+}
+function closeSocket(socket, code = 1008) {try {socket.close(code);} catch {}}
+
 export class RosterGroupLog extends GroupLog {
   constructor(state,env) {super(state);this.env=env;}
   async fetch(request) {
     try {return await this.authenticatedFetch(request);}
     catch (error) {
-      const response = fail(error instanceof MembershipRefused || error instanceof RequestBudgetRefused || error instanceof WelcomeRefused || error instanceof RetiredReaderRefused ? error.status : 503);
-      if (error instanceof RequestBudgetRefused && error.retryAfter !== null) response.headers.set('retry-after',String(error.retryAfter));
-      return response;
+      return refused(error);
     }
   }
   async authenticatedFetch(request) {
@@ -40,12 +69,16 @@ export class RosterGroupLog extends GroupLog {
     if (!root || !loopback(url)) return fail(503);
     const operation = requestOperation({origin:url.origin,method:request.method,path:url.pathname,query:url.search},root.scope);
     const retention=operation==='prune'&&this.env.LOCAL_AUTH_RETENTION==='true';
-    if (!['read','append','membership'].includes(operation)&&!retention) return fail(403);
-    let proof;
+    const notification=operation==='ws'&&this.env.LOCAL_AUTH_SOCKETS==='true';
+    if (!['read','append','membership'].includes(operation)&&!retention&&!notification) return fail(403);
+    let proof, protocol = null;
     try {
-      const header=request.headers.get('x-cash-device-proof');
-      if (!header || header.length > 1024) return fail(401);
-      proof=JSON.parse(header);
+      if (notification) ({proof, protocol}=socketProof(request));
+      else {
+        const header=request.headers.get('x-cash-device-proof');
+        if (!header || header.length > 1024) return fail(401);
+        proof=JSON.parse(header);
+      }
     } catch {return fail(401);}
     // Candidate verification uses a trusted saved roster snapshot, never the
     // request's desired policy. The transaction rechecks grants after awaits.
@@ -77,7 +110,7 @@ export class RosterGroupLog extends GroupLog {
       if (!acceptable(current,root)) deny(503);
       const actor=current.devices.find(device=>device.key===verified.publicKey);
       if (actor) {
-        if(!actor.operations.includes(requestOperation(verifiedRequestContext(verified),current.scope))) deny(403);
+        if(!actor.operations.includes(notification ? 'read' : requestOperation(verifiedRequestContext(verified),current.scope))) deny(403);
       } else {
         const retired=historical ? await retiredReader(txn,verified.publicKey,Date.now()) : null;
         if(!retired) deny(403);
@@ -86,13 +119,15 @@ export class RosterGroupLog extends GroupLog {
         historicalLimit=retired.through;
       }
       if (operation==='membership' && !inviteRequest(verifiedRequestContext(verified),current.scope)) return 0; // Commit admission occurs in afterAppend.
-      const admission=historicalLimit===null ? await admitVerifiedDeviceRequest(txn,verified,Date.now()) :
+      const admission=notification ? await admitVerifiedNotificationRequest(txn,verified,Date.now()) :
+        historicalLimit===null ? await admitVerifiedDeviceRequest(txn,verified,Date.now()) :
         await admitRetiredReadRequest(txn,verified,Date.now());
       if (!admission.ok) deny(admission.reason==='replay' ? 409 : admission.reason==='expired' ? 401 : admission.reason==='capacity' ? 429 : 503);
       if(historicalLimit!==null) historicalLimit=admission.through;
       await spendRequestBudget(txn,verified,await txn.get('request_clock'));
       return 0;
     };
+    if (notification) return this.connectAuthenticated(request,authorize,verified,root,protocol);
     if (inviteRequest(verifiedRequestContext(verified),root.scope)) {
       return this.state.storage.transaction(async txn=>{
         await authorize(txn);
@@ -112,6 +147,50 @@ export class RosterGroupLog extends GroupLog {
       operation==='membership' ? txn=>applyMembershipTransition(txn,verified,bytes,Date.now()) : null);
   }
   async welcomeRequest(txn,verified,bytes) {return applyWelcomeRequest(txn,verified,bytes,Date.now());}
+  async connectAuthenticated(request,authorize,verified,root,protocol) {
+    if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') return fail(426);
+    // Only local storage and synchronous socket setup under this input gate.
+    // Expected transaction refusals are caught INSIDE the gate: throwing out
+    // of blockConcurrencyWhile terminates the object and its other clients.
+    return this.state.blockConcurrencyWhile(async () => {
+      try {
+        const sockets = this.state.getWebSockets();
+        // Count closing transports in the global cap too; rapid reconnects
+        // cannot grow an unlimited set waiting for close handshakes.
+        if (sockets.length >= 128 || sockets.filter(socket=>socket.readyState===1&&socketKey(socket,root)===verified.publicKey).length >= 2) return fail(429);
+        await this.state.storage.transaction(authorize);
+        const pair = new WebSocketPair();
+        pair[1].serializeAttachment({version:1,publicKey:verified.publicKey,origin:root.scope.origin,group:root.scope.id});
+        this.state.acceptWebSocket(pair[1]);
+        return new Response(null,{status:101,webSocket:pair[0],
+          ...(protocol ? {headers:{'sec-websocket-protocol':protocol}} : {})});
+      } catch(error) {return refused(error);}
+    });
+  }
+  async notifyTail(sequence) {
+    if (this.state.getWebSockets().length === 0) return;
+    await this.state.blockConcurrencyWhile(async () => {
+      const sockets = this.state.getWebSockets();
+      try {
+        const root = trustedRoot(this.env);
+        const policy = await this.state.storage.get('authorized_devices');
+        const tail = await this.state.storage.get('tail');
+        if (this.env.LOCAL_AUTH_SOCKETS !== 'true' || !root || !acceptable(policy,root) ||
+          JSON.stringify(await this.state.storage.get('authorization_root'))!==JSON.stringify(root) ||
+          !Number.isSafeInteger(tail) || tail < sequence) throw new Error('notification authority unavailable');
+        const allowed = new Set(policy.devices.filter(device=>device.operations.includes('read')).map(device=>device.key));
+        const note = JSON.stringify({tail});
+        for (const socket of sockets) {
+          // This committed, current roster is checked after every append,
+          // including membership removal, before any tail leaves the object.
+          if (!allowed.has(socketKey(socket,root))) {closeSocket(socket);continue;}
+          try {socket.send(note);} catch {closeSocket(socket,1011);}
+        }
+      } catch {for (const socket of sockets) closeSocket(socket,1011);}
+    });
+  }
+  async webSocketMessage(socket) {closeSocket(socket);}
+  async webSocketError(socket) {closeSocket(socket,1011);}
   async retentionRequest(bytes,verified,root) {
     let body;
     try {body=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));} catch {return fail(400);}
@@ -145,6 +224,7 @@ export default {
     if (!root || !loopback(url)) return fail(503);
     const prefix=`/g/${root.scope.id}`;
     const read=[prefix,`${prefix}/policy`], write=[`${prefix}/append`,`${prefix}/membership`];
+    const socket=env.LOCAL_AUTH_SOCKETS==='true'&&url.pathname===`${prefix}/ws`&&!url.search&&request.method==='GET';
     if(env.LOCAL_AUTH_RETENTION==='true') write.push(`${prefix}/prune`);
     const context={origin:url.origin,method:request.method,path:url.pathname,query:url.search};
     const invitation=inviteRequest(context,root.scope);
@@ -154,13 +234,14 @@ export default {
       (write.includes(url.pathname) && !url.search);
     if (url.origin!==root.scope.origin || !((request.method==='GET' && read.includes(url.pathname)) ||
         (request.method==='POST' && write.includes(url.pathname)) ||
-        invitation || (request.method==='OPTIONS' && validPreflight))) return fail(403);
+        invitation || socket || (request.method==='OPTIONS' && validPreflight))) return fail(403);
     if (request.method!=='OPTIONS' && !requestOperation({origin:url.origin,method:request.method,
       path:url.pathname,query:url.search},root.scope)) return fail(403);
     const cors={'access-control-allow-origin':'*','access-control-allow-methods':'GET, POST, PUT, OPTIONS',
       'access-control-allow-headers':'content-type, x-cash-device-proof'};
     if (request.method==='OPTIONS') return new Response(null,{status:204,headers:cors});
     const response=await env.GROUP.get(env.GROUP.idFromName(root.scope.id)).fetch(request);
+    if(response.status===101) return response; // Preserve the real upgrade/socket.
     const result=new Response(response.body,response);
     for (const [key,value] of Object.entries(cors)) result.headers.set(key,value);
     return result;

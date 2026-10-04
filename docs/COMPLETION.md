@@ -54,6 +54,11 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    hibernation, and actual deployment verification. Default public routing stays
    closed. Do not deploy or dispatch cloud jobs until the owner verifies a $0
    spending cap; do not buy services or expose an anonymous relay.
+   An explicit local authenticated notification path now passes actual workerd
+   native/browser-compatible signatures, current-roster removal/read revocation,
+   128-socket caps/quota rollback and host Rust interoperability:
+   [RELAY-NOTIFICATIONS.md](RELAY-NOTIFICATIONS.md). App notification lifecycle,
+   actual cloud hibernation and public registration/deployment stay open.
 2. [ ] Crash-safe authenticated pruning or peer-snapshot recovery with confirmed
    offline-peer acknowledgements and recoverable availability. Every current MLS
    key must acknowledge the exact checkpoint; a computed cutoff/TTL is never
