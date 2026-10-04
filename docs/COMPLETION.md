@@ -95,8 +95,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    updated mobile and 200% browser-zoom verification remain open. The icon
    picker now exposes twelve human-readable names and selected states, with
    36 adjacent host tests and rebuilt narrow production Chrome personal/CSV/
-   keyboard/offline-font acceptance passing. Current Android APKs predate these
-   category UI repairs; screen-reader and complete accessibility gates stay open.
+   keyboard/offline-font acceptance passing. Updated Android x86_64 release
+   also passes actual native picker names/selected states/cancellation and
+   exact-balance process restart; both rebuilt splits pass packaging checks.
+   Thirty-row mobile, screen-reader and complete accessibility gates stay open.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android

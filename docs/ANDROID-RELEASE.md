@@ -257,3 +257,43 @@ original path with matching hashes; only the confirmed empty temporary folder
 was removed. The subsequent validated move clears only the selected generated
 directory's read-only attribute and completes with matching hashes. Headroom
 immediately afterward: C: 2.75 GiB, D: 2.41 GiB. Recheck before further builds.
+
+## Updated category UI release acceptance (2026-10-05)
+
+App source `4928159` (build checkout `cac75d4`), unchanged consent bridge ABI
+`1237803201`, pinned tools above. The cached build succeeds in **359.6 s**:
+`flutter --no-version-check build apk --release --target-platform
+android-arm64,android-x64 --split-per-abi --no-pub`. The existing SDK XML warning
+remains; the Cargokit path-case refresh changes no dependency version.
+
+| Release split | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `app-arm64-v8a-release.apk` | 28,483,149 | `3a661b3a8af1620cca3b2017b5bb1a21dfac1b6d2a11e33d76ace158299c612e` |
+| `app-x86_64-release.apk` | 30,652,017 | `236b642aefa57aa4978bfe18be3c3a6b234ee94216be125bddc6371b51a1bd7d` |
+
+Both `node scripts/verify_android_release_artifact.mjs arm64-v8a` and the
+`x86_64` invocation exit 0: exact ABI/machine inventories, nondebuggable/AOT,
+16 KB ZIP/LOAD and valid RELRO layouts. Both native Rust library hashes remain
+the same as the preceding final-link artifact; Dart AOT hashes change. These
+are still debug-key-signed private-prototype artifacts, not store releases.
+
+After the disk-headroom recovery above, actual `Phase0Api36` / `emulator-5580`
+Android 36 x86_64 passes (terminal exit 0):
+`ANDROID_DEVICE_SERIAL=emulator-5580 ANDROID_CATEGORIES=1
+node scripts/verify_android_release_ui.mjs`. Normal production controls create
+one random-ID 12.34 expense, verify the exact 1,234-minor-unit balance change,
+force-stop/restart persistence, explicitly confirm removal, and restart with
+the original balance. No app reset/uninstall occurs; immutable fixture history
+remains. UiAutomator then observes all twelve uniquely named, clickable icon
+choices with exactly one selected state, taps Travel icon and observes its
+selection, cancels a populated creation and existing-category editor, and
+restarts with the original exact balance. This is actual native semantics/
+pointer evidence, not TalkBack, private SQLite-byte inspection or a long-list
+mobile/200%-text proof.
+
+Ignored logs under `app/.dart_tool`: `category-current-android-release-build.log`,
+`category-android-arm64-artifact.log`, `category-android-x64-artifact.log`,
+`category-current-android-release-ui.log`. The four Node ELF-verifier negative-
+control tests also pass. ARM phone, 16 KB OS, release household/TLS runtime,
+clean-checkout and final iOS remain open. Earlier full-suite results are not
+relabeled as current-source complete acceptance.

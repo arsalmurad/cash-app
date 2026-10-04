@@ -115,6 +115,49 @@ async function launch() {
     'initialized production ledger');
 }
 
+async function verifyCategoryPicker(initialBalance) {
+  const expected = [
+    'Shopping cart icon', 'Dining icon', 'Car icon', 'Home icon', 'Money icon',
+    'Shopping bag icon', 'Travel icon', 'Fitness icon', 'Pets icon',
+    'Education icon', 'Entertainment icon', 'Health icon',
+  ];
+  async function inspect(selectedLabel) {
+    const current = await waitFor(current => expected.every(label => hasLabel(current, label)) && current,
+      'all twelve named native category choices');
+    const choices = expected.map(label => {
+      const matches = current.filter(node => node.package === appPackage && labels(node).includes(label));
+      assert.equal(matches.length, 1, `${label}: one accessible native choice`);
+      const node = matches[0];
+      assert.equal(node.clickable, 'true', `${label}: ordinary native selection must be reachable`);
+      return { label, selected: node.selected === 'true' || node.checked === 'true' };
+    });
+    assert.equal(choices.filter(choice => choice.selected).length, 1, 'Exactly one native selected icon');
+    if (selectedLabel) assert(choices.find(choice => choice.label === selectedLabel)?.selected,
+      'Selected native icon must expose its actual state');
+  }
+  await tapLabel('Import or export');
+  await tapLabel('Manage categories');
+  await waitFor(current => hasLabel(current, 'Categories'), 'native categories page');
+  await tapLabel('New category');
+  await inspect('Shopping cart icon');
+  await tapLabel('Travel icon');
+  await inspect('Travel icon');
+  await tapLabel('Name', { editable: true });
+  await device('shell', 'input', 'text', 'CancelledReleaseCategory');
+  await device('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+  await tapLabel('Cancel');
+  await waitFor(current => hasLabel(current, 'Categories'), 'cancelled native category creation');
+  await tapLabel('Edit category');
+  await waitFor(current => hasLabel(current, 'Save'), 'native existing category editor');
+  await inspect();
+  await tapLabel('Cancel');
+  await waitFor(current => hasLabel(current, 'Categories'), 'cancelled native category edit');
+  await tapLabel('Back');
+  assert.equal(balance(await launch()), initialBalance, 'Picker cancellation/restart must preserve the exact ledger balance');
+  assert(!hasLabel(await nodes(), 'CancelledReleaseCategory'), 'Cancelled category must not appear after restart');
+  console.log('PASS: production Android category picker exposes twelve real names and selected states; pointer icon choice, creation/edit cancellation and process restart preserve the balance. No screen-reader or SQLite-byte claim.');
+}
+
 try {
   assert.match(await device('install', '-r', apk), /Success/);
   await device('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP');
@@ -140,6 +183,7 @@ try {
   await waitFor(current => balance(current) === initial, 'only this fixture is excluded from balances');
   assert.equal(balance(await launch()), initial, 'Confirmed removal must survive process restart');
   console.log('PASS: production Android x86_64 release, real UI expense, exact minor-unit balance, process restart and confirmed fixture removal. Existing app data preserved; immutable fixture history remains.');
+  if (process.env.ANDROID_CATEGORIES === '1') await verifyCategoryPicker(initial);
 } catch (error) {
   console.error(`Owned synthetic fixture for diagnosis: ${fixture}`);
   const screenshot = await run(adb, ['-s', serial, 'exec-out', 'screencap', '-p'], {

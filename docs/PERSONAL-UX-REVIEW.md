@@ -277,3 +277,15 @@ the final log is `app/.dart_tool/category-long-list-production-web-runtime.log`.
 This closes normal-scale narrow production-browser bottom-action coverage,
 not 200% browser zoom or updated mobile coverage. No web rebuild was required
 for this test-driver-only addition.
+
+### Updated production Android picker
+
+The rebuilt x86_64 release independently passes actual Android 36 / owned
+Phase0Api36 UiAutomator/pointer checks for all twelve unique accessible names,
+exactly one selected state, Travel icon selection, creation/edit cancellation
+and force-stop/restart with the original exact ledger balance. Both current
+ARM64/x86_64 splits pass packaging verification. Exact source, hashes, build/
+runtime commands and the disk-space startup refusal/recovery are recorded in
+[ANDROID-RELEASE.md](ANDROID-RELEASE.md). Native private SQLite bytes, the
+thirty-row mobile bottom-action matrix, enlarged native runtime text, actual
+TalkBack/VoiceOver and ARM phone execution are not inferred from this pass.
