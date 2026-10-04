@@ -41,6 +41,7 @@ without overwriting the immutable ledger.
 | Recurring icon appeared blank in the production screenshot | Moderate | Ordinary repeat icon substituted at `ba77ac8`; widget icon selection and actual updated production screenshot both pass |
 | Balance caption exposed implementation jargon | Minor | “Calculated on this device” replaces the Rust-specific caption at `ba77ac8` |
 | Search-clear icon had no accessible label when a query was active | Moderate | Tooltip/label and clear/restoration regression pass in all six ledger-screen tests at `2eeafc4` |
+| Last category Edit button was covered by New category even at maximum scroll | Moderate | Add bottom scroll space; six phone/tablet/desktop light/dark 200%-text RED/GREEN cases verify non-overlap, pointer opening and no writes on cancel |
 
 ## Consistency and copy
 
@@ -192,3 +193,24 @@ renderer substitution or app-state injection was used.
 Visible keyboard-focus contrast, non-text contrast, actual VoiceOver/NVDA,
 enrolled biometrics, 200% browser zoom, RTL/localization and current-source
 mobile/iOS remain unverified by this scoped review.
+
+## Category-list action reachability (2026-10-04)
+
+The accessibility-review skill guided a scoped pointer/resize-text check, not
+an overall WCAG pass. Unlike the main ledger panes, Categories had no space
+after the final row. With 30 synthetic categories, all six 360x740/840x600/
+1280x900, light/dark, 200%-text cases reproduced the final Edit control's
+rectangle overlapping the floating New category control even at maximum
+scroll. The production category list now has 112 pixels of bottom scroll
+space, consistent with the ledger panes; no definitions or ledger events change.
+
+The same cases now assert non-overlap and hit-testability, actually tap the
+last Edit control, verify its prefilled name, cancel and assert zero creation/
+update calls. All ten category tests pass (6 s); the category, adaptive
+navigation and populated-pane run passes **28 tests** (16 s), and affected-file
+analysis has no issues (42.5 s). Ignored logs: `category-bottom-controls-red.log`,
+`category-bottom-controls-green.log`, `category-bottom-adjacent-tests.log` and
+`category-bottom-analysis.log` in `app/.dart_tool`. The padding repair currently
+has host-widget evidence; the preceding APKs/browser artifacts are not
+relabeled as production verification of this newer UI change. No TalkBack/
+VoiceOver or complete accessibility claim follows.
