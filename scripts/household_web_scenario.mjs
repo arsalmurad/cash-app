@@ -366,7 +366,22 @@ export async function runHouseholdWebScenario(alice, api) {
     console.log('Verified standalone encryption-key refresh: cancellation writes nothing, confirmation sends a commit, existing shared history survives peer catch-up.');
     if (process.env.WEB_HOUSEHOLD_QUOTA === '1') {
       scenarioStage = 'Alice quota failure and restart';
-      await Promise.race([workerFailure, runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api)]);
+      const readRelayTail = authenticated ? async group => {
+        const before = bob.events.length;
+        await sync(bob);
+        const reads = bob.events.slice(before).filter(event =>
+          event.method === 'Network.responseReceived' && event.params.response.status === 200 &&
+          new URL(event.params.response.url).origin === relayUrl &&
+          new URL(event.params.response.url).pathname === `/g/${group}`);
+        assert(reads.length > 0, 'Independent peer must receive an actual protected history response');
+        const response = reads.at(-1);
+        const body = await bob.send('Network.getResponseBody', { requestId: response.params.requestId });
+        const result = JSON.parse(body.base64Encoded ? Buffer.from(body.body, 'base64').toString('utf8') : body.body);
+        assert(Number.isSafeInteger(result.tail) && result.tail >= 0, 'Protected history must report a valid actual tail');
+        return result.tail;
+      } : undefined;
+      await Promise.race([workerFailure, runHouseholdQuotaScenario(alice, alicePhrase, relayUrl,
+        { ...api, readRelayTail })]);
     }
 
     scenarioStage = 'Alice publishes after Bob unlock';
@@ -509,6 +524,8 @@ export async function runHouseholdWebScenario(alice, api) {
         await alice.send('Page.bringToFront');
         await clickLabel(alice, 'Lock household in this browser', 'button');
         await waitForLabel(alice, 'Unlock this browser');
+        await waitFor(alice, `navigator.locks.query().then(state =>
+          !state.held.some(lock => lock.name === 'cash-app.household.vault.v1'))`);
         await sibling.send('Page.bringToFront');
         await clickLabel(sibling, 'Unlock household', 'button');
         await waitForLabel(sibling, 'USD -50.00');
@@ -521,6 +538,10 @@ export async function runHouseholdWebScenario(alice, api) {
         }
       }
       await alice.send('Page.bringToFront');
+      // closeTarget acknowledgement is not the asynchronous Web Lock release.
+      // Observe the actual registry without acquiring or changing any lock.
+      await waitFor(alice, `navigator.locks.query().then(state =>
+        !state.held.some(lock => lock.name === 'cash-app.household.vault.v1'))`);
       await fill(alice, '24-word unlock phrase', alicePhrase);
       await clickLabel(alice, 'Unlock household', 'button');
       await waitForLabel(alice, 'USD -50.00');
