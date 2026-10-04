@@ -224,3 +224,15 @@ Packaging passes do not prove code's page-size-independent behavior. ARM phone,
 16 KB OS, release household/network, clean-checkout and final iOS runtime
 remain open. The earlier native/Chrome suites were not rerun for this Android-
 only link configuration and are not relabeled as current-source full suites.
+
+### Additional preserved JNI cache
+
+After release verification, low C: headroom was recovered by moving only the
+four generated native-plugin JNI files (**265.9 MiB**) from
+`app/build/rust_lib_cash_app/jniLibs` to
+`D:/cash-app-build/cash-app-rust-plugin-jni-libs-20261004`. Exact paths and
+children were validated, reparse children refused, and every relative filename,
+length and SHA-256 matched after relocation. The original path is now a junction;
+preserve it and all previous cache junctions. No source, app data, financial
+records or unrelated generated artifacts were removed. Headroom immediately
+after relocation: C: 1.19 GiB, D: 1.96 GiB; recheck before new builds.
