@@ -36,6 +36,77 @@ pub struct HouseholdRequestProof {
     pub signature: Vec<u8>,
 }
 
+/// Public verified deletion bounds only, never a private archive or state.
+pub struct HouseholdPrefixConsentPlan {
+    pub policy_epoch: i64,
+    pub through: i64,
+    pub expires: i64,
+    pub recovery_holder: Vec<u8>,
+}
+
+/// Caller must supply the exact latest bytes read back from a confirmed
+/// protected save. Creates a holder-signed proposal; no network or mutation.
+pub fn household_prepare_prefix_consent(
+    household: &Household,
+    saved: Vec<u8>,
+    origin: String,
+    policy_epoch: i64,
+    now: i64,
+) -> Result<Vec<u8>, String> {
+    lock(household)?
+        .prepare_prefix_consent(
+            &saved,
+            &origin,
+            unsigned(policy_epoch, "policy epoch")?,
+            unsigned(now, "current time")?,
+        )
+        .map_err(|error| error.to_string())
+}
+
+/// Verify the holder's signed proposal and this device's confirmed checkpoint
+/// before creating approval. This does not transmit or enable deletion.
+pub fn household_countersign_prefix_consent(
+    household: &Household,
+    saved: Vec<u8>,
+    origin: String,
+    proposal: Vec<u8>,
+    now: i64,
+) -> Result<Vec<u8>, String> {
+    lock(household)?
+        .countersign_prefix_consent(&saved, &origin, &proposal, unsigned(now, "current time")?)
+        .map_err(|error| error.to_string())
+}
+
+/// Validate all-current-device approvals locally before sending the exact
+/// cutoff. Server-side current authorization and bounded transactions remain
+/// mandatory. Does not advance or reset the household's delivery cursor.
+pub fn household_validate_prefix_bundle(
+    household: &Household,
+    saved: Vec<u8>,
+    origin: String,
+    consents: Vec<Vec<u8>>,
+    now: i64,
+) -> Result<HouseholdPrefixConsentPlan, String> {
+    let plan = lock(household)?
+        .validate_prefix_bundle(&saved, &origin, &consents, unsigned(now, "current time")?)
+        .map_err(|error| error.to_string())?;
+    Ok(HouseholdPrefixConsentPlan {
+        policy_epoch: plan
+            .policy_epoch
+            .try_into()
+            .map_err(|_| "Invalid policy epoch.")?,
+        through: plan
+            .through
+            .try_into()
+            .map_err(|_| "Invalid retention cutoff.")?,
+        expires: plan
+            .expires
+            .try_into()
+            .map_err(|_| "Invalid consent expiry.")?,
+        recovery_holder: plan.recovery_holder,
+    })
+}
+
 /// Signs the exact HTTP request bytes using this protected device identity.
 /// Fresh random nonces do not require advancing or saving an MLS ratchet.
 /// The relay must independently check trusted policy, expiry and replay state.
@@ -646,6 +717,89 @@ fn overview_from_state(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn prefix_bridge_checks_signed_proposals_all_approvals_and_preserves_state() {
+        let usd = Currency::from_code("USD").unwrap();
+        let mut relay = cash_sync::MemoryRelay::default();
+        let mut alice = Peer::new("opaque-a", usd.clone()).unwrap();
+        let group = alice.found(&mut relay).unwrap();
+        let mut bob = Peer::new("opaque-b", usd.clone()).unwrap();
+        let invite = alice
+            .invite(&mut relay, &bob.key_package().unwrap())
+            .unwrap();
+        bob.accept(&mut relay, &group, &invite).unwrap();
+        alice.sync(&mut relay).unwrap();
+        alice
+            .enqueue_saved_state_receipt(&alice.export().unwrap())
+            .unwrap();
+        alice.sync(&mut relay).unwrap();
+        bob.sync(&mut relay).unwrap();
+        bob.enqueue_saved_state_receipt(&bob.export().unwrap())
+            .unwrap();
+        bob.sync(&mut relay).unwrap();
+        alice.sync(&mut relay).unwrap();
+        let a = Household {
+            peer: Mutex::new(alice),
+            reporting_currency: usd.clone(),
+        };
+        let b = Household {
+            peer: Mutex::new(bob),
+            reporting_currency: usd,
+        };
+        let saved_a = household_export(&a).unwrap();
+        let saved_b = household_export(&b).unwrap();
+        let proposal = household_prepare_prefix_consent(
+            &a,
+            saved_a.clone(),
+            "http://127.0.0.1".into(),
+            1,
+            1000,
+        )
+        .unwrap();
+        let approval = household_countersign_prefix_consent(
+            &b,
+            saved_b.clone(),
+            "http://127.0.0.1".into(),
+            proposal.clone(),
+            1001,
+        )
+        .unwrap();
+        let plan = household_validate_prefix_bundle(
+            &a,
+            saved_a.clone(),
+            "http://127.0.0.1".into(),
+            vec![proposal.clone(), approval],
+            1002,
+        )
+        .unwrap();
+        assert_eq!(plan.policy_epoch, 1);
+        assert_eq!(plan.expires, 51000);
+        assert!(plan.through > 0);
+        assert_eq!(plan.recovery_holder, lock(&a).unwrap().public_key());
+        assert!(
+            household_prepare_prefix_consent(
+                &a,
+                saved_a.clone(),
+                "http://127.0.0.1".into(),
+                -1,
+                1000
+            )
+            .is_err()
+        );
+        assert!(
+            household_countersign_prefix_consent(
+                &b,
+                saved_b.clone(),
+                "http://127.0.0.1".into(),
+                proposal,
+                -1
+            )
+            .is_err()
+        );
+        assert_eq!(household_export(&a).unwrap(), saved_a);
+        assert_eq!(household_export(&b).unwrap(), saved_b);
+    }
+
     #[test]
     fn request_signing_exposes_only_public_proof_and_preserves_saved_state() {
         let device = household_new("opaque-device".into(), "USD".into()).unwrap();

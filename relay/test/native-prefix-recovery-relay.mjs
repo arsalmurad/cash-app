@@ -1,4 +1,5 @@
-// Owned stdin-only storage fixture. This does NOT verify deletion consent.
+// Owned stdin-only inspection. Deletion uses real authenticated HTTP consent;
+// this fixture provides no guard bypass, seed or internal deletion command.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
@@ -14,9 +15,6 @@ export class Fixture extends RosterGroupLog {
     if (request.url === 'http://fixture-internal/inspect') {
       return Response.json([...await this.state.storage.list()]);
     }
-    if (request.url === 'http://fixture-internal/prune') {
-      return this.prunePrefix(await request.json(), async () => true);
-    }
     return super.fetch(request);
   }
 }
@@ -29,7 +27,8 @@ const mf = new Miniflare({modulesRoot:root,modules:[
   ...await Promise.all(names.map(async name=>({type:'ESModule',path:`${root}/${name}.js`,
     contents:await readFile(new URL(`../src/${name}.js`,import.meta.url),'utf8')}))),
 ],durableObjects:{GROUP:{className:'Fixture',useSQLite:true}},
-bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(policy)},
+bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(policy),
+  ...(process.env.LOCAL_AUTH_RETENTION==='true'?{LOCAL_AUTH_RETENTION:'true'}:{})},
 compatibilityDate:'2026-07-01',host:'127.0.0.1',port:Number(process.argv[2])});
 await mf.ready;
 console.log('PREFIX-READY');
@@ -42,19 +41,7 @@ input.on('line',line=>{
   commands = commands.then(async()=>{
     try {
       const command = JSON.parse(line);
-      assert(['inspect','prune'].includes(command.kind));
-      if (command.kind === 'prune') {
-        assert(Number.isSafeInteger(command.through) && command.through > 0);
-        let floor = 0;
-        while (floor < command.through) {
-          const result = await stub.fetch('http://fixture-internal/prune',{
-            method:'POST',body:JSON.stringify({expectedFloor:floor,through:command.through})});
-          assert.equal(result.status,200);
-          const value = await result.json();
-          assert(value.floor > floor);
-          floor = value.floor;
-        }
-      }
+      assert.deepEqual(command,{kind:'inspect'});
       const values = await (await stub.fetch('http://fixture-internal/inspect')).json();
       const stored = Object.fromEntries(values);
       console.log('PREFIX-RESULT:'+JSON.stringify({floor:stored.floor??0,tail:stored.tail,

@@ -1,6 +1,84 @@
 //! Explicit deletion permission, separate from saved-state receipts. Public
 //! opaque commitments only; never export a private archive or financial fields.
-use crate::{SyncError, peer::write_field};
+use crate::{
+    SyncError,
+    peer::{Reader, write_field},
+};
+
+const MAGIC: &[u8] = b"cash-app prefix retention consent v1\0";
+
+pub struct PrefixConsentPlan {
+    pub policy_epoch: u64,
+    pub through: u64,
+    pub expires: u64,
+    pub recovery_holder: Vec<u8>,
+}
+
+pub(crate) struct DecodedConsent {
+    pub request: PrefixConsentRequest,
+    pub relay_group: [u8; 32],
+    pub group: Vec<u8>,
+    pub checkpoint: [u8; 32],
+    pub signer: Vec<u8>,
+    pub signature: Vec<u8>,
+    pub payload: Vec<u8>,
+}
+
+pub(crate) struct ArchiveContext {
+    pub group: Vec<u8>,
+    pub relay_group: [u8; 32],
+    pub epoch: u64,
+    pub checkpoint: [u8; 32],
+    pub cutoff: u64,
+    pub members: std::collections::BTreeSet<Vec<u8>>,
+}
+
+pub(crate) fn decode(bytes: &[u8], now: u64) -> Result<DecodedConsent, SyncError> {
+    let invalid = || SyncError("Invalid explicit prefix retention consent.".into());
+    if bytes.len() > 1024 {
+        return Err(invalid());
+    }
+    let mut reader = Reader { bytes };
+    if reader.take(MAGIC.len()) != Some(MAGIC) {
+        return Err(invalid());
+    }
+    let origin = std::str::from_utf8(reader.field().ok_or_else(invalid)?)
+        .map_err(|_| invalid())?
+        .to_owned();
+    let relay_group = reader.take(32).ok_or_else(invalid)?.try_into().unwrap();
+    let group = reader.field().ok_or_else(invalid)?.to_vec();
+    let policy_epoch = u64::from_be_bytes(reader.take(8).ok_or_else(invalid)?.try_into().unwrap());
+    let through = u64::from_be_bytes(reader.take(8).ok_or_else(invalid)?.try_into().unwrap());
+    let checkpoint = reader.take(32).ok_or_else(invalid)?.try_into().unwrap();
+    let recovery_holder = reader.take(32).ok_or_else(invalid)?.to_vec();
+    let expires = u64::from_be_bytes(reader.take(8).ok_or_else(invalid)?.try_into().unwrap());
+    let signer = reader.take(32).ok_or_else(invalid)?.to_vec();
+    let signature = reader.take(64).ok_or_else(invalid)?.to_vec();
+    if !reader.bytes.is_empty() {
+        return Err(invalid());
+    }
+    let request = PrefixConsentRequest {
+        origin,
+        policy_epoch,
+        through,
+        recovery_holder,
+        now,
+        expires,
+    };
+    let payload = payload(&request, &relay_group, &group, &checkpoint, &signer)?;
+    if payload != bytes[..bytes.len() - 64] {
+        return Err(invalid());
+    }
+    Ok(DecodedConsent {
+        request,
+        relay_group,
+        group,
+        checkpoint,
+        signer,
+        signature,
+        payload,
+    })
+}
 
 #[derive(Clone, Debug)]
 pub struct PrefixConsentRequest {
@@ -45,7 +123,7 @@ pub(crate) fn payload(
         expires: request.expires,
     }
     .payload(signer)?;
-    let mut bytes = b"cash-app prefix retention consent v1\0".to_vec();
+    let mut bytes = MAGIC.to_vec();
     write_field(&mut bytes, request.origin.as_bytes());
     bytes.extend_from_slice(relay_group);
     write_field(&mut bytes, mls_group);

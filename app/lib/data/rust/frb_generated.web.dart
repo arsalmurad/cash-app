@@ -250,6 +250,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   HouseholdOverview dco_decode_household_overview(dynamic raw);
 
   @protected
+  HouseholdPrefixConsentPlan dco_decode_household_prefix_consent_plan(
+    dynamic raw,
+  );
+
+  @protected
   HouseholdRequestProof dco_decode_household_request_proof(dynamic raw);
 
   @protected
@@ -605,6 +610,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   HouseholdOverview sse_decode_household_overview(SseDeserializer deserializer);
+
+  @protected
+  HouseholdPrefixConsentPlan sse_decode_household_prefix_consent_plan(
+    SseDeserializer deserializer,
+  );
 
   @protected
   HouseholdRequestProof sse_decode_household_request_proof(
@@ -1033,6 +1043,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_household_overview(
     HouseholdOverview self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_household_prefix_consent_plan(
+    HouseholdPrefixConsentPlan self,
     SseSerializer serializer,
   );
 

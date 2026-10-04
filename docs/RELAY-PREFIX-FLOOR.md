@@ -113,3 +113,16 @@ three expenses are checked, not a new 1,000-event, multi-currency or final-devic
 acceptance run. No app/Rust production source, bridge ABI, platform artifact,
 public route or deployed relay changed in that recovery-test commit. Gate 2 still requires consent coordination and
 recoverable availability, including protected-save/final-platform coordination.
+
+### Signed-controller upgrade (2026-10-04)
+
+The current fixture removes the internal deletion command and unconditional
+authorizer entirely. Normal native app controllers now prepare/countersign
+bounded permissions, confirm exact saved journal read-back and submit real
+authenticated unanimous consents. Failed/stale reads require restart and delete
+nothing; missing approvals/wrong holder also leave counters unchanged. Fresh-key
+recovery still passes after actual deletion. The owning inspector only reads
+counters. Current ABI `1237803201`, 1 passing test in 6 seconds:
+`app/.dart_tool/prefix-consent-controller-http-faults.log`.
+See [PREFIX-CONSENT.md](PREFIX-CONSENT.md) for commands and remaining limits;
+the historical result above is not current protected-OS or UI evidence.

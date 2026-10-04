@@ -11,6 +11,55 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `lock`, `outgoing`, `overview_from_state`, `unsigned`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
+/// Caller must supply the exact latest bytes read back from a confirmed
+/// protected save. Creates a holder-signed proposal; no network or mutation.
+Future<Uint8List> householdPreparePrefixConsent({
+  required Household household,
+  required List<int> saved,
+  required String origin,
+  required PlatformInt64 policyEpoch,
+  required PlatformInt64 now,
+}) => RustLib.instance.api.crateApiSharedHouseholdPreparePrefixConsent(
+  household: household,
+  saved: saved,
+  origin: origin,
+  policyEpoch: policyEpoch,
+  now: now,
+);
+
+/// Verify the holder's signed proposal and this device's confirmed checkpoint
+/// before creating approval. This does not transmit or enable deletion.
+Future<Uint8List> householdCountersignPrefixConsent({
+  required Household household,
+  required List<int> saved,
+  required String origin,
+  required List<int> proposal,
+  required PlatformInt64 now,
+}) => RustLib.instance.api.crateApiSharedHouseholdCountersignPrefixConsent(
+  household: household,
+  saved: saved,
+  origin: origin,
+  proposal: proposal,
+  now: now,
+);
+
+/// Validate all-current-device approvals locally before sending the exact
+/// cutoff. Server-side current authorization and bounded transactions remain
+/// mandatory. Does not advance or reset the household's delivery cursor.
+Future<HouseholdPrefixConsentPlan> householdValidatePrefixBundle({
+  required Household household,
+  required List<int> saved,
+  required String origin,
+  required List<Uint8List> consents,
+  required PlatformInt64 now,
+}) => RustLib.instance.api.crateApiSharedHouseholdValidatePrefixBundle(
+  household: household,
+  saved: saved,
+  origin: origin,
+  consents: consents,
+  now: now,
+);
+
 /// Signs the exact HTTP request bytes using this protected device identity.
 /// Fresh random nonces do not require advancing or saving an MLS ratchet.
 /// The relay must independently check trusted policy, expiry and replay state.
@@ -398,6 +447,38 @@ class HouseholdOverview {
           transactions == other.transactions &&
           conflicts == other.conflicts &&
           rejected == other.rejected;
+}
+
+/// Public verified deletion bounds only, never a private archive or state.
+class HouseholdPrefixConsentPlan {
+  final PlatformInt64 policyEpoch;
+  final PlatformInt64 through;
+  final PlatformInt64 expires;
+  final Uint8List recoveryHolder;
+
+  const HouseholdPrefixConsentPlan({
+    required this.policyEpoch,
+    required this.through,
+    required this.expires,
+    required this.recoveryHolder,
+  });
+
+  @override
+  int get hashCode =>
+      policyEpoch.hashCode ^
+      through.hashCode ^
+      expires.hashCode ^
+      recoveryHolder.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HouseholdPrefixConsentPlan &&
+          runtimeType == other.runtimeType &&
+          policyEpoch == other.policyEpoch &&
+          through == other.through &&
+          expires == other.expires &&
+          recoveryHolder == other.recoveryHolder;
 }
 
 /// Public request proof only: never contains private identity or ledger state.
