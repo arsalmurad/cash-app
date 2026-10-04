@@ -1728,3 +1728,10 @@ clear 50-second renewal with cleared old approvals, scrollable enlarged text and
 keyboard-operable controls replace ambiguous one-click cleanup; pause only this
 screen's background sync during collection, while core scope checks remain final.
 
+## 2026-10-04 — Refuse queued consent operations after controller closure
+
+Use the existing immediate signing revocation flag at the serialized runner's
+entry and completion, and avoid notifying disposed UI listeners after an awaited
+archive read. Do not free Rust handles beneath active native borrows or let
+queued approval work execute after disposal; restarting uses the retained archive.
+
