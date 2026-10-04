@@ -37,6 +37,10 @@ through their removal commit, so their local MLS state can become inactive.
 This does not permit later ciphertext, current policy, invites or writes. A
 device offline beyond that window may retain stale local membership; preserve
 its archive and use a fresh-key invitation rather than reopening the old grant.
+An optional authenticated tail-notification experiment is described in
+[RELAY-NOTIFICATIONS.md](RELAY-NOTIFICATIONS.md). It requires the additional
+explicit `LOCAL_AUTH_SOCKETS=true` operator flag and does not yet connect the
+app's unlock/lock/reconnect lifecycle; normal HTTP/manual sync remains unchanged.
 Loopback addresses refer to the device running the app: two isolated mobile
 devices cannot share this URL without a separately authorized deployment path.
 

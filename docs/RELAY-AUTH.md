@@ -1,5 +1,9 @@
 # Relay authentication work
 
+Current local socket capability and its separate runtime/remaining gates:
+[RELAY-NOTIFICATIONS.md](RELAY-NOTIFICATIONS.md). This does not enable public
+authorization or replace the authenticated HTTP backfill/save path below.
+
 Updated 2026-10-03. Public access remains disabled. The current production worker
 does not import the new request-proof module or accept a proof as authorization.
 Per-device authentication, registration, replay admission and quotas are not

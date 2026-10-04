@@ -241,9 +241,10 @@ test('owned development launcher explicitly selects the live roster worker',{tim
   const origin=`http://127.0.0.1:${port}`, liveRoot={...root,scope:{...scope,origin}};
   const child=spawn(process.execPath,['dev-server.mjs',String(port)],{
     cwd:fileURLToPath(new URL('../',import.meta.url)),windowsHide:true,
-    env:{...process.env,LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(liveRoot)},
+    env:{...process.env,LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_SOCKETS:'true',LOCAL_AUTH_POLICY:JSON.stringify(liveRoot)},
   });
   child.stderr.on('data',()=>{});
+  let liveSocket;
   try {
     await new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>reject(new Error('Owned roster launcher did not become ready')),10000);
@@ -258,12 +259,26 @@ test('owned development launcher explicitly selects the live roster worker',{tim
     assert.equal((await fetch(origin+prefix)).status,401);
     const initial=await fetch(origin+prefix+'/policy',await signed(prefix+'/policy','GET',undefined,devices[0],origin));
     assert.deepEqual(await initial.json(),{policy:liveRoot});
+    const socketProof=await signed(prefix+'/ws','GET',undefined,devices[0],origin);
+    const selected='cash-request.'+Buffer.from(socketProof.headers['x-cash-device-proof']).toString('base64url');
+    liveSocket=new WebSocket(origin.replace('http:','ws:')+prefix+'/ws',selected);
+    const tails=[];
+    liveSocket.addEventListener('message',event=>tails.push(JSON.parse(event.data)));
+    await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>reject(new Error('Owned launcher socket did not open')),5000);
+      liveSocket.addEventListener('open',()=>{clearTimeout(timer);resolve();},{once:true});
+      liveSocket.addEventListener('error',()=>{clearTimeout(timer);reject(new Error('Owned launcher socket failed'));},{once:true});
+    });
+    assert.equal(liveSocket.protocol,selected);
     const next={...liveRoot,epoch:1,devices:devices.map(device=>({key:device.key,operations})).sort((a,b)=>a.key.localeCompare(b.key))};
     assert.equal((await fetch(origin+prefix+'/membership',await signed(prefix+'/membership','POST',
       {expected_tail:0,blob:'AQ==',policy:next},devices[0],origin))).status,200);
+    for(let i=0;i<100&&tails.length===0;i++) await new Promise(resolve=>setTimeout(resolve,20));
+    assert.deepEqual(tails,[{tail:1}],'Owned launcher must forward socket opt-in and retain the unchanged reader across membership');
     const joined=await fetch(origin+prefix+'/policy',await signed(prefix+'/policy','GET',undefined,devices[1],origin));
     assert.deepEqual(await joined.json(),{policy:next});
   } finally {
+    if(liveSocket?.readyState===1) liveSocket.close();
     if (child.exitCode===null && child.signalCode===null) {
       if (process.platform==='win32') {
         const stop=spawn('C:\\Windows\\System32\\taskkill.exe',['/PID',String(child.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});

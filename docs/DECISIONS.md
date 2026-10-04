@@ -1856,3 +1856,22 @@ states and ordinary pointer cancellation/restart with exact balances. Reject
 calling ARM packaging a phone runtime, or native accessibility-tree evidence
 a TalkBack/full accessibility pass (ANDROID-RELEASE.md).
 
+## 2026-10-05 — Bind local hibernatable tail hints to current read authority
+
+Keep `/ws` as its own exact signed scope, with explicit operator opt-in and the
+existing current read grant. Use hibernation attachments rather than an in-memory
+registry; recheck committed authority before tail hints, close removed/revoked
+readers, cap both open device slots and total closing transports, and preserve
+nonce/budget rollback. Reject anonymous sockets, proof-supplied grants, financial
+messages, timers and treating a hint as saved ledger state; public routing and
+app lifecycle remain separate gates (RELAY-NOTIFICATIONS.md).
+
+## 2026-10-05 — Observe real socket closure without masking failures
+
+Use ordinary HTTP for malformed protocol values the test client itself refuses,
+and real network clients for valid protocol/close behavior. Allow a bounded close
+handshake rather than interpreting a two-second timeout as terminal failure;
+cleanup open sockets and always dispose the owned worker so a duplicate close
+cannot hide the actionable error. Reject forced-exit passes or inferring cloud
+hibernation from local instance reconstruction (RELAY-NOTIFICATIONS.md).
+

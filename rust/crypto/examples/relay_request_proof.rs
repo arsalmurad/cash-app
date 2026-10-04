@@ -7,7 +7,16 @@ fn hex(bytes: &[u8]) -> String {
 
 fn main() {
     let member = Member::new("Synthetic private label").unwrap();
-    let local_group = std::env::args().nth(1).as_deref() == Some("local-group");
+    let mode = std::env::args().nth(1);
+    let notification = mode.as_deref() == Some("local-notification");
+    let local_group = notification || mode.as_deref() == Some("local-group");
+    let notification_origin = if notification {
+        std::env::args()
+            .nth(2)
+            .expect("notification fixture origin")
+    } else {
+        String::new()
+    };
     let expires = if local_group {
         u64::try_from(
             std::time::SystemTime::now()
@@ -22,14 +31,22 @@ fn main() {
         1_790_000_030_000
     };
     let request = RelayRequest {
-        origin: if local_group {
+        origin: if notification {
+            &notification_origin
+        } else if local_group {
             "http://127.0.0.1"
         } else {
             "https://relay.example"
         },
-        method: "POST",
-        path: "/g/0123456789abcdef0123456789abcdef/append",
-        body: if local_group {
+        method: if notification { "GET" } else { "POST" },
+        path: if notification {
+            "/g/15151515151515151515151515151515/ws"
+        } else {
+            "/g/0123456789abcdef0123456789abcdef/append"
+        },
+        body: if notification {
+            b""
+        } else if local_group {
             br#"{"expected_tail":0,"blob":"AQ=="}"#
         } else {
             br#"{"expected_tail":1,"blob":"YQ=="}"#

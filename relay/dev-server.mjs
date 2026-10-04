@@ -14,6 +14,7 @@ const mf = new Miniflare({
     { GROUP: "GroupLog", MAILBOX: "Mailbox" },
   bindings: { LOCAL_DEVELOPMENT: "true", ...(process.env.LOCAL_AUTH_POLICY !== undefined ? { LOCAL_AUTH_POLICY: process.env.LOCAL_AUTH_POLICY } : {}),
     ...(membership ? { LOCAL_AUTH_MEMBERSHIP: "true" } : {}),
+    ...(membership && process.env.LOCAL_AUTH_SOCKETS === "true" ? {LOCAL_AUTH_SOCKETS:"true"} : {}),
     ...(membership && process.env.LOCAL_AUTH_RETENTION === "true" ? {LOCAL_AUTH_RETENTION:"true"} : {}) },
   compatibilityDate: "2026-07-01",
   host: "127.0.0.1",
