@@ -59,11 +59,12 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    key must acknowledge the exact checkpoint; a computed cutoff/TTL is never
    permission to delete financial history. Retained checkpoints/receipts and
    per-log growth refusal alone do not close this gate.
-3. [ ] Implement and verify the brief's explicit MLS key-rotation operation,
+3. [x] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.
    Standalone self-update now has native core/bridge/controller, actual
    authenticated HTTP and production Chrome evidence in
-   [KEY-ROTATION.md](KEY-ROTATION.md). Final-source mobile verification remains.
+   [KEY-ROTATION.md](KEY-ROTATION.md), plus actual authenticated Android with
+   protected-store restart and later removal. Final iOS remains under gate 5.
 4. [ ] Finish the personal functional/adaptive/accessibility review against the
    requested Cashew quality bar and Phase 1 scope, across phone/tablet/web.
    Accounts/multi-currency; expense/income/transfer/recurring/upcoming; categories/
@@ -77,7 +78,8 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android
    journeys. New key-refresh ABI `-1323392253` passes native-host and production
-   Chrome acceptance; final iOS and Android/release APK remain open. Older runs are not a
+   Chrome and authenticated Android acceptance; final iOS and Android release
+   APK remain open. Older runs are not a
    final-source completion claim.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to private GitHub `main`. Local diagnostic
