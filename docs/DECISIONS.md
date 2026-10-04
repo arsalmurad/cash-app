@@ -1786,3 +1786,12 @@ count/bytes, and retain the original path as a junction. Reject a broad clean or
 moving source/financial records to resolve low C: disk space; keep compiled
 native release artifacts available for retries.
 
+## 2026-10-04 — Verify real ABI and page layouts, harden only the final link
+
+Inspect every packaged ELF machine and Android ZIP/LOAD/RELRO layout; account
+for the actual linker's whole-LOAD exception instead of reporting a false
+Flutter/Rust failure from an over-strict check. Make both page boundaries
+explicit in the Android-64 final `cdylib` link, rejecting dependency-wide
+compiler flag changes/toolchain upgrades; reuse native caches and distinguish
+ARM packaging from actual phone/16 KB runtime (see ANDROID-RELEASE.md).
+
