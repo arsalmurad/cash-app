@@ -360,3 +360,45 @@ Logs under `app/.dart_tool`: `consent-authenticated-web-runtime.log` (failure),
 `consent-code-semantics-analysis.log`, `consent-code-semantics-web-build.log`,
 and `consent-code-semantics-web-runtime.log` (pass). Diagnostics remain ignored;
 the repeatable tests and evidence summary are tracked. Gate 2 remains open.
+
+### Same-origin identity lease and full native regression
+
+At unchanged production app/build `1edf8a5`, the extended Chrome journey now
+opens a second tab in Alice's **same** browser context and origin storage, not
+another independent identity. Correct-phrase unlock is refused while Alice
+owns the lease; the exact confirmed SQLite image is unchanged and the duplicate
+tab sends no relay POST. Alice explicitly locks, the second tab unlocks the
+same USD -50.00 history/summary, then closing that owning tab releases the lease
+so Alice can unlock again. The remaining fresh-key recovery/removal/EUR/JPY and
+privacy journey also passes. Same command/environment as above, terminal exit
+**0**, log `consent-same-origin-lease-web-runtime-foreground.log`.
+
+Two preceding extended-driver runs are **failures**, not lock-transfer passes:
+the first stopped before this case because a popup barrier click arrived during
+menu entrance; the driver now waits for popup readiness/250 ms and the actual
+Invite label after dismissal. The next correctly refused duplicate unlock but
+timed out awaiting Alice's background-tab lock semantics; its later screenshot
+showed the locked pane while accessible labels remained stale. Normal
+`Page.bringToFront` tab switching makes each user's interaction foreground and
+the complete rerun passes. This is scoped ordinary foreground interaction,
+not proof that background rendering/throttling is fixed. Closed sibling targets
+are removed from live diagnostic connections so failure screenshots cannot
+wait on an already destroyed tab. Failure logs are
+`consent-same-origin-lease-web-runtime.log` and
+`consent-same-origin-lease-web-runtime-retry.log`.
+
+The full current-source Windows native-enabled suite also exits **0**:
+**424 tests, 9 minutes 12 seconds**, pinned Flutter and matching ABI/DLL:
+
+```text
+cd app
+RUST_LIB_PATH=C:/Users/ME/code/cash-app/rust/target/debug/rust_lib_cash_app.dll CI=true flutter --no-version-check test --no-pub --concurrency=1
+```
+
+Log `consent-current-native-full-suite.log`. This covers the real native bridge,
+owned HTTP workers, consent/recovery/save faults, personal/storage/controller
+and widget regressions. Browser-only tests are not included in this host count;
+the actual browser journey supplies the separate scoped lease evidence. No
+rebuild/toolchain change or public deployment was needed for this extension.
+Authenticated browser quota, arbitrary process/power loss, real assistive
+technology and final release/iOS acceptance remain open.

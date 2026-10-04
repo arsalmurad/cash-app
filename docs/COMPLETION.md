@@ -69,6 +69,8 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    consent/pruning, stale sealed-archive refusal and fresh-key/restart recovery
    now pass. Production Chrome explicit consent/pruning, protected reload and
    fresh-key recovery also pass after repairing complete-code accessibility.
+   Actual same-origin duplicate unlock refusal and foreground lock/close lease
+   transfer pass; the full matching native-enabled suite passes 424 tests.
    Remaining lifecycle faults and final-platform coordination remain open.
 3. [x] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.

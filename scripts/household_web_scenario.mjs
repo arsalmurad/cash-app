@@ -256,9 +256,13 @@ export async function runHouseholdWebScenario(alice, api) {
       assert.equal(await evaluate(alice, `document.body.textContent.includes('Export local relay setup')`), false);
       // Dismiss through the real modal barrier; Escape depends on which
       // renderer/semantics element currently owns keyboard focus.
+      await waitForLabel(alice, 'Popup menu');
+      // Semantics can appear before Flutter finishes pushing the popup route.
+      // Let its entrance animation settle before sending barrier pointer input.
+      await delay(250);
       await alice.send('Input.dispatchMouseEvent', { type: 'mousePressed', x:16, y:160, button:'left', clickCount:1 });
       await alice.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x:16, y:160, button:'left', clickCount:1 });
-      await waitForLabel(alice, 'Shared balance');
+      await waitForLabel(alice, 'Invite');
       console.log('Verified authenticated bootstrap: production app public roster export starts owned SQLite relay; no pre-seeded history.');
     }
     const bob = await newPeer();
@@ -475,6 +479,53 @@ export async function runHouseholdWebScenario(alice, api) {
       await waitForLabel(alice, 'USD -50.00');
       await waitForLabel(alice, 'Expense total: USD 12.34');
       console.log('Verified production browser consent: no deletion on open/cancel/missing approval, authenticated unanimous chunks, sealed restart and preserved history.');
+      scenarioStage = 'same-origin household identity lease';
+      // Unlike newPeer(), this tab deliberately shares Alice's origin storage
+      // and browser context. It must not obtain a second sender-state lease.
+      const { targetId: siblingId } = await browser.send('Target.createTarget', { url: appUrl });
+      let sibling;
+      try {
+        const page = await waitForPage(debugPort, appUrl, siblingId);
+        sibling = await connectCdp(page.webSocketDebuggerUrl);
+        peers.push(sibling);
+        await sibling.send('Runtime.enable');
+        await sibling.send('Page.enable');
+        await sibling.send('Network.enable');
+        await sibling.send('Page.bringToFront');
+        await openApp(sibling);
+        await waitForLabel(sibling, 'Private Ledger');
+        await openHousehold(sibling);
+        await waitForLabel(sibling, 'Unlock this browser');
+        const beforeUnlock = await evaluate(alice, `localStorage.getItem('private_ledger.sqlite.v1')`);
+        await fill(sibling, '24-word unlock phrase', alicePhrase);
+        await clickLabel(sibling, 'Unlock household', 'button');
+        await waitForLabel(sibling, 'The household is open in another tab. Lock or close that tab, then try again.');
+        assert.equal(await evaluate(alice, `localStorage.getItem('private_ledger.sqlite.v1')`), beforeUnlock,
+          'Rejected second-tab unlock must preserve the confirmed database');
+        assert(!sibling.events.some(event => event.method === 'Network.requestWillBeSent' &&
+          event.params.request.method === 'POST' && event.params.request.url.startsWith(relayUrl)),
+          'A locked duplicate identity must never send relay writes');
+        await waitForLabel(alice, 'USD -50.00');
+        await alice.send('Page.bringToFront');
+        await clickLabel(alice, 'Lock household in this browser', 'button');
+        await waitForLabel(alice, 'Unlock this browser');
+        await sibling.send('Page.bringToFront');
+        await clickLabel(sibling, 'Unlock household', 'button');
+        await waitForLabel(sibling, 'USD -50.00');
+        await waitForLabel(sibling, 'Expense total: USD 12.34');
+      } finally {
+        await browser.send('Target.closeTarget', { targetId: siblingId });
+        if (sibling) {
+          peers.splice(peers.indexOf(sibling), 1);
+          sibling.close();
+        }
+      }
+      await alice.send('Page.bringToFront');
+      await fill(alice, '24-word unlock phrase', alicePhrase);
+      await clickLabel(alice, 'Unlock household', 'button');
+      await waitForLabel(alice, 'USD -50.00');
+      await waitForLabel(alice, 'Expense total: USD 12.34');
+      console.log('Verified actual browser identity lease: duplicate tab cannot unlock/write, explicit lock transfers access, closing releases the lease.');
     }
     const replacement = await newPeer();
     await protect(replacement);
