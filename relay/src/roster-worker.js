@@ -1,10 +1,11 @@
 // Explicit operator-bootstrapped loopback experiment, not public signup.
-import { GroupLog } from './worker.js';
+import { GroupLog, PrefixRefused } from './worker.js';
 import { configuredPolicy, boundedBody } from './local-auth-worker.js';
 import { verifyRequestProof, verifiedRequestContext } from './request-proof.js';
 import { requestOperation, inviteRequest } from './request-scope.js';
 import { applyWelcomeRequest, expireWelcomes, WelcomeRefused } from './roster-welcome.js';
-import { admitVerifiedDeviceRequest, admitRetiredReadRequest } from './request-admission.js';
+import { admitVerifiedDeviceRequest, admitRetiredReadRequest, admitVerifiedPrefixRequest } from './request-admission.js';
+import {verifyPrefixConsentBundle} from './prefix-consent.js';
 import { emptyRequestBudget, spendRequestBudget, RequestBudgetRefused } from './request-budget.js';
 import { validMembershipPolicy, applyMembershipTransition, MembershipRefused } from './request-membership.js';
 import { retiredReader, RetiredReaderRefused } from './retired-readers.js';
@@ -38,7 +39,8 @@ export class RosterGroupLog extends GroupLog {
     const root = trustedRoot(this.env);
     if (!root || !loopback(url)) return fail(503);
     const operation = requestOperation({origin:url.origin,method:request.method,path:url.pathname,query:url.search},root.scope);
-    if (!['read','append','membership'].includes(operation)) return fail(403);
+    const retention=operation==='prune'&&this.env.LOCAL_AUTH_RETENTION==='true';
+    if (!['read','append','membership'].includes(operation)&&!retention) return fail(403);
     let proof;
     try {
       const header=request.headers.get('x-cash-device-proof');
@@ -57,6 +59,7 @@ export class RosterGroupLog extends GroupLog {
     if (bytes===null) return fail(413);
     const verified=await verifyRequestProof(request,bytes,proof,device.key,Date.now());
     if (!verified) return fail(401);
+    if(retention) return this.retentionRequest(bytes,verified,root);
     let historicalLimit=null;
     const authorize=async txn => {
       const deny=status=>{throw new MembershipRefused(status);};
@@ -109,6 +112,30 @@ export class RosterGroupLog extends GroupLog {
       operation==='membership' ? txn=>applyMembershipTransition(txn,verified,bytes,Date.now()) : null);
   }
   async welcomeRequest(txn,verified,bytes) {return applyWelcomeRequest(txn,verified,bytes,Date.now());}
+  async retentionRequest(bytes,verified,root) {
+    let body;
+    try {body=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));} catch {return fail(400);}
+    if(!body||typeof body!=='object'||Array.isArray(body)||
+        JSON.stringify(Object.keys(body).sort())!=='["consents","expectedFloor","through"]') return fail(400);
+    const spec={expectedFloor:body.expectedFloor,through:body.through};
+    const token=await verifyPrefixConsentBundle(body.consents,Date.now());
+    if(!token) return fail(403);
+    let retryAfter=null;
+    const response=await this.prunePrefix(spec,async(txn,context)=>{
+      if(JSON.stringify(await txn.get('authorization_root'))!==JSON.stringify(root)||
+          !acceptable(await txn.get('authorized_devices'),root)) throw new PrefixRefused(503);
+      const admission=await admitVerifiedPrefixRequest(txn,verified,token,context,Date.now());
+      if(!admission.ok) throw new PrefixRefused(admission.reason==='replay'?409:admission.reason==='expired'?401:admission.reason==='capacity'?429:403);
+      try {await spendRequestBudget(txn,verified,await txn.get('request_clock'));}
+      catch(error) {
+        if(!(error instanceof RequestBudgetRefused)) throw error;
+        retryAfter=error.retryAfter;throw new PrefixRefused(error.status);
+      }
+      return true;
+    });
+    if(retryAfter!==null) response.headers.set('retry-after',String(retryAfter));
+    return response;
+  }
   async alarm() {await this.state.storage.transaction(txn=>expireWelcomes(txn,Date.now()));}
 }
 
@@ -118,6 +145,7 @@ export default {
     if (!root || !loopback(url)) return fail(503);
     const prefix=`/g/${root.scope.id}`;
     const read=[prefix,`${prefix}/policy`], write=[`${prefix}/append`,`${prefix}/membership`];
+    if(env.LOCAL_AUTH_RETENTION==='true') write.push(`${prefix}/prune`);
     const context={origin:url.origin,method:request.method,path:url.pathname,query:url.search};
     const invitation=inviteRequest(context,root.scope);
     const preflight=url.pathname.match(new RegExp(`^${prefix}/invite/[0-9a-f]{32}(?:/ack)?$`));

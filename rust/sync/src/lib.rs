@@ -17,6 +17,8 @@ mod authenticated_history;
 mod http;
 mod ids;
 mod peer;
+#[cfg(feature = "relay-auth")]
+mod prefix_consent;
 mod relay;
 #[cfg(feature = "relay-auth")]
 mod relay_request;
@@ -25,6 +27,8 @@ mod retention;
 #[cfg(feature = "http")]
 pub use http::HttpRelay;
 pub use peer::{Outgoing, Peer, StagedInvite, SyncError};
+#[cfg(feature = "relay-auth")]
+pub use prefix_consent::PrefixConsentRequest;
 pub use relay::{MailboxItem, MemoryRelay, Relay, RelayError};
 #[cfg(feature = "relay-auth")]
 pub use relay_request::DeviceRequestProof;

@@ -5,9 +5,10 @@
   "type": "module",
   "description": "Ciphertext-only household relay for Cash App, as a Cloudflare Durable Object.",
   "scripts": {
-    "test": "node --test test/relay.test.js test/deployment-gate.test.js test/capacity.test.js test/prefix-retention.test.js test/request-proof.test.js test/request-admission.test.js test/request-scope.test.js test/local-auth.test.js test/request-budget.test.js test/request-membership.test.js test/invite-authority.test.js test/retired-readers.test.js test/retired-pages.test.js test/roster-worker.test.js",
+    "test": "node --test test/relay.test.js test/deployment-gate.test.js test/capacity.test.js test/prefix-retention.test.js test/prefix-consent.test.js test/request-proof.test.js test/request-admission.test.js test/request-scope.test.js test/local-auth.test.js test/request-budget.test.js test/request-membership.test.js test/invite-authority.test.js test/retired-readers.test.js test/retired-pages.test.js test/roster-worker.test.js",
     "test:storage": "node test/storage-audit.mjs",
     "test:request-proof-rust": "node test/request-proof-rust.mjs",
+    "test:prefix-consent-rust": "node test/prefix-consent-rust.mjs",
     "dev": "node dev-server.mjs"
   },
   "devDependencies": {

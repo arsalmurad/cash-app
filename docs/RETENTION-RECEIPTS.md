@@ -2,7 +2,10 @@
 
 Status: Rust verifier, MLS-encrypted exchange, checked collection persistence
 and app protected-save coordination implemented; verification below is scoped.
-Recoverable authenticated relay pruning is **not implemented**.
+End-to-end protected-client retention remains **not complete**. A separate
+explicit consent signer and opt-in loopback pruning protocol are now verified
+in [PREFIX-CONSENT.md](PREFIX-CONSENT.md); ordinary receipts never authorize
+deletion by themselves.
 No history is deleted by this component.
 
 ## Contract

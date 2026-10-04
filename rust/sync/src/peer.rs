@@ -829,6 +829,44 @@ impl Peer {
         Ok(cutoff)
     }
 
+    /// Explicit, short-lived permission for the exact acknowledged prefix.
+    /// The caller must confirm `saved` from protected storage and retain a
+    /// recoverable archive before requesting consent. This readonly method
+    /// does not prove OS durability, send anything, or enable relay deletion.
+    #[cfg(feature = "relay-auth")]
+    pub fn sign_prefix_consent(
+        &self,
+        saved: &[u8],
+        request: &crate::PrefixConsentRequest,
+    ) -> Result<Vec<u8>, SyncError> {
+        if self.legacy_unverified || saved != self.export()?.as_slice() {
+            return Err(SyncError(
+                "Confirm the latest authenticated household save before consenting to retention."
+                    .into(),
+            ));
+        }
+        let (group, epoch, checkpoint) = self.retention_context()?;
+        let cutoff = self.retention_cutoff(&self.received_retention_receipts())?;
+        if request.policy_epoch != epoch
+            || request.through > cutoff
+            || !self
+                .member_keys()?
+                .iter()
+                .any(|(_, key)| key == &request.recovery_holder)
+        {
+            return Err(SyncError("Prefix consent requires this epoch, every saved checkpoint acknowledgement and a current recovery holder.".into()));
+        }
+        let mut bytes = crate::prefix_consent::payload(
+            request,
+            &self.retention_relay_group()?,
+            &group,
+            &checkpoint,
+            &self.public_key(),
+        )?;
+        bytes.extend_from_slice(&self.member.sign_history(&bytes)?);
+        Ok(bytes)
+    }
+
     /// Recover authenticated history only, never an old MLS sender ratchet.
     /// The replacement must first be freshly invited to the same household.
     /// Validate every proof before changing state; preserve its original author.

@@ -22,7 +22,7 @@ export class Fixture extends RosterGroupLog {
 }
 export default worker;`;
 const names = ['roster-worker','worker','local-auth-worker','request-proof',
-  'request-admission','retired-readers','request-scope','request-budget',
+  'request-admission','prefix-consent','retired-readers','request-scope','request-budget',
   'roster-welcome','request-membership','invite-authority'];
 const mf = new Miniflare({modulesRoot:root,modules:[
   {type:'ESModule',path:`${root}/prefix-recovery-fixture.js`,contents:wrapper},

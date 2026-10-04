@@ -1,10 +1,11 @@
-# Internal bounded relay prefix storage
+# Bounded relay prefix storage
 
 Verified 2026-10-04 on Windows with Node 24.19.0 and cached Miniflare
 4.20260730.0/workerd, using actual SQLite-backed Durable Object storage.
-This is a storage foundation, **not completed authenticated pruning or peer
-recovery**. No production route invokes `GroupLog.prunePrefix`; the authenticated
-roster worker refuses `/prune`, even with a valid current-device request proof.
+This started as an internal storage foundation. A separately signed all-device
+consent protocol now invokes it only in explicit owned-loopback opt-in mode:
+[PREFIX-CONSENT.md](PREFIX-CONSENT.md). Default routing still refuses `/prune`;
+protected-client/final-platform retention integration is **not complete**.
 
 ## Implemented boundary
 
@@ -63,14 +64,13 @@ invocation failed in Flutter telemetry-file access before running tests. No
 Rust/app source, bridge ABI or platform artifact changed, so no all-platform
 rebuild is claimed or needed for this relay-only concern.
 
-## Still required before enabling deletion
+## Required before enabling default app pruning
 
-Verify signed acknowledgements from **every current MLS signing key** for the
-same exact checkpoint and current policy epoch; bind explicit deletion consent
-and recoverable peer availability. Recheck that authority in the same transaction
-on every bounded chunk, including membership races and lost replies. Wire actual
-protected-save client coordination and stale-device fresh-key recovery against
-this real floor. A TTL, cursor high-water mark, matching balances, local computed
+The opt-in server protocol now verifies explicit consent from **every current
+MLS signing key** on every chunk ([PREFIX-CONSENT.md](PREFIX-CONSENT.md)). Wire
+actual protected-save client consent coordination, confirm recoverable peer
+availability, and verify stale-device fresh-key recovery in that normal flow.
+A TTL, cursor high-water mark, matching balances, local computed
 cutoff or callback merely returning true is not permission to delete history.
 Gate 2 in `COMPLETION.md` remains open; public deployment remains disabled.
 
@@ -111,5 +111,5 @@ Stores here are memory-backed confirmed writes, not actual protected OS storage
 or arbitrary power-loss evidence. Two initial peers and a replacement with
 three expenses are checked, not a new 1,000-event, multi-currency or final-device
 acceptance run. No app/Rust production source, bridge ABI, platform artifact,
-public route or deployed relay changed. Gate 2 still requires real consent and
+public route or deployed relay changed in that recovery-test commit. Gate 2 still requires consent coordination and
 recoverable availability, including protected-save/final-platform coordination.

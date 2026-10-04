@@ -103,8 +103,11 @@ function validCapacity(capacity, {tail, floor}) {
     capacity.entries <= MAX_LOG_ENTRIES && capacity.entries === tail - floor;
 }
 
-class PrefixRefused extends Error {
+export class PrefixRefused extends Error {
   constructor(status) {super("prefix transaction refused"); this.status = status;}
+}
+class PrefixConflict extends Error {
+  constructor(floor,tail) {super("prefix transaction conflict");this.result={conflict:true,floor,tail};}
 }
 
 export class GroupLog {
@@ -244,9 +247,9 @@ export class GroupLog {
     });
   }
 
-  // Internal storage primitive ONLY. No production route calls this method.
-  // A future caller must verify all-current-device permission AND recoverable
-  // availability in authorize(txn, context), rechecking them on every chunk.
+  // Storage primitive, not permission by itself. The opt-in roster caller
+  // verifies explicit all-current-device consent in authorize(txn, context)
+  // on every chunk; protected-client recoverable availability remains a gate.
   // Explicit false/absent guards cannot become an unprotected deletion path.
   async prunePrefix(spec, authorize) {
     if (!spec || typeof spec !== "object" || Array.isArray(spec) ||
@@ -267,14 +270,18 @@ export class GroupLog {
         const position = await logPosition(txn);
         if (!position) throw new PrefixRefused(503);
         const {floor, tail} = position;
-        if (expectedFloor !== floor || through > tail || through < floor) {
-          return {conflict:true, floor, tail};
-        }
         const capacity = await txn.get("capacity");
         if (!validCapacity(capacity, position)) throw new PrefixRefused(503);
         if (await authorize(txn, Object.freeze({...position, through})) !== true) {
           // Throw, rather than return, so a denied guard's own writes roll back.
           throw new PrefixRefused(403);
+        }
+        // Authenticate before exposing conflict metadata. Public callers must
+        // not learn a later floor/tail after revocation or invalid consent.
+        if (expectedFloor !== floor || through > tail || through < floor) {
+          // Authorization can write nonce/budget state. A conflicting request
+          // must roll back that guard as well as preserve the financial log.
+          throw new PrefixConflict(floor,tail);
         }
         if (floor === through) return {floor, tail, more:false};
         const nextFloor = Math.min(floor + PAGE, through);
@@ -299,6 +306,7 @@ export class GroupLog {
       });
       return json(result, result.conflict ? 409 : 200);
     } catch (error) {
+      if(error instanceof PrefixConflict) return json(error.result,409);
       return fail(error instanceof PrefixRefused ? error.status : 503,
         "prefix transaction refused; history preserved");
     }
