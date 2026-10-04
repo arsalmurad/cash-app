@@ -1720,3 +1720,11 @@ complete saved journal before and after signing and before each deletion chunk;
 reject receipt-only permission or guessed recovery cursors. Cache archive
 context once per bundle rather than repeating history exports for every signer.
 
+## 2026-10-04 — Separate consent collection from irreversible relay deletion
+
+Expose the development-only loopback workflow as an explicit household option,
+never background pruning. Consequences-first approval/deletion confirmations,
+clear 50-second renewal with cleared old approvals, scrollable enlarged text and
+keyboard-operable controls replace ambiguous one-click cleanup; pause only this
+screen's background sync during collection, while core scope checks remain final.
+

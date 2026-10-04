@@ -64,7 +64,8 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    consent now authorizes bounded deletion only in explicit loopback opt-in mode
    ([PREFIX-CONSENT.md](PREFIX-CONSENT.md)); default routes remain disabled,
    and signed app-controller coordination now passes actual native HTTP deletion,
-   failed/stale archive reads and fresh-key recovery. UI, actual protected-store
+   failed/stale archive reads and fresh-key recovery. Explicit app controls pass
+   scoped confirmation/phone/keyboard widget tests. Actual protected-store
    lifecycle/availability faults and final-platform coordination remain open.
 3. [x] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.

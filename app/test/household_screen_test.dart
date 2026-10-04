@@ -7,6 +7,7 @@ import 'package:private_ledger/data/rust/api/ledger.dart';
 import 'package:private_ledger/data/rust/api/shared.dart';
 import 'package:private_ledger/features/household/household_controller.dart';
 import 'package:private_ledger/features/household/household_screen.dart';
+import 'package:private_ledger/features/household/retention_codes.dart';
 
 const _me = 'aaaa0000aaaa0000aaaa0000aaaa0000';
 const _other = 'bbbb1111bbbb1111bbbb1111bbbb1111';
@@ -51,6 +52,15 @@ class _FakeController extends HouseholdController {
   bool restartRequired = false;
   bool relayMode = false;
   bool setupAvailable = false;
+  bool retentionAvailable = false;
+  @override
+  bool get canManageRelayRetention => retentionAvailable;
+  @override
+  Future<String?> prepareRetentionRequest() async {
+    calls.add('prepare-retention');
+    return encodeRetentionRequest(Uint8List.fromList([1, 2, 3]));
+  }
+
   @override
   bool get canExportRelayBootstrap => setupAvailable;
   @override
@@ -226,6 +236,38 @@ Future<_FakeController> _pump(
 }
 
 void main() {
+  testWidgets(
+    'retention menu is conditional; dialog suspends background sync',
+    (tester) async {
+      final controller = await _pump(
+        tester,
+        member: true,
+        syncInterval: const Duration(seconds: 10),
+      );
+      await tester.tap(find.byTooltip('Household options'));
+      await tester.pumpAndSettle();
+      expect(find.text('Manage relay copies'), findsNothing);
+      await tester.tapAt(const Offset(10, 200));
+      await tester.pumpAndSettle();
+      controller.retentionAvailable = true;
+      await tester.tap(find.byTooltip('Household options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Manage relay copies'));
+      await tester.pumpAndSettle();
+      expect(controller.calls, isEmpty);
+      await tester.pump(const Duration(seconds: 30));
+      expect(controller.calls, isEmpty);
+      await tester.ensureVisible(find.text('Prepare request'));
+      await tester.tap(find.text('Prepare request'));
+      await tester.pumpAndSettle();
+      expect(controller.calls, ['prepare-retention']);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 10));
+      expect(controller.calls, ['prepare-retention', 'sync']);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'key refresh dialog supports large text, semantics and keyboard cancellation',
     (tester) async {
