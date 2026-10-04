@@ -257,3 +257,23 @@ category bottom padding, but browser fixtures have five seeded categories;
 the thirty-row/200%-text bottom-action claim remains host evidence. The current
 Android APKs predate these two category UI repairs. Actual mobile screen readers,
 200% browser zoom, final iOS and complete accessibility remain unverified.
+
+### Actual thirty-category browser list
+
+At the unchanged production build, Chrome 154 / Node 24.19, 360x740:
+`WEB_CATEGORIES=1 WEB_CATEGORY_LIST=1 WEB_VIEWPORT=360x740
+node scripts/verify_web_runtime.mjs` passes (terminal exit 0). A fresh owned
+profile adds 25 categories to its five defaults through normal create/save
+controls, requiring changed confirmed SQLite after each save. Physical wheel
+input changes the visible category rows; further scrolling leaves the final
+visible rows stable. The final visible Edit rectangle does not overlap New
+category, and a real pointer tap opens its populated editor. Cancel preserves
+the database bytes. A real name/icon update then survives full reload and
+reopening the same bottom row, with Travel icon selected and the original
+`USD -512.34` balance unchanged. No private app state was injected.
+
+Both the initial run and the tightened scroll-progress/stable-bottom run pass;
+the final log is `app/.dart_tool/category-long-list-production-web-runtime.log`.
+This closes normal-scale narrow production-browser bottom-action coverage,
+not 200% browser zoom or updated mobile coverage. No web rebuild was required
+for this test-driver-only addition.

@@ -1829,3 +1829,12 @@ review still requires verified owner $0 Actions spending protection and rejected
 the attempted tool call before execution. No workflow started; continue local
 acceptance without circumventing that rejection (COMPLETION.md).
 
+## 2026-10-05 — Verify final category actions through ordinary browser saves
+
+Create the long-list fixture through production controls in a fresh owned
+browser profile. Require changed confirmed storage for every creation, actual
+wheel movement and stable final rows before asserting bottom Edit/FAB
+non-overlap. Use physical pointer activation, byte-identical cancellation and
+reload/name/icon/balance evidence; reject injected category state or treating
+host reachability alone as production proof (PERSONAL-UX-REVIEW.md).
+
