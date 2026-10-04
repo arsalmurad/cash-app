@@ -204,8 +204,18 @@ export async function runHouseholdWebScenario(alice, api) {
     await delay(200);
   }
 
-  async function sync(peer) {
-    await clickLabel(peer, 'Sync', 'button');
+  async function sync(peer, { allowAlreadyRemoved = false } = {}) {
+    const removed = () => evaluate(peer,
+      `document.body.textContent.includes('You are no longer in this household.')`);
+    if (allowAlreadyRemoved && await removed()) return;
+    try {
+      await clickLabel(peer, 'Sync', 'button');
+    } catch (error) {
+      // Only the explicit removed-device step may already have completed via
+      // the production background timer. Its removal assertion still follows.
+      if (allowAlreadyRemoved && await removed()) return;
+      throw error;
+    }
     await Promise.race([workerFailure, delay(350)]);
     await waitFor(peer, `document.body.textContent.includes('You are no longer in this household.') ||
       [...document.querySelectorAll('flt-semantics-host [role="button"]')]
@@ -320,17 +330,30 @@ export async function runHouseholdWebScenario(alice, api) {
     console.log('Verified household summary: explicit browser lock hides the snapshot and phrase unlock restores it.');
     scenarioStage = 'standalone household encryption-key refresh';
     await sync(alice);
-    const beforeRefresh = relayEntries();
+    const refreshEndpoint = authenticated ? '/membership' : '/append';
+    const refreshWrites = () => alice.events.filter(event =>
+      event.method === 'Network.requestWillBeSent' &&
+      event.params.request.method === 'POST' &&
+      event.params.request.url.startsWith(relayUrl) &&
+      event.params.request.url.endsWith(refreshEndpoint));
+    const beforeRefresh = refreshWrites().length;
     await clickLabel(alice, 'Household options', 'button');
     await clickLabel(alice, 'Refresh encryption keys');
     await waitForLabel(alice, 'Refresh encryption keys?');
     await clickLabel(alice, 'Cancel', 'button');
-    assert.equal(relayEntries(), beforeRefresh, 'Canceled key refresh must not append');
+    assert.equal(refreshWrites().length, beforeRefresh, 'Canceled key refresh must not append');
     await clickLabel(alice, 'Household options', 'button');
     await clickLabel(alice, 'Refresh encryption keys');
     await clickLabel(alice, 'Refresh keys', 'button');
     await waitForLabel(alice, 'Encryption keys refreshed');
-    assert(relayEntries() > beforeRefresh, 'Confirmed key refresh must publish its encrypted commit');
+    const confirmedRefresh = refreshWrites().slice(beforeRefresh);
+    assert(confirmedRefresh.length > 0, 'Confirmed key refresh must publish its encrypted commit');
+    if (authenticated) assert.equal(confirmedRefresh.length, 1,
+      'Authenticated refresh must send exactly one membership commit');
+    assert(confirmedRefresh.some(request => alice.events.some(event =>
+      event.method === 'Network.responseReceived' &&
+      event.params.requestId === request.params.requestId &&
+      event.params.response.status === 200)), 'Refresh commit must receive an actual successful relay response');
     await sync(bob);
     await waitForLabel(bob, 'Expense total: USD 12.34');
     await waitForLabel(bob, 'USD 0.00');
@@ -406,7 +429,7 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickLabel(alice, 'Remove', 'button');
     await accept(replacement, await invite(await joinRequest(replacement)));
     await waitForLabel(replacement, 'USD -50.00');
-    await sync(bob);
+    await sync(bob, { allowAlreadyRemoved: true });
     await waitForLabel(bob, 'You are no longer in this household');
     await expense(alice, 'After old device retirement', '1.00');
     await sync(replacement);
