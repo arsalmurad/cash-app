@@ -1,6 +1,6 @@
 # Current Android production release evidence
 
-Verified 2026-10-04. Production app through `1edf8a5`, evidence head `f855f34`,
+Initial verification 2026-10-04. Production app through `1edf8a5`, evidence head `f855f34`,
 Rust/Dart bridge ABI `1237803201`; the new tracked production-UI driver does not
 change app code. This is scoped x86_64 emulator evidence, not a full-platform
 completion claim.
@@ -122,3 +122,105 @@ Vendor source inspected locally at pinned Flutter
 [mode regeneration](https://github.com/flutter/flutter/blob/6a19cca56475dbfba1478ee68d7bd0c2ef891da1/packages/flutter_tools/lib/src/runner/flutter_command.dart),
 [release dev-plugin filtering](https://github.com/flutter/flutter/blob/6a19cca56475dbfba1478ee68d7bd0c2ef891da1/packages/flutter_tools/lib/src/flutter_plugins.dart),
 [ABI-split packaging](https://github.com/flutter/flutter/blob/6a19cca56475dbfba1478ee68d7bd0c2ef891da1/packages/flutter_tools/gradle/src/main/kotlin/FlutterPlugin.kt).
+
+## ARM64 packaging and explicit final-library alignment (2026-10-04)
+
+The final release splits below supersede the initial x86_64 artifact above.
+Flutter UI, generated bridge ABI `1237803201`, lockfiles and pinned tools are
+unchanged. `rust/api/build.rs` makes max/common page size explicit only at the
+final 64-bit Android `cdylib` link. This is defensive build hardening, **not a
+proven pre-existing runtime crash repair**. Other platforms and 32-bit Android
+receive no new flags; dependency-wide `RUSTFLAGS` and Cargokit are unchanged.
+
+| Split | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `app-arm64-v8a-release.apk` | 28,483,149 | `5e5cd35371d60c796d16b67040243e334f548c105ce8c119800584b94339f6ba` |
+| `app-x86_64-release.apk` | 30,652,017 | `3207859e31b52e706b426b7620d2040a0c14b7b45090b65e53a3bcb242d0d389` |
+
+Both are in `app/build/app/outputs/flutter-apk`, package version `0.1.0`, split
+codes 2001/4001, private-prototype debug-key release signing. Each reports only
+its exact ABI and is not debuggable. Every native library's actual ELF64 machine
+matches; Dart AOT, Flutter, JNI and Rust code are present. Android's own
+`zipalign -v -c -P 16 4` passes. All LOAD alignments are at least 16 KB, with
+valid file/address congruence. Rust RELRO ends now align exactly to 16 KB;
+ARM Flutter's unchanged RELRO occupies its entire LOAD and passes the verified
+whole-segment exception without overlapping another writable region.
+
+Tracked `scripts/verify_android_release_artifact.mjs` inspects/extracts only
+safe native ZIP entries into its own disposable directory; it never installs
+or runs an artifact. Both invocations terminate **exit 0**, with hashes and
+per-library inventories in ignored `android-arm64-final-artifact.log` and
+`android-x64-final-artifact.log`. Four Node regression tests reject wrong
+machine/class/format, truncated tables, bad LOAD/partial RELRO alignment and
+unsafe adjacent writable data, while permitting the whole-LOAD case. Three
+standalone Rust tests verify both flags and non-Android/32-bit exclusions.
+
+The final x86_64 split independently passes the unchanged production UI driver
+on owned `Phase0Api36` / `emulator-5580`, Android 16/API 36: real unique 12.34
+expense, exact 1,234-minor-unit balance change, force-stop/cold launch, explicit
+removal confirmation and second cold launch. **Exit 0**, ignored log
+`android-aligned-release-production-ui.log`; existing app data preserved.
+This emulator was not a 16 KB runtime, and no ARM phone was connected.
+
+### Exact commands, costs and failed checks
+
+ARM Flutter artifacts were cached. Only the missing `aarch64-linux-android`
+standard library was added to existing Rust stable **1.98.1**, without a
+compiler upgrade. Rustup's transfer stalled; curl retrieved the official
+29,448,296-byte archive, resuming after a timeout. Its SHA-256 matched the
+installed pinned manifest exactly:
+`d7c4949bb77b007bed188c9b15b8267a3222dc9b9c517f05d1899f9e885fb79e`.
+Rustup then installed from that verified cache. The archive remains cached.
+
+From `app`, with the existing D: Android/JDK/Gradle/temp environment:
+
+```text
+flutter --no-version-check build apk --release --target-platform android-arm64 --split-per-abi
+flutter --no-version-check build apk --release --target-platform android-arm64,android-x64 --split-per-abi --no-pub
+```
+
+The first new-target build passed in **1,314.1 s**; its historical ARM APK was
+28,483,149 bytes, hash `7e1a2811de45b8c91393ada2a061eaa2f2f1ec2559f04d4a4a4a12a874e7e55c`.
+The explicit-link-boundary rebuild passed in **310.1 s**, reusing dependencies
+with `CARGO_BUILD_JOBS=2`, rather than changing global compiler flags and
+rebuilding all dependencies. Logs: `consent-android-arm64-release-build.log`
+and `android-64bit-page-alignment-build.log`. The latter's helper dependency
+report was again only `c:` → `C:` path spelling, not a version upgrade.
+
+```text
+node --test scripts/verify_android_release_artifact.test.mjs
+node scripts/verify_android_release_artifact.mjs arm64-v8a
+node scripts/verify_android_release_artifact.mjs x86_64
+ANDROID_DEVICE_SERIAL=emulator-5580 node scripts/verify_android_release_ui.mjs
+rustc +stable --edition 2024 --test rust/api/tests/android_link_flags.rs -o app/.dart_tool/android-link-flags-test.exe
+app/.dart_tool/android-link-flags-test.exe
+```
+
+Verifier tools can be overridden with `AAPT_BINARY`, `JAR_BINARY` and
+`ZIPALIGN_BINARY`; Windows defaults use the installed SDK 36/JDK 17. Use an
+allowed temporary directory, or host permission for the designated D: cache.
+One D: extraction attempt correctly failed sandbox permissions before reading
+ELF files; it is not a packaging failure.
+
+The initial custom checker incorrectly required every RELRO end to align,
+flagging both old Rust and ARM Flutter. Independent installed NDK
+`llvm-readelf -Wl` showed each RELRO was the **entire** corresponding LOAD.
+The [actual Android linker](https://android.googlesource.com/platform/bionic/+/android16-qpr2-release/linker/linker_phdr_16kib_compat.cpp)
+explicitly exempts that case; the corrected checker and its negative controls
+pass even on the pre-hardening ARM artifact. Do not present those preliminary
+false positives as library incompatibility or a repaired crash. Raw diagnostic
+log: `android-arm64-before-readelf.log`.
+
+An exploratory Cargokit helper regression reproduced the absent companion
+flag; its old test runner could not load the pinned Dart frontend snapshot,
+so a direct cached-Dart check was used. The helper edit was rejected in favor
+of the final-library-only hook; neither helper nor its temporary test is in
+the deliverable. The new Rust/Node tests above are the tracked regression
+checks. No generated Java edit, SDK upgrade, public deploy or cloud job.
+
+Vendor references: [Android alignment checks and flags](https://developer.android.com/guide/practices/page-sizes),
+[Cargo final-cdylib link directive](https://doc.rust-lang.org/cargo/reference/build-scripts.html#rustc-link-arg-cdylib).
+Packaging passes do not prove code's page-size-independent behavior. ARM phone,
+16 KB OS, release household/network, clean-checkout and final iOS runtime
+remain open. The earlier native/Chrome suites were not rerun for this Android-
+only link configuration and are not relabeled as current-source full suites.

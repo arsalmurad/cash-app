@@ -99,7 +99,11 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    consent/pruning, protected reload and fresh-key recovery. A correctly filtered
    current x86_64 production release APK also passes actual UI expense/exact
    balance, process restart and confirmed removal: [ANDROID-RELEASE.md](ANDROID-RELEASE.md).
-   ARM phone/release household runtime, clean-checkout and final iOS remain
+   Current ARM64 and x86_64 release splits now pass exact-ABI/ELF/16 KB ZIP and
+   segment-layout packaging checks, with explicit final-library Android link
+   boundaries. The rebuilt x86_64 split repeats the actual production UI and
+   process-restart pass; ARM packaging is not a phone runtime claim.
+   ARM phone/16 KB OS/release household runtime, clean-checkout and final iOS remain
    unverified. Older runs are not a
    final-source completion claim.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
