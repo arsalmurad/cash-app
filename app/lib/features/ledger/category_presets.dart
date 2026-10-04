@@ -47,3 +47,20 @@ List<String> get availableCategoryIconKeys => _categoryIcons.keys.toList();
 /// version's icon set that this build doesn't know yet).
 IconData categoryIcon(String iconKey) =>
     _categoryIcons[iconKey] ?? Icons.label_outline_rounded;
+
+/// Accessible picker labels only; stored icon keys are unchanged.
+String categoryIconLabel(String iconKey) => switch (iconKey) {
+  'shopping_cart' => 'Shopping cart icon',
+  'restaurant' => 'Dining icon',
+  'directions_car' => 'Car icon',
+  'home' => 'Home icon',
+  'attach_money' => 'Money icon',
+  'shopping_bag' => 'Shopping bag icon',
+  'flight' => 'Travel icon',
+  'fitness_center' => 'Fitness icon',
+  'pets' => 'Pets icon',
+  'school' => 'Education icon',
+  'movie' => 'Entertainment icon',
+  'local_hospital' => 'Health icon',
+  _ => 'Category icon',
+};
