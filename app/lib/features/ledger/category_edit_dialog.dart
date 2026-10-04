@@ -27,7 +27,8 @@ class CategoryEditDialog extends StatefulWidget {
 
 class _CategoryEditDialogState extends State<CategoryEditDialog> {
   late final nameController = TextEditingController(text: widget.initialName);
-  late String iconKey = widget.initialIconKey ?? availableCategoryIconKeys.first;
+  late String iconKey =
+      widget.initialIconKey ?? availableCategoryIconKeys.first;
 
   @override
   void dispose() {
@@ -56,7 +57,11 @@ class _CategoryEditDialogState extends State<CategoryEditDialog> {
             children: [
               for (final key in availableCategoryIconKeys)
                 ChoiceChip(
-                  label: Icon(categoryIcon(key), size: 20),
+                  label: Icon(
+                    categoryIcon(key),
+                    size: 20,
+                    semanticLabel: categoryIconLabel(key),
+                  ),
                   selected: iconKey == key,
                   onSelected: (_) => setState(() => iconKey = key),
                 ),

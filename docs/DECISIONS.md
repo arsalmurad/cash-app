@@ -1810,3 +1810,12 @@ under New category. Reject shrinking touch targets or changing categories to
 work around the overlay; verify actual pointer opening/cancellation and zero
 writes in the host matrix (PERSONAL-UX-REVIEW.md).
 
+## 2026-10-05 — Name icon choices without changing stored keys
+
+Expose human-readable names and existing selected states for all twelve icon
+choices; keep stable storage keys unchanged. Reject inferring accessibility
+from visible glyphs. Verify enlarged host layouts, original-key saving and real
+production Chrome controls/cancellation with byte-identical saved SQLite.
+Record the test-handle lifecycle failure separately from the corrected pass;
+do not infer screen-reader or final mobile acceptance (PERSONAL-UX-REVIEW.md).
+

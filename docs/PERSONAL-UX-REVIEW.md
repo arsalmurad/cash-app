@@ -214,3 +214,46 @@ analysis has no issues (42.5 s). Ignored logs: `category-bottom-controls-red.log
 has host-widget evidence; the preceding APKs/browser artifacts are not
 relabeled as production verification of this newer UI change. No TalkBack/
 VoiceOver or complete accessibility claim follows.
+
+## Category-picker accessible names (2026-10-05)
+
+The accessibility-review and UX-copy skills guided a scoped name/state review.
+The twelve icon choices previously exposed no human-readable icon names. Each
+now labels its existing icon (for example, Dining icon and Travel icon); stored
+keys, category IDs and ledger events are unchanged. The regression first failed
+on the empty Shopping cart icon label. Six viewport/theme cases at 200% text
+check all twelve controls, selected semantics and Android touch-target guidelines;
+another case saves the original `flight` key after ordinary selection.
+
+The first label-enabled invocation still failed because the test disposed its
+semantics handle too late. With try/finally disposal, all **36 affected/adjacent
+tests pass** (23 s), and targeted analysis reports no issues (3.3 s). Commands:
+`flutter --no-version-check test --no-pub test/category_edit_dialog_test.dart
+test/categories_screen_test.dart test/adaptive_ledger_screen_test.dart
+test/populated_adaptive_panes_test.dart`; analyze the two changed production
+files and the new dialog test. Logs under `app/.dart_tool`:
+`category-icon-names-red.log`, `category-icon-names-green.log` (failed harness
+lifecycle), `category-icon-adjacent-tests.log`, `category-icon-analysis.log`.
+
+The production web build passes (199.1 s): `flutter --no-version-check build
+web --wasm --no-web-resources-cdn --no-pub`. It reuses the unchanged 6,394,850-byte
+Rust/WASM bridge, SHA-256
+`558be010d2207a4cab39f52168ffb3c29e8a7bb6acf6fd57d3dafca4432ff1d3`,
+ABI `1237803201`. The Dart WASM artifact is 2,775,304 bytes. Chrome 154 / Node
+24.19 at 360x740 independently passes twelve real accessible checkbox names,
+checked states, icon selection, and byte-identical SQLite after cancelling
+creation and editing. A second broader production run also passes:
+`WEB_CATEGORIES=1 WEB_VIEWPORT=360x740 WEB_KEYBOARD_ENTRY=1
+WEB_PERSONAL_LIFECYCLE=1 WEB_CSV=1 WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1
+node scripts/verify_web_runtime.mjs`. This includes persisted expense/reloads,
+forward/reverse keyboard traversal, Escape cancellation, CSV bytes and Unicode,
+offline fonts, personal lifecycle, exact large money, corrections/history,
+recent ordering and search/filter. No app-state injection is used.
+
+Build/runtime logs: `category-accessibility-web-build.log`,
+`category-picker-production-web-runtime.log`,
+`category-current-personal-web-runtime.log`. This build includes the preceding
+category bottom padding, but browser fixtures have five seeded categories;
+the thirty-row/200%-text bottom-action claim remains host evidence. The current
+Android APKs predate these two category UI repairs. Actual mobile screen readers,
+200% browser zoom, final iOS and complete accessibility remain unverified.

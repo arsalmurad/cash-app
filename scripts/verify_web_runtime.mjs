@@ -161,6 +161,10 @@ try {
       openApp, evaluate, waitFor, waitForLabel, clickLabel, focusLabel,
     });
   }
+  if (process.env.WEB_CATEGORIES === '1') {
+    const { runCategoryPickerWebScenario } = await import('./category_picker_web_scenario.mjs');
+    await runCategoryPickerWebScenario(cdp, { evaluate, waitFor, waitForLabel, clickLabel });
+  }
   if (process.env.WEB_HOUSEHOLD === '1') {
     const { runHouseholdWebScenario } = await import('./household_web_scenario.mjs');
     await runHouseholdWebScenario(cdp, {

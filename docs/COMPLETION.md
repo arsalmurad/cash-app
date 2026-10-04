@@ -1,6 +1,6 @@
 # Completion tracker
 
-Updated 2026-10-04. Complete the private prototype against
+Updated 2026-10-05. Complete the private prototype against
 `expense-app-build-brief.md`, not just individual milestones. This is a
 current-status index; detailed history, failures and exact commands remain in
 the linked evidence documents and Git. Unchecked gates are not achieved.
@@ -91,7 +91,11 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    overall UX/accessibility pass.
    The latest category-list bottom-action repair passes a six-case 200%-text
    pointer/cancel matrix and 28 adjacent host tests; updated production
-   browser/mobile verification of that newer UI change remains open.
+   thirty-row production browser/mobile verification remains open. The icon
+   picker now exposes twelve human-readable names and selected states, with
+   36 adjacent host tests and rebuilt narrow production Chrome personal/CSV/
+   keyboard/offline-font acceptance passing. Current Android APKs predate these
+   category UI repairs; screen-reader and complete accessibility gates stay open.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android
