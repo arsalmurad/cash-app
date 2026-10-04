@@ -175,8 +175,20 @@ wrong directory; corrected before running. Tests caught an unnecessary progress
 animation during confirmation, now suppressed. A semantics test cleanup ordering
 failure was corrected before the passing rerun.
 
+The actual native HTTP recovery test additionally discards the first successful
+production pruning response **after** its SQLite transaction, returning a
+controlled 503 with no deletion metadata. The controller reports failure, keeps
+its delivery cursor and complete saved archive, restarts from that archive, and
+retries the identical signed target with a fresh request proof. The genuine
+committed-floor conflict resumes/finishes deletion and fresh-key recovery still
+passes. **1 passed, 10 seconds**, log
+`app/.dart_tool/prefix-consent-controller-lost-reply.log`; same host command as
+the controller recovery test. This is a post-commit lost-confirmation simulation,
+not arbitrary network interruption or OS power loss. No production relay fault
+switch was added; the owning test wrapper only replaces that successful reply.
+
 Verify actual protected OS/browser store
-availability and lifecycle faults, and exercise lost responses and roster
+availability and lifecycle faults, and exercise roster
 changes in the normal controller flow. Current recovery stores are memory-backed
 confirmed writes, not OS storage or arbitrary power-loss proof. No new production
 Chrome/Android/iOS artifact or final-platform runtime is claimed here.

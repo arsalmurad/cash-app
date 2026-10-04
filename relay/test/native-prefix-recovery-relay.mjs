@@ -18,7 +18,20 @@ export class Fixture extends RosterGroupLog {
     return super.fetch(request);
   }
 }
-export default worker;`;
+let dropped = false;
+export default {
+  async fetch(request, env) {
+    const response = await worker.fetch(request, env);
+    if (!dropped && env.DROP_FIRST_PRUNE_REPLY === 'true' &&
+        new URL(request.url).pathname.endsWith('/prune') && response.status === 200) {
+      // Only discard the actual successful response after the production
+      // transaction. No fabricated deletion, authority or metadata progress.
+      dropped = true;
+      return new Response('Controlled lost prune confirmation', {status:503});
+    }
+    return response;
+  }
+};`;
 const names = ['roster-worker','worker','local-auth-worker','request-proof',
   'request-admission','prefix-consent','retired-readers','request-scope','request-budget',
   'roster-welcome','request-membership','invite-authority'];
@@ -28,6 +41,7 @@ const mf = new Miniflare({modulesRoot:root,modules:[
     contents:await readFile(new URL(`../src/${name}.js`,import.meta.url),'utf8')}))),
 ],durableObjects:{GROUP:{className:'Fixture',useSQLite:true}},
 bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(policy),
+  ...(process.env.DROP_FIRST_PRUNE_REPLY==='true'?{DROP_FIRST_PRUNE_REPLY:'true'}:{}),
   ...(process.env.LOCAL_AUTH_RETENTION==='true'?{LOCAL_AUTH_RETENTION:'true'}:{})},
 compatibilityDate:'2026-07-01',host:'127.0.0.1',port:Number(process.argv[2])});
 await mf.ready;
