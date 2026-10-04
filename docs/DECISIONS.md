@@ -1838,3 +1838,12 @@ non-overlap. Use physical pointer activation, byte-identical cancellation and
 reload/name/icon/balance evidence; reject injected category state or treating
 host reachability alone as production proof (PERSONAL-UX-REVIEW.md).
 
+## 2026-10-05 — Balance cached Flutter artifacts across both drives
+
+Respect the emulator's low-disk refusal rather than disabling its check. Stop
+only the completed owned Gradle daemon; preserve sixteen generated Flutter
+cache directories on C: with exact hashes and their original D: child paths as
+junctions. Recover the first read-only-directory move before retrying, and
+record the remaining headroom. Reject a broad clean, deleting working caches
+or touching financial records (ANDROID-RELEASE.md).
+
