@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 // Exhaust real origin-local storage using an unrelated, owned fixture key.
 // Never replace the app's database, patch its APIs, or inject financial state.
 export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
-  const { evaluate, waitFor, waitForLabel, clickLabel, focusLabel, openApp } = api;
+  const { evaluate, waitFor, waitForLabel, clickLabel, focusLabel, openApp, readRelayTail } = api;
   const databaseKey = 'private_ledger.sqlite.v1';
   const fillerKey = 'cash-app.test.quota-filler';
   const proofKey = 'cash-app.test.quota-proof';
@@ -16,11 +16,18 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
     .find(Boolean);
   assert(group, 'No actual group request was observed');
   async function tail() {
+    // Protected history must be read through an independently unlocked peer's
+    // normal signed UI sync, never an anonymous inspection/bypass endpoint.
+    if (readRelayTail) return readRelayTail(group);
     const response = await fetch(`${relayUrl}/g/${group}?after=0`);
     assert.equal(response.status, 200);
     return (await response.json()).tail;
   }
   const beforeTail = await tail();
+  const beforeEvents = peer.events.length;
+  const assertNoWrites = () => assert(!peer.events.slice(beforeEvents).some(event =>
+    event.method === 'Network.requestWillBeSent' && event.params.request.method === 'POST' &&
+    event.params.request.url.startsWith(relayUrl)), 'Unconfirmed saves must never send relay writes');
   const labelsHaveRestart = `[...document.querySelectorAll('flt-semantics-host *')]
     .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim())?.includes('Restart'))`;
   async function rejectedExpense(title) {
@@ -63,6 +70,7 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
     await rejectedExpense(`Quota blocked entry ${'q'.repeat(16000)}`);
     assert((await saved()) === before, 'Quota failure changed confirmed database bytes');
     assert.equal(await tail(), beforeTail, 'Unconfirmed save published relay ciphertext');
+    assertNoWrites();
   } finally {
     await evaluate(peer, `(() => {
       localStorage.removeItem(${JSON.stringify(fillerKey)});
@@ -75,6 +83,7 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
   await rejectedExpense('After quota clears');
   assert((await saved()) === before, 'A failed household allowed later writes before restart');
   assert.equal(await tail(), beforeTail);
+  assertNoWrites();
 
   await peer.send('Page.reload');
   await openApp(peer);

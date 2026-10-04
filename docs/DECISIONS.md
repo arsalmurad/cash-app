@@ -1764,3 +1764,10 @@ lock/close transfer, with normal foreground tab switching before interaction.
 Do not disable Web Locks or infer a background renderer repair from stale
 semantics; check unchanged confirmed storage and no duplicate relay writes.
 
+## 2026-10-04 — Verify protected quota without anonymous inspection
+
+Read the actual relay tail through an independent peer's ordinary signed sync
+and real response while the other browser exhausts local storage. Reject
+unauthenticated inspection for protected routes; observe asynchronous Web Lock
+release after lock/close before retrying unlock, without mutating its registry.
+

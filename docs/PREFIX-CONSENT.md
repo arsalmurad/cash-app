@@ -402,3 +402,51 @@ the actual browser journey supplies the separate scoped lease evidence. No
 rebuild/toolchain change or public deployment was needed for this extension.
 Authenticated browser quota, arbitrary process/power loss, real assistive
 technology and final release/iOS acceptance remain open.
+
+### Authenticated browser quota and observed lease release
+
+At unchanged app/build `1edf8a5`, the extended driver also passes actual browser
+origin-local quota exhaustion in authenticated mode. Tail checks now use Bob's
+independent normal signed UI sync and its real 200 history response, not an
+anonymous read or inspection bypass. Alice's confirmed SQLite image remains
+byte-identical; no relay POST is sent and the actual tail stays unchanged.
+After quota pressure is removed, another edit remains refused until restart.
+Reload/unlock restores the confirmed history without either attempted expense.
+The full subsequent consent/pruning, same-origin lease, fresh-key recovery,
+removal, frozen EUR/JPY and privacy journey exits **0**.
+
+```text
+WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1 WEB_HOUSEHOLD_QUOTA=1 node scripts/verify_web_runtime.mjs
+```
+
+Chrome 154 / Node 24.19 / 1280x900, same owned local worker and pinned production
+artifacts above. Log `consent-authenticated-quota-web-runtime-release-wait.log`.
+The first combined quota run passed its quota and consent assertions but failed
+the later same-origin close/reacquire check: target-close acknowledgement arrived
+before asynchronous Web Lock release. The driver now observes
+`navigator.locks.query()` after explicit lock and tab close before retrying
+unlock. This reads the registry without acquiring/changing a lock or granting
+permission. Log `consent-authenticated-quota-web-runtime.log` remains a failed
+whole-run result; passing retries do not establish a generic browser renderer
+repair. Node syntax and diff checks pass. Full app analysis also passes (43.4 s),
+log `consent-current-full-analysis.log`.
+
+This adds real authenticated quota/restart and ordinary lock/close lifecycle
+evidence, not arbitrary power loss, expired consent across a process crash,
+physical biometrics, actual assistive technology, final release APK or iOS.
+
+The matching current Rust workspace also exits **0**, **290 tests passed**:
+
+```text
+cd rust
+CARGO_NET_OFFLINE=true cargo +stable test --workspace --locked --features cash_sync/relay-auth
+```
+
+Pinned Rust stable 1.98.1, existing offline dependencies; test-profile compilation
+took 2m33s. The three-peer/two-offline/1,000-event byte-identical convergence,
+visible conflicts, removed-member rejection and frozen historical FX acceptance
+passes (three-test binary, 168.16 s); long batched backfill passes (its 21-test
+binary, 85.07 s). Log `consent-current-rust-workspace-tests.log`. This command's
+environment-gated `http_relay` binary ran **zero tests**, not actual-worker HTTP
+acceptance; those claims rely on the separately recorded native/controller and
+production-browser real-worker runs. No new platform artifact is inferred.
