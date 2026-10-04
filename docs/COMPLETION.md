@@ -93,12 +93,14 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android
    journeys. New key-refresh ABI `-1323392253` passes native-host and production
-   Chrome and authenticated Android acceptance; final iOS and Android release
-   APK remain open. New consent ABI `1237803201` passes regenerated native API
+   Chrome and authenticated Android acceptance. New consent ABI `1237803201` passes regenerated native API
    tests, actual native controller pruning/recovery and authenticated Android
    debug-emulator OS-vault pruning/recovery, plus production Chrome explicit
-   consent/pruning, protected reload and fresh-key recovery. Android release
-   artifacts and iOS remain unverified. Older runs are not a
+   consent/pruning, protected reload and fresh-key recovery. A correctly filtered
+   current x86_64 production release APK also passes actual UI expense/exact
+   balance, process restart and confirmed removal: [ANDROID-RELEASE.md](ANDROID-RELEASE.md).
+   ARM phone/release household runtime, clean-checkout and final iOS remain
+   unverified. Older runs are not a
    final-source completion claim.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to private GitHub `main`. Local diagnostic
@@ -116,7 +118,8 @@ changes are not completion shortcuts or required prototype features.
 
 On this Windows host, generated Android output, Flutter build cache and native
 Rust cache use ignored junctions to D:. Preserve the junctions and backing
-directories; check free space before builds. A full-disk APK once omitted its
+directories, including the native plugin's `intermediates` relocation recorded
+in [ANDROID-RELEASE.md](ANDROID-RELEASE.md); check free space before builds. A full-disk APK once omitted its
 Dart kernel despite a successful build. Exact recovery/toolchain details are
 in [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).
 

@@ -1771,3 +1771,18 @@ and real response while the other browser exhausts local storage. Reject
 unauthenticated inspection for protected routes; observe asynchronous Web Lock
 release after lock/close before retrying unlock, without mutating its registry.
 
+## 2026-10-04 — Regenerate release plugins and package explicit ABI splits
+
+Use Flutter's normal release-mode regeneration when switching from integration
+tests; reject editing the stale generated registrant or upgrading pinned tools.
+Use ABI splits for a selected platform because JNI libraries otherwise advertise
+unsupported ARM ABIs in an x86_64-only app; verify metadata, AOT/native inventory
+and actual production UI/restart before claiming a release runtime pass.
+
+## 2026-10-04 — Preserve native plugin intermediates on D
+
+Move only the validated generated native-plugin intermediates, check their file
+count/bytes, and retain the original path as a junction. Reject a broad clean or
+moving source/financial records to resolve low C: disk space; keep compiled
+native release artifacts available for retries.
+
