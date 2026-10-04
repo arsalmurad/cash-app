@@ -91,7 +91,8 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    overall UX/accessibility pass.
    The latest category-list bottom-action repair passes a six-case 200%-text
    pointer/cancel matrix and 28 adjacent host tests; updated production
-   thirty-row production browser/mobile verification remains open. The icon
+   narrow thirty-row production Chrome pointer/edit/reload now also passes;
+   updated mobile and 200% browser-zoom verification remain open. The icon
    picker now exposes twelve human-readable names and selected states, with
    36 adjacent host tests and rebuilt narrow production Chrome personal/CSV/
    keyboard/offline-font acceptance passing. Current Android APKs predate these
