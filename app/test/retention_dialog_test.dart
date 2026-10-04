@@ -52,6 +52,37 @@ Future<void> _tap(WidgetTester tester, String text) async {
 }
 
 void main() {
+  testWidgets('complete request and approval codes have accessible labels', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      final request = encodeRetentionRequest(Uint8List(1024));
+      final approval = encodeRetentionConsent(Uint8List(1024));
+      await _open(
+        tester,
+        prepare: () async => request,
+        approve: (_) async => approval,
+      );
+      await _tap(tester, 'Prepare request');
+      await tester.ensureVisible(find.text(request));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(request), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Request code'),
+        request,
+      );
+      await _tap(tester, 'Review approval');
+      await _tap(tester, 'Approve deletion');
+      await tester.ensureVisible(find.text(approval));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel(approval), findsOneWidget);
+      expect(find.text(approval), findsOneWidget);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets(
     'labels, targets, contrast and keyboard close at 200 percent phone text',
     (tester) async {

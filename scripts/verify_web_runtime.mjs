@@ -377,7 +377,7 @@ async function semanticLabels(cdp) {
       .filter(Boolean)`,
   );
   return labels.map((label) =>
-    /cash(?:kp|inv|bk)1:/.test(label) || /^(?:[a-z]+ ){23}[a-z]+$/.test(label)
+    /cash(?:kp|inv|bk|retreq|retok)1:/.test(label) || /^(?:[a-z]+ ){23}[a-z]+$/.test(label)
       ? '[synthetic copy code or phrase]' : label);
 }
 
