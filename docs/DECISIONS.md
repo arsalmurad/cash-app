@@ -1819,3 +1819,13 @@ production Chrome controls/cancellation with byte-identical saved SQLite.
 Record the test-handle lifecycle failure separately from the corrected pass;
 do not infer screen-reader or final mobile acceptance (PERSONAL-UX-REVIEW.md).
 
+## 2026-10-05 — Correct repository visibility and preserve the cloud cost gate
+
+Record actual authenticated GitHub metadata: the source repository is public,
+not private as earlier handoffs assumed. Do not change visibility or confuse
+public source with permission to publish readable financial data. Standard
+public macOS runner pricing is documented as free, but the cloud-dispatch safety
+review still requires verified owner $0 Actions spending protection and rejected
+the attempted tool call before execution. No workflow started; continue local
+acceptance without circumventing that rejection (COMPLETION.md).
+

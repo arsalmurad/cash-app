@@ -114,7 +114,7 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    unverified. Older runs are not a
    final-source completion claim.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
-   source and evidence synchronized to private GitHub `main`. Local diagnostic
+   source and evidence synchronized to GitHub `main`. Local diagnostic
    logs/caches are ignored; repeatable tests and evidence summaries are tracked.
    Start with [LOCAL-RELAY-SETUP.md](LOCAL-RELAY-SETUP.md),
    [RELAY-AUTH.md](RELAY-AUTH.md), [PHASE2-PROGRESS.md](PHASE2-PROGRESS.md).
@@ -126,6 +126,18 @@ i64/rational money, immutable idempotent events, deterministic total order,
 causal frontiers, canonical convergence and visible conflicts (`AGENTS.md`).
 App-store publication, billing, telemetry, bank integration and repo visibility
 changes are not completion shortcuts or required prototype features.
+
+On 2026-10-05, the authenticated repository API reports
+`arsalmurad/cash-app` as public (`private: false`, owner type `User`), contrary
+to earlier private-repository handoff wording. No visibility change was made.
+Private financial ledgers and ciphertext-only relay requirements are unchanged.
+GitHub documents standard `macos-15` runner time as free for public repositories
+([runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners),
+[billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions));
+the existing iOS workflow adds no artifact uploads or action-cache storage.
+Nevertheless, the cloud-dispatch safety review refused execution without the
+owner's verified $0 Actions spending cap. No job was dispatched. Final iOS
+acceptance remains pending; do not bypass that rejection or change visibility.
 
 On this Windows host, generated Android output, Flutter build cache and native
 Rust cache use ignored junctions to D:. Preserve the junctions and backing
