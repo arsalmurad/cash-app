@@ -421,13 +421,14 @@ class HouseholdController extends ChangeNotifier {
     Future<void> Function() action, {
     bool allowRecovery = false,
   }) => _enqueue(() async {
+    if (_relaySigningClosed) return false;
     isBusy = true;
     errorMessage = null;
     notifyListeners();
     try {
       if (!allowRecovery) _ensureWritable();
       await action();
-      return true;
+      return !_relaySigningClosed;
     } on RelayUnavailable catch (error) {
       errorMessage = _writesDisabled ? _uncertainSaveMessage : error.toString();
       return false;
@@ -439,7 +440,7 @@ class HouseholdController extends ChangeNotifier {
       return false;
     } finally {
       isBusy = false;
-      notifyListeners();
+      if (!_relaySigningClosed) notifyListeners();
     }
   });
 

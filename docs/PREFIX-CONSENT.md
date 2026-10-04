@@ -195,3 +195,27 @@ Chrome/Android/iOS artifact or final-platform runtime is claimed here.
 Existing three-peer/1,000-event and platform results remain revision-scoped, not
 fresh consent-runtime evidence. Gate 2 remains open; enable no default app
 pruning or public deployment on the strength of these protocol tests alone.
+
+### Controller disposal boundary
+
+A delayed confirmed-archive read with controller disposal now releases no request
+code, and an approval queued behind it does not execute after closure. The first
+native test found a late `notifyListeners` call on the disposed controller, not a
+signature release. The serialized operation runner now refuses closed queued
+work, cannot report successful results after closure, and suppresses its final
+notification after disposal. The saved archive still restarts normally and the
+actual pruning/lost-reply/fresh-recovery journey remains successful.
+
+From `app` with the matching native DLL, the recovery, saved-receipt and durable
+membership-retry tests pass **35 tests, 28 seconds**:
+
+```text
+flutter --no-version-check test --no-pub --concurrency=1 test/household_prefix_recovery_http_host_test.dart test/household_retention_host_test.dart test/household_membership_retry_host_test.dart
+```
+
+Logs `prefix-consent-controller-disposal-red.log` and
+`prefix-consent-controller-disposal-final.log`; the added queued-approval assertion
+then passes the recovery test independently in 10 seconds
+(`prefix-consent-controller-disposal-queued.log`). Targeted Dart analysis is
+clean. This is native memory-backed archive fault evidence, not browser Web Locks
+or actual OS-key-store lifecycle proof.

@@ -16,8 +16,15 @@ class _Store implements BlobStore {
   Uint8List? value;
   bool failRead = false;
   Uint8List? staleRead;
+  Completer<void>? readStarted;
+  Future<void>? readGate;
   @override
   Future<Uint8List?> read() async {
+    final gate = readGate;
+    if (gate != null) {
+      if (!(readStarted?.isCompleted ?? true)) readStarted!.complete();
+      await gate;
+    }
     if (failRead) {
       throw const FileSystemException(
         'Controlled retained-archive read failure',
@@ -195,6 +202,31 @@ void main() {
         await alice.initialize();
         expect(alice.requiresRestart, isFalse);
       }
+      final releaseRead = Completer<void>();
+      aliceState.readStarted = Completer<void>();
+      aliceState.readGate = releaseRead.future;
+      final preparingAtDisposal = alice.prepareRetentionRequest();
+      await aliceState.readStarted!.future.timeout(const Duration(seconds: 10));
+      alice.dispose();
+      liveControllers.remove(alice);
+      final queuedAtDisposal = alice.approveRetentionRequest(retentionRequest);
+      releaseRead.complete();
+      expect(
+        await preparingAtDisposal,
+        isNull,
+        reason: 'Disposal during archive read must not release a consent',
+      );
+      expect(
+        await queuedAtDisposal,
+        isNull,
+        reason: 'Queued work must not sign after controller disposal',
+      );
+      expect(await command('inspect'), before);
+      aliceState.readGate = null;
+      aliceState.readStarted = null;
+      alice = device(aliceState, aliceConfig);
+      await alice.initialize();
+      expect(alice.requiresRestart, isFalse);
       expect(await alice.reclaimRelayHistory(retentionRequest, []), isFalse);
       expect(
         await command('inspect'),
