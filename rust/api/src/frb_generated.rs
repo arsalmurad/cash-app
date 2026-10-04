@@ -34,7 +34,7 @@ use crate::api::ledger::*;
 use crate::api::recurring::*;
 use crate::api::shared::*;
 use flutter_rust_bridge::for_generated::byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
-use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
 use flutter_rust_bridge::{Handler, IntoIntoDart};
 
 // Section: boilerplate
@@ -45,7 +45,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.13.0";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1323392253;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1237803201;
 
 // Section: executor
 
@@ -945,6 +945,69 @@ fn wire__crate__api__shared__household_commit_rejected_impl(
         },
     )
 }
+fn wire__crate__api__shared__household_countersign_prefix_consent_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "household_countersign_prefix_consent",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_household = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Household>,
+            >>::sse_decode(&mut deserializer);
+            let api_saved = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_origin = <String>::sse_decode(&mut deserializer);
+            let api_proposal = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_now = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_household_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_household,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => {
+                                api_household_guard = Some(api_household.lockable_decode_sync_ref())
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_household_guard = api_household_guard.unwrap();
+                    let output_ok = crate::api::shared::household_countersign_prefix_consent(
+                        &*api_household_guard,
+                        api_saved,
+                        api_origin,
+                        api_proposal,
+                        api_now,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__shared__household_enqueue_saved_state_receipt_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -1708,6 +1771,69 @@ fn wire__crate__api__shared__household_overview_impl(
         },
     )
 }
+fn wire__crate__api__shared__household_prepare_prefix_consent_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "household_prepare_prefix_consent",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_household = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Household>,
+            >>::sse_decode(&mut deserializer);
+            let api_saved = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_origin = <String>::sse_decode(&mut deserializer);
+            let api_policy_epoch = <i64>::sse_decode(&mut deserializer);
+            let api_now = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_household_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_household,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => {
+                                api_household_guard = Some(api_household.lockable_decode_sync_ref())
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_household_guard = api_household_guard.unwrap();
+                    let output_ok = crate::api::shared::household_prepare_prefix_consent(
+                        &*api_household_guard,
+                        api_saved,
+                        api_origin,
+                        api_policy_epoch,
+                        api_now,
+                    )?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__shared__household_publish_summary_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2106,6 +2232,69 @@ fn wire__crate__api__shared__household_summaries_impl(
                     }
                     let api_household_guard = api_household_guard.unwrap();
                     let output_ok = crate::api::shared::household_summaries(&*api_household_guard)?;
+                    std::result::Result::Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__shared__household_validate_prefix_bundle_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "household_validate_prefix_bundle",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_household = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Household>,
+            >>::sse_decode(&mut deserializer);
+            let api_saved = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_origin = <String>::sse_decode(&mut deserializer);
+            let api_consents = <Vec<Vec<u8>>>::sse_decode(&mut deserializer);
+            let api_now = <i64>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, String>((move || {
+                    let mut api_household_guard = None;
+                    let decode_indices_ =
+                        flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![
+                            flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                &api_household,
+                                0,
+                                false,
+                            ),
+                        ]);
+                    for i in decode_indices_ {
+                        match i {
+                            0 => {
+                                api_household_guard = Some(api_household.lockable_decode_sync_ref())
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    let api_household_guard = api_household_guard.unwrap();
+                    let output_ok = crate::api::shared::household_validate_prefix_bundle(
+                        &*api_household_guard,
+                        api_saved,
+                        api_origin,
+                        api_consents,
+                        api_now,
+                    )?;
                     std::result::Result::Ok(output_ok)
                 })())
             }
@@ -4158,6 +4347,22 @@ impl SseDecode for crate::api::shared::HouseholdOverview {
     }
 }
 
+impl SseDecode for crate::api::shared::HouseholdPrefixConsentPlan {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_policyEpoch = <i64>::sse_decode(deserializer);
+        let mut var_through = <i64>::sse_decode(deserializer);
+        let mut var_expires = <i64>::sse_decode(deserializer);
+        let mut var_recoveryHolder = <Vec<u8>>::sse_decode(deserializer);
+        return crate::api::shared::HouseholdPrefixConsentPlan {
+            policy_epoch: var_policyEpoch,
+            through: var_through,
+            expires: var_expires,
+            recovery_holder: var_recoveryHolder,
+        };
+    }
+}
+
 impl SseDecode for crate::api::shared::HouseholdRequestProof {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -4890,154 +5095,172 @@ fn pde_ffi_dispatcher_primary_impl(
             rust_vec_len,
             data_len,
         ),
-        17 => wire__crate__api__shared__household_enqueue_saved_state_receipt_impl(
+        17 => wire__crate__api__shared__household_countersign_prefix_consent_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        18 => wire__crate__api__shared__household_export_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__shared__household_found_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__shared__household_has_pending_commit_impl(
+        18 => wire__crate__api__shared__household_enqueue_saved_state_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        21 => wire__crate__api__shared__household_ingest_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__shared__household_join_impl(port, ptr, rust_vec_len, data_len),
-        23 => {
+        19 => wire__crate__api__shared__household_export_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__shared__household_found_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__shared__household_has_pending_commit_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        22 => wire__crate__api__shared__household_ingest_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__shared__household_join_impl(port, ptr, rust_vec_len, data_len),
+        24 => {
             wire__crate__api__shared__household_key_package_impl(port, ptr, rust_vec_len, data_len)
         }
-        24 => wire__crate__api__shared__household_merge_recovery_history_impl(
+        25 => wire__crate__api__shared__household_merge_recovery_history_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        25 => wire__crate__api__shared__household_needs_saved_state_receipt_impl(
+        26 => wire__crate__api__shared__household_needs_saved_state_receipt_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        26 => wire__crate__api__shared__household_new_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__shared__household_next_outgoing_impl(
+        27 => wire__crate__api__shared__household_new_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__shared__household_next_outgoing_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        28 => {
+        29 => {
             wire__crate__api__shared__household_open_account_impl(port, ptr, rust_vec_len, data_len)
         }
-        29 => wire__crate__api__shared__household_outgoing_accepted_impl(
+        30 => wire__crate__api__shared__household_outgoing_accepted_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        30 => wire__crate__api__shared__household_overview_impl(port, ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__shared__household_publish_summary_impl(
+        31 => wire__crate__api__shared__household_overview_impl(port, ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__shared__household_prepare_prefix_consent_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        32 => wire__crate__api__shared__household_record_transaction_impl(
+        33 => wire__crate__api__shared__household_publish_summary_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        33 => wire__crate__api__shared__household_relay_roster_keys_impl(
+        34 => wire__crate__api__shared__household_record_transaction_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        34 => wire__crate__api__shared__household_restore_impl(port, ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__shared__household_safety_number_impl(
+        35 => wire__crate__api__shared__household_relay_roster_keys_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        36 => wire__crate__api__shared__household_sign_relay_request_impl(
+        36 => wire__crate__api__shared__household_restore_impl(port, ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__shared__household_safety_number_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        37 => wire__crate__api__shared__household_summaries_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__shared__household_void_transaction_impl(
+        38 => wire__crate__api__shared__household_sign_relay_request_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        39 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
-        42 => {
+        39 => wire__crate__api__shared__household_summaries_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__shared__household_validate_prefix_bundle_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        41 => wire__crate__api__shared__household_void_transaction_impl(
+            port,
+            ptr,
+            rust_vec_len,
+            data_len,
+        ),
+        42 => wire__crate__api__ledger__init_app_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__categories__list_categories_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__budgets__load_budget_book_impl(port, ptr, rust_vec_len, data_len),
+        45 => {
             wire__crate__api__categories__load_category_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        43 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
-        44 => {
+        46 => wire__crate__api__goals__load_goal_book_impl(port, ptr, rust_vec_len, data_len),
+        47 => {
             wire__crate__api__ledger__load_personal_ledger_impl(port, ptr, rust_vec_len, data_len)
         }
-        45 => {
+        48 => {
             wire__crate__api__recurring__load_recurring_book_impl(port, ptr, rust_vec_len, data_len)
         }
-        46 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__ledger__prepare_summary_impl(port, ptr, rust_vec_len, data_len),
-        48 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
-        49 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
-        50 => wire__crate__api__shared__recovery_generate_phrase_impl(
+        49 => wire__crate__api__ledger__load_report_impl(port, ptr, rust_vec_len, data_len),
+        50 => wire__crate__api__ledger__prepare_summary_impl(port, ptr, rust_vec_len, data_len),
+        51 => wire__crate__api__ledger__record_transaction_impl(port, ptr, rust_vec_len, data_len),
+        52 => wire__crate__api__ledger__record_transfer_impl(port, ptr, rust_vec_len, data_len),
+        53 => wire__crate__api__shared__recovery_generate_phrase_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        51 => wire__crate__api__shared__recovery_open_impl(port, ptr, rust_vec_len, data_len),
-        52 => wire__crate__api__shared__recovery_seal_impl(port, ptr, rust_vec_len, data_len),
-        53 => wire__crate__api__shared__recovery_validate_phrase_impl(
+        54 => wire__crate__api__shared__recovery_open_impl(port, ptr, rust_vec_len, data_len),
+        55 => wire__crate__api__shared__recovery_seal_impl(port, ptr, rust_vec_len, data_len),
+        56 => wire__crate__api__shared__recovery_validate_phrase_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        54 => wire__crate__api__recurring__recurring_load_report_impl(
+        57 => wire__crate__api__recurring__recurring_load_report_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        55 => {
+        58 => {
             wire__crate__api__recurring__recurring_schedule_impl(port, ptr, rust_vec_len, data_len)
         }
-        56 => wire__crate__api__budgets__remove_budget_impl(port, ptr, rust_vec_len, data_len),
-        57 => wire__crate__api__goals__remove_goal_impl(port, ptr, rust_vec_len, data_len),
-        60 => wire__crate__api__recurring__stop_recurring_impl(port, ptr, rust_vec_len, data_len),
-        61 => wire__crate__api__ledger__suggest_category_for_title_impl(
+        59 => wire__crate__api__budgets__remove_budget_impl(port, ptr, rust_vec_len, data_len),
+        60 => wire__crate__api__goals__remove_goal_impl(port, ptr, rust_vec_len, data_len),
+        63 => wire__crate__api__recurring__stop_recurring_impl(port, ptr, rust_vec_len, data_len),
+        64 => wire__crate__api__ledger__suggest_category_for_title_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        62 => wire__crate__api__ledger__summary_preview_impl(port, ptr, rust_vec_len, data_len),
-        63 => wire__crate__api__ledger__transaction_history_impl(port, ptr, rust_vec_len, data_len),
-        64 => wire__crate__api__recurring__upcoming_occurrences_impl(
+        65 => wire__crate__api__ledger__summary_preview_impl(port, ptr, rust_vec_len, data_len),
+        66 => wire__crate__api__ledger__transaction_history_impl(port, ptr, rust_vec_len, data_len),
+        67 => wire__crate__api__recurring__upcoming_occurrences_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        65 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
-        66 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
-        67 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
-        68 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
-        69 => wire__crate__api__ledger__void_transaction_impl(port, ptr, rust_vec_len, data_len),
+        68 => wire__crate__api__budgets__upsert_budget_impl(port, ptr, rust_vec_len, data_len),
+        69 => wire__crate__api__categories__upsert_category_impl(port, ptr, rust_vec_len, data_len),
+        70 => wire__crate__api__goals__upsert_goal_impl(port, ptr, rust_vec_len, data_len),
+        71 => wire__crate__api__recurring__upsert_recurring_impl(port, ptr, rust_vec_len, data_len),
+        72 => wire__crate__api__ledger__void_transaction_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -5050,8 +5273,8 @@ fn pde_ffi_dispatcher_sync_impl(
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
     // Codec=Pde (Serialization + dispatch), see doc to use other codecs
     match func_id {
-        58 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
-        59 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
+        61 => wire__crate__api__storage__sqlite_file_impl(ptr, rust_vec_len, data_len),
+        62 => wire__crate__api__storage__sqlite_serialized_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -5505,6 +5728,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::shared::HouseholdOverview>
     for crate::api::shared::HouseholdOverview
 {
     fn into_into_dart(self) -> crate::api::shared::HouseholdOverview {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::shared::HouseholdPrefixConsentPlan {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.policy_epoch.into_into_dart().into_dart(),
+            self.through.into_into_dart().into_dart(),
+            self.expires.into_into_dart().into_dart(),
+            self.recovery_holder.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::shared::HouseholdPrefixConsentPlan
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::shared::HouseholdPrefixConsentPlan>
+    for crate::api::shared::HouseholdPrefixConsentPlan
+{
+    fn into_into_dart(self) -> crate::api::shared::HouseholdPrefixConsentPlan {
         self
     }
 }
@@ -6335,6 +6581,16 @@ impl SseEncode for crate::api::shared::HouseholdOverview {
     }
 }
 
+impl SseEncode for crate::api::shared::HouseholdPrefixConsentPlan {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i64>::sse_encode(self.policy_epoch, serializer);
+        <i64>::sse_encode(self.through, serializer);
+        <i64>::sse_encode(self.expires, serializer);
+        <Vec<u8>>::sse_encode(self.recovery_holder, serializer);
+    }
+}
+
 impl SseEncode for crate::api::shared::HouseholdRequestProof {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -6860,7 +7116,7 @@ mod io {
     use flutter_rust_bridge::for_generated::byteorder::{
         NativeEndian, ReadBytesExt, WriteBytesExt,
     };
-    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate
@@ -6988,7 +7244,7 @@ mod web {
     };
     use flutter_rust_bridge::for_generated::wasm_bindgen;
     use flutter_rust_bridge::for_generated::wasm_bindgen::prelude::*;
-    use flutter_rust_bridge::for_generated::{transform_result_dco, Lifetimeable, Lockable};
+    use flutter_rust_bridge::for_generated::{Lifetimeable, Lockable, transform_result_dco};
     use flutter_rust_bridge::{Handler, IntoIntoDart};
 
     // Section: boilerplate

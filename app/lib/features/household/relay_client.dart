@@ -126,6 +126,27 @@ class RelayMembershipConflict extends RelayUnavailable {
       );
 }
 
+class PrefixPruneResult {
+  const PrefixPruneResult({
+    required this.floor,
+    required this.tail,
+    required this.more,
+    required this.conflict,
+  });
+  final int floor, tail;
+  final bool more, conflict;
+}
+
+/// Explicit all-device consent only; ordinary reads/writes never invoke this.
+abstract interface class RetentionRelayClient implements RosterRelayClient {
+  Future<PrefixPruneResult> prunePrefix(
+    String group,
+    int expectedFloor,
+    int through,
+    List<Uint8List> consents,
+  );
+}
+
 /// Group-scoped delivery with an accepted sponsor/recipient binding. No take
 /// operation: the recipient acknowledges only after durably saving joined keys.
 abstract interface class RosterWelcomeRelayClient implements RosterRelayClient {
@@ -141,7 +162,11 @@ abstract interface class RosterWelcomeRelayClient implements RosterRelayClient {
 }
 
 /// Talks to the Cloudflare Worker over HTTP.
-class HttpRelayClient implements PagedRelayClient, RosterWelcomeRelayClient {
+class HttpRelayClient
+    implements
+        PagedRelayClient,
+        RosterWelcomeRelayClient,
+        RetentionRelayClient {
   HttpRelayClient(
     String baseUrl, [
     http.Client? client,
@@ -376,6 +401,82 @@ class HttpRelayClient implements PagedRelayClient, RosterWelcomeRelayClient {
       );
     }
     return reply['seq'] as int;
+  }
+
+  @override
+  Future<PrefixPruneResult> prunePrefix(
+    String group,
+    int expectedFloor,
+    int through,
+    List<Uint8List> consents,
+  ) async {
+    final uri = _rosterUri(group, 'prune');
+    const maximum = 999999999999;
+    if (expectedFloor < 0 ||
+        expectedFloor > through ||
+        through <= 0 ||
+        through > maximum ||
+        consents.isEmpty ||
+        consents.length > 64 ||
+        consents.any((bytes) => bytes.isEmpty || bytes.length > 1024)) {
+      throw const RelayUnavailable(
+        'Invalid prefix consent request. No request sent.',
+      );
+    }
+    final encoded = consents
+        .map(
+          (bytes) => bytes
+              .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+              .join(),
+        )
+        .toList();
+    final body = Uint8List.fromList(
+      utf8.encode(
+        jsonEncode({
+          'expectedFloor': expectedFloor,
+          'through': through,
+          'consents': encoded,
+        }),
+      ),
+    );
+    final response = await _send('POST', uri, body);
+    if (response.statusCode != 200 && response.statusCode != 409) {
+      throw RelayUnavailable(
+        'prefix consent request failed (${response.statusCode})',
+      );
+    }
+    final reply = _object(response),
+        floor = reply['floor'],
+        tail = reply['tail'];
+    final conflict = response.statusCode == 409;
+    final fields = reply.keys.toList()..sort();
+    if (floor is! int ||
+        tail is! int ||
+        floor < expectedFloor ||
+        floor > tail ||
+        tail > maximum ||
+        tail < through ||
+        jsonEncode(fields) !=
+            jsonEncode(
+              conflict
+                  ? ['conflict', 'floor', 'tail']
+                  : ['floor', 'more', 'tail'],
+            ) ||
+        (conflict
+            ? (reply['conflict'] != true || floor == expectedFloor)
+            : (floor !=
+                      (expectedFloor + 16 < through
+                          ? expectedFloor + 16
+                          : through) ||
+                  reply['more'] != (floor < through)))) {
+      throw const RelayUnavailable('the relay sent invalid prefix progress');
+    }
+    return PrefixPruneResult(
+      floor: floor,
+      tail: tail,
+      more: floor < through,
+      conflict: conflict,
+    );
   }
 
   Future<Map<String, String>> _headers(

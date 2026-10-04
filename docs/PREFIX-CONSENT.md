@@ -96,13 +96,60 @@ before returning the authenticated conflict. Logs are preserved in
 `prefix-consent-relay-tests.log`. An initial formatter invocation used the wrong
 working-directory-relative manifest; it was corrected with the absolute path.
 
+## App controller coordination (2026-10-04)
+
+The generated bridge now exposes holder proposals, countersigning and complete
+bundle validation. Every signer independently verifies the original holder's
+signature, scope, current roster/epoch, acknowledged cutoff and exact latest
+checkpoint; an approval cannot masquerade as a proposal. Bundle validation
+exports/hashes the archive once, then checks every unique current signing key.
+
+The controller synchronizes and reads back the exact complete household journal
+before releasing either code, checks storage again after the bridge await, and
+checks storage plus current policy before every authenticated deletion chunk.
+Uncertain or stale storage disables writes and requires restart. Codes are
+bounded, distinct request/approval formats. Permission expires after 50 seconds;
+there is no automatic pruning, persisted permission or unauthenticated fallback.
+Retry starts at floor zero and accepts only authenticated conflict progress,
+never changing the household delivery cursor or retained local history.
+
+Independently verified on the Windows native host, ABI `1237803201`:
+
+- Affected Rust consent/receipt/transport/persistence/recovery tests: **23 passed**.
+  Same command as above, log `prefix-consent-client-regression-final.log`.
+- Regenerated API suite: **70 passed**, log
+  `prefix-consent-client-api-regression.log`. Strict Clippy for `cash_sync` and
+  `rust_lib_cash_app`, all targets with `cash_sync/http,cash_sync/relay-auth`,
+  passes with warnings denied (`prefix-consent-client-clippy-final.log`).
+- Pinned bridge generation and offline native DLL build pass. The matching
+  Flutter native controller performs real signed deletion through normal HTTP,
+  refuses missing approvals/wrong holder, blocks failed/stale archive reads,
+  restarts, and recovers an old saved device through fresh-key rejoin: **1 passed,
+  6 seconds**, `prefix-consent-controller-http-faults.log`.
+- Its relay fixture has **no deletion bypass**: owning stdin only inspects
+  counters; all pruning uses the real authenticated production route and
+  unanimous signatures. This supersedes the earlier bypass-based test evidence
+  described in `RELAY-PREFIX-FLOOR.md` without changing that historical result.
+- Receipt/save/membership-retry and new code/HTTP transport regressions:
+  **40 passed**, `prefix-consent-controller-regression.log`. The separate
+  transport/HTTP suite passed 28 tests (`prefix-consent-transport-tests.log`).
+- Targeted Dart analysis has no issues; relay fixture syntax and `git diff
+  --check` pass. No new platform-wide rebuild was needed for these native checks.
+
+Test-first builds failed on the then-missing Rust/transport APIs. Clippy caught
+an unnecessary test clone, fixed before the passing rerun. The actual route
+correctly returned 401 to an anonymous caller; the previous disabled-route
+expectation of 403 was updated. Wrong-directory Flutter/formatter invocations
+were corrected without installations. Full local diagnostics remain ignored
+under `app/.dart_tool`; tracked tests are repeatable evidence.
+
 ## Remaining integration and limits
 
-Wire the app/bridge to confirm the latest protected save before signing, retain
-recoverable peer history, collect/submit matching consents, handle expired or
-changed rosters, and retry immutable bounded deletion without bypassing gaps.
-Verify actual availability/recovery, lost responses, save faults and restart in
-that normal flow. No new bridge ABI or final-platform artifact is claimed here.
+Connect explicit app controls, verify actual protected OS/browser store
+availability and lifecycle faults, and exercise lost responses and roster
+changes in the normal controller flow. Current recovery stores are memory-backed
+confirmed writes, not OS storage or arbitrary power-loss proof. No new production
+Chrome/Android/iOS artifact or final-platform runtime is claimed here.
 Existing three-peer/1,000-event and platform results remain revision-scoped, not
 fresh consent-runtime evidence. Gate 2 remains open; enable no default app
 pruning or public deployment on the strength of these protocol tests alone.

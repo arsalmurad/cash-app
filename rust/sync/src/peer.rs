@@ -867,6 +867,150 @@ impl Peer {
         Ok(bytes)
     }
 
+    #[cfg(feature = "relay-auth")]
+    pub fn prepare_prefix_consent(
+        &self,
+        saved: &[u8],
+        origin: &str,
+        policy_epoch: u64,
+        now: u64,
+    ) -> Result<Vec<u8>, SyncError> {
+        let through = self.retention_cutoff(&self.received_retention_receipts())?;
+        let expires = now
+            .checked_add(50_000)
+            .ok_or_else(|| SyncError("Invalid consent expiry.".into()))?;
+        self.sign_prefix_consent(
+            saved,
+            &crate::PrefixConsentRequest {
+                origin: origin.into(),
+                policy_epoch,
+                through,
+                recovery_holder: self.public_key(),
+                now,
+                expires,
+            },
+        )
+    }
+
+    #[cfg(feature = "relay-auth")]
+    fn prefix_archive_context(
+        &self,
+        saved: &[u8],
+    ) -> Result<crate::prefix_consent::ArchiveContext, SyncError> {
+        if self.legacy_unverified || saved != self.export()?.as_slice() {
+            return Err(SyncError(
+                "Confirm the latest authenticated household save before consenting to retention."
+                    .into(),
+            ));
+        }
+        let (group, epoch, checkpoint) = self.retention_context()?;
+        let cutoff = self.retention_cutoff(&self.received_retention_receipts())?;
+        Ok(crate::prefix_consent::ArchiveContext {
+            group,
+            epoch,
+            checkpoint,
+            cutoff,
+            relay_group: self.retention_relay_group()?,
+            members: self
+                .member_keys()?
+                .into_iter()
+                .map(|(_, key)| key)
+                .collect(),
+        })
+    }
+
+    #[cfg(feature = "relay-auth")]
+    fn checked_prefix_claim(
+        &self,
+        context: &crate::prefix_consent::ArchiveContext,
+        origin: &str,
+        bytes: &[u8],
+        now: u64,
+    ) -> Result<crate::prefix_consent::DecodedConsent, SyncError> {
+        let claim = crate::prefix_consent::decode(bytes, now)?;
+        if claim.request.origin != origin
+            || claim.relay_group != context.relay_group
+            || claim.group != context.group
+            || claim.request.policy_epoch != context.epoch
+            || claim.checkpoint != context.checkpoint
+            || claim.request.through > context.cutoff
+            || !context.members.contains(&claim.signer)
+        {
+            return Err(SyncError("Consent does not match this household's confirmed checkpoint, scope or membership.".into()));
+        }
+        self.member
+            .verify_history(&claim.signer, &claim.payload, &claim.signature)?;
+        Ok(claim)
+    }
+
+    /// Verify a recovery holder's signed request against this device's exact
+    /// saved checkpoint before signing. An ordinary approval is not a proposal.
+    #[cfg(feature = "relay-auth")]
+    pub fn countersign_prefix_consent(
+        &self,
+        saved: &[u8],
+        origin: &str,
+        proposal: &[u8],
+        now: u64,
+    ) -> Result<Vec<u8>, SyncError> {
+        let context = self.prefix_archive_context(saved)?;
+        let claim = self.checked_prefix_claim(&context, origin, proposal, now)?;
+        if claim.signer != claim.request.recovery_holder {
+            return Err(SyncError(
+                "Only the designated recovery holder can propose retention.".into(),
+            ));
+        }
+        self.sign_prefix_consent(saved, &claim.request)
+    }
+
+    /// Local validation before any deletion request. The same server checks
+    /// remain mandatory; this neither mutates state nor changes relay cursors.
+    #[cfg(feature = "relay-auth")]
+    pub fn validate_prefix_bundle(
+        &self,
+        saved: &[u8],
+        origin: &str,
+        consents: &[Vec<u8>],
+        now: u64,
+    ) -> Result<crate::PrefixConsentPlan, SyncError> {
+        if consents.is_empty() || consents.len() > 64 {
+            return Err(SyncError(
+                "Collect consent from every current device.".into(),
+            ));
+        }
+        let context = self.prefix_archive_context(saved)?;
+        let first = self.checked_prefix_claim(&context, origin, &consents[0], now)?;
+        if first.request.recovery_holder != self.public_key() {
+            return Err(SyncError(
+                "Only the designated recovery holder may submit this request.".into(),
+            ));
+        }
+        let mut signers = BTreeSet::new();
+        for bytes in consents {
+            let claim = self.checked_prefix_claim(&context, origin, bytes, now)?;
+            if claim.request.through != first.request.through
+                || claim.request.expires != first.request.expires
+                || claim.request.recovery_holder != first.request.recovery_holder
+                || !signers.insert(claim.signer)
+            {
+                return Err(SyncError(
+                    "All devices must approve the same request exactly once.".into(),
+                ));
+            }
+        }
+        if signers != context.members {
+            return Err(SyncError(
+                "Collect consent from every current device.".into(),
+            ));
+        }
+        Ok(crate::PrefixConsentPlan {
+            policy_epoch: first.request.policy_epoch,
+            through: first.request.through,
+            expires: first.request.expires,
+            recovery_holder: first.request.recovery_holder,
+        })
+    }
+
     /// Recover authenticated history only, never an old MLS sender ratchet.
     /// The replacement must first be freshly invited to the same household.
     /// Validate every proof before changing state; preserve its original author.

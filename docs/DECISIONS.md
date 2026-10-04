@@ -1712,3 +1712,11 @@ remaining full-brief gates, linking the existing detailed progress/security docs
 and Git history. Retain every requirement and verification limit; membership
 rekeying must not silently stand in for the brief's named key-rotation operation.
 
+## 2026-10-04 — Confirm retained archives before releasing deletion permission
+
+Require a holder-signed proposal, independently checked against each peer's
+latest acknowledged checkpoint, and all current unique approvals. Read back the
+complete saved journal before and after signing and before each deletion chunk;
+reject receipt-only permission or guessed recovery cursors. Cache archive
+context once per bundle rather than repeating history exports for every signer.
+

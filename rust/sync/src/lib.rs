@@ -28,7 +28,7 @@ mod retention;
 pub use http::HttpRelay;
 pub use peer::{Outgoing, Peer, StagedInvite, SyncError};
 #[cfg(feature = "relay-auth")]
-pub use prefix_consent::PrefixConsentRequest;
+pub use prefix_consent::{PrefixConsentPlan, PrefixConsentRequest};
 pub use relay::{MailboxItem, MemoryRelay, Relay, RelayError};
 #[cfg(feature = "relay-auth")]
 pub use relay_request::DeviceRequestProof;

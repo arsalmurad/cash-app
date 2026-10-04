@@ -16,6 +16,7 @@ import 'household_journal.dart';
 import 'relay_client.dart';
 import 'relay_policy.dart';
 import 'relay_config.dart';
+import 'retention_codes.dart';
 
 /// Runs the household layer: owns the network (the Rust core does no I/O),
 /// persists the secret state after every change, and exposes the folded
@@ -1277,6 +1278,142 @@ class HouseholdController extends ChangeNotifier {
       rethrow;
     }
   }
+
+  // --- Explicit relay retention -----------------------------------------
+
+  RetentionRelayClient _retentionRelay() {
+    final relay = _requireRelay();
+    if (_relaySigningClosed ||
+        !authenticatedRelay ||
+        needsRecoveryInvite ||
+        relay is! RetentionRelayClient ||
+        !relay.rosterEnabled) {
+      throw const RelayUnavailable(
+        'Authenticated retention is unavailable. No request sent.',
+      );
+    }
+    _requireHousehold();
+    return relay;
+  }
+
+  Future<Uint8List> _confirmedRetentionSave() async {
+    await _persist();
+    final expected = await _savedBytes();
+    await _checkRetainedArchive(expected);
+    return expected;
+  }
+
+  Future<void> _checkRetainedArchive(Uint8List expected) async {
+    try {
+      final actual = await _stateStore.read();
+      if (!listEquals(actual, expected)) {
+        throw const FormatException(_uncertainSaveMessage);
+      }
+    } catch (_) {
+      _disableWrites();
+      rethrow;
+    }
+    _retentionRelay(); // Lock/disposal may have occurred while awaiting storage.
+  }
+
+  /// Explicit holder proposal only after sync and a confirmed complete save.
+  /// Does not delete local history or automatically send a pruning request.
+  Future<String?> prepareRetentionRequest() async {
+    String? code;
+    final ok = await _run(() async {
+      final relay = _retentionRelay();
+      await _sync();
+      final policy = (await _membershipPolicy(relay, forChange: false))!;
+      final archive = await _confirmedRetentionSave();
+      final saved = HouseholdJournal.decode(archive);
+      code = encodeRetentionRequest(
+        await householdPreparePrefixConsent(
+          household: _requireHousehold(),
+          saved: saved.state,
+          origin: policy.origin,
+          policyEpoch: PlatformInt64Util.from(policy.epoch),
+          now: PlatformInt64Util.from(_clockMillis()),
+        ),
+      );
+      await _checkRetainedArchive(archive);
+    });
+    return ok ? code : null;
+  }
+
+  /// Verifies a signed holder proposal against this device's own confirmed
+  /// checkpoint. Returning an approval code is not a deletion request.
+  Future<String?> approveRetentionRequest(String requestCode) async {
+    String? code;
+    final ok = await _run(() async {
+      final proposal = decodeRetentionRequest(requestCode);
+      final relay = _retentionRelay();
+      await _sync();
+      final policy = (await _membershipPolicy(relay, forChange: false))!;
+      final archive = await _confirmedRetentionSave();
+      final saved = HouseholdJournal.decode(archive);
+      code = encodeRetentionConsent(
+        await householdCountersignPrefixConsent(
+          household: _requireHousehold(),
+          saved: saved.state,
+          origin: policy.origin,
+          proposal: proposal,
+          now: PlatformInt64Util.from(_clockMillis()),
+        ),
+      );
+      await _checkRetainedArchive(archive);
+    });
+    return ok ? code : null;
+  }
+
+  /// Only a current holder with every matching approval may reclaim remote
+  /// ciphertext. Keeps the complete local archive and delivery cursor intact.
+  /// Lost replies restart from floor zero and an authenticated conflict, never
+  /// from a guessed cursor. No expired permission or legacy fallback is saved.
+  Future<bool> reclaimRelayHistory(
+    String requestCode,
+    List<String> approvalCodes,
+  ) => _run(() async {
+    if (approvalCodes.length >= 64) {
+      throw const FormatException('Invalid retention code.');
+    }
+    final consents = [
+      decodeRetentionRequest(requestCode),
+      ...approvalCodes.map(decodeRetentionConsent),
+    ];
+    final relay = _retentionRelay();
+    await _sync();
+    final policy = (await _membershipPolicy(relay, forChange: false))!;
+    final archive = await _confirmedRetentionSave();
+    final saved = HouseholdJournal.decode(archive);
+    final plan = await householdValidatePrefixBundle(
+      household: _requireHousehold(),
+      saved: saved.state,
+      origin: policy.origin,
+      consents: consents,
+      now: PlatformInt64Util.from(_clockMillis()),
+    );
+    var floor = 0;
+    // At most 10,000 retained records, 16 per transaction, plus initial retry.
+    for (var chunk = 0; chunk < 627; chunk++) {
+      if (_clockMillis() >= plan.expires.toInt()) {
+        throw const RelayUnavailable('Prefix consent expired.');
+      }
+      final current = (await _membershipPolicy(relay, forChange: false))!;
+      if (current.epoch != plan.policyEpoch.toInt()) {
+        throw const RelayMembershipConflict();
+      }
+      await _checkRetainedArchive(archive);
+      final result = await relay.prunePrefix(
+        _groupId(),
+        floor,
+        plan.through.toInt(),
+        consents,
+      );
+      if (result.floor >= plan.through.toInt()) return;
+      floor = result.floor;
+    }
+    throw const RelayUnavailable('the relay stayed busy; try again');
+  });
 
   // --- Members ----------------------------------------------------------
 

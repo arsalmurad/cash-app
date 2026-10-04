@@ -166,3 +166,92 @@ fn membership_changes_invalidate_collected_permission_and_old_confirmed_saves() 
             .is_err()
     );
 }
+
+#[test]
+fn signed_proposals_are_countersigned_only_for_the_same_saved_checkpoint_and_origin() {
+    let (mut relay, mut alice, mut bob) = pair();
+    exchange(&mut relay, &mut alice, &mut bob);
+    let saved = alice.export().unwrap();
+    let other = bob.export().unwrap();
+    let proposal = alice
+        .prepare_prefix_consent(&saved, "http://127.0.0.1", 1, 1000)
+        .unwrap();
+    let consent = bob
+        .countersign_prefix_consent(&other, "http://127.0.0.1", &proposal, 1001)
+        .unwrap();
+    let plan = alice
+        .validate_prefix_bundle(
+            &saved,
+            "http://127.0.0.1",
+            &[proposal.clone(), consent.clone()],
+            1002,
+        )
+        .unwrap();
+    assert_eq!(plan.through, request(&alice).through);
+    assert_eq!(plan.expires, 51000);
+    assert_eq!(plan.recovery_holder, alice.public_key());
+    assert!(
+        alice
+            .validate_prefix_bundle(
+                &saved,
+                "http://127.0.0.1",
+                std::slice::from_ref(&proposal),
+                1002
+            )
+            .is_err()
+    );
+    assert!(
+        alice
+            .validate_prefix_bundle(
+                &saved,
+                "http://127.0.0.1",
+                &[proposal.clone(), proposal.clone()],
+                1002
+            )
+            .is_err()
+    );
+    assert!(
+        bob.validate_prefix_bundle(
+            &other,
+            "http://127.0.0.1",
+            &[proposal.clone(), consent.clone()],
+            1002
+        )
+        .is_err()
+    );
+    assert!(
+        bob.countersign_prefix_consent(&other, "https://other.example", &proposal, 1002)
+            .is_err()
+    );
+    assert!(
+        bob.countersign_prefix_consent(&other, "http://127.0.0.1", &proposal, 51000)
+            .is_err()
+    );
+    assert!(
+        bob.countersign_prefix_consent(&other, "http://127.0.0.1", &consent, 1002)
+            .is_err()
+    );
+    let mut tampered = proposal.clone();
+    let last = tampered.len() - 1;
+    tampered[last] ^= 1;
+    assert!(
+        bob.countersign_prefix_consent(&other, "http://127.0.0.1", &tampered, 1002)
+            .is_err()
+    );
+    alice
+        .write(
+            3,
+            EventKind::AccountOpened {
+                account_id: AccountId::new("newer"),
+                name: "New checkpoint".into(),
+                currency: Currency::from_code("USD").unwrap(),
+            },
+        )
+        .unwrap();
+    alice.sync(&mut relay).unwrap();
+    bob.sync(&mut relay).unwrap();
+    assert!(
+        bob.countersign_prefix_consent(&bob.export().unwrap(), "http://127.0.0.1", &proposal, 1002)
+            .is_err()
+    );
+}

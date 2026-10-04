@@ -1,5 +1,5 @@
 // Actual HTTP, production roster/MLS controller and deleted SQLite prefix.
-// Test stores are memory-backed; fixture consent is NOT all-device authority.
+// Test stores are memory-backed confirmed saves, not protected OS durability.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -14,8 +14,18 @@ import 'package:private_ledger/features/household/household_journal.dart';
 
 class _Store implements BlobStore {
   Uint8List? value;
+  bool failRead = false;
+  Uint8List? staleRead;
   @override
-  Future<Uint8List?> read() async => value;
+  Future<Uint8List?> read() async {
+    if (failRead) {
+      throw const FileSystemException(
+        'Controlled retained-archive read failure',
+      );
+    }
+    return staleRead ?? value;
+  }
+
   @override
   Future<void> write(Uint8List bytes) async =>
       value = Uint8List.fromList(bytes);
@@ -66,7 +76,10 @@ void main() {
         'node',
         ['test/native-prefix-recovery-relay.mjs', '$port'],
         workingDirectory: Directory('../relay').absolute.path,
-        environment: {'LOCAL_AUTH_POLICY': root},
+        environment: {
+          'LOCAL_AUTH_POLICY': root,
+          'LOCAL_AUTH_RETENTION': 'true',
+        },
       );
       final ready = Completer<void>();
       Completer<Map<String, dynamic>>? response;
@@ -117,9 +130,9 @@ void main() {
           (code) => throw StateError('Fixture exited before ready: $code'),
         ),
       ]).timeout(const Duration(seconds: 15));
-      Future<Map<String, dynamic>> command(String kind, [int? through]) async {
+      Future<Map<String, dynamic>> command(String kind) async {
         response = Completer<Map<String, dynamic>>();
-        process.stdin.writeln(jsonEncode({'kind': kind, 'through': ?through}));
+        process.stdin.writeln(jsonEncode({'kind': kind}));
         await process.stdin.flush();
         return response!.future.timeout(const Duration(seconds: 10));
       }
@@ -128,7 +141,7 @@ void main() {
       addTearDown(external.close);
       expect(
         (await external.post(Uri.parse('$origin/g/$group/prune'))).statusCode,
-        403,
+        401,
       );
       expect(await alice.syncNow(), isTrue);
       final bob = device(bobState, bobConfig);
@@ -144,6 +157,7 @@ void main() {
       );
       expect(await bob.syncNow(), isTrue);
       final backup = (await bob.createBackup())!;
+      final oldAliceArchive = Uint8List.fromList(aliceState.value!);
       final staleCursor = bob.overview!.cursor.toInt();
       final staleState = bobState.copy(), staleConfig = bobConfig.copy();
       final oldKey = (await bob.relayRosterKeys()).singleWhere(
@@ -157,10 +171,52 @@ void main() {
       );
       expect(await bob.syncNow(), isTrue);
       expect(await alice.syncNow(), isTrue);
-      final through = bob.overview!.cursor.toInt();
-      expect(through, greaterThan(staleCursor));
+      final latestCursor = bob.overview!.cursor.toInt();
+      expect(latestCursor, greaterThan(staleCursor));
       final before = await command('inspect');
-      final trimmed = await command('prune', through);
+      final retentionRequest = (await alice.prepareRetentionRequest())!;
+      final approval = (await bob.approveRetentionRequest(retentionRequest))!;
+      for (final failure in ['read-failed', 'stale-read']) {
+        aliceState.failRead = failure == 'read-failed';
+        aliceState.staleRead = failure == 'stale-read' ? oldAliceArchive : null;
+        expect(await alice.prepareRetentionRequest(), isNull);
+        expect(alice.requiresRestart, isTrue);
+        expect(
+          await command('inspect'),
+          before,
+          reason: 'Unconfirmed archive must not authorize deletion',
+        );
+        alice.dispose();
+        liveControllers.remove(alice);
+        aliceState.failRead = false;
+        aliceState.staleRead = null;
+        alice = device(aliceState, aliceConfig);
+        await alice.initialize();
+        expect(alice.requiresRestart, isFalse);
+      }
+      expect(await alice.reclaimRelayHistory(retentionRequest, []), isFalse);
+      expect(
+        await command('inspect'),
+        before,
+        reason: 'Missing approval must not delete any records',
+      );
+      expect(
+        await bob.reclaimRelayHistory(retentionRequest, [approval]),
+        isFalse,
+      );
+      expect(
+        await command('inspect'),
+        before,
+        reason: 'Only the designated holder may prune',
+      );
+      expect(
+        await alice.reclaimRelayHistory(retentionRequest, [approval]),
+        isTrue,
+      );
+      final trimmed = await command('inspect');
+      final through = trimmed['floor'] as int;
+      expect(through, greaterThan(staleCursor));
+      expect(through, lessThanOrEqualTo(latestCursor));
       expect(trimmed['floor'], through);
       expect(trimmed['tail'], before['tail']);
       expect(trimmed['entries'], (before['entries'] as int) - through);
