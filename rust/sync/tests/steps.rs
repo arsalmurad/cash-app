@@ -213,6 +213,145 @@ fn a_removal_with_a_lost_reply_survives_restart_and_rotates_keys() {
 }
 
 #[test]
+fn standalone_rotation_lost_reply_restores_exact_commit_without_backfill_or_history_changes() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    alice.write(2, expense("before rotation", 250)).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    let original = alice.state().canonical_bytes();
+    let keys = alice.relay_roster_keys().unwrap();
+    let pending = alice.begin_rotation().unwrap();
+    assert_eq!(alice.relay_roster_keys().unwrap(), keys);
+    assert!(alice.write(3, expense("blocked", 1)).is_err());
+    assert!(alice.begin_rotation().is_err());
+    assert!(alice.begin_removal("bob-phone").is_err());
+    let saved = alice.export().unwrap();
+    log.append(pending.expected_tail, pending.blob.clone())
+        .unwrap();
+    alice = Peer::import(&saved).unwrap();
+    assert_eq!(alice.next_outgoing().unwrap(), Some(pending));
+    alice.ingest(&log.after(alice.cursor())).unwrap();
+    bob.ingest(&log.after(bob.cursor())).unwrap();
+    assert_eq!(
+        alice.next_outgoing().unwrap(),
+        None,
+        "rotation must not queue invite backfill"
+    );
+    assert_eq!(alice.state().canonical_bytes(), original);
+    assert_eq!(bob.state().canonical_bytes(), original);
+    assert_eq!(alice.relay_roster_keys().unwrap(), keys);
+    alice.write(4, expense("after rotation", 125)).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    assert_eq!(
+        alice.state().canonical_bytes(),
+        bob.state().canonical_bytes()
+    );
+    assert_eq!(alice.state().ledger.transactions.len(), 2);
+}
+
+#[test]
+fn standalone_rotation_competing_updates_reject_only_the_losing_slot_and_retry() {
+    let (mut log, mut alice, mut bob) = household();
+    let keys = alice.relay_roster_keys().unwrap();
+    let winner = alice.begin_rotation().unwrap();
+    let loser = bob.begin_rotation().unwrap();
+    let saved = bob.export().unwrap();
+    let sequence = log.append(winner.expected_tail, winner.blob).unwrap();
+    alice.commit_accepted(sequence).unwrap();
+    bob = Peer::import(&saved).unwrap();
+    bob.ingest(&log.after(bob.cursor())).unwrap();
+    assert_eq!(bob.next_outgoing().unwrap(), None);
+    let retry = bob.begin_rotation().unwrap();
+    assert_eq!(retry.expected_tail, sequence);
+    assert_ne!(retry.blob, loser.blob);
+    let sequence = log.append(retry.expected_tail, retry.blob).unwrap();
+    bob.commit_accepted(sequence).unwrap();
+    alice.ingest(&log.after(alice.cursor())).unwrap();
+    assert_eq!(alice.relay_roster_keys().unwrap(), keys);
+    assert_eq!(bob.relay_roster_keys().unwrap(), keys);
+    assert_eq!(
+        alice.state().canonical_bytes(),
+        bob.state().canonical_bytes()
+    );
+}
+
+#[test]
+fn standalone_rotation_bad_slot_preserves_saved_stage_and_queued_expenses() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    alice
+        .write(2, expense("offline before rotation", 250))
+        .unwrap();
+    let before = alice.state().canonical_bytes();
+    let pending = alice.begin_rotation().unwrap();
+    let saved = alice.export().unwrap();
+    assert!(
+        alice
+            .ingest(&[(pending.expected_tail + 1, b"garbage".to_vec())])
+            .is_err()
+    );
+    assert_eq!(alice.export().unwrap(), saved);
+    assert_eq!(alice.next_outgoing().unwrap(), Some(pending.clone()));
+    assert!(alice.commit_accepted(pending.expected_tail + 2).is_err());
+    assert_eq!(alice.state().canonical_bytes(), before);
+    let sequence = log.append(pending.expected_tail, pending.blob).unwrap();
+    alice.commit_accepted(sequence).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    assert_eq!(alice.state().canonical_bytes(), before);
+    assert_eq!(bob.state().canonical_bytes(), before);
+}
+
+#[test]
+fn standalone_rotation_refuses_unjoined_and_removed_peers_without_mutation() {
+    let mut fresh = Peer::new("unjoined", usd()).unwrap();
+    let saved = fresh.export().unwrap();
+    assert!(fresh.begin_rotation().is_err());
+    assert_eq!(fresh.export().unwrap(), saved);
+    let (mut log, mut alice, mut bob) = household();
+    let commit = alice.begin_removal("bob-phone").unwrap();
+    let sequence = log.append(commit.expected_tail, commit.blob).unwrap();
+    alice.commit_accepted(sequence).unwrap();
+    bob.ingest(&log.after(bob.cursor())).unwrap();
+    let saved = bob.export().unwrap();
+    assert!(bob.begin_rotation().is_err());
+    assert_eq!(bob.export().unwrap(), saved);
+}
+
+#[test]
+fn standalone_rotation_invalidates_saved_receipts_even_when_financial_state_is_unchanged() {
+    let (mut log, mut alice, mut bob) = household();
+    alice.write(1, account()).unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    alice
+        .enqueue_saved_state_receipt(&alice.export().unwrap())
+        .unwrap();
+    bob.enqueue_saved_state_receipt(&bob.export().unwrap())
+        .unwrap();
+    flush(&mut alice, &mut log);
+    flush(&mut bob, &mut log);
+    flush(&mut alice, &mut log);
+    let receipts = alice.received_retention_receipts();
+    assert_eq!(receipts.len(), 2);
+    assert!(alice.retention_cutoff(&receipts).is_ok());
+    let state = alice.state().canonical_bytes();
+    let rotation = alice.begin_rotation().unwrap();
+    let sequence = log.append(rotation.expected_tail, rotation.blob).unwrap();
+    alice.commit_accepted(sequence).unwrap();
+    bob.ingest(&log.after(bob.cursor())).unwrap();
+    for peer in [&alice, &bob] {
+        assert_eq!(peer.state().canonical_bytes(), state);
+        assert!(peer.received_retention_receipts().is_empty());
+        assert!(peer.retention_cutoff(&receipts).is_err());
+    }
+}
+
+#[test]
 fn removal_is_a_staged_commit_too() {
     let (mut log, mut alice, mut bob) = household();
     let out = alice.begin_removal("bob-phone").unwrap();

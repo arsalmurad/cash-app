@@ -526,6 +526,32 @@ impl Member {
         Ok(commit)
     }
 
+    /// Stages a standalone MLS self-update with a fresh encryption path.
+    /// Membership and author/signing identities do not change; this is not
+    /// revocation of a compromised device. Persist before append, then confirm
+    /// or definitively discard through the same durable commit flow.
+    pub fn rotate_keys(&mut self) -> Result<Vec<u8>, Error> {
+        let group = self
+            .group
+            .as_mut()
+            .ok_or_else(|| Error("this member is not in a group".to_owned()))?;
+        // self_update consumes pending proposals. Do not accidentally combine
+        // a standalone rotation with an unreviewed add/remove or a Welcome.
+        if group.pending_proposals().next().is_some() {
+            return Err(Error(
+                "resolve pending proposals before key rotation".to_owned(),
+            ));
+        }
+        let commit = group
+            .self_update(&self.provider, &self.signer, LeafNodeParameters::default())
+            .map_err(fail)?
+            .into_commit()
+            .tls_serialize_detached()
+            .map_err(fail)?;
+        self.sent.insert(digest(&commit));
+        Ok(commit)
+    }
+
     /// The relay accepted the staged commit: advance to the new epoch.
     pub fn confirm_commit(&mut self) -> Result<(), Error> {
         let group = self
@@ -552,6 +578,14 @@ impl Member {
             .group
             .as_mut()
             .ok_or_else(|| Error("this member is not in a group".to_owned()))?;
+        // OpenMLS permits current-epoch messages during a pending commit, but
+        // our ordered transport reserves that commit's exact slot. Do not
+        // advance an application sender ratchet before acceptance/rejection.
+        if group.pending_commit().is_some() {
+            return Err(Error(
+                "a commit is pending; resolve it before encryption".to_owned(),
+            ));
+        }
         let bytes = group
             .create_message(&self.provider, &self.signer, plaintext)
             .map_err(fail)?
@@ -673,4 +707,67 @@ pub fn safety_number(key_a: &[u8], key_b: &[u8]) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+#[cfg(test)]
+mod rotation_tests {
+    use super::{KeyPackageIn, Member, ProtocolVersion};
+    use openmls::prelude::DeserializeBytes as _;
+    use openmls_traits::OpenMlsProvider as _;
+
+    #[test]
+    fn standalone_rotation_changes_the_actual_hpke_leaf_key_only_on_acceptance() {
+        let mut member = Member::new("single member").unwrap();
+        member.create_group().unwrap();
+        let signing_key = member.public_key();
+        let encryption_key = member
+            .group()
+            .unwrap()
+            .own_leaf_node()
+            .unwrap()
+            .encryption_key()
+            .clone();
+        member.rotate_keys().unwrap();
+        assert_eq!(
+            member
+                .group()
+                .unwrap()
+                .own_leaf_node()
+                .unwrap()
+                .encryption_key(),
+            &encryption_key
+        );
+        member.confirm_commit().unwrap();
+        assert_ne!(
+            member
+                .group()
+                .unwrap()
+                .own_leaf_node()
+                .unwrap()
+                .encryption_key(),
+            &encryption_key
+        );
+        assert_eq!(member.public_key(), signing_key);
+    }
+
+    #[test]
+    fn standalone_rotation_refuses_pending_add_proposals_without_mutation() {
+        let mut member = Member::new("alice").unwrap();
+        member.create_group().unwrap();
+        let bob = Member::new("bob").unwrap();
+        let package = KeyPackageIn::tls_deserialize_exact_bytes(&bob.key_package().unwrap())
+            .unwrap()
+            .validate(member.provider.crypto(), ProtocolVersion::Mls10)
+            .unwrap();
+        member
+            .group
+            .as_mut()
+            .unwrap()
+            .propose_add_member(&member.provider, &member.signer, &package)
+            .unwrap();
+        assert_eq!(member.group().unwrap().pending_proposals().count(), 1);
+        let saved = member.export().unwrap();
+        assert!(member.rotate_keys().is_err());
+        assert_eq!(member.export().unwrap(), saved);
+    }
 }

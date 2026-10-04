@@ -13,7 +13,7 @@ import 'household_pane.dart';
 import 'household_setup_pane.dart';
 import 'vault_pane.dart';
 
-enum _MenuAction { addAccount, backup, leave, relaySetup }
+enum _MenuAction { addAccount, backup, leave, relaySetup, refreshKeys }
 
 /// The shared layer's screen: set up or join a household, then share
 /// expenses with it. It syncs on open, on demand, and every half minute
@@ -405,6 +405,37 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
     );
   }
 
+  Future<void> _refreshKeys() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Refresh encryption keys?'),
+        content: const Text(
+          'Refreshes encryption for future household messages. Members, '
+          'safety numbers and saved expenses stay the same. '
+          'If a device is lost or unsafe, remove that device instead. '
+          'If sending fails, use Sync to finish the saved refresh.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Refresh keys'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    if (await controller.refreshEncryptionKeys()) {
+      _tell('Encryption keys refreshed');
+    } else {
+      _reportFailure('Could not finish the key refresh. Use Sync to retry.');
+    }
+  }
+
   Future<void> _leave() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -462,8 +493,20 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                     _MenuAction.backup => _backup(),
                     _MenuAction.leave => _leave(),
                     _MenuAction.relaySetup => _relaySetup(),
+                    _MenuAction.refreshKeys => _refreshKeys(),
                   },
                   itemBuilder: (context) => [
+                    if (controller.isMember &&
+                        !controller.needsRecoveryInvite &&
+                        !controller.needsVaultUnlock &&
+                        !controller.requiresRestart &&
+                        !controller.isBusy &&
+                        controller.relayUrl != null &&
+                        overview!.pendingCount.toInt() == 0)
+                      const PopupMenuItem(
+                        value: _MenuAction.refreshKeys,
+                        child: Text('Refresh encryption keys'),
+                      ),
                     if (controller.canExportRelayBootstrap &&
                         !controller.isBusy)
                       const PopupMenuItem(

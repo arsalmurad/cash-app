@@ -318,6 +318,23 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickLabel(bob, 'Unlock household', 'button');
     await waitForLabel(bob, 'Expense total: USD 12.34');
     console.log('Verified household summary: explicit browser lock hides the snapshot and phrase unlock restores it.');
+    scenarioStage = 'standalone household encryption-key refresh';
+    await sync(alice);
+    const beforeRefresh = relayEntries();
+    await clickLabel(alice, 'Household options', 'button');
+    await clickLabel(alice, 'Refresh encryption keys');
+    await waitForLabel(alice, 'Refresh encryption keys?');
+    await clickLabel(alice, 'Cancel', 'button');
+    assert.equal(relayEntries(), beforeRefresh, 'Canceled key refresh must not append');
+    await clickLabel(alice, 'Household options', 'button');
+    await clickLabel(alice, 'Refresh encryption keys');
+    await clickLabel(alice, 'Refresh keys', 'button');
+    await waitForLabel(alice, 'Encryption keys refreshed');
+    assert(relayEntries() > beforeRefresh, 'Confirmed key refresh must publish its encrypted commit');
+    await sync(bob);
+    await waitForLabel(bob, 'Expense total: USD 12.34');
+    await waitForLabel(bob, 'USD 0.00');
+    console.log('Verified standalone encryption-key refresh: cancellation writes nothing, confirmation sends a commit, existing shared history survives peer catch-up.');
     if (process.env.WEB_HOUSEHOLD_QUOTA === '1') {
       scenarioStage = 'Alice quota failure and restart';
       await Promise.race([workerFailure, runHouseholdQuotaScenario(alice, alicePhrase, relayUrl, api)]);

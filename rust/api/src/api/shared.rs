@@ -320,6 +320,19 @@ pub fn household_begin_removal(
         .map_err(|error| error.to_string())
 }
 
+/// Reports a staged MLS transition without mutating or exporting private state.
+pub fn household_has_pending_commit(household: &Household) -> Result<bool, String> {
+    Ok(lock(household)?.has_pending_commit())
+}
+
+/// Stages an encryption-key refresh without changing the household membership.
+pub fn household_begin_rotation(household: &Household) -> Result<OutgoingEntry, String> {
+    lock(household)?
+        .begin_rotation()
+        .map(outgoing)
+        .map_err(|error| error.to_string())
+}
+
 pub fn household_commit_accepted(household: &Household, sequence: i64) -> Result<(), String> {
     let sequence = unsigned(sequence, "sequence")?;
     lock(household)?
@@ -712,6 +725,62 @@ mod tests {
         let saved = household_export(&alice).unwrap();
         assert_eq!(household_relay_roster_keys(&alice).unwrap(), vec![own_key]);
         assert_eq!(household_export(&alice).unwrap(), saved);
+    }
+
+    #[test]
+    fn bridge_standalone_rotation_preserves_members_and_restores_the_exact_commit() {
+        let alice = household_new("rotation-alice".into(), "USD".into()).unwrap();
+        let bob = household_new("rotation-bob".into(), "USD".into()).unwrap();
+        let group = household_found(&alice).unwrap();
+        let invite = household_begin_invite(&alice, household_key_package(&bob).unwrap()).unwrap();
+        household_commit_accepted(&alice, 1).unwrap();
+        household_join(&bob, group, invite.welcome, 1).unwrap();
+        let keys = household_relay_roster_keys(&alice).unwrap();
+        let members = household_overview(&alice).unwrap().member_ids;
+        let frame = household_begin_rotation(&alice).unwrap();
+        assert!(household_has_pending_commit(&alice).unwrap());
+        assert_eq!(frame.expected_tail, 1);
+        assert_eq!(household_relay_roster_keys(&alice).unwrap(), keys);
+        assert_eq!(household_overview(&alice).unwrap().member_ids, members);
+        let restored = household_restore(household_export(&alice).unwrap()).unwrap();
+        let retried = household_next_outgoing(&restored).unwrap().unwrap();
+        assert_eq!(retried.expected_tail, frame.expected_tail);
+        assert_eq!(retried.blob, frame.blob);
+        assert!(household_begin_rotation(&restored).is_err());
+        household_commit_accepted(&restored, 2).unwrap();
+        assert!(!household_has_pending_commit(&restored).unwrap());
+        household_ingest(
+            &bob,
+            vec![RelayEntry {
+                sequence: 2,
+                blob: frame.blob,
+            }],
+        )
+        .unwrap();
+        for peer in [&restored, &bob] {
+            assert_eq!(household_relay_roster_keys(peer).unwrap(), keys);
+            assert_eq!(household_overview(peer).unwrap().member_ids, members);
+            assert!(household_overview(peer).unwrap().is_member);
+            assert!(household_next_outgoing(peer).unwrap().is_none());
+        }
+    }
+
+    #[test]
+    fn bridge_standalone_rotation_rejection_and_unjoined_refusal_are_safe() {
+        let alice = household_new("rotation-alice".into(), "USD".into()).unwrap();
+        let saved = household_export(&alice).unwrap();
+        assert!(household_begin_rotation(&alice).is_err());
+        assert_eq!(household_export(&alice).unwrap(), saved);
+        household_found(&alice).unwrap();
+        let first = household_begin_rotation(&alice).unwrap();
+        let saved = household_export(&alice).unwrap();
+        assert!(household_commit_accepted(&alice, 2).is_err());
+        assert_eq!(household_export(&alice).unwrap(), saved);
+        household_commit_rejected(&alice).unwrap();
+        let next = household_begin_rotation(&alice).unwrap();
+        assert_ne!(next.blob, first.blob);
+        household_commit_accepted(&alice, 1).unwrap();
+        assert!(household_next_outgoing(&alice).unwrap().is_none());
     }
 
     #[test]
