@@ -5,6 +5,7 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline';
 import {Miniflare} from 'miniflare';
+import {auditPrunedRosterStorage,auditRosterStorage} from './roster-storage-audit.js';
 
 const root = fileURLToPath(new URL('./',import.meta.url));
 const policy = JSON.parse(process.env.LOCAL_AUTH_POLICY);
@@ -55,9 +56,40 @@ input.on('line',line=>{
   commands = commands.then(async()=>{
     try {
       const command = JSON.parse(line);
-      assert.deepEqual(command,{kind:'inspect'});
       const values = await (await stub.fetch('http://fixture-internal/inspect')).json();
       const stored = Object.fromEntries(values);
+      if(command.kind==='audit') {
+        assert.deepEqual(Object.keys(command).sort(),['kind','manifest']);
+        const manifest=command.manifest;
+        assert(Array.isArray(manifest.needles)&&manifest.needles.length>0&&manifest.needles.length<=64);
+        assert(manifest.needles.every(value=>typeof value==='string'&&value.length>=8&&value.length<=256));
+        const needles=[...manifest.needles,Buffer.from('cash-app durable receipt v2\0')];
+        for(const amount of [100n,-100n,250n,-250n,725n,-725n,975n,-975n,1075n,-1075n]) {
+          const be=Buffer.alloc(8),le=Buffer.alloc(8);
+          be.writeBigInt64BE(amount);le.writeBigInt64LE(amount);needles.push(be,le);
+        }
+        const audit=rows=>auditPrunedRosterStorage(rows,policy,manifest,needles);
+        const result=audit(values);
+        assert.throws(()=>auditRosterStorage(values,policy,manifest,needles));
+        const entry=values.find(([key])=>key.startsWith('e:'))[0];
+        for(const poison of [Buffer.from(needles[0]),needles.at(-1)]) {
+          const copy=structuredClone(values);copy.find(([key])=>key===entry)[1]=poison.toString('base64');
+          assert.throws(()=>audit(copy),/readable synthetic financial data/);
+        }
+        for(const field of ['authorized_devices','request_budget','retired_readers','welcome_index','invite_authorities']) {
+          const copy=structuredClone(values);copy.find(([key])=>key===field)[1].privateName=manifest.needles[0];
+          assert.throws(()=>audit(copy));
+          assert.throws(()=>audit(values.filter(([key])=>key!==field)));
+        }
+        const welcome=structuredClone(values);welcome.find(([key])=>key.startsWith('welcome:'))[1].welcome=Buffer.from(needles[0]).toString('base64');
+        assert.throws(()=>audit(welcome),/readable synthetic financial data/);
+        assert.throws(()=>audit(values.filter(([key])=>key!==entry)));
+        const extra=structuredClone(values);extra.push(['retention_consents',manifest.needles[0]]);assert.throws(()=>audit(extra));
+        const corrupt=structuredClone(values);corrupt.find(([key])=>key==='floor')[1]++;assert.throws(()=>audit(corrupt));
+        console.log('PREFIX-RESULT:'+JSON.stringify({...result,negativeControls:true}));
+        return;
+      }
+      assert.deepEqual(command,{kind:'inspect'});
       console.log('PREFIX-RESULT:'+JSON.stringify({floor:stored.floor??0,tail:stored.tail,
         entries:values.filter(([key])=>key.startsWith('e:')).length,capacity:stored.capacity}));
     } catch {

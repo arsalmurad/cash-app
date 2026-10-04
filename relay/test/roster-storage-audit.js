@@ -21,6 +21,14 @@ const ciphertext=(value,needles)=>{
 };
 
 export function auditRosterStorage(rows,root,manifest,needles) {
+  return audit(rows,root,manifest,needles,false);
+}
+
+export function auditPrunedRosterStorage(rows,root,manifest,needles) {
+  return audit(rows,root,manifest,needles,true);
+}
+
+function audit(rows,root,manifest,needles,pruned) {
   assert(Array.isArray(rows)&&rows.length>0);
   const stored=new Map(rows); assert.equal(stored.size,rows.length);
   for(const key of ['authorization_root','authorized_devices','tail','request_clock','capacity','request_budget','welcome_index','invite_authorities','retired_readers']) {
@@ -37,6 +45,11 @@ export function auditRosterStorage(rows,root,manifest,needles) {
   const known=key=>assert(keys.includes(key));
   for(const device of [...root.devices,...policy.devices]) known(device.key);
   const tail=stored.get('tail'); integer(tail); assert(tail>20);
+  const floor=pruned?stored.get('floor'):0;
+  if(pruned) {
+    integer(floor);assert(floor>0&&floor<=tail&&tail<=999999999999);
+    assert.equal(floor,manifest.floor);
+  } else assert(!stored.has('floor'),'unpruned audit must not accept a floor');
   const index=list(stored.get('welcome_index'),['id','recipient','sequence','expires'],'id');
   assert.equal(index.length,2,'audit must include actual old/new encrypted Welcomes');
   for(const record of index) {
@@ -66,7 +79,7 @@ export function auditRosterStorage(rows,root,manifest,needles) {
       assert.equal(value.consumed,true);ciphertext(value.welcome,needles);welcomes++;
     } else if(key==='authorization_root') assert.deepEqual(value,root);
     else if(key==='authorized_devices') assert.deepEqual(value,policy);
-    else if(key==='tail'||key==='request_clock') integer(value);
+    else if(key==='tail'||key==='request_clock'||(pruned&&key==='floor')) integer(value);
     else if(key==='capacity') {exact(value,['version','entries','bytes']);assert.equal(value.version,1);integer(value.entries);integer(value.bytes);}
     else if(key==='request_budget') {
       exact(value,['version','day','used','devices']);assert.equal(value.version,1);integer(value.day);integer(value.used);assert(value.used<=20000);
@@ -79,8 +92,8 @@ export function auditRosterStorage(rows,root,manifest,needles) {
       for(const record of value.records){exact(record,['nonce','expires']);assert(typeof record.nonce==='string'&&record.nonce.length===64&&/^[0-9a-f]{64}$/.test(record.nonce));assert(record.nonce>previous);previous=record.nonce;integer(record.expires);}
     } else assert(['welcome_index','invite_authorities','retired_readers'].includes(key),'unexpected persisted roster field');
   }
-  assert(nonceKeys>0&&nonceKeys<=128);assert.equal(welcomes,index.length);assert.equal(entries,tail);
-  for(let sequence=1;sequence<=tail;sequence++) assert(stored.has(`e:${String(sequence).padStart(12,'0')}`));
+  assert(nonceKeys>0&&nonceKeys<=128);assert.equal(welcomes,index.length);assert.equal(entries,tail-floor);
+  for(let sequence=1;sequence<=tail;sequence++) assert.equal(stored.has(`e:${String(sequence).padStart(12,'0')}`),sequence>floor);
   assert.deepEqual(stored.get('capacity'),{version:1,entries,bytes});
   const serialized=Buffer.from(JSON.stringify(rows));
   for(const needle of needles) assert(!serialized.includes(Buffer.from(needle)),'readable synthetic financial metadata');
