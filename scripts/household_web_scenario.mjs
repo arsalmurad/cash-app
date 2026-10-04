@@ -18,7 +18,9 @@ export async function runHouseholdWebScenario(alice, api) {
     scriptPath: join(repoRoot, authenticated ? 'relay/src/roster-worker.js' : 'relay/src/worker.js'),
     durableObjects: authenticated ? { GROUP: { className: 'RosterGroupLog', useSQLite: true } } :
       { GROUP: 'GroupLog', MAILBOX: 'Mailbox' },
-    bindings: { LOCAL_DEVELOPMENT: 'true', ...(authenticated ? { LOCAL_AUTH_MEMBERSHIP: 'true' } : {}) },
+    bindings: { LOCAL_DEVELOPMENT: 'true', ...(authenticated ? {
+      LOCAL_AUTH_MEMBERSHIP: 'true', LOCAL_AUTH_RETENTION: 'true',
+    } : {}) },
     compatibilityDate: '2026-07-01', host: '127.0.0.1', port: 0,
   };
   const relay = new Miniflare(relayOptions);
@@ -416,6 +418,64 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickLabel(bob, 'I have saved both', 'button');
     await expense(bob, 'Sent after browser backup', '5.00');
     await sync(alice);
+    if (authenticated) {
+      scenarioStage = 'explicit browser relay-copy consent';
+      await sync(bob);
+      await sync(alice);
+      const pruneWrites = () => alice.events.filter(event =>
+        event.method === 'Network.requestWillBeSent' && event.params.request.method === 'POST' &&
+        event.params.request.url.startsWith(relayUrl) && event.params.request.url.endsWith('/prune'));
+      const beforePrune = pruneWrites().length;
+      for (const peer of [alice, bob]) {
+        await clickLabel(peer, 'Household options', 'button');
+        await clickLabel(peer, 'Manage relay copies');
+      }
+      assert.equal(pruneWrites().length, beforePrune, 'Opening consent controls cannot delete');
+      await clickLabel(alice, 'Prepare request', 'button');
+      const retentionRequest = await textMatching(alice, '^cashretreq1:[A-Za-z0-9_-]+$');
+      await fill(bob, 'Request code', retentionRequest);
+      await clickLabel(bob, 'Review approval', 'button');
+      await clickLabel(bob, 'Keep relay copies', 'button');
+      assert.equal(pruneWrites().length, beforePrune, 'Canceled approval cannot delete');
+      await clickLabel(bob, 'Review approval', 'button');
+      await clickLabel(bob, 'Approve deletion', 'button');
+      const retentionApproval = await textMatching(bob, '^cashretok1:[A-Za-z0-9_-]+$');
+      await clickLabel(alice, 'Review deletion', 'button');
+      await clickLabel(alice, 'Delete relay copies', 'button');
+      await waitForLabel(alice, 'Could not finish. FormatException: Deletion was not confirmed and some copies may already be deleted. Keep this device available. Retry with these codes while valid, or prepare a new request and collect new approvals.');
+      assert.equal(pruneWrites().length, beforePrune, 'Missing approval must fail before any prune request');
+      await fill(alice, 'Approval codes', retentionApproval);
+      await clickLabel(alice, 'Review deletion', 'button');
+      await clickLabel(alice, 'Keep relay copies', 'button');
+      assert.equal(pruneWrites().length, beforePrune, 'Canceled deletion cannot contact pruning');
+      await clickLabel(alice, 'Review deletion', 'button');
+      await clickLabel(alice, 'Delete relay copies', 'button');
+      await waitForLabel(alice, 'Approved old relay copies deleted. Saved history stays on devices.');
+      const requests = pruneWrites().slice(beforePrune);
+      assert(requests.length > 0, 'Confirmed deletion must use the actual prune endpoint');
+      for (const request of requests) {
+        assert(Object.keys(request.params.request.headers).some(key => key.toLowerCase() === 'x-cash-device-proof'));
+        assert(alice.events.some(event => event.method === 'Network.responseReceived' &&
+          event.params.requestId === request.params.requestId && event.params.response.status === 200),
+          'Every actual deletion chunk must receive an authenticated successful response');
+      }
+      await clickLabel(bob, 'Close', 'button');
+      await waitForLabel(alice, 'USD -50.00');
+      await waitForLabel(bob, 'USD -50.00');
+      const retained = await evaluate(alice, `localStorage.getItem('private_ledger.sqlite.v1')`);
+      await alice.send('Page.reload');
+      await openApp(alice);
+      await waitForLabel(alice, 'Private Ledger');
+      assert.equal(await evaluate(alice, `localStorage.getItem('private_ledger.sqlite.v1')`), retained,
+        'Reload after pruning must retain the exact confirmed sealed SQLite image');
+      await openHousehold(alice);
+      await waitForLabel(alice, 'Unlock this browser');
+      await fill(alice, '24-word unlock phrase', alicePhrase);
+      await clickLabel(alice, 'Unlock household', 'button');
+      await waitForLabel(alice, 'USD -50.00');
+      await waitForLabel(alice, 'Expense total: USD 12.34');
+      console.log('Verified production browser consent: no deletion on open/cancel/missing approval, authenticated unanimous chunks, sealed restart and preserved history.');
+    }
     const replacement = await newPeer();
     await protect(replacement);
     await clickLabel(replacement, 'Restore from a backup', 'button');

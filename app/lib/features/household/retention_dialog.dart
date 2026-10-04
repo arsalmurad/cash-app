@@ -182,9 +182,13 @@ class _RetentionDialogState extends State<RetentionDialog> {
       SizedBox(
         height: 96,
         child: SingleChildScrollView(
-          child: SelectableText(
-            code,
-            style: const TextStyle(fontFamily: 'monospace'),
+          child: Semantics(
+            label: code,
+            excludeSemantics: true,
+            child: SelectableText(
+              code,
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
           ),
         ),
       ),

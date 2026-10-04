@@ -1749,3 +1749,11 @@ original Rust state and delivery cursors after a 410; also require sealed storag
 with no readable fixture marker. Reject raw AEAD ciphertext equality because the
 normal finally-save deliberately reseals the same archive with a fresh nonce.
 
+## 2026-10-04 — Expose complete consent codes through explicit semantics
+
+Keep the selectable, scrollable code display, with an explicit full-code
+semantic label matching the existing invitation/backup pattern. Reject reading
+hidden app state or weakening the browser test: the production request was
+visually present but absent from its accessible DOM. Maximum-length request and
+approval regression tests cover wrapping without truncating the accessible code.
+

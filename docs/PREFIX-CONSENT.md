@@ -314,3 +314,49 @@ driver Node syntax and diff checks pass.
 This is actual debug-emulator/controller/OS-vault HTTP evidence. It is not a
 release APK, UI pointer/assistive-technology journey, physical-device biometrics,
 arbitrary power loss, TLS over a physical network, current Chrome/WASM or iOS.
+
+## Production Chrome consent and recovery (2026-10-04)
+
+App source through `7b7e045` plus the complete-code semantics repair, ABI
+`1237803201`. Windows Chrome 154.0.8037.58, Node 24.19, 1280x900, isolated
+owned browser identities and the actual local Miniflare/workerd SQLite roster
+worker. Only the owning fixture enables `LOCAL_AUTH_RETENTION=true`; no public
+route, account registration, deployment or default permission changes.
+
+```text
+cd app
+flutter --no-version-check test --no-pub test/retention_dialog_test.dart test/household_screen_test.dart
+flutter --no-version-check build web --wasm --no-web-resources-cdn --no-pub
+cd ..
+WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1 node scripts/verify_web_runtime.mjs
+```
+
+The 28 focused widget tests pass (19 s); a further maximum-length request and
+approval semantics test passes (3 s). Targeted analysis and Node syntax checks
+are clean. The Dart-only production build passes (259.1 s), with
+`main.dart.wasm` 2,774,501 bytes. The matching Rust bridge is 6,394,850 bytes,
+SHA-256 `558BE010D2207A4CAB39F52168FFB3C29E8A7BB6ACF6FD57D3DAFCA4432FF1D3`.
+The pinned Rust bridge build had passed separately; this interface repair did
+not rebuild or change it.
+
+The actual production browser driver exits **0**. It verifies no prune request
+on opening, cancelled approval/deletion or missing approval; unanimous explicit
+consent uses signed real HTTP chunks, each receiving 200. The confirmed sealed
+SQLite image survives reload byte-identically, requires the RAM-only unlock
+phrase, and restores balances and the chosen summary. An earlier phrase backup
+rejoins with fresh keys after pruning; old-key removal, later expenses, EUR/JPY
+frozen rates (USD -74.67), private-ledger separation and readable-title HTTP
+checks all pass. Existing standalone key refresh and offline visible conflicts
+also pass in this same run.
+
+The initial production run failed because its visibly rendered request code
+was absent from the accessible DOM. Explicit complete-code semantics, following
+the existing invitation/backup display, fixes that without app hooks or weakened
+assertions. The accessibility-review skill guided this scoped name/value repair;
+it is not actual NVDA/VoiceOver, an overall WCAG pass, arbitrary power loss,
+browser quota/Web Locks fault coverage, Android release or final iOS evidence.
+Logs under `app/.dart_tool`: `consent-authenticated-web-runtime.log` (failure),
+`consent-code-semantics-tests.log`, `consent-max-code-semantics-test.log`,
+`consent-code-semantics-analysis.log`, `consent-code-semantics-web-build.log`,
+and `consent-code-semantics-web-runtime.log` (pass). Diagnostics remain ignored;
+the repeatable tests and evidence summary are tracked. Gate 2 remains open.
