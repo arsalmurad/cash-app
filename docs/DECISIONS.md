@@ -1,5 +1,15 @@
 # Decisions
 
+## 2026-10-04 — Keep prefix deletion internal until authority and recovery exist
+
+Use bounded SQLite transactions for contiguous prefix deletion, absolute floor
+and exact reclaimed counters; retain expected-floor conflicts after lost replies
+and capture the approved target before awaits. Reject exposing a pruning route
+from a computed receipt cutoff: all-current-key consent and recoverable peer
+availability must be checked on every chunk before enabling production deletion.
+The [storage transaction contract](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)
+and scoped local evidence are recorded in [RELAY-PREFIX-FLOOR.md](RELAY-PREFIX-FLOOR.md).
+
 ## 2026-10-04 — Refresh encryption paths through the durable commit protocol
 
 Use pinned OpenMLS 0.9.0 self-update without changing credentials, signing keys

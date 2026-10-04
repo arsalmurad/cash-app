@@ -27,6 +27,9 @@ const PAGE = 16;
 // Count ASCII base64 as actually stored; never silently evict offline history.
 const MAX_LOG_BYTES = 64 * 1024 * 1024;
 const MAX_LOG_ENTRIES = 10_000;
+// Existing keys have twelve decimal digits. Never cross the width boundary,
+// where lexicographic order would no longer match absolute sequence order.
+const MAX_SEQUENCE = 999_999_999_999;
 const MAILBOX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const json = (body, status = 200) =>
@@ -80,6 +83,29 @@ async function readJson(request) {
 }
 
 const key = (seq) => `e:${String(seq).padStart(12, "0")}`;
+const rangeEnd = seq => seq === MAX_SEQUENCE ? "e;" : key(seq + 1);
+
+async function logPosition(storage) {
+  const storedTail = await storage.get("tail");
+  const storedFloor = await storage.get("floor");
+  const tail = storedTail === undefined ? 0 : storedTail;
+  const floor = storedFloor === undefined ? 0 : storedFloor;
+  if (!Number.isSafeInteger(tail) || tail < 0 || tail > MAX_SEQUENCE ||
+      !Number.isSafeInteger(floor) || floor < 0 || floor > tail) return null;
+  return {tail, floor};
+}
+
+function validCapacity(capacity, {tail, floor}) {
+  return capacity && capacity.version === 1 &&
+    Number.isSafeInteger(capacity.bytes) && capacity.bytes >= 0 &&
+    capacity.bytes <= MAX_LOG_BYTES &&
+    Number.isSafeInteger(capacity.entries) && capacity.entries >= 0 &&
+    capacity.entries <= MAX_LOG_ENTRIES && capacity.entries === tail - floor;
+}
+
+class PrefixRefused extends Error {
+  constructor(status) {super("prefix transaction refused"); this.status = status;}
+}
 
 export class GroupLog {
   constructor(state) {
@@ -106,7 +132,7 @@ export class GroupLog {
     if (
       !body ||
       !Number.isSafeInteger(body.expected_tail) ||
-      body.expected_tail < 0
+      body.expected_tail < 0 || body.expected_tail > MAX_SEQUENCE
     ) {
       return fail(400, "expected_tail must be a non-negative integer");
     }
@@ -119,7 +145,9 @@ export class GroupLog {
         const denied = await authorize(txn);
         if (denied) return { denied };
       }
-      const tail = (await txn.get("tail")) ?? 0;
+      const position = await logPosition(txn);
+      if (!position) return {unavailable:true};
+      const {tail} = position;
       if (tail !== body.expected_tail) {
         return { conflict: tail };
       }
@@ -127,16 +155,12 @@ export class GroupLog {
       if (capacity === undefined && tail === 0) {
         capacity = { version: 1, bytes: 0, entries: 0 };
       }
-      if (!capacity || capacity.version !== 1 ||
-          !Number.isSafeInteger(capacity.bytes) || capacity.bytes < 0 ||
-          capacity.bytes > MAX_LOG_BYTES ||
-          !Number.isSafeInteger(capacity.entries) || capacity.entries < 0 ||
-          capacity.entries > MAX_LOG_ENTRIES || capacity.entries !== tail) {
+      if (!validCapacity(capacity, position)) {
         // Do not scan an old unbounded log into memory or guess its usage.
         // Reads remain available; an explicit bounded migration is required.
         return { unavailable: true };
       }
-      if (capacity.entries >= MAX_LOG_ENTRIES ||
+      if (tail === MAX_SEQUENCE || capacity.entries >= MAX_LOG_ENTRIES ||
           body.blob.length > MAX_LOG_BYTES - capacity.bytes) {
         return { full: true };
       }
@@ -173,7 +197,9 @@ export class GroupLog {
       return fail(400, "after must be a non-negative integer");
     }
     const read = async storage => {
-      const storedTail = (await storage.get("tail")) ?? 0;
+      const position = await logPosition(storage);
+      if (!position) return fail(503, "invalid log prefix accounting; history preserved");
+      const {tail:storedTail, floor} = position;
       // Trusted authorizer sets this limit in the SAME transaction, never the
       // caller/query. Bound the storage read, not merely its returned values.
       const cutoff = historicalLimit?.() ?? storedTail;
@@ -181,18 +207,33 @@ export class GroupLog {
         return fail(503, "invalid historical read limit");
       }
       const tail = cutoff;
+      if (after < floor) {
+        // Do not disclose a later floor/tail to a retired bounded reader.
+        // The client must recover through a current peer, never jump cursors.
+        return fail(410, "old history prefix unavailable; recover from a household peer");
+      }
       if (after >= tail) {
         return json({ entries: [], tail, more: false });
       }
       const stored = await storage.list({
         start: key(after + 1),
-        end: key(tail + 1),
+        end: rangeEnd(tail),
         limit: PAGE,
       });
+      if (stored.size !== Math.min(PAGE, tail - after)) {
+        return fail(503, "log history is incomplete; recovery required");
+      }
       const entries = [];
       for (const [entryKey, blob] of stored) {
-        entries.push({ seq: Number(entryKey.slice(2)), blob });
+        const seq = Number(entryKey.slice(2));
+        const size = base64Bytes(blob);
+        if (!/^e:[0-9]{12}$/.test(entryKey) || seq !== after + entries.length + 1 ||
+            seq > tail || size === null || size === 0 || size > MAX_BLOB_BYTES) {
+          return fail(503, "log history is incomplete or invalid; recovery required");
+        }
+        entries.push({ seq, blob });
       }
+      if (!entries.length) return fail(503, "log history is incomplete; recovery required");
       const last = entries.length ? entries[entries.length - 1].seq : after;
       return json({ entries, tail, more: last < tail });
     };
@@ -201,6 +242,66 @@ export class GroupLog {
       const denied = await authorize(txn);
       return denied ? fail(denied, "request admission refused") : read(txn);
     });
+  }
+
+  // Internal storage primitive ONLY. No production route calls this method.
+  // A future caller must verify all-current-device permission AND recoverable
+  // availability in authorize(txn, context), rechecking them on every chunk.
+  // Explicit false/absent guards cannot become an unprotected deletion path.
+  async prunePrefix(spec, authorize) {
+    if (!spec || typeof spec !== "object" || Array.isArray(spec) ||
+        JSON.stringify(Object.keys(spec).sort()) !== '["expectedFloor","through"]') {
+      return fail(400, "invalid bounded prefix request");
+    }
+    // Capture primitives before the first await: an internal caller/guard must
+    // not swap a signed target while authorization is in progress.
+    const {expectedFloor, through} = spec;
+    if (!Number.isSafeInteger(expectedFloor) || expectedFloor < 0 ||
+        !Number.isSafeInteger(through) || through <= 0 ||
+        through > MAX_SEQUENCE || expectedFloor > through) {
+      return fail(400, "invalid bounded prefix request");
+    }
+    if (typeof authorize !== "function") return fail(403, "prefix authorization required");
+    try {
+      const result = await this.state.storage.transaction(async txn => {
+        const position = await logPosition(txn);
+        if (!position) throw new PrefixRefused(503);
+        const {floor, tail} = position;
+        if (expectedFloor !== floor || through > tail || through < floor) {
+          return {conflict:true, floor, tail};
+        }
+        const capacity = await txn.get("capacity");
+        if (!validCapacity(capacity, position)) throw new PrefixRefused(503);
+        if (await authorize(txn, Object.freeze({...position, through})) !== true) {
+          // Throw, rather than return, so a denied guard's own writes roll back.
+          throw new PrefixRefused(403);
+        }
+        if (floor === through) return {floor, tail, more:false};
+        const nextFloor = Math.min(floor + PAGE, through);
+        const stored = await txn.list({start:key(floor + 1), end:rangeEnd(nextFloor), limit:PAGE});
+        if (stored.size !== nextFloor - floor) throw new PrefixRefused(503);
+        let bytes = 0, sequence = floor;
+        for (const [entryKey, blob] of stored) {
+          const size = base64Bytes(blob);
+          if (entryKey !== key(++sequence) ||
+              size === null || size === 0 || size > MAX_BLOB_BYTES) throw new PrefixRefused(503);
+          bytes += blob.length;
+        }
+        if (bytes > capacity.bytes || (nextFloor === tail && bytes !== capacity.bytes)) {
+          throw new PrefixRefused(503);
+        }
+        const removed = await txn.delete([...stored.keys()]);
+        if (removed !== stored.size) throw new PrefixRefused(503);
+        await txn.put("floor", nextFloor);
+        await txn.put("capacity", {version:1, bytes:capacity.bytes - bytes,
+          entries:tail - nextFloor});
+        return {floor:nextFloor, tail, more:nextFloor < through};
+      });
+      return json(result, result.conflict ? 409 : 200);
+    } catch (error) {
+      return fail(error instanceof PrefixRefused ? error.status : 503,
+        "prefix transaction refused; history preserved");
+    }
   }
 
   connect(request) {

@@ -58,7 +58,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    offline-peer acknowledgements and recoverable availability. Every current MLS
    key must acknowledge the exact checkpoint; a computed cutoff/TTL is never
    permission to delete financial history. Retained checkpoints/receipts and
-   per-log growth refusal alone do not close this gate.
+   per-log growth refusal alone do not close this gate. Internal bounded SQLite
+   prefix mechanics now have fault/restart and app-compatibility evidence in
+   [RELAY-PREFIX-FLOOR.md](RELAY-PREFIX-FLOOR.md); no production prune route or
+   all-device deletion authority is enabled.
 3. [x] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.
    Standalone self-update now has native core/bridge/controller, actual

@@ -74,6 +74,8 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
     assert.equal((await mf.dispatchFetch('https://relay.example'+prefix,await signed(prefix))).status,503);
     assert.equal((await call('/m/'+scope.id,await signed('/m/'+scope.id))).status,403);
     assert.equal((await call(prefix+'/ws',await signed(prefix+'/ws'))).status,403);
+    assert.equal((await call(prefix+'/prune',await signed(prefix+'/prune','POST',
+      {expectedFloor:0,through:1}))).status,403,'Internal prefix mechanics are not deletion permission');
     assert.equal((await call(prefix+'/policy',await signed(prefix+'/policy'))).status,200);
     const first = Object.fromEntries(await inspect());
     assert.deepEqual(first.authorization_root,root);
