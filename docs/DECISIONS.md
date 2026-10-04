@@ -1847,3 +1847,12 @@ junctions. Recover the first read-only-directory move before retrying, and
 record the remaining headroom. Reject a broad clean, deleting working caches
 or touching financial records (ANDROID-RELEASE.md).
 
+## 2026-10-05 — Separate current native picker evidence from ARM packaging
+
+Rebuild only the existing cached release splits for the category UI changes,
+verify exact packaged binaries, and exercise the x86_64 production app on the
+owned data-preserving emulator. Require real named native controls/selected
+states and ordinary pointer cancellation/restart with exact balances. Reject
+calling ARM packaging a phone runtime, or native accessibility-tree evidence
+a TalkBack/full accessibility pass (ANDROID-RELEASE.md).
+
