@@ -317,3 +317,9 @@ Strict `cargo clippy --manifest-path rust/Cargo.toml --locked --offline
 (4.44s). No production behavior, bridge ABI, platform artifact or deployed
 relay is changed. Authenticated crash-safe pruning, real peer availability,
 protected-save final platforms and mailbox/roster enrolment remain open.
+
+An actual authenticated native-controller recovery test now exercises deleted
+SQLite records and fresh-key peer recovery, rather than only this simulated
+floor. Scoped commands, failures and limits are recorded in
+[RELAY-PREFIX-FLOOR.md](RELAY-PREFIX-FLOOR.md). The test-only deletion guard is
+not all-device consent; production pruning remains disabled.

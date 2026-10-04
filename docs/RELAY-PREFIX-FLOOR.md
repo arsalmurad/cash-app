@@ -73,3 +73,43 @@ protected-save client coordination and stale-device fresh-key recovery against
 this real floor. A TTL, cursor high-water mark, matching balances, local computed
 cutoff or callback merely returning true is not permission to delete history.
 Gate 2 in `COMPLETION.md` remains open; public deployment remains disabled.
+
+## Actual deleted-prefix peer recovery (2026-10-04)
+
+The existing native app controller now has an end-to-end regression against
+actual prefix deletion in the production roster worker's SQLite log. The test
+driver exposes its deletion command only to its owning process over stdin and
+the internal Durable Object stub; external `/g/{id}/prune` remains refused.
+Its authorizer deliberately returns true: this fixture verifies storage and
+recovery, **not all-device deletion consent**.
+
+Normal authenticated HTTP clients found/enrol two distinct signing identities,
+save an early phrase-sealed backup, synchronize later expenses, then lose the
+real old log prefix. The older saved device gets HTTP 410, preserves its exact
+Rust archive/cursor, and adds no relay records. Recovery creates fresh keys,
+retires the old identity, receives a current peer's Welcome and authenticated
+history, replaces both controllers before resumed catch-up, and recovers the
+same transaction projections and USD -9.75 balance. A subsequent fresh-sender
+expense delivers normally (USD -10.75); the stale identity remains unable to
+resume. Absolute floor/tail and exact remaining record counters are inspected
+through the owned stub, never through a production inspection route.
+
+From `app`, with the cached ABI `-1323392253` native DLL:
+
+```text
+flutter --no-version-check test --no-pub --concurrency=1 test/household_prefix_recovery_http_host_test.dart
+```
+
+1 passed, 0 failed (7 s runtime), log
+`app/.dart_tool/prefix-recovery-native-http-final.log`; targeted Dart analysis
+has no issues, and the fixture passes Node syntax checking. The first run
+completed the journey assertions but failed in double-disposal of the restarted
+controllers during test teardown; cleanup now tracks only live controllers.
+Its failure is preserved in `prefix-recovery-native-http.log`.
+
+Stores here are memory-backed confirmed writes, not actual protected OS storage
+or arbitrary power-loss evidence. Two initial peers and a replacement with
+three expenses are checked, not a new 1,000-event, multi-currency or final-device
+acceptance run. No app/Rust production source, bridge ABI, platform artifact,
+public route or deployed relay changed. Gate 2 still requires real consent and
+recoverable availability, including protected-save/final-platform coordination.
