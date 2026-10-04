@@ -219,3 +219,42 @@ then passes the recovery test independently in 10 seconds
 (`prefix-consent-controller-disposal-queued.log`). Targeted Dart analysis is
 clean. This is native memory-backed archive fault evidence, not browser Web Locks
 or actual OS-key-store lifecycle proof.
+
+### Actual storage after signed pruning and recovery
+
+The owning native fixture now audits the actual SQLite-backed KV after real
+signed pruning, lost-response/restart handling and fresh-key recovery. A separate
+pruned audit entry point requires the independently expected positive floor,
+exact remaining sequence range, `entries = tail - floor`, and exact ciphertext
+base64 byte capacity. It retains the original strict current-policy/public-key,
+two-Welcome, one-retirement and one-invitation-authority coverage requirements.
+The older unpruned entry point still refuses a floor; it is not weakened to
+accept either state implicitly.
+
+Known synthetic titles, private member/account names, transaction IDs, balance
+labels and signed i64 amounts in both endian representations are absent from
+remaining ciphertext, Welcomes and serialized metadata. Negative controls on
+copies reject plaintext/binary amounts, readable Welcome data, extra fields in
+each public inventory, missing inventories/log records, persisted consent data
+and a corrupted floor. This is an exact-schema known-fixture KV audit, not
+raw SQLite-file forensics, metadata anonymity or formal cryptographic proof.
+Only the owning stdin command can inspect/audit; no production audit route exists.
+
+- Pruned/recovery actual native test: **1 passed, 7 seconds**,
+  `app/.dart_tool/prefix-consent-storage-audit-retry.log` (same recovery command).
+- Original actual unpruned roster/privacy audit, all original poison controls:
+  **1 passed, 15 seconds**,
+  `app/.dart_tool/prefix-consent-unpruned-audit-regression.log`, using
+  `flutter --no-version-check test --no-pub --concurrency=1
+  test/household_scoped_join_http_host_test.dart --plain-name storage-audit`.
+- Targeted Dart analysis, both Node fixture/auditor syntax checks and diff
+  whitespace checks pass. The first new audit invocation failed on a test-only
+  cast syntax error before executing; fixed before the passing runtime rerun.
+
+The first post-format final invocation was **not executed**: automatic approval
+review returned an account usage-limit error, not an unsafe-action decision. No
+test process started, and review was not bypassed. Once normal approval review
+worked again, the identical command passed **1 test, 28 seconds**, terminal exit
+0 (`app/.dart_tool/prefix-consent-storage-audit-final.log`). The final tracked
+test source, actual signed pruning/recovery and all storage controls are verified
+on this native host; this still does not claim final phone/browser coverage.

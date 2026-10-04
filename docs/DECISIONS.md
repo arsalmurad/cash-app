@@ -1735,3 +1735,10 @@ entry and completion, and avoid notifying disposed UI listeners after an awaited
 archive read. Do not free Rust handles beneath active native borrows or let
 queued approval work execute after disposal; restarting uses the retained archive.
 
+## 2026-10-04 — Separate pruned and unpruned exact-schema storage evidence
+
+Require an independently expected positive floor only through a distinct pruned
+audit entry point, preserving all current-roster, Welcome, retirement and
+invitation-authority checks. Keep the older unpruned audit rejecting any floor;
+negative controls alter copies of real KV rows, never live data or permissions.
+

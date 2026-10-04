@@ -11,6 +11,7 @@ import 'package:private_ledger/data/rust/frb_generated.dart';
 import 'package:private_ledger/data/storage/blob_store.dart';
 import 'package:private_ledger/features/household/household_controller.dart';
 import 'package:private_ledger/features/household/household_journal.dart';
+import 'package:private_ledger/features/household/invite_codes.dart';
 
 class _Store implements BlobStore {
   Uint8List? value;
@@ -138,9 +139,14 @@ void main() {
           (code) => throw StateError('Fixture exited before ready: $code'),
         ),
       ]).timeout(const Duration(seconds: 15));
-      Future<Map<String, dynamic>> command(String kind) async {
+      Future<Map<String, dynamic>> command(
+        String kind, [
+        Map<String, Object?>? manifest,
+      ]) async {
         response = Completer<Map<String, dynamic>>();
-        process.stdin.writeln(jsonEncode({'kind': kind}));
+        process.stdin.writeln(
+          jsonEncode({'kind': kind, 'manifest': ?manifest}),
+        );
         await process.stdin.flush();
         return response!.future.timeout(const Duration(seconds: 10));
       }
@@ -155,7 +161,9 @@ void main() {
       final bob = device(bobState, bobConfig);
       await bob.initialize();
       final request = (await bob.prepareJoinRequest())!;
-      expect(await bob.acceptInvite((await alice.invite(request))!), isTrue);
+      final firstInvite = (await alice.invite(request))!;
+      final firstMailbox = decodeInvite(firstInvite).mailbox;
+      expect(await bob.acceptInvite(firstInvite), isTrue);
       expect(
         await alice.addExpense(
           title: 'Early recoverable expense',
@@ -302,8 +310,10 @@ void main() {
       );
       expect(replacement.needsRecoveryInvite, isTrue);
       final replacementRequest = (await replacement.prepareJoinRequest())!;
+      final removalSlot = ((await command('inspect'))['tail'] as int) + 1;
       expect(await alice.removeMember(bob.overview!.memberId), isTrue);
       final code = (await alice.invite(replacementRequest))!;
+      final replacementMailbox = decodeInvite(code).mailbox;
       expect(await replacement.acceptInvite(code), isTrue);
       expect(replacement.needsRecoveryInvite, isFalse);
       // Replace actual controllers before pending history catch-up resumes.
@@ -336,6 +346,48 @@ void main() {
       expect(await stale.syncNow(), isFalse);
       expect(stale.overview!.cursor, cursor);
       expect((await command('inspect'))['floor'], through);
+      final replacementKey = keys.singleWhere(
+        (key) => !jsonDecode(
+          root,
+        )['devices'].any((dynamic device) => device['key'] == key),
+      );
+      final audit = await command('audit', {
+        'floor': through,
+        'currentPolicy': {
+          'version': 2,
+          'epoch': 3,
+          'scope': {'origin': origin, 'kind': 'g', 'id': group},
+          'devices': [
+            for (final key in keys)
+              {
+                'key': key,
+                'operations': ['append', 'membership', 'read'],
+              },
+          ],
+        },
+        'publicKeys': {...keys, oldKey}.toList(),
+        'retired': [
+          {'key': oldKey, 'through': removalSlot},
+        ],
+        'mailboxes': [
+          {'id': firstMailbox, 'recipient': oldKey},
+          {'id': replacementMailbox, 'recipient': replacementKey},
+        ],
+        'needles': {
+          'Early recoverable expense',
+          'Later retained expense',
+          'Fresh sender after recovery',
+          ...alice.overview!.memberIds,
+          bob.overview!.memberId,
+          alice.overview!.balanceLabel,
+          for (final account in alice.overview!.accounts) account.name,
+          for (final transaction in alice.overview!.transactions)
+            transaction.id,
+        }.toList(),
+      });
+      expect(audit['negativeControls'], isTrue);
+      expect(audit['welcomes'], 2);
+      expect(audit['retired'], 1);
     },
     timeout: const Timeout(Duration(seconds: 90)),
     skip: library == null
