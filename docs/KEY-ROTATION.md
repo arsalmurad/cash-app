@@ -1,7 +1,7 @@
 # Standalone household encryption-key refresh
 
-Updated 2026-10-04. Native-host and production Chrome acceptance pass below;
-final-source Android and iOS remain unverified.
+Updated 2026-10-04. Native-host, production Chrome and actual Android
+authenticated acceptance pass below; final-source iOS remains unverified.
 
 ## Operation and safety
 
@@ -102,7 +102,7 @@ Run heavy Flutter/worker/platform checks serially. Logs and caches are ignored;
 repeatable source/tests and this evidence summary are tracked. No cloud jobs,
 public deployment, purchases or visibility changes were performed.
 The Android integration and browser scenario include refresh assertions;
-their syntax/static checks pass. Android runtime is still pending.
+their syntax/static checks pass. Android runtime passes below.
 
 ## Production web build at app source `2b43172`
 
@@ -157,3 +157,31 @@ fresh-key replacement and old-device removal; explicit EUR/JPY accounts with
 frozen historical rates through `USD -74.67`. Captured bodies contain no readable
 fixture titles and no legacy mailbox downgrade. This verifies actual browser
 runtime, not final Android/iOS, physical-network TLS, or public deployment.
+
+## Actual Android authenticated runtime
+
+Production app source `2b43172` / evidence head `8df163d`, ABI `-1323392253`:
+owned read-only `Phase0Api36`, serial `emulator-5580`, Android 16/API 36 x86_64,
+WHPX. Existing stable Rust 1.98.1, pinned Flutter/JDK/NDK/Gradle and preserved D:
+caches; no toolchain upgrade. The known SDK XML compatibility warning persists.
+
+```powershell
+# Recorded Android/JDK/Gradle/temp environment from PHASE2-PROGRESS.md:
+node scripts/verify_android_authenticated.mjs
+```
+
+Build **556.4s**, install **20.6s**, all emulator assertions pass at **42s**;
+owning driver exits **0**. Logs: `app/.dart_tool/android-authenticated-http.log`
+and `app/.dart_tool/rotation-android-authenticated-driver.log`.
+Three independent test identities use actual Android wrapping keys and sealed
+SQLite state. Normal authenticated clients bootstrap from public-only founding
+setup into a real SQLite worker; unsigned history is refused, Welcomes are
+recipient-only/consumed, key refresh preserves signing roster/member IDs and
+balances while Bob catches up, and freshly created controllers restore the
+protected journal. Later Cara joins, Bob processes removal and cannot write,
+Alice/Cara converge at USD -5.00 while Bob retains USD -2.50. Raw stored household
+records are sealed and the physical SQLite contains no readable financial marker.
+
+The driver removes its exact reverse tunnel, disposes the worker and cleans its
+test namespace/keys. This is actual debug-emulator HTTP/OS-vault runtime, not an
+Android release APK, physical-network TLS, physical-device biometrics or iOS.

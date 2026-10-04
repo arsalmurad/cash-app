@@ -8,6 +8,9 @@ Core convergence, native controller recovery, actual authenticated HTTP/SQLite
 privacy and complete production Chrome acceptance pass; scope, failures and commands are
 in [KEY-ROTATION.md](KEY-ROTATION.md). New bridge ABI `-1323392253` supersedes
 the bindings below; old platform evidence is not current-source verification.
+Actual authenticated Android on that ABI also passes (556.4s build, 20.6s
+installation, all assertions at 42s) with protected-store restart and later
+removal. Final iOS and Android release-artifact gates remain open.
 
 ## Actual authenticated Android HTTP (2026-10-04)
 
