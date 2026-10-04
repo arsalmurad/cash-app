@@ -1742,3 +1742,10 @@ audit entry point, preserving all current-roster, Welcome, retirement and
 invitation-authority checks. Keep the older unpruned audit rejecting any floor;
 negative controls alter copies of real KV rows, never live data or permissions.
 
+## 2026-10-04 — Compare protected journals, not randomized envelope bytes
+
+In actual Android stale-archive tests, require byte-identical decrypted journals,
+original Rust state and delivery cursors after a 410; also require sealed storage
+with no readable fixture marker. Reject raw AEAD ciphertext equality because the
+normal finally-save deliberately reseals the same archive with a fresh nonce.
+

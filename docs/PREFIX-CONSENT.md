@@ -258,3 +258,59 @@ worked again, the identical command passed **1 test, 28 seconds**, terminal exit
 0 (`app/.dart_tool/prefix-consent-storage-audit-final.log`). The final tracked
 test source, actual signed pruning/recovery and all storage controls are verified
 on this native host; this still does not claim final phone/browser coverage.
+
+## Actual protected Android consent and recovery
+
+Production app/bridge source through `1239746`, evidence head `8716ac0`, ABI
+`1237803201`, with the extended tracked Android integration test and owning
+driver. Windows, pinned Flutter 3.47.5/Rust stable 1.98.1/JDK 17.0.20.1/NDK
+28.2.13676358; existing `Phase0Api36`, `emulator-5580`, Android 16/API 36 x86_64.
+The same recorded D: Android/JDK/Gradle/temp environment is used; no cloud jobs,
+public deployment or toolchain upgrades. The owned worker alone explicitly sets
+`LOCAL_AUTH_RETENTION=true`; normal/default/public launch is unchanged.
+
+```text
+node scripts/verify_android_authenticated.mjs
+```
+
+Final driver exits **0**: build **84.1 seconds**, install **1.990 seconds**,
+all emulator assertions pass at **33 seconds**. Logs
+`app/.dart_tool/consent-android-authenticated-driver-complete.log` and
+`app/.dart_tool/android-authenticated-http.log`.
+
+Four independently OS-wrapped test identities use the normal HTTP factory,
+real Android secure storage and sealed SQLite journals. Alice/Bob confirm their
+current saved histories after standalone key refresh, prepare/countersign a
+request, refuse missing approval, and prune through actual unanimous authority.
+An authenticated zero-cursor read gets **410**, proving actual prefix deletion.
+A controlled restoration of an older sealed Bob archive in its owned test
+namespace gets 410, preserves the exact decrypted journal/Rust state/cursor,
+and does not bypass the gap. The current protected archive still restarts.
+
+After Cara joins and old Bob is removed, an early phrase backup creates a fresh
+fourth identity, receives current authenticated history, replaces both recovering
+and holder controllers, and restores USD -5.00 with identical transaction views.
+A fresh-sender expense reaches Alice/Cara at USD -6.00; the retired sender cannot
+write. Stored household envelopes and actual physical SQLite contain no readable
+fixture title. Only this test's namespace/wrapping keys and exact reverse tunnel
+are cleaned up; unrelated app records remain intact.
+
+Initial builds failed before testing because relocated generated intermediate
+directories were ReadOnly: first `cleanMergeDebugAssets`, then
+`mergeDebugNativeLibs/out/lib/arm64-v8a`. After verifying the exact D: backing
+root/no reparse targets, only directory ReadOnly flags (411 in intermediates)
+were cleared; no files, source, junctions or caches were deleted. The native
+libraries were reused. The first actual test reached real pruning/410, then
+wrongly required identical AEAD envelopes: `_sync` reseals the unchanged journal
+with a fresh nonce in its `finally` save. The corrected, passing assertion still
+requires **byte-identical full decrypted journal** and original Rust state/cursor;
+it also checks the envelope remains sealed and hides the marker. Failure logs:
+`consent-android-native-merge-failure.log`,
+`consent-android-protected-snapshot-failure.log` and the initial/retry driver logs.
+Cargokit's reported one dependency change was only `c:` to `C:` spelling of the
+same local build-tool path, not a package version upgrade. Targeted Dart analysis,
+driver Node syntax and diff checks pass.
+
+This is actual debug-emulator/controller/OS-vault HTTP evidence. It is not a
+release APK, UI pointer/assistive-technology journey, physical-device biometrics,
+arbitrary power loss, TLS over a physical network, current Chrome/WASM or iOS.

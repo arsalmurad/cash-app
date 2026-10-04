@@ -65,8 +65,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    ([PREFIX-CONSENT.md](PREFIX-CONSENT.md)); default routes remain disabled,
    and signed app-controller coordination now passes actual native HTTP deletion,
    failed/stale archive reads and fresh-key recovery. Explicit app controls pass
-   scoped confirmation/phone/keyboard widget tests. Actual protected-store
-   lifecycle/availability faults and final-platform coordination remain open.
+   scoped confirmation/phone/keyboard widget tests. Actual Android OS-protected
+   consent/pruning, stale sealed-archive refusal and fresh-key/restart recovery
+   now pass. Browser/remaining lifecycle faults and final-platform coordination
+   remain open.
 3. [x] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.
    Standalone self-update now has native core/bridge/controller, actual
@@ -88,8 +90,9 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    journeys. New key-refresh ABI `-1323392253` passes native-host and production
    Chrome and authenticated Android acceptance; final iOS and Android release
    APK remain open. New consent ABI `1237803201` passes regenerated native API
-   tests and actual native controller pruning/recovery; current-source
-   Chrome/Android/iOS builds and runtime remain unverified. Older runs are not a
+   tests, actual native controller pruning/recovery and authenticated Android
+   debug-emulator OS-vault pruning/recovery. Current-source production Chrome,
+   Android release artifacts and iOS remain unverified. Older runs are not a
    final-source completion claim.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to private GitHub `main`. Local diagnostic

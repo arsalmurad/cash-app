@@ -12,6 +12,7 @@ import 'package:private_ledger/data/storage/secret_blob_store.dart';
 import 'package:private_ledger/data/storage/vault_keys_native.dart';
 import 'package:private_ledger/features/household/household_controller.dart';
 import 'package:private_ledger/features/household/invite_codes.dart';
+import 'package:private_ledger/features/household/household_journal.dart';
 import 'package:private_ledger/features/household/relay_client.dart';
 
 /// Run through scripts/verify_android_authenticated.mjs. Only public bootstrap
@@ -116,6 +117,10 @@ void main() {
       expect(await alice.addExpense(title: marker, amount: '2.50'), isTrue);
       expect(await bob.syncNow(), isTrue);
       expect(bob.overview!.balanceLabel, 'USD -2.50');
+      final earlyBobCiphertext = (await BlobStore('$namespace-bob-state')
+          .read())!;
+      final backup = (await bob.createBackup())!;
+      final earlyBobCursor = bob.overview!.cursor.toInt();
 
       final keysBeforeRefresh = await alice.relayRosterKeys();
       final membersBeforeRefresh = List<String>.of(alice.overview!.memberIds);
@@ -125,6 +130,76 @@ void main() {
       expect(await bob.relayRosterKeys(), keysBeforeRefresh);
       expect(alice.overview!.memberIds, membersBeforeRefresh);
       expect(bob.overview!.balanceLabel, 'USD -2.50');
+
+      expect(await alice.syncNow(), isTrue);
+      expect(alice.canManageRelayRetention, isTrue);
+      final retentionRequest = (await alice.prepareRetentionRequest())!;
+      final approval = (await bob.approveRetentionRequest(retentionRequest))!;
+      expect(await alice.reclaimRelayHistory(retentionRequest, []), isFalse);
+      expect(
+        await alice.reclaimRelayHistory(retentionRequest, [approval]),
+        isTrue,
+      );
+      final authenticatedClient = http.Client();
+      try {
+        final relay = HttpRelayClient(
+          origin,
+          authenticatedClient,
+          alice.relayRequestSigner,
+          true,
+        );
+        await expectLater(
+          relay.readAfter(groupId!, 0),
+          throwsA(
+            isA<RelayUnavailable>().having(
+              (error) => error.message,
+              'actual deleted-prefix status',
+              contains('410'),
+            ),
+          ),
+        );
+      } finally {
+        authenticatedClient.close();
+      }
+
+      // Controlled rollback of only this owned test namespace's sealed archive.
+      // Keep its actual Android wrapping key; never export or log private bytes.
+      // A closed controller owns no operation while SQLite is replaced.
+      final currentBobCiphertext = (await BlobStore('$namespace-bob-state')
+          .read())!;
+      close(bob);
+      await BlobStore('$namespace-bob-state').write(earlyBobCiphertext);
+      bob = restore('bob');
+      await bob.initialize();
+      expect(bob.overview!.cursor.toInt(), earlyBobCursor);
+      final stalePlaintext = (await SecretBlobStore(
+        BlobStore('$namespace-bob-state'),
+        keys: NativeVaultKeys(key: 'cash-app.test.$namespace.bob'),
+      ).read())!;
+      final staleJournal = HouseholdJournal.decode(stalePlaintext);
+      expect(await bob.syncNow(), isFalse);
+      expect(bob.errorMessage, contains('410'));
+      expect(bob.overview!.cursor.toInt(), earlyBobCursor);
+      // Sync confirms/reseals the same save before transport. AEAD uses a fresh
+      // nonce, so require exact plaintext/journal preservation, not identical
+      // envelope bytes; do not relax the original Rust-state/cursor invariant.
+      final resealedStale = (await BlobStore('$namespace-bob-state').read())!;
+      expect(
+        latin1.decode(resealedStale),
+        startsWith('cash-app sealed vault v1\u0000'),
+      );
+      expect(latin1.decode(resealedStale), isNot(contains(marker)));
+      final afterFailure = (await SecretBlobStore(
+        BlobStore('$namespace-bob-state'),
+        keys: NativeVaultKeys(key: 'cash-app.test.$namespace.bob'),
+      ).read())!;
+      expect(afterFailure, stalePlaintext);
+      expect(HouseholdJournal.decode(afterFailure).state, staleJournal.state);
+      close(bob);
+      await BlobStore('$namespace-bob-state').write(currentBobCiphertext);
+      bob = restore('bob');
+      await bob.initialize();
+      expect(await bob.syncNow(), isTrue);
 
       final cara = restore('cara');
       await cara.initialize();
@@ -155,6 +230,39 @@ void main() {
       expect(alice.overview!.balanceLabel, cara.overview!.balanceLabel);
       expect(await bob.addExpense(title: marker, amount: '2.50'), isFalse);
       expect(bob.overview!.balanceLabel, 'USD -2.50');
+
+      // The early phrase backup cannot restore an old sender ratchet. A fourth
+      // independently OS-protected identity rejoins and imports current history.
+      var recovered = restore('recovered');
+      await recovered.initialize();
+      expect(
+        await recovered.restoreBackup(backup.phrase, backup.backup),
+        isTrue,
+      );
+      expect(recovered.needsRecoveryInvite, isTrue);
+      final recoveredInvite = (await alice.invite(
+        (await recovered.prepareJoinRequest())!,
+      ))!;
+      expect(await recovered.acceptInvite(recoveredInvite), isTrue);
+      await consumed(recovered, recoveredInvite);
+      close(recovered);
+      close(alice);
+      recovered = restore('recovered');
+      alice = restore('alice');
+      await recovered.initialize();
+      await alice.initialize();
+      expect(await alice.syncNow(), isTrue);
+      expect(await recovered.syncNow(), isTrue);
+      expect(await alice.syncNow(), isTrue);
+      expect(recovered.needsRecoveryInvite, isFalse);
+      expect(recovered.overview!.balanceLabel, 'USD -5.00');
+      expect(recovered.overview!.transactions, alice.overview!.transactions);
+      expect((await recovered.relayRosterKeys()).length, 3);
+      expect(await recovered.addExpense(title: marker, amount: '1.00'), isTrue);
+      expect(await cara.syncNow(), isTrue);
+      expect(await alice.syncNow(), isTrue);
+      expect(alice.overview!.balanceLabel, 'USD -6.00');
+      expect(cara.overview!.balanceLabel, 'USD -6.00');
 
       // Actual app-private physical SQLite, not controlled save mocks.
       final directory = await getApplicationSupportDirectory();

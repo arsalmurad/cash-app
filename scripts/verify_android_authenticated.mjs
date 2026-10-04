@@ -63,13 +63,13 @@ try {
     modules:true,modulesRules:[{type:'ESModule',include:['**/*.js']}],
     scriptPath:join(root,'relay/src/roster-worker.js'),
     durableObjects:{GROUP:{className:'RosterGroupLog',useSQLite:true}},
-    bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(policy)},
+    bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_RETENTION:'true',LOCAL_AUTH_POLICY:JSON.stringify(policy)},
     compatibilityDate:'2026-07-01',host:'127.0.0.1',port,
   });
   await Promise.race([worker.ready,deadline]);
   assert.equal((await fetch(`${origin}/g/${policy.scope.id}`)).status,401,'No anonymous household history');
   assert.equal(await Promise.race([complete,deadline]),0,'Android Flutter assertions must all pass; see owned log');
-  console.log('PASS: Android native authenticated HTTP, three protected peers, restart, consumed invitations, encrypted expenses and retired-member catch-up.');
+  console.log('PASS: Android native authenticated HTTP, protected consent/pruning, stale sealed archive refusal, fresh-key recovery, restart and retired-member catch-up.');
 } finally {
   clearTimeout(timer);
   if(child&&!closed) {
