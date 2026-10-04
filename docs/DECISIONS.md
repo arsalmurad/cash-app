@@ -1,5 +1,14 @@
 # Decisions
 
+## 2026-10-04 — Verify fresh-key recovery against actually deleted relay records
+
+Use normal native controllers and authenticated HTTP against the production
+roster worker, with deletion controlled only over an owning test process's stdin
+and internal stub. Reject replacing this with another mocked 410: preserve the
+old archive/cursor, restart peers, verify fresh-key history recovery and subsequent
+delivery, and keep fixture permission separate from production deletion consent
+([RELAY-PREFIX-FLOOR.md](RELAY-PREFIX-FLOOR.md)).
+
 ## 2026-10-04 — Keep prefix deletion internal until authority and recovery exist
 
 Use bounded SQLite transactions for contiguous prefix deletion, absolute floor
