@@ -1,7 +1,7 @@
 # Standalone household encryption-key refresh
 
-Updated 2026-10-04. Native-host implementation and scoped acceptance below;
-final-source Android, iOS and production web/WASM remain unverified.
+Updated 2026-10-04. Native-host and production Chrome acceptance pass below;
+final-source Android and iOS remain unverified.
 
 ## Operation and safety
 
@@ -46,7 +46,8 @@ post-compromise-security proof. Every participating device needs the updated app
 Pinned stable Rust 1.98.1, Flutter 3.47.5/Dart 3.13.4, FRB 2.13.0.
 Generated bridge ABI is now `-1323392253`; the matching native debug DLL was
 rebuilt successfully (36.86s). Previous ABI `970902974` mobile/browser runtime
-evidence does not verify this source or these new bindings.
+evidence does not verify this source or these new bindings. New Chrome evidence
+is recorded separately below.
 
 - Full crypto/sync all-feature suite: **114 passed, 2 explicitly ignored live
   HTTP tests**, including the three-peer/1,000-event acceptance and ten rotation
@@ -100,5 +101,59 @@ flutter test --no-pub --concurrency=1 test/household_screen_test.dart
 Run heavy Flutter/worker/platform checks serially. Logs and caches are ignored;
 repeatable source/tests and this evidence summary are tracked. No cloud jobs,
 public deployment, purchases or visibility changes were performed.
-The Android integration and browser scenario now include refresh assertions;
-their syntax/static checks pass, but their updated platform runs are pending.
+The Android integration and browser scenario include refresh assertions;
+their syntax/static checks pass. Android runtime is still pending.
+
+## Production web build at app source `2b43172`
+
+Pinned nightly/FRB release bridge builds successfully in 2m55s; WASM is
+6,338,846 bytes, SHA-256
+`b80924918204b06056c9e6a47495804aa5e6fa01ef967a27c839183a238c77a3`.
+The known unstable-atomics warning remains; compiler versions were not changed.
+Log: `app/.dart_tool/rotation-wasm-build.log`.
+
+Flutter production build passes in 430.1s with `--no-version-check build web
+--wasm --no-web-resources-cdn --no-pub`; `main.dart.wasm` is 2,747,994 bytes.
+The deployed bridge copy matches the source bridge hash above. First attempt
+failed at 23.8s because the generated cache entry point was missing; a retry
+regenerated it with no app/toolchain changes or cache deletion. Logs:
+`rotation-flutter-web-build.log`, `rotation-flutter-web-build-retry.log`.
+
+Relocated dependency stamps switched from the C: alias to the D: backing path.
+Pinned Flutter's [previous-output cleanup](https://github.com/flutter/flutter/blob/6a19cca564/packages/flutter_tools/lib/src/build_system/build_system.dart)
+compares path strings before deleting obsolete outputs, consistent with deletion
+through the old alias after writing the same physical file via the new path.
+This is an evidence-backed diagnosis, not a patched SDK or general junction
+compatibility claim; both old/new caches and useful artifacts were preserved.
+
+The first Chrome journey reached key-refresh success but its new assertion
+counted Bob's requests instead of initiating Alice's. The harness now checks
+Alice's exact membership endpoint, one authenticated commit, and a matching
+HTTP 200 response. Original failure remains in
+`rotation-authenticated-web-runtime.log`. The next run passed refresh, reload
+and offline conflicts, then its old-device manual Sync lookup raced successful
+background removal. The explicit removal step now accepts an already-rendered
+removed state (including if it appears during the lookup); the unchanged final
+removed-state assertion still follows. Failure:
+`rotation-authenticated-web-runtime-final.log`; complete rerun passes below.
+
+The complete rerun **passes**, terminal exit 0:
+`app/.dart_tool/rotation-authenticated-web-runtime-complete.log`.
+Windows Chrome 154.0.8037.58, 1280x900, production source `2b43172` and the exact
+artifacts above, isolated owned profiles, real authenticated HTTP/CORS and
+SQLite-backed roster worker, no seeded financial history or app debug hooks:
+
+```powershell
+$env:WEB_HOUSEHOLD='1'
+$env:WEB_HOUSEHOLD_AUTH='1'
+node scripts/verify_web_runtime.mjs
+```
+
+Passes private-ledger persistence/separation; public operator bootstrap; actual
+two-identity invite; default-off summaries and precise publication; sealed
+lock/unlock/reload; standalone rotation cancellation/one confirmed authenticated
+commit/peer catch-up; offline visible-conflict convergence; stale-backup
+fresh-key replacement and old-device removal; explicit EUR/JPY accounts with
+frozen historical rates through `USD -74.67`. Captured bodies contain no readable
+fixture titles and no legacy mailbox downgrade. This verifies actual browser
+runtime, not final Android/iOS, physical-network TLS, or public deployment.

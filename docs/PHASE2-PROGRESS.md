@@ -4,8 +4,8 @@
 
 OpenMLS self-update, immutable saved commit retries, same-roster authenticated
 permission transitions and the household confirmation action are implemented.
-Core convergence, native controller recovery and actual authenticated HTTP/
-SQLite privacy checks pass; detailed scope, failures, commands and limits are
+Core convergence, native controller recovery, actual authenticated HTTP/SQLite
+privacy and complete production Chrome acceptance pass; scope, failures and commands are
 in [KEY-ROTATION.md](KEY-ROTATION.md). New bridge ABI `-1323392253` supersedes
 the bindings below; old platform evidence is not current-source verification.
 
