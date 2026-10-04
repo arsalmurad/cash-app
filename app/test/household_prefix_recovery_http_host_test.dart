@@ -79,6 +79,7 @@ void main() {
         environment: {
           'LOCAL_AUTH_POLICY': root,
           'LOCAL_AUTH_RETENTION': 'true',
+          'DROP_FIRST_PRUNE_REPLY': 'true',
         },
       );
       final ready = Completer<void>();
@@ -209,9 +210,31 @@ void main() {
         before,
         reason: 'Only the designated holder may prune',
       );
+      final cursorBeforeLostReply = alice.overview!.cursor.toInt();
+      expect(
+        await alice.reclaimRelayHistory(retentionRequest, [approval]),
+        isFalse,
+      );
+      final afterLostReply = await command('inspect');
+      expect(afterLostReply['floor'], greaterThan(0));
+      expect(afterLostReply['floor'], lessThanOrEqualTo(16));
+      expect(afterLostReply['tail'], before['tail']);
+      expect(
+        alice.overview!.cursor.toInt(),
+        cursorBeforeLostReply,
+        reason: 'Deletion progress must never advance the delivery cursor',
+      );
+      final retainedAfterLostReply = Uint8List.fromList(aliceState.value!);
+      alice.dispose();
+      liveControllers.remove(alice);
+      alice = device(aliceState, aliceConfig);
+      await alice.initialize();
+      expect(aliceState.value, retainedAfterLostReply);
+      expect(alice.overview!.cursor.toInt(), cursorBeforeLostReply);
       expect(
         await alice.reclaimRelayHistory(retentionRequest, [approval]),
         isTrue,
+        reason: 'A fresh proof handles the actual committed-floor conflict',
       );
       final trimmed = await command('inspect');
       final through = trimmed['floor'] as int;
