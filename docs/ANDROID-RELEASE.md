@@ -236,3 +236,24 @@ length and SHA-256 matched after relocation. The original path is now a junction
 preserve it and all previous cache junctions. No source, app data, financial
 records or unrelated generated artifacts were removed. Headroom immediately
 after relocation: C: 1.19 GiB, D: 1.96 GiB; recheck before new builds.
+
+### Balanced Flutter cache placement (2026-10-05)
+
+The updated category APK build passes in 359.6 s, but the owned emulator's
+disk-space check refuses startup with only 1.37 GiB free on D:. This is an
+environment refusal before app execution, not an app failure. The completed
+owned Gradle daemon was stopped. Sixteen generated cache directories, 312
+files / **1,074.1 MiB**, were relocated from below
+`D:/cash-app-build/cash-app-flutter-build-cache-20261004` to the new ignored
+`app/.dart_tool/preserved-flutter-cache-20261005` on C:. Every relative filename,
+length and SHA-256 matched; each original D: child path is a junction to its
+same-name C: directory. The existing outer `app/.dart_tool/flutter_build`
+junction and all native build junctions remain intact. Preserve both roots and
+these sixteen child junctions; no cache rebuild or ledger deletion was used.
+
+The first cross-drive move transferred its nineteen files but could not remove
+the empty read-only source directory. That exact folder was recovered to its
+original path with matching hashes; only the confirmed empty temporary folder
+was removed. The subsequent validated move clears only the selected generated
+directory's read-only attribute and completes with matching hashes. Headroom
+immediately afterward: C: 2.75 GiB, D: 2.41 GiB. Recheck before further builds.
