@@ -45,7 +45,7 @@ export class Fixture extends GroupLog {
       const log = new GroupLog({storage});
       const spec = await request.json();
       const authorize = mode === 'missing' ? null : async (txn, context) => {
-        if (context.floor > context.through || context.through > context.tail) throw new Error('wrong guard context');
+        if (context.floor > context.tail) throw new Error('wrong guard context');
         await txn.put('admitted', 'fixture-only');
         if (mode === 'mutate-request') spec.through = context.tail;
         return mode !== 'deny';

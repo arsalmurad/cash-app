@@ -4,6 +4,7 @@
 import { isVerifiedRequestProof, verifiedRequestContext } from "./request-proof.js";
 import { validDevicePolicy, requestOperation } from "./request-scope.js";
 import { retiredReader } from './retired-readers.js';
+import {authorizePrefixConsents,prefixConsentHolder} from './prefix-consent.js';
 
 const HEX32 = /^[0-9a-f]{64}$/;
 const MAX_NONCES = 256;
@@ -38,6 +39,18 @@ export async function admitRetiredReadRequest(txn,verified,now) {
   if(!time(tail)||retired.through>tail) return refuse('state');
   const admission=await admitNonce(txn,verified,now,roster.epoch);
   return admission.ok ? {...admission,through:retired.through} : admission;
+}
+
+// Reserved exact prune scope, backed by unanimous explicit consent rather than
+// silently adding a prune grant to the existing public device policy schema.
+export async function admitVerifiedPrefixRequest(txn,verified,token,context,now) {
+  if(!isVerifiedRequestProof(verified)||!time(now)) return refuse('invalid');
+  const policy=await txn.get('authorized_devices');
+  if(!validDevicePolicy(policy)) return refuse('policy');
+  if(requestOperation(verifiedRequestContext(verified),policy.scope)!=='prune') return refuse('scope');
+  if(prefixConsentHolder(token)!==verified.publicKey||
+      !await authorizePrefixConsents(txn,token,context,now)) return refuse('permission');
+  return admitNonce(txn,verified,now,policy.epoch);
 }
 
 async function admitNonce(txn,verified,now,epoch) {

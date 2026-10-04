@@ -1,5 +1,15 @@
 # Decisions
 
+## 2026-10-04 — Separate deletion consent from saved-state acknowledgements
+
+Sign an explicit short-lived, group/origin/epoch/checkpoint/cutoff-bound consent
+only from the exact acknowledged saved archive; require every current key and
+a current recovery holder's protected request proof on every bounded chunk.
+Reject upgrading ordinary receipts into deletion authority or exposing conflict
+metadata before authorization. The opt-in server protocol is verified locally;
+default/public routing and final protected-client integration remain gated
+([PREFIX-CONSENT.md](PREFIX-CONSENT.md)).
+
 ## 2026-10-04 — Verify fresh-key recovery against actually deleted relay records
 
 Use normal native controllers and authenticated HTTP against the production

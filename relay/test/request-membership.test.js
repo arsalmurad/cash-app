@@ -56,7 +56,7 @@ test('SQLite membership transition binds ciphertext, current grant, epoch and re
     export default {fetch(request, env) {return env.GROUP.get(env.GROUP.idFromName('fixture')).fetch(request);}};`;
   const mf = new Miniflare({ modulesRoot: root,
     modules: [{type:'ESModule', path:`${root}/fixture.js`, contents:wrapper},
-      ...await Promise.all(['worker', 'request-proof', 'request-membership', 'invite-authority', 'retired-readers', 'request-scope', 'request-admission', 'request-budget'].map(async name => ({
+      ...await Promise.all(['worker', 'request-proof', 'request-membership', 'invite-authority', 'retired-readers', 'request-scope', 'request-admission', 'prefix-consent', 'request-budget'].map(async name => ({
         type:'ESModule', path:`${root}/${name}.js`, contents:await readFile(new URL(`../src/${name}.js`, import.meta.url), 'utf8'),
       })))], durableObjects: {GROUP:{className:'Fixture',useSQLite:true}}, compatibilityDate:'2026-07-01' });
   const url = `${scope.origin}/g/${scope.id}/membership`;

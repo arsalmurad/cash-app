@@ -61,7 +61,7 @@ test('explicit roster worker bootstraps trusted empty storage and enforces live 
     export default worker;`;
   const mf = new Miniflare({modulesRoot:moduleRoot,
     modules:[{type:'ESModule',path:`${moduleRoot}/fixture.js`,contents:wrapper},
-      ...await Promise.all(['roster-worker','roster-welcome','local-auth-worker','worker','request-proof','request-membership','invite-authority','retired-readers','request-scope','request-admission','request-budget'].map(async name => ({
+      ...await Promise.all(['roster-worker','roster-welcome','local-auth-worker','worker','request-proof','request-membership','invite-authority','retired-readers','request-scope','request-admission','prefix-consent','request-budget'].map(async name => ({
         type:'ESModule',path:`${moduleRoot}/${name}.js`,contents:await readFile(new URL(`../src/${name}.js`,import.meta.url),'utf8'),
       })))],durableObjects:{GROUP:{className:'Fixture',useSQLite:true}},
     bindings:{LOCAL_DEVELOPMENT:'true',LOCAL_AUTH_MEMBERSHIP:'true',LOCAL_AUTH_POLICY:JSON.stringify(root)},compatibilityDate:'2026-07-01'});

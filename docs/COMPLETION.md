@@ -60,8 +60,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    permission to delete financial history. Retained checkpoints/receipts and
    per-log growth refusal alone do not close this gate. Internal bounded SQLite
    prefix mechanics now have fault/restart and app-compatibility evidence in
-   [RELAY-PREFIX-FLOOR.md](RELAY-PREFIX-FLOOR.md); no production prune route or
-   all-device deletion authority is enabled.
+   [RELAY-PREFIX-FLOOR.md](RELAY-PREFIX-FLOOR.md). Separate all-current-key
+   consent now authorizes bounded deletion only in explicit loopback opt-in mode
+   ([PREFIX-CONSENT.md](PREFIX-CONSENT.md)); default routes remain disabled,
+   and normal protected-client consent/availability coordination is not complete.
 3. [x] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.
    Standalone self-update now has native core/bridge/controller, actual

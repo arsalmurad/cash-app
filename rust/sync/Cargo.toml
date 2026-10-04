@@ -18,6 +18,10 @@ relay-auth = ["cash_crypto/relay-auth"]
 name = "peer_request_proof"
 required-features = ["relay-auth"]
 
+[[example]]
+name = "prefix_consent"
+required-features = ["relay-auth"]
+
 [dependencies]
 cash_core = { path = "../core" }
 cash_crypto = { path = "../crypto" }
