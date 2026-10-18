@@ -14,8 +14,12 @@ invariants. Preserve the known-working pinned toolchains/lockfiles.
 
 Set up/reuse the Linux environment as documented. The receive-only notification
 transport and bounded controller lifecycle are integrated with scoped native
-and browser transport evidence; read `docs/NOTIFICATION-LIFECYCLE.md` and the
-current handoff before repeating work. Continue production-browser and remaining
+and browser transport evidence. The rebuilt production WASM journey also passes
+signed hints/HTTP/rendering, lock/reopen, opt-out, session-off reload and automatic
+member removal; a real empty-status close-handshake defect is fixed. Read
+`docs/NOTIFICATION-LIFECYCLE.md` and the current handoff before repeating work.
+Actual 200% browser category/keyboard evidence is in `PERSONAL-UX-REVIEW.md`.
+Continue the remaining production-browser faults and
 platform acceptance, especially locking/disposal/background/identity changes,
 stale callbacks, uncertain saves, offline recovery and current-member revocation.
 Never treat a tail hint as ledger state, delivery ACK or retention consent.
