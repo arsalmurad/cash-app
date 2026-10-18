@@ -48,6 +48,12 @@ class _FakeController extends HouseholdController {
   _FakeController() : super(relayFactory: (_) => throw UnimplementedError());
 
   final calls = <String>[];
+  final notificationForeground = <bool>[];
+  @override
+  void setNotificationForeground(bool foreground) {
+    notificationForeground.add(foreground);
+    super.setNotificationForeground(foreground);
+  }
   bool nextResult = true;
   bool restartRequired = false;
   bool relayMode = false;
@@ -236,6 +242,30 @@ Future<_FakeController> _pump(
 }
 
 void main() {
+  testWidgets('live updates are explicit; background and screen disposal stop the session', (tester) async {
+    final controller = _FakeController()
+      ..isLoading = false
+      ..overview = _member()
+      ..relayMode = true
+      ..relayUrl = 'https://relay.example';
+    await tester.pumpWidget(MaterialApp(home: HouseholdScreen(controller: controller)));
+    await tester.pumpAndSettle();
+    expect(controller.notificationsEnabled, isFalse);
+    await tester.tap(find.byTooltip('Household options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Live updates while open'));
+    await tester.pumpAndSettle();
+    expect(controller.notificationsEnabled, isTrue);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(controller.notificationForeground.last, isFalse);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(controller.notificationForeground.last, isTrue);
+    await tester.pumpWidget(const SizedBox());
+    expect(controller.notificationForeground.last, isFalse);
+    controller.dispose();
+  });
   testWidgets(
     'retention menu is conditional; dialog suspends background sync',
     (tester) async {

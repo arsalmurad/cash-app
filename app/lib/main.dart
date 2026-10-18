@@ -47,6 +47,7 @@ class _PrivateLedgerAppState extends State<PrivateLedgerApp> {
       theme: ledgerTheme(Brightness.light),
       darkTheme: ledgerTheme(Brightness.dark),
       home: BiometricLockGate(
+        onLockChanged: (locked) => household.setNotificationUnlocked(!locked),
         child: LedgerScreen(controller: controller, household: household),
       ),
     );

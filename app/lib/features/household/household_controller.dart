@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
@@ -17,6 +18,9 @@ import 'relay_client.dart';
 import 'relay_policy.dart';
 import 'relay_config.dart';
 import 'retention_codes.dart';
+import 'notification_session.dart';
+import 'relay_notifications.dart';
+import 'relay_socket.dart';
 
 /// Runs the household layer: owns the network (the Rust core does no I/O),
 /// persists the secret state after every change, and exposes the folded
@@ -30,6 +34,7 @@ class HouseholdController extends ChangeNotifier {
     RelayClient Function(String url)? relayFactory,
     int Function()? clockMillis,
     String Function()? newMemberId,
+    RelaySocketFactory? notificationSocketFactory,
   }) : _stateStore = stateStore ?? SecretBlobStore(BlobStore('household')),
        _configStore = configStore ?? BlobStore('household-config'),
        // Preserve the public injection parameter and private factory ownership.
@@ -37,7 +42,10 @@ class HouseholdController extends ChangeNotifier {
        _relayFactory = relayFactory,
        _clockMillis =
            clockMillis ?? (() => DateTime.now().millisecondsSinceEpoch),
-       _newMemberId = newMemberId ?? _randomId;
+       _newMemberId = newMemberId ?? _randomId,
+       // Keep the public injection name while owning the platform factory.
+       // ignore: prefer_initializing_formals
+       _notificationSocketFactory = notificationSocketFactory;
 
   static const reportingCurrency = 'USD';
   static const _accountId = 'household';
@@ -49,6 +57,125 @@ class HouseholdController extends ChangeNotifier {
   final int Function() _clockMillis;
   final String Function() _newMemberId;
   bool _relaySigningClosed = false;
+  final RelaySocketFactory? _notificationSocketFactory;
+  NotificationSession? _notifications;
+  Household? _notificationIdentity;
+  String? _notificationOrigin;
+  String? _notificationGroup;
+  int _notificationGeneration = 0;
+  bool _notificationsEnabled = false;
+  bool _notificationForeground = false;
+  bool _notificationUnlocked = true;
+  bool _vaultClosing = false;
+  final _readBorrows = Map<Household, int>.identity();
+  final _retiredHandles = Set<Household>.identity();
+
+  Future<T> _borrowRead<T>(Household handle, Future<T> Function() read) async {
+    _readBorrows[handle] = (_readBorrows[handle] ?? 0) + 1;
+    try {
+      return await read();
+    } finally {
+      final remaining = _readBorrows[handle]! - 1;
+      if (remaining == 0) {
+        _readBorrows.remove(handle);
+        if (_retiredHandles.remove(handle)) handle.dispose();
+      } else {
+        _readBorrows[handle] = remaining;
+      }
+    }
+  }
+
+  void _retireHandle(Household? handle) {
+    if (handle == null) return;
+    if (_readBorrows.containsKey(handle)) {
+      _retiredHandles.add(handle);
+    } else {
+      handle.dispose();
+    }
+  }
+
+  /// Explicit, session-only opt-in. No socket is opened for legacy relays.
+  bool get notificationsEnabled => _notificationsEnabled;
+
+  void setNotificationsEnabled(bool enabled) {
+    if (_relaySigningClosed) return;
+    _notificationsEnabled = enabled;
+    _reconcileNotifications();
+    notifyListeners();
+  }
+
+  void setNotificationForeground(bool foreground) {
+    _notificationForeground = foreground;
+    _reconcileNotifications();
+  }
+
+  void setNotificationUnlocked(bool unlocked) {
+    _notificationUnlocked = unlocked;
+    _reconcileNotifications();
+  }
+
+  void _stopNotifications() {
+    ++_notificationGeneration;
+    _notifications?.close();
+    _notifications = null;
+    _notificationIdentity = null;
+    _notificationOrigin = null;
+    _notificationGroup = null;
+  }
+
+  void _reconcileNotifications() {
+    final identity = _household;
+    final group = overview?.groupId;
+    final origin = relayUrl;
+    if (_relaySigningClosed ||
+        !_notificationsEnabled ||
+        !_notificationForeground ||
+        !_notificationUnlocked ||
+        _vaultClosing ||
+        isLoading ||
+        _writesDisabled ||
+        needsVaultUnlock ||
+        needsRecoveryInvite ||
+        !authenticatedRelay ||
+        !isMember ||
+        identity == null ||
+        group == null ||
+        origin == null) {
+      _stopNotifications();
+      return;
+    }
+    if (_notifications != null &&
+        identical(identity, _notificationIdentity) &&
+        group == _notificationGroup &&
+        origin == _notificationOrigin) {
+      return;
+    }
+    _stopNotifications();
+    final generation = _notificationGeneration;
+    bool current() =>
+        generation == _notificationGeneration &&
+        !_relaySigningClosed &&
+        identical(identity, _household);
+    _notificationIdentity = identity;
+    _notificationOrigin = origin;
+    _notificationGroup = group;
+    _notifications = NotificationSession(
+      connect: () => RelayNotifications(
+        requestUri: Uri.parse('$origin/g/$group/ws'),
+        // Unlike HTTP's signer, notification signing is not nested inside a
+        // queued sync. Queue it to finish the borrow before lock/forget frees
+        // the handle, and recheck generation before releasing the proof.
+        signer: (method, uri, body) => _enqueue(() async {
+          if (!current()) throw const FormatException('Session ended.');
+          final proof = await _signRelayRequest(method, uri, body);
+          if (!current()) throw const FormatException('Session ended.');
+          return proof;
+        }),
+        socketFactory: _notificationSocketFactory,
+      ),
+      sync: () => _run(_sync, isCurrent: current),
+    );
+  }
 
   /// Opt-in protected-key provider for HTTP transport. This does not register
   /// a device or confer relay permissions. It must not enqueue behind a sync
@@ -63,7 +190,10 @@ class HouseholdController extends ChangeNotifier {
       throw const FormatException('This household controller is closed.');
     }
     final household = _requireHousehold();
-    final keys = await householdRelayRosterKeys(household: household);
+    final keys = await _borrowRead(
+      household,
+      () => householdRelayRosterKeys(household: household),
+    );
     _ensureWritable();
     if (_relaySigningClosed || !identical(_household, household)) {
       throw const FormatException('The household identity changed.');
@@ -99,13 +229,16 @@ class HouseholdController extends ChangeNotifier {
     if (now < 0 || now > 9007199254740991 - 50000) {
       throw const FormatException('Invalid relay request clock.');
     }
-    final proof = await householdSignRelayRequest(
-      household: household,
-      origin: origin,
-      method: method,
-      path: exactUrl.substring(origin.length),
-      body: body,
-      expires: PlatformInt64Util.from(now + 50000),
+    final proof = await _borrowRead(
+      household,
+      () => householdSignRelayRequest(
+        household: household,
+        origin: origin,
+        method: method,
+        path: exactUrl.substring(origin.length),
+        body: body,
+        expires: PlatformInt64Util.from(now + 50000),
+      ),
     );
     // Lock/recovery/uncertain-save/disposal may occur while the read-only
     // native call is pending. Never release a proof for an abandoned handle.
@@ -128,6 +261,13 @@ class HouseholdController extends ChangeNotifier {
     // Existing queued work owns its current Rust borrows. Revoke proof access
     // immediately without freeing a handle underneath an in-flight call.
     _relaySigningClosed = true;
+    _stopNotifications();
+    unawaited(
+      _enqueue(() async {
+        _retireHandle(_household);
+        _household = null;
+      }),
+    );
     super.dispose();
   }
 
@@ -274,6 +414,7 @@ class HouseholdController extends ChangeNotifier {
         }
       }
       needsVaultUnlock = false;
+      _vaultClosing = false;
       errorMessage = null;
     } on VaultLocked catch (error) {
       needsVaultUnlock = true;
@@ -300,7 +441,8 @@ class HouseholdController extends ChangeNotifier {
       errorMessage = error.toString();
     } finally {
       isLoading = false;
-      notifyListeners();
+      _reconcileNotifications();
+      if (!_relaySigningClosed) notifyListeners();
     }
   }
 
@@ -338,26 +480,30 @@ class HouseholdController extends ChangeNotifier {
     }
   }, allowRecovery: true);
 
-  Future<bool> lockBrowserVault() => _run(() async {
-    final store = _browserVault();
-    store.keys.lock();
-    // The operation queue has finished all uses of this handle. Release its
-    // Rust keys now, rather than retaining them until Dart's later finalizer.
-    _household?.dispose();
-    _household = null;
-    overview = null;
-    summaries = [];
-    _pendingInvitation = null;
-    _pendingMailboxAck = null;
-    _pendingAckRoster = false;
-    _pendingRelayMembership = null;
-    _recoveryState = null;
-    recoveryOverview = null;
-    lastInviteCode = null;
-    _lastInviteRequest = null;
-    needsVaultUnlock = true;
-    vaultHasCiphertext = true;
-  }, allowRecovery: true);
+  Future<bool> lockBrowserVault() {
+    _vaultClosing = true;
+    _stopNotifications();
+    return _run(() async {
+      final store = _browserVault();
+      store.keys.lock();
+      // The operation queue has finished all uses of this handle. Release its
+      // Rust keys now, rather than retaining them until Dart's later finalizer.
+      _retireHandle(_household);
+      _household = null;
+      overview = null;
+      summaries = [];
+      _pendingInvitation = null;
+      _pendingMailboxAck = null;
+      _pendingAckRoster = false;
+      _pendingRelayMembership = null;
+      _recoveryState = null;
+      recoveryOverview = null;
+      lastInviteCode = null;
+      _lastInviteRequest = null;
+      needsVaultUnlock = true;
+      vaultHasCiphertext = true;
+    }, allowRecovery: true);
+  }
 
   /// Sets the relay address (an `http(s)` URL). The relay sees only
   /// ciphertext, but it is still the one place everyone's traffic passes.
@@ -409,19 +555,21 @@ class HouseholdController extends ChangeNotifier {
 
   void _disableWrites() {
     _writesDisabled = true;
+    _stopNotifications();
     final abandoned = _household;
     _household = null;
     // The serialized operation has finished its Rust calls before reaching
     // this failure path. Release unconfirmed keys instead of leaving their
     // handle to a later browser finalizer, potentially after page reload.
-    abandoned?.dispose();
+    _retireHandle(abandoned);
   }
 
   Future<bool> _run(
     Future<void> Function() action, {
     bool allowRecovery = false,
+    bool Function()? isCurrent,
   }) => _enqueue(() async {
-    if (_relaySigningClosed) return false;
+    if (_relaySigningClosed || isCurrent?.call() == false) return false;
     isBusy = true;
     errorMessage = null;
     notifyListeners();
@@ -440,6 +588,7 @@ class HouseholdController extends ChangeNotifier {
       return false;
     } finally {
       isBusy = false;
+      _reconcileNotifications();
       if (!_relaySigningClosed) notifyListeners();
     }
   });
@@ -511,7 +660,10 @@ class HouseholdController extends ChangeNotifier {
 
   Future<void> _loadSaved(Uint8List bytes) async {
     final saved = HouseholdJournal.decode(bytes);
+    final previous = _household;
+    _stopNotifications();
     _household = await householdRestore(saved: saved.state);
+    _retireHandle(previous);
     if (saved.membership != null &&
         (await householdOverview(household: _household!)).groupId !=
             saved.membership!.policy.group) {
@@ -538,6 +690,7 @@ class HouseholdController extends ChangeNotifier {
     if (_recoveryState != null) {
       final archived = await householdRestore(saved: _recoveryState!);
       recoveryOverview = await householdOverview(household: archived);
+      archived.dispose();
     } else {
       recoveryOverview = null;
     }
@@ -824,6 +977,7 @@ class HouseholdController extends ChangeNotifier {
   /// Forgets the household on this device (the others keep theirs). The
   /// identity is discarded too: rejoining needs a fresh invite.
   Future<void> forgetHousehold() async {
+    _stopNotifications();
     await _run(() async {
       try {
         await _stateStore.delete();
@@ -831,6 +985,7 @@ class HouseholdController extends ChangeNotifier {
         _disableWrites();
         rethrow;
       }
+      _retireHandle(_household);
       _household = null;
       overview = null;
       summaries = [];
@@ -896,12 +1051,15 @@ class HouseholdController extends ChangeNotifier {
         _recoveryState ?? await householdExport(household: _household!);
     final archived = await householdRestore(saved: archiveBytes);
     final archivedOverview = await householdOverview(household: archived);
+    archived.dispose();
     // Fresh signing/leaf keys and an opaque new label, regardless of test or
     // application identity factories. Never restore the old sender ratchet.
+    final previous = _household;
     _household = await householdNew(
       memberId: _randomId(),
       reportingCurrencyCode: reportingCurrency,
     );
+    _retireHandle(previous);
     _recoveryState = archivedOverview.groupId == null ? null : archiveBytes;
     recoveryOverview = _recoveryState == null ? null : archivedOverview;
     _pendingInvitation = null;
