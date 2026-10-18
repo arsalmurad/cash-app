@@ -3,6 +3,51 @@
 Updated 2026-10-18 during the Linux continuation. This file replaces reliance on the
 long local conversation; it does not declare the product finished.
 
+## Active continuation after 81bb306
+
+Source checkpoints `c93f238` and `aad0f8f` fix a restart-required household
+screen hidden by its old overview, and exact shared amounts exhausting a narrow
+tile's trailing width. The restart screen now takes priority over cached
+household/unlock panes and hides mutation controls. Exact amounts wrap in the
+text column without dropping digits. The six enlarged-text amount/action cases
+and adjacent household tests pass **50 tests**, with focused analysis clean.
+The adaptive fixture first needed real scrolling before it reproduced the actual
+phone `ListTile` width assertion; tablet/desktop pass after scrolling.
+
+A separate local clone under `/tmp/cash-app-clean-release-wE6l7a/repo` has built
+both checkpoints with pinned offline packages, SDKs and validated Rust caches;
+tracked source remains clean. No pre-existing app release output was copied in.
+Rust WASM remains SHA-256
+`af90b53d8e05975e24dcd7a03a6188260550f4f3528c7e382068d8643de5c74e`;
+the `aad0f8f` Dart WASM is
+`1637e67c4adabd9a5e6848f5be9849ee6fadc9083f0aa7aebb2ab46771adb805`.
+Builds are not runtime acceptance. The prior c93 release is retained separately
+as `app/build/web-c93f238`; the new driver accepts `WEB_BUILD_DIR` for artifact
+verification without overlaying application sources.
+
+Current-source production browser faults and a serial full host suite are
+running; do not call them passed from this interim checkpoint. Logs:
+`/tmp/notification-browser-final-wide.log`, `/tmp/cash-final-host-acceptance.log`.
+Browser additions in the working tree exercise actual minimized/hidden windows,
+offline network emulation, bounded reconnect, incoming-save quota, no premature
+receipt, restart/re-enable/backfill and i64-range amounts. Earlier iterations
+passed background/offline and failed incorrect fixture assumptions: tiny edits
+can fit allocated SQLite pages; earlier confirmed control prefixes need not
+roll back when a later frame fails; restart resets notifications to off. Keep
+those partial runs separate from complete acceptance.
+
+One broad c93 host invocation passed 477/478 and hit the existing 15s HTTP
+fixture startup deadline during heavy release compilation. Its isolated file
+subsequently passed both real HTTP/storage-audit cases (36s), with no timeout or
+assertion changes. A new serial full run is needed for a final suite claim.
+
+The resumed shell sandbox currently fails before command startup with a bwrap
+bad-file-descriptor error. Individually reviewed scoped `require_escalated`
+commands run successfully; no automatic approval rejection occurred. Do not
+disable networking restrictions or broaden project scope to work around it.
+Automatic restart after a session/usage limit reset is unavailable; checkpoint
+and use the resume prompt when the session is continued.
+
 ## Start here
 
 - Repository: <https://github.com/arsalmurad/cash-app>.
