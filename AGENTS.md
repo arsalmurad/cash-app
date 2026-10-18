@@ -13,6 +13,8 @@ and the relay must never receive readable financial data.
 2. Read the relevant phase of `expense-app-build-brief.md`.
 3. Read the market/legal diligence only for product, policy, billing, or
    licensing work. Do not load it for normal implementation tasks.
+4. When resuming in a cloud environment, read `docs/CLOUD-HANDOFF.md` if present
+   for the preserved draft, Linux setup, remaining gates and exact test limits.
 
 ## Current gate
 
