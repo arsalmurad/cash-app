@@ -54,6 +54,7 @@ class _FakeController extends HouseholdController {
     notificationForeground.add(foreground);
     super.setNotificationForeground(foreground);
   }
+
   bool nextResult = true;
   bool restartRequired = false;
   bool relayMode = false;
@@ -242,30 +243,88 @@ Future<_FakeController> _pump(
 }
 
 void main() {
-  testWidgets('live updates are explicit; background and screen disposal stop the session', (tester) async {
-    final controller = _FakeController()
-      ..isLoading = false
-      ..overview = _member()
-      ..relayMode = true
-      ..relayUrl = 'https://relay.example';
-    await tester.pumpWidget(MaterialApp(home: HouseholdScreen(controller: controller)));
-    await tester.pumpAndSettle();
-    expect(controller.notificationsEnabled, isFalse);
-    await tester.tap(find.byTooltip('Household options'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Live updates while open'));
-    await tester.pumpAndSettle();
-    expect(controller.notificationsEnabled, isTrue);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await tester.pump();
-    expect(controller.notificationForeground.last, isFalse);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pump();
-    expect(controller.notificationForeground.last, isTrue);
-    await tester.pumpWidget(const SizedBox());
-    expect(controller.notificationForeground.last, isFalse);
-    controller.dispose();
-  });
+  for (final size in [
+    const Size(360, 740),
+    const Size(840, 600),
+    const Size(1280, 900),
+  ]) {
+    for (final brightness in Brightness.values) {
+      testWidgets(
+        'live update menu remains reachable at $size / $brightness / 200%',
+        (tester) async {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final controller = _FakeController()
+            ..isLoading = false
+            ..overview = _member()
+            ..relayMode = true
+            ..relayUrl = 'https://relay.example';
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: ThemeData(brightness: brightness, useMaterial3: true),
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(context)
+                    .copyWith(textScaler: const TextScaler.linear(2)),
+                child: child!,
+              ),
+              home: HouseholdScreen(controller: controller),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('Household options'));
+          await tester.pumpAndSettle();
+          final label = find.text('Live updates while open');
+          await tester.ensureVisible(label);
+          await tester.tap(label);
+          await tester.pumpAndSettle();
+          expect(controller.notificationsEnabled, isTrue);
+          expect(tester.takeException(), isNull);
+          await tester.tap(find.byTooltip('Household options'));
+          await tester.pumpAndSettle();
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await tester.pumpAndSettle();
+          expect(
+            controller.notificationsEnabled,
+            isTrue,
+            reason: 'Escape does not change the setting',
+          );
+          await tester.pumpWidget(const SizedBox());
+          controller.dispose();
+        },
+      );
+    }
+  }
+  testWidgets(
+    'live updates are explicit; background and screen disposal stop the session',
+    (tester) async {
+      final controller = _FakeController()
+        ..isLoading = false
+        ..overview = _member()
+        ..relayMode = true
+        ..relayUrl = 'https://relay.example';
+      await tester.pumpWidget(
+        MaterialApp(home: HouseholdScreen(controller: controller)),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.notificationsEnabled, isFalse);
+      await tester.tap(find.byTooltip('Household options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Live updates while open'));
+      await tester.pumpAndSettle();
+      expect(controller.notificationsEnabled, isTrue);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(controller.notificationForeground.last, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      expect(controller.notificationForeground.last, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      expect(controller.notificationForeground.last, isFalse);
+      controller.dispose();
+    },
+  );
   testWidgets(
     'retention menu is conditional; dialog suspends background sync',
     (tester) async {

@@ -17,12 +17,18 @@ import 'package:private_ledger/features/household/relay_socket_io.dart';
 class _Store implements BlobStore {
   Uint8List? value;
   bool fail = false;
+  Completer<void>? hold;
+  Completer<void>? entered;
   @override
   Future<Uint8List?> read() async =>
       value == null ? null : Uint8List.fromList(value!);
   @override
   Future<void> write(Uint8List bytes) async {
     value = Uint8List.fromList(bytes);
+    if (hold != null) {
+      if (entered?.isCompleted == false) entered!.complete();
+      await hold!.future;
+    }
     if (fail) throw StateError('Synthetic uncertain save after write');
   }
 
@@ -203,6 +209,31 @@ void main() {
       expect(bob.overview!.balanceLabel, 'USD -3.00');
       bob.setNotificationUnlocked(true);
       await _until(() => bob.overview?.balanceLabel == 'USD -6.00');
+      states[1].hold = Completer<void>();
+      states[1].entered = Completer<void>();
+      expect(
+        await alice.addExpense(title: 'Synthetic slow save', amount: '0.50'),
+        isTrue,
+      );
+      await states[1].entered!.future.timeout(const Duration(seconds: 15));
+      final beforeChurn = opens;
+      for (var i = 0; i < 100; i++) {
+        bob.setNotificationForeground(false);
+        bob.setNotificationForeground(true);
+      }
+      bob.setNotificationForeground(false);
+      states[1].hold!.complete();
+      await _until(() => !bob.isBusy);
+      states[1].hold = null;
+      expect(
+        opens,
+        beforeChurn,
+        reason: 'No late handshake from abandoned queued signers',
+      );
+      bob.setNotificationForeground(true);
+      await _until(
+        () => opens > beforeChurn && bob.overview?.balanceLabel == 'USD -6.50',
+      );
       states[1].fail = true;
       expect(
         await alice.addExpense(title: 'Synthetic uncertain', amount: '4.00'),
@@ -224,7 +255,7 @@ void main() {
       await restarted.initialize();
       restarted.setNotificationsEnabled(true);
       restarted.setNotificationForeground(true);
-      await _until(() => restarted.overview?.balanceLabel == 'USD -10.00');
+      await _until(() => restarted.overview?.balanceLabel == 'USD -10.50');
       final bobId = restarted.overview!.memberId;
       expect(
         await alice.removeMember(bobId),
@@ -242,7 +273,7 @@ void main() {
       );
       await Future<void>.delayed(const Duration(seconds: 3));
       expect(opens, removedOpens, reason: 'Removed peers must stop retrying');
-      expect(restarted.overview!.balanceLabel, 'USD -10.00');
+      expect(restarted.overview!.balanceLabel, 'USD -10.50');
     },
     skip: library == null
         ? 'Set RUST_LIB_PATH for actual native bridge acceptance'
