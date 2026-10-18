@@ -23,6 +23,12 @@ class _Api implements RustLibApi {
   final handle = _TrackedHousehold();
   int creations = 0;
   int exports = 0;
+  final roster = Completer<List<Uint8List>>();
+
+  @override
+  Future<List<Uint8List>> crateApiSharedHouseholdRelayRosterKeys({
+    required Household household,
+  }) => roster.future;
 
   @override
   Future<Household> crateApiSharedHouseholdNew({
@@ -75,6 +81,42 @@ class _Store implements BlobStore {
 }
 
 void main() {
+  for (final forget in [false, true]) {
+    test(
+      'pending public-key borrow survives ${forget ? 'forget' : 'dispose'}; result is discarded',
+      () async {
+        final api = _Api();
+        RustLib.initMock(api: api);
+        addTearDown(RustLib.dispose);
+        final controller = HouseholdController(
+          stateStore: _Store(),
+          configStore: _Store(),
+        );
+        await controller.initialize();
+        // The mock does not implement key-package generation; identity creation
+        // and its confirmed export still complete before that deliberate refusal.
+        await controller.prepareJoinRequest();
+        expect(controller.hasIdentity, isTrue);
+        final pending = controller.relayRosterKeys();
+        if (forget) {
+          await controller.forgetHousehold();
+        } else {
+          controller.dispose();
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(
+          api.handle.releases,
+          0,
+          reason: 'The read still borrows the handle',
+        );
+        final discarded = expectLater(pending, throwsA(isA<FormatException>()));
+        api.roster.complete([Uint8List(32)]);
+        await discarded;
+        expect(api.handle.releases, 1);
+        if (forget) controller.dispose();
+      },
+    );
+  }
   for (final saved in [false, true]) {
     test(
       'uncertain save releases its owned handle once (saved=$saved)',

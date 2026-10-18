@@ -21,6 +21,7 @@ enum _MenuAction {
   relaySetup,
   refreshKeys,
   retention,
+  notifications,
 }
 
 /// The shared layer's screen: set up or join a household, then share
@@ -42,27 +43,53 @@ class HouseholdScreen extends StatefulWidget {
   State<HouseholdScreen> createState() => _HouseholdScreenState();
 }
 
-class _HouseholdScreenState extends State<HouseholdScreen> {
+class _HouseholdScreenState extends State<HouseholdScreen>
+    with WidgetsBindingObserver {
   Timer? timer;
   bool retentionOpen = false;
+  bool foreground = true;
 
   HouseholdController get controller => widget.controller;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    controller.setNotificationForeground(foreground);
     timer = Timer.periodic(widget.syncInterval, (_) => _autoSync());
     unawaited(_autoSync());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    controller.setNotificationForeground(false);
     timer?.cancel();
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(HouseholdScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != controller) {
+      oldWidget.controller.setNotificationForeground(false);
+      controller.setNotificationForeground(foreground);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    foreground = state == AppLifecycleState.resumed;
+    controller.setNotificationForeground(foreground && !retentionOpen);
+    if (foreground) unawaited(_autoSync());
+  }
+
   Future<void> _autoSync() async {
-    if (!retentionOpen &&
+    if (foreground &&
+        !retentionOpen &&
         controller.isMember &&
         !controller.isBusy &&
         controller.relayUrl != null) {
@@ -105,6 +132,7 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
   Future<void> _retention() async {
     if (!controller.canManageRelayRetention || retentionOpen) return;
     retentionOpen = true;
+    controller.setNotificationForeground(false);
     try {
       final completed = await showDialog<bool>(
         context: context,
@@ -139,6 +167,7 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
       }
     } finally {
       retentionOpen = false;
+      if (mounted) controller.setNotificationForeground(foreground);
     }
   }
 
@@ -545,8 +574,21 @@ class _HouseholdScreenState extends State<HouseholdScreen> {
                     _MenuAction.relaySetup => _relaySetup(),
                     _MenuAction.refreshKeys => _refreshKeys(),
                     _MenuAction.retention => _retention(),
+                    _MenuAction.notifications =>
+                      controller.setNotificationsEnabled(
+                        !controller.notificationsEnabled,
+                      ),
                   },
                   itemBuilder: (context) => [
+                    if (controller.authenticatedRelay &&
+                        controller.isMember &&
+                        !controller.requiresRestart &&
+                        !controller.needsVaultUnlock)
+                      CheckedPopupMenuItem(
+                        value: _MenuAction.notifications,
+                        checked: controller.notificationsEnabled,
+                        child: const Text('Live updates while open'),
+                      ),
                     if (controller.canManageRelayRetention)
                       const PopupMenuItem(
                         value: _MenuAction.retention,
