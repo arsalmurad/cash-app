@@ -238,6 +238,58 @@ export async function runHouseholdWebScenario(alice, api) {
     throw new Error('Timed out waiting for an actual notification network event');
   }
 
+  async function toggleLiveUpdates(peer) {
+    await notificationIdle(peer);
+    await peer.send('Page.bringToFront');
+    await waitFor(peer, `document.visibilityState === 'visible' && document.hasFocus()`);
+    await clickLabel(peer, 'Household options', 'button');
+    await waitForLabel(peer, 'Live updates while open');
+    // CheckedPopupMenuItem exposes semantics before the route finishes its
+    // entrance animation. Use a settled, real pointer tap on its rendered row.
+    await delay(250);
+    const toggle = await evaluate(peer, `(() => {
+      const row = [...document.querySelectorAll('flt-semantics-host *')].find(e =>
+        e.getAttribute('aria-label') === 'Live updates while open');
+      if (!row) throw new Error('Missing rendered live-update option');
+      const r = row.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`);
+    await peer.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...toggle, button: 'left', clickCount: 1 });
+    await peer.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...toggle, button: 'left', clickCount: 1 });
+    await waitFor(peer, `![...document.querySelectorAll('flt-semantics-host *')]
+      .some(e => e.getAttribute('aria-label') === 'Live updates while open')`);
+  }
+
+  async function notificationIdle(peer) {
+    const deadline = Date.now() + 10000;
+    let observed = peer.events.length;
+    let quietSince = Date.now();
+    while (Date.now() < deadline) {
+      if (peer.events.slice(observed).some(event =>
+        ['Network.requestWillBeSent', 'Network.responseReceived', 'Network.webSocketFrameReceived'].includes(event.method))) {
+        quietSince = Date.now();
+      }
+      observed = peer.events.length;
+      if (Date.now() - quietSince >= 750) return;
+      await Promise.race([workerFailure, delay(50)]);
+    }
+    throw new Error('Notification traffic did not become idle before the next UI action');
+  }
+
+  async function pointerButton(peer, label) {
+    await waitForLabel(peer, label);
+    const point = await evaluate(peer, `(() => {
+      const button = [...document.querySelectorAll('flt-semantics-host [role="button"]')].find(e =>
+        (e.getAttribute('aria-label') ?? e.textContent?.trim()) === ${JSON.stringify(label)} &&
+        e.getAttribute('aria-disabled') !== 'true');
+      if (!button) throw new Error('Rendered button is unavailable');
+      const r = button.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`);
+    await peer.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+    await peer.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+  }
+
   try {
     await alice.send('Network.enable');
     const alicePhrase = await protect(alice);
@@ -400,24 +452,9 @@ export async function runHouseholdWebScenario(alice, api) {
     let notificationStart = bob.events.length;
     if (notifications) {
       scenarioStage = 'Bob opts into signed live updates';
-      await bob.send('Page.bringToFront');
-      await waitFor(bob, `document.visibilityState === 'visible' && document.hasFocus()`);
-      await clickLabel(bob, 'Household options', 'button');
-      await waitForLabel(bob, 'Live updates while open');
-      // CheckedPopupMenuItem exposes semantics before the route finishes its
-      // entrance animation. Use a settled, real pointer tap on its rendered row.
-      await delay(250);
-      const toggle = await evaluate(bob, `(() => {
-        const row = [...document.querySelectorAll('flt-semantics-host *')].find(e =>
-          e.getAttribute('aria-label') === 'Live updates while open');
-        if (!row) throw new Error('Missing rendered live-update option');
-        const r = row.getBoundingClientRect();
-        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-      })()`);
-      await bob.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...toggle, button: 'left', clickCount: 1 });
-      await bob.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...toggle, button: 'left', clickCount: 1 });
-      await waitFor(bob, `![...document.querySelectorAll('flt-semantics-host *')]
-        .some(e => e.getAttribute('aria-label') === 'Live updates while open')`);
+      assert(!bob.events.some(event => event.method === 'Network.webSocketCreated'),
+        'A fresh session must not open notifications before explicit opt-in');
+      await toggleLiveUpdates(bob);
       await notificationEvent(bob, notificationStart, event =>
         event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
       // Finish the unconditional open backfill before testing a later hint.
@@ -446,8 +483,9 @@ export async function runHouseholdWebScenario(alice, api) {
       assert(!bob.events.slice(notificationStart).some(event => event.method === 'Network.webSocketFrameSent' &&
         [1, 2].includes(event.params.response.opcode)), 'Receive-only notifications must send no application frames');
       scenarioStage = 'Bob locks and reopens live notifications';
+      await notificationIdle(bob);
       const lockStart = bob.events.length;
-      await clickLabel(bob, 'Lock household in this browser', 'button');
+      await pointerButton(bob, 'Lock household in this browser');
       await waitForLabel(bob, 'Unlock this browser');
       await notificationEvent(bob, lockStart, event => event.method === 'Network.webSocketClosed');
       await fill(bob, '24-word unlock phrase', bobPhrase);
@@ -455,6 +493,17 @@ export async function runHouseholdWebScenario(alice, api) {
       await notificationEvent(bob, lockStart, event =>
         event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
       await delay(1000);
+      scenarioStage = 'Bob switches live updates off and on';
+      const offStart = bob.events.length;
+      await toggleLiveUpdates(bob);
+      await notificationEvent(bob, offStart, event => event.method === 'Network.webSocketClosed');
+      await delay(2500);
+      assert(!bob.events.slice(offStart).some(event => event.method === 'Network.webSocketCreated'),
+        'Switching live updates off must cancel socket retries');
+      const onStart = bob.events.length;
+      await toggleLiveUpdates(bob);
+      await notificationEvent(bob, onStart, event =>
+        event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
       console.log('Verified production notifications: explicit opt-in, signed workerd socket, hint-triggered authenticated HTTP, rendered balance, receive-only frames and browser lock/reopen.');
     } else {
       await sync(bob);
@@ -465,6 +514,7 @@ export async function runHouseholdWebScenario(alice, api) {
     assert(beforeBobReload && atob(beforeBobReload).includes('cash-app sealed vault v1\0'),
       'Household must have a sealed document before reload');
     scenarioStage = 'reloading Bob';
+    const reloadStart = bob.events.length;
     await bob.send('Page.reload');
     await openApp(bob);
     await waitForLabel(bob, 'Private Ledger');
@@ -485,6 +535,11 @@ export async function runHouseholdWebScenario(alice, api) {
         containsPhrase: Object.values(localStorage).some(v => v.includes(${JSON.stringify(bobPhrase)})) };
     })()`);
     assert.deepEqual(saved, { sqlite: true, sealed: true, containsTitle: false, containsPhrase: false });
+    if (notifications) {
+      await delay(2500);
+      assert(!bob.events.slice(reloadStart).some(event => event.method === 'Network.webSocketCreated'),
+        'Reload must restore the default-off choice, even after unlocking the same household');
+    }
     console.log('Verified household: reload requires the RAM-only phrase and restores sealed history.');
 
     await bob.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
@@ -627,9 +682,29 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickLabel(replacement, 'Restore', 'button');
     await waitForLabel(replacement, 'Backup history saved');
 
+    let removalStart;
+    if (notifications) {
+      scenarioStage = 'Bob opts in before current-member removal';
+      removalStart = bob.events.length;
+      await toggleLiveUpdates(bob);
+      await notificationEvent(bob, removalStart, event =>
+        event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
+      await delay(1000);
+      removalStart = bob.events.length;
+    }
     // Alice has just one other member here, so this removes the old Bob key.
     await clickLabel(alice, 'Remove from household', 'button');
     await clickLabel(alice, 'Remove', 'button');
+    if (notifications) {
+      await notificationEvent(bob, removalStart, event => event.method === 'Network.webSocketClosed');
+      await Promise.race([waitForLabel(bob, 'You are no longer in this household'), delay(10000).then(() => {
+        throw new Error('Socket revocation did not backfill removal before the polling interval');
+      })]);
+      await delay(2500);
+      assert(!bob.events.slice(removalStart).some(event => event.method === 'Network.webSocketCreated'),
+        'Removed members must not reconnect notifications');
+      console.log('Verified production notification lifecycle: opt-out cancels retries, reload stays off, roster removal closes and automatically backfills without reconnecting.');
+    }
     await accept(replacement, await invite(await joinRequest(replacement)));
     await waitForLabel(replacement, 'USD -50.00');
     await sync(bob, { allowAlreadyRemoved: true });

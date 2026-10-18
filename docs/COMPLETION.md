@@ -61,7 +61,8 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    now integrates bounded hint coalescing and open/reconnect HTTP backfill,
    foreground/lock/uncertain-save/removal/disposal guards, with actual native
    Rust/workerd, separate Chromium transport and rebuilt production WASM
-   handshake/hint/HTTP/rendered-balance/lock-reopen evidence in
+   handshake/hint/HTTP/rendered-balance/lock-reopen, opt-out, default-off reload
+   and automatic removal evidence in
    [NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md). Final app-platform
    notification lifecycle coverage, actual cloud hibernation and public deployment stay open.
 2. [ ] Crash-safe authenticated pruning or peer-snapshot recovery with confirmed

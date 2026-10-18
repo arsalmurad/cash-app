@@ -7,12 +7,13 @@ long local conversation; it does not declare the product finished.
 
 - Repository: <https://github.com/arsalmurad/cash-app>.
 - Resume branch: `codex/notification-lifecycle-20261018`; implementation checkpoint
-  `7aaae2d`, descended from the requested handoff `b867ad2`. Later commits record
-  acceptance-driver/evidence updates. Read `git log` and preserve task work.
+  `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
+  `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
+  `git log` and preserve task work.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
   and `codex/browser-summary-lifecycle`, independently checked on 2026-10-18.
-- Preserved draft client: commit `12f7a36` on the resume branch. Later commits
-  add only this handoff, prompt, setup helpers and discovery instructions.
+- Original preserved draft client: commit `12f7a36`. Linux continuation commits
+  implement and verify its bounded transport and controller integration.
 - Read `AGENTS.md`, `docs/PHASE0-RESULT.md`, `docs/COMPLETION.md`, then only the
   relevant build-brief phase and task-specific evidence. `RTK.md` is absent;
   do not spend time searching the owner's computer for it.
@@ -79,10 +80,10 @@ Windows-source-specific results, not a fresh Linux or final-app-platform pass.
 
 ### Next safe work
 
-1. Finish current-source production WASM notification acceptance. The driver
+1. Expand current-source production WASM notification lifecycle acceptance. The driver
    supports `WEB_HOUSEHOLD_NOTIFICATIONS=1 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1`.
    Check the Linux continuation status below before rebuilding. Browser transport
-   and native controller passes do not prove production app lifecycle behavior.
+   and native controller passes do not prove broader production app lifecycle behavior.
 2. Expand final-platform background/offline/lock, quota/recovery and removal
    acceptance, preserving saved-before-ACK and single-owner browser identity
    leases. OS-protected native saves/biometric enrollment need actual platforms.
@@ -175,12 +176,14 @@ final iOS requires an authorized macOS runner.
 - Prefer default/Approve-for-me repository editing. If permissions are shown,
   do not select unrestricted/full access just to avoid prompts. Internet access
   and repository write permission are different controls.
-- Current environment network: package-manager preset, with only required
-  additional download/docs domains. Likely additions are `storage.googleapis.com`
-  for Flutter, `pub.dev`, `static.rust-lang.org`, `nodejs.org`, `github.com`,
-  `api.github.com` and release/source hosts as actually required. Start from the
-  built-in preset; add a denied destination after inspecting the failure, not
-  a wildcard. Permit the owned-loopback servers needed for tests. A pure GET/HEAD
+- Saved environment draft now has restricted networking to the required GitHub,
+  Flutter/pub, Rust/crates, Node/npm and Debian download hosts. The previous
+  saved configuration was unrestricted; the draft readback confirms restricted
+  mode with 16 explicit hosts and no wildcard. Draft saving does not apply that
+  policy to this running instance. Review/save the settings and publish through
+  the product to activate the prepared configuration; fresh-task restoration has
+  not been tested. Add a denied destination only after inspecting the failure.
+  Permit the owned-loopback servers needed for tests. A pure GET/HEAD
   restriction can break git push or local HTTP sync POSTs; do not equate network
   restrictions with intended application authorization.
 - No production secrets needed initially. Never supply ledger keys, recovery
@@ -297,6 +300,23 @@ checks also pass in that journey. Details and earlier driver failures are in
 `NOTIFICATION-LIFECYCLE.md`; the local log is
 `/tmp/notification-production-runtime-full.log`. Mobile, hosted behavior and
 wider lifecycle/fault gates remain open.
+
+The expanded complete repeat at relay fix `50c3e02` also passes opt-out/re-enable,
+default-off reload and live current-member revocation with automatic rendered
+removal/no reconnect (`/tmp/notification-production-lifecycle-pointer.log`,
+exit 0). It exposed and fixed a real empty-status close-handshake defect, with
+an actual TCP RED/GREEN regression. Post-fix manifest suite: **88 pass, four
+optional skips, zero failures, exit 0** (92 tests, 128.36s). The dedicated Rust
+proof/socket runner passes **22 without skips** and consent runner **one without
+skips**. The actual native HTTP lifecycle case passes again in 22s. Do not run
+the relay tests with a wildcard: the separate fixture-only consent test requires
+its Rust generator. That mistaken invocation failed once; the correct suite and
+both generators subsequently pass. See `NOTIFICATION-LIFECYCLE.md` for scope.
+
+Reusable installation/start instructions have been saved in the environment
+draft, using `source scripts/codex_cloud_env.sh` directly and the pinned helpers.
+Only this repository is configured, no production secrets are needed, and live
+servers must restart in each task. Saving is not publication or restore proof.
 
 Do not repeat old native/mobile results as current release acceptance. No PR,
 Actions dispatch, deployment, purchase or visibility change has been made.
