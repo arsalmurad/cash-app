@@ -28,6 +28,7 @@ if [[ -z "${npm_config_cache:-}" ]]; then
 fi
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$cash_cloud_cache/config}"
 export ANALYZER_STATE_LOCATION_OVERRIDE="${ANALYZER_STATE_LOCATION_OVERRIDE:-$cash_cloud_cache/analyzer}"
+export WASM_PACK_CACHE="${WASM_PACK_CACHE:-$cash_cloud_cache/wasm-pack}"
 export PATH="$cash_cloud_env_root/.toolchains/cloud/node-v24.19.0-linux-x64/bin:$cash_cloud_env_root/.toolchains/cloud/flutter/bin:${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 export RUSTUP_TOOLCHAIN=1.98.1
 export CARGO_BUILD_JOBS=2

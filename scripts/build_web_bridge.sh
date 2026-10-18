@@ -76,5 +76,6 @@ export CC_wasm32_unknown_unknown="$cash_web_cc"
 export AR_wasm32_unknown_unknown="$cash_web_ar"
 export CFLAGS_wasm32_unknown_unknown="${CFLAGS_wasm32_unknown_unknown:-} -matomics -mbulk-memory"
 cd app
-flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release \
-  --wasm-pack-rustup-toolchain nightly-2026-09-24
+# FRB 2.13 accepts a single RUST_LOG level, not the host's module-filter syntax.
+RUST_LOG=info flutter_rust_bridge_codegen build-web --rust-root ../rust/api --release \
+  --wasm-pack-rustup-toolchain nightly-2026-09-24 --cargo-build-args=--locked
