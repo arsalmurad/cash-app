@@ -1,5 +1,16 @@
 # Decisions
 
+## 2026-10-18 — Preserve the unfinished client in a separate cloud handoff
+
+At the owner's request, move the continuation context, five draft notification
+files and pinned Linux setup helpers to `codex/cloud-handoff-20261018`, leaving
+reviewed `main` at `cfee91a`. Do not merge the draft, transfer private ledgers or
+mistake Windows caches for portable source; `docs/CLOUD-HANDOFF.md` records 19
+focused host passes, incomplete analysis, untested Linux provisioning and the
+remaining app/cloud gates. Prefer repository-scoped access and restricted
+networking over unrestricted credentials; the prior $0-spend authorization gate
+still applies to Actions-triggering PRs, workflow dispatch and deployment.
+
 ## 2026-10-04 — Separate deletion consent from saved-state acknowledgements
 
 Sign an explicit short-lived, group/origin/epoch/checkpoint/cutoff-bound consent

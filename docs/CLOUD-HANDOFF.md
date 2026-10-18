@@ -1,0 +1,248 @@
+# Codex Cloud handoff
+
+Prepared 2026-10-18 at the owner's request. This file replaces reliance on the
+long local conversation; it does not declare the product finished.
+
+## Start here
+
+- Repository: <https://github.com/arsalmurad/cash-app>.
+- Resume branch: `codex/cloud-handoff-20261018` (includes the unfinished client).
+- Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
+  and `codex/browser-summary-lifecycle`, independently checked on 2026-10-18.
+- Preserved draft client: commit `12f7a36` on the resume branch. Later commits
+  add only this handoff, prompt, setup helpers and discovery instructions.
+- Read `AGENTS.md`, `docs/PHASE0-RESULT.md`, `docs/COMPLETION.md`, then only the
+  relevant build-brief phase and task-specific evidence. `RTK.md` is absent;
+  do not spend time searching the owner's computer for it.
+- `docs/CLOUD-RESUME-PROMPT.md` is the reusable task prompt. Use a new cloud
+  work branch; do not silently merge the draft client into `main`.
+
+The full source, lockfiles, generated Dart bridge, repeatable tests and evidence
+summaries are in Git. Windows caches/SDKs, compiled native/WASM/APK artifacts,
+test logs, emulator state, real ledgers, recovery phrases and OS/browser keys
+are intentionally not transferred. Rebuild appropriate artifacts on Linux;
+do not upload private data to make tests pass. A fresh task does not implicitly
+inherit the entire conversation or local machine. Use this handoff and Git.
+
+## Product and non-negotiable invariants
+
+Build a polished local-first budgeting app for iPhone, Android and web, then
+privacy-preserving selected household sharing. Each person owns a private
+ledger; no shared login. Share only deliberately selected expenses/analytics.
+The relay must never receive readable financial data. Preserve `AGENTS.md`'s
+i64 minor units, rational frozen FX/deterministic rounding, immutable/idempotent
+events, HLC total order, per-actor causal frontier, canonical byte-identical
+folds and visible conflicts. No broad rewrite or toolchain upgrade is needed.
+
+Phase 0 passed runtime on all three platforms; extensive personal/shared-core
+and scoped native/web/Android evidence exists. `docs/COMPLETION.md` is the
+completion checklist, not a statement that every remaining gate passed.
+
+## Exact unfinished work
+
+Five previously local-only files are preserved as a separate draft commit:
+
+- `app/lib/features/household/relay_notifications.dart`
+- `app/lib/features/household/relay_socket.dart`
+- `app/lib/features/household/relay_socket_io.dart`
+- `app/lib/features/household/relay_socket_web.dart`
+- `app/test/relay_notifications_test.dart`
+
+They attempt a receive-only signed WebSocket transport and small canonical tail
+hints, using existing pinned dependencies. **They are not wired into
+`HouseholdController` or the UI and are not a completed notification feature.**
+Their first interrupted test run printed nine passes and then hung in the
+wrong-protocol fixture while awaiting closure of an unlistened fake stream.
+That fixture now requests close without awaiting that future. Do not count the
+interrupted run as a pass; see the final handoff verification section below.
+
+Review before integration: native connection cancellation/timeout resource
+cleanup (a late `WebSocket.connect` can outlive the attempt), stream buffering
+and backpressure, cancel-before-open/late callbacks, browser JS event typing,
+proof size and selected-protocol checks, malformed/binary frames and orderly
+closure. The 64-character parser guard is after platform frame reception, not
+a claim of a pre-allocation network frame-size bound. No reconnect scheduler,
+foreground/background integration or controller lifecycle is implemented yet.
+
+### Server contract already verified at the baseline
+
+`docs/RELAY-NOTIFICATIONS.md` records the actual workerd tests, failures and
+limits. `LOCAL_AUTH_SOCKETS=true` is explicit loopback-only opt-in alongside
+existing authenticated membership. GET `/g/{32-lowercase-hex-group}/ws` requires
+current `read` permission. Sign the HTTP(S) origin/exact GET path/empty body
+with a fresh short-lived device proof; transport uses WS(S). Browser carrier is
+one `cash-request.` + unpadded base64url(proof JSON) subprotocol; server selects
+the exact token. It sends only `{"tail":n}`. No application messages, financial
+events or ACKs are sent over the socket.
+
+Current roster/read-grant revocation closes removed listeners; native
+hibernation API/serialized attachments and connection/quota/replay bounds have
+local runtime evidence. Actual hosted eviction/revival/billing is unverified.
+Recorded baseline: 16-file relay suite 91 tests, 88 pass + three optional Rust
+fixture skips; separate Rust interop run 21 pass, zero skips. These are previous
+Windows-source-specific results, not a fresh Linux or final-app-platform pass.
+
+### Next implementation sequence
+
+1. Analyze and finish the draft transport; get bounded focused tests to
+   terminate naturally. Exercise native and browser implementations separately.
+2. Integrate opt-in notifications with the serialized controller queue. On
+   every open/reconnect, backfill authenticated HTTP even if no hint arrives.
+   Coalesce hints; never advance cursor/ACK from a hint. Preserve existing
+   immutable ciphertext retry, saved-before-ACK, protected key and journal rules.
+3. Stop/revoke listeners and retries on lock, dispose, identity/relay change,
+   membership loss, uncertain save and background as appropriate. Check session
+   generation on queued callbacks. Do not use a disposed Rust handle or unlock
+   a second browser copy of the same identity. Test reconnect/offline backfill,
+   duplicate/out-of-order hints, slow sync, refusal and stale callbacks.
+4. Continue safe remaining gates in `docs/COMPLETION.md`: lifecycle/recovery
+   faults; complete personal/adaptive/accessibility review; final-source runtime
+   and clean-checkout release verification; concise final handoff. No new brand,
+   telemetry, bank sync, paid service or app-store publication is implied.
+
+## Linux cloud preparation
+
+Use the platform's Linux environment. Check installed tools, free disk and
+caches before downloading. The new bootstrap is **a handoff helper, not a
+claim of completed Linux provisioning**. It installs only host SDKs and locked
+packages, not Android emulators, WASM compilers or iOS tools.
+
+Install-script / legacy setup-script command, from the repository root:
+
+```bash
+bash scripts/codex_cloud_setup.sh
+```
+
+Select the resume branch before setup. If the UI has no branch picker, tell its
+setup agent to fetch and check out `origin/codex/cloud-handoff-20261018` in its
+fresh clean workspace before reading/running these files. Do not reset or
+overwrite an existing task's work to change branches. Setup at default `main`
+will not contain these handoff files.
+
+Requires Linux x86_64, git, curl, tar/xz, unzip, sha256sum, rustup, a C compiler
+and pkg-config. Ask environment setup to provide missing prerequisites; do not
+silently upgrade repository dependencies. Node downloads are checked against
+the vendor SHA-256 list and Flutter checkout against the exact known revision.
+The helper never deletes a cache, modifies global default Rust or deploys.
+
+In every new shell, including the task phase:
+
+```bash
+source scripts/codex_cloud_env.sh
+```
+
+Pins: Flutter 3.47.5, revision
+`6a19cca56475dbfba1478ee68d7bd0c2ef891da1`, Dart 3.13.4; Rust 1.98.1;
+Node 24.19.0; Miniflare 4.20260730.0; FRB 2.13.0. Do not copy Windows's temporary
+`stable` alias workaround to Linux: use named Rust 1.98.1 here. Lockfiles are
+tracked for all three package managers. Never replace them to force setup green.
+
+Small first checks (the real socket test needs owned-loopback binding):
+
+```bash
+source scripts/codex_cloud_env.sh
+cd app
+flutter --no-version-check analyze --no-pub lib/features/household/relay_notifications.dart lib/features/household/relay_socket.dart lib/features/household/relay_socket_io.dart lib/features/household/relay_socket_web.dart test/relay_notifications_test.dart
+flutter --no-version-check test --no-pub --timeout 20s test/relay_notifications_test.dart
+```
+
+For affected controller/native-host tests, build the actual Linux bridge once:
+
+```bash
+source scripts/codex_cloud_env.sh
+cargo build --manifest-path rust/Cargo.toml -p rust_lib_cash_app --locked
+cd app
+RUST_LIB_PATH="$PWD/../rust/target/debug/librust_lib_cash_app.so" flutter --no-version-check test --no-pub test/household_host_test.dart
+```
+
+Select further tests by change. Host tests without `RUST_LIB_PATH` may skip;
+skips are not native passes. For relay changes, start with the focused file in
+`relay/test`; the tracked `relay/package.json` contains the complete suite and
+`npm run test:request-proof-rust` actual interoperability runner. Limit concurrent
+workerds/build jobs on small VMs. Preserve useful caches; do not build every
+platform for each change.
+
+WASM is separate and expensive: `.github/workflows/phase1-web.yml` pins
+`nightly-2026-09-24` (compiler identifies its build as 2026-09-23), rust-src,
+wasm target, wasm-pack 0.15.0, wasm-bindgen-cli 0.2.129 and FRB codegen 2.13.0.
+Use its commands and exact target flags only when needed. Generated Dart bridge
+and Rust binary must match ABI `1237803201` until an intentional API/codegen
+change. A Flutter web build alone is not Rust-WASM runtime verification.
+Android needs the pinned SDK/JDK/NDK and an actual supported runtime; Linux
+builds do not replace phone/emulator results. Linux does not provide Xcode;
+final iOS requires an authorized macOS runner.
+
+## Access, costs and owner-only gates
+
+- Connect GitHub for **this repository only**, with normal branch/PR write
+  permission. No broad personal access token, repo-admin or billing rights.
+- Prefer default/Approve-for-me repository editing. If permissions are shown,
+  do not select unrestricted/full access just to avoid prompts. Internet access
+  and repository write permission are different controls.
+- Current environment network: package-manager preset, with only required
+  additional download/docs domains. Likely additions are `storage.googleapis.com`
+  for Flutter, `pub.dev`, `static.rust-lang.org`, `nodejs.org`, `github.com`,
+  `api.github.com` and release/source hosts as actually required. Start from the
+  built-in preset; add a denied destination after inspecting the failure, not
+  a wildcard. Permit the owned-loopback servers needed for tests. A pure GET/HEAD
+  restriction can break git push or local HTTP sync POSTs; do not equate network
+  restrictions with intended application authorization.
+- No production secrets needed initially. Never supply ledger keys, recovery
+  phrases, Cloudflare deploy keys, Apple credentials or payment information.
+- Keep environment private/Only me. This does **not** change GitHub visibility.
+  Authenticated API on 2026-10-18 reports the repo **public**; we made no change.
+- Prior safety review refused GitHub Actions dispatch without owner-verified
+  **$0 Actions spending cap**. It remains unverified; do not dispatch workflows,
+  open a PR that auto-triggers checks, or deploy/purchase anything before that
+  gate is satisfied. Branch pushes alone do not trigger the current workflows
+  (they use workflow_dispatch and/or pull_request). Preserve these guards.
+- Public relay remains closed (503). Trusted public registration, account-wide
+  abuse/cost bounds, free-host authorization and hosted runtime proof are open.
+  Full-access permissions are not spending or deployment authority. Codex usage
+  itself is subject to the owner's plan; no promise of unlimited/free compute.
+
+Use feature branches and save progress in commits. After cost authorization,
+open a reviewed PR and run affected acceptance checks before merging. If a task
+ends due to limits, update this handoff with exact HEAD/tests/next step; do not
+start over or label unchecked gates complete. Do not run the local and cloud
+agents concurrently against the same branches.
+
+## Official Cloud setup references (checked 2026-10-18)
+
+The current UI supports Work in > Cloud, repository selection, setup review and
+Publish, followed by Start a new task. The older UI has setup/maintenance script
+fields; use the same bootstrap there and source the env file in each task shell.
+Cloud setup/saved state is not a replacement for committed source.
+
+- [Cloud quickstart](https://learn.chatgpt.com/docs/cloud)
+- [Current environments, setup, networking and limitations](https://learn.chatgpt.com/docs/environments/cloud-environments)
+- [Legacy setup-script environment](https://learn.chatgpt.com/docs/environments/cloud-environment)
+- [Legacy agent internet access](https://learn.chatgpt.com/docs/cloud/internet-access)
+
+## Final handoff verification
+
+Independently checked on Windows 2026-10-18 using the existing pinned cache:
+
+- `cd app; flutter --no-version-check test --no-pub --timeout 20s
+  test/relay_notifications_test.dart`: **19 pass, exit 0**, including an actual
+  native loopback WebSocket/hint and no application frames. Test execution
+  reported about four seconds; SDK/compiler startup was substantially slower.
+  This is a transport-only host test, not the real authenticated Rust/workerd
+  client, a browser run, controller integration or mobile acceptance.
+- Targeted `flutter analyze --no-pub` stayed at `Analyzing 5 items...` without
+  a result. Its exact owned idle process was checked and terminated to bound
+  handoff work. **Analyzer incomplete, not passed**; rerun on Linux. The user's
+  editor language server was left untouched.
+- Pinned `dart format` completed on all five files (three formatted). Formatting
+  changed no behavior after the test run. `git diff --check` passed.
+- Git Bash syntax checks for both setup helpers, setup `--help`, environment
+  variable isolation/version exports, and explicit Windows refusal (exit 2)
+  passed. The initial Git Bash check lacked `/usr/bin` and failed to find
+  `dirname`/`uname`; rerunning with its proper utility PATH passed. The Linux
+  bootstrap/download/package-install path **has not been executed here**. Let
+  the actual cloud setup test it before publishing; report a missing pinned
+  release/download rather than silently substituting versions.
+
+No broad app suite, native Rust rebuild, WASM/mobile build, Actions job or public
+deployment was run for this handoff. Keep these results separate from the
+already-reviewed `cfee91a` relay evidence.
