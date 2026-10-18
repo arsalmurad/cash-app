@@ -10,7 +10,13 @@ import 'relay_socket_io.dart'
 /// One cancellable, authenticated attempt. Hints are advisory: callers must
 /// backfill over HTTP on every successful connection and reconnect. No cursor,
 /// acknowledgement, financial state or durable storage is updated here.
-class RelayNotifications {
+abstract interface class RelayNotificationConnection {
+  Future<void> get ready;
+  Stream<int> get tails;
+  void close();
+}
+
+class RelayNotifications implements RelayNotificationConnection {
   RelayNotifications({
     required Uri requestUri,
     required RelayRequestSigner signer,
@@ -25,13 +31,16 @@ class RelayNotifications {
     );
   }
 
+  @override
   late final Future<void> ready;
-  final _tails = StreamController<int>();
+  late final _tails = StreamController<int>(sync: true, onPause: close);
+  final _cancelled = Completer<void>();
   RelaySocket? _socket;
   StreamSubscription<Object?>? _subscription;
   bool _closed = false;
   int _lastTail = -1;
 
+  @override
   Stream<int> get tails => _tails.stream;
 
   Future<void> _open(
@@ -53,7 +62,8 @@ class RelayNotifications {
               !['127.0.0.1', 'localhost', '::1', '[::1]'].contains(uri.host))) {
         throw const FormatException();
       }
-      final proof = await signer('GET', uri, Uint8List(0)).timeout(timeout);
+      final proof = await _untilClosed(signer('GET', uri, Uint8List(0)))
+          .timeout(timeout);
       if (_closed) throw const FormatException();
       if (proof.isEmpty ||
           proof.length > 1024 ||
@@ -70,7 +80,7 @@ class RelayNotifications {
         protocol,
       );
       _socket = socket;
-      final selected = await socket.ready.timeout(remaining);
+      final selected = await _untilClosed(socket.ready).timeout(remaining);
       if (_closed || selected != protocol) throw const FormatException();
       _subscription = socket.messages.listen(
         _message,
@@ -84,13 +94,18 @@ class RelayNotifications {
     }
   }
 
+  Future<T> _untilClosed<T>(Future<T> work) => Future.any([
+    work,
+    _cancelled.future.then<T>((_) => throw StateError('Connection closed')),
+  ]);
+
   void _message(Object? message) {
     if (_closed) return;
     try {
       if (message is! String || message.length > 64) {
         throw const FormatException();
       }
-      // Canonical server format only, bounded before any parsing/allocation.
+      // This bound applies after platform frame reception, before parsing.
       if (!RegExp(r'^\{"tail":(0|[1-9][0-9]{0,15})\}$').hasMatch(message)) {
         throw const FormatException();
       }
@@ -98,19 +113,21 @@ class RelayNotifications {
       if (tail > 9007199254740991) throw const FormatException();
       if (tail > _lastTail) {
         _lastTail = tail;
-        _tails.add(tail);
+        if (_tails.hasListener && !_tails.isPaused) _tails.add(tail);
       }
     } catch (_) {
       close();
     }
   }
 
+  @override
   void close() {
     if (_closed) return;
     _closed = true;
+    _cancelled.complete();
     _socket?.close();
     final subscription = _subscription;
     if (subscription != null) unawaited(subscription.cancel());
-    unawaited(_tails.close());
+    scheduleMicrotask(() => unawaited(_tails.close()));
   }
 }

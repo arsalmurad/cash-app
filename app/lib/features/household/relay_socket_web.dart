@@ -27,7 +27,7 @@ class _BrowserSocket implements RelaySocket {
 
   final web.WebSocket _socket;
   final _ready = Completer<String>();
-  final _messages = StreamController<Object?>();
+  final _messages = StreamController<Object?>.broadcast(sync: true);
   bool _closed = false;
   @override
   Future<String> get ready => _ready.future;
@@ -38,13 +38,14 @@ class _BrowserSocket implements RelaySocket {
   void close() {
     if (_closed) return;
     _closed = true;
-    if (!_ready.isCompleted)
+    if (!_ready.isCompleted) {
       _ready.completeError(StateError('Connection closed'));
+    }
     _socket.onopen = null;
     _socket.onmessage = null;
     _socket.onerror = null;
     _socket.onclose = null;
     _socket.close();
-    unawaited(_messages.close());
+    scheduleMicrotask(() => unawaited(_messages.close()));
   }
 }

@@ -12,8 +12,8 @@ const group = '0123456789abcdef0123456789abcdef';
 final uri = Uri.parse('https://relay.example/g/$group/ws');
 
 class FakeSocket implements RelaySocket {
-  FakeSocket(String protocol) {
-    connection.complete(protocol);
+  FakeSocket(String? protocol) {
+    if (protocol != null) connection.complete(protocol);
   }
   final connection = Completer<String>();
   final events = StreamController<Object?>();
@@ -130,6 +130,75 @@ void main() {
     proof.complete('{}');
     await flush();
     expect(connects, 0);
+  });
+
+  test('close cancels a handshake without waiting for its deadline', () async {
+    final socket = FakeSocket(null);
+    final notifications = RelayNotifications(
+      requestUri: uri,
+      signer: signer,
+      socketFactory: (_, _) => socket,
+    );
+    await flush();
+    notifications.close();
+    await expectLater(notifications.ready, throwsA(isA<RelayUnavailable>()));
+    socket.connection.complete('late');
+    await flush();
+    expect(socket.closes, 1);
+  });
+
+  test('paused hint consumer closes instead of buffering frames', () async {
+    late FakeSocket socket;
+    final notifications = RelayNotifications(
+      requestUri: uri,
+      signer: signer,
+      socketFactory: (_, protocol) => socket = FakeSocket(protocol),
+    );
+    final subscription = notifications.tails.listen((_) {});
+    await notifications.ready;
+    subscription.pause();
+    await flush();
+    expect(socket.closes, 1);
+    subscription.resume();
+    await subscription.cancel();
+    await socket.events.close();
+  });
+
+  test('native timeout aborts an actual stalled HTTP upgrade', () async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    final request = Completer<void>();
+    final disconnected = Completer<void>();
+    Socket? peer;
+    final listening = server.listen((socket) {
+      peer = socket;
+      socket.listen(
+        (_) {
+          if (!request.isCompleted) request.complete();
+        },
+        onDone: () {
+          if (!disconnected.isCompleted) disconnected.complete();
+        },
+      );
+    });
+    final notifications = RelayNotifications(
+      requestUri: Uri.parse('http://127.0.0.1:${server.port}/g/$group/ws'),
+      signer: signer,
+      timeout: const Duration(milliseconds: 200),
+    );
+    final failed = expectLater(
+      notifications.ready,
+      throwsA(isA<RelayUnavailable>()),
+    );
+    try {
+      await request.future.timeout(const Duration(seconds: 2));
+      await failed;
+      await disconnected.future.timeout(const Duration(seconds: 2));
+    } finally {
+      notifications.close();
+      peer?.destroy();
+      await listening.cancel();
+      await server.close();
+    }
   });
 
   test('wrong negotiated protocol closes without reading hints', () async {
