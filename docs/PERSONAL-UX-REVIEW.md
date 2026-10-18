@@ -289,3 +289,44 @@ runtime commands and the disk-space startup refusal/recovery are recorded in
 [ANDROID-RELEASE.md](ANDROID-RELEASE.md). Native private SQLite bytes, the
 thirty-row mobile bottom-action matrix, enlarged native runtime text, actual
 TalkBack/VoiceOver and ARM phone execution are not inferred from this pass.
+
+### Actual 200% production-browser zoom (Linux continuation, 2026-10-18)
+
+The rebuilt release WASM app now passes the thirty-category pointer journey
+at real Chromium 154.0.8037.57 page zoom. The driver writes only its fresh owned
+profile's default-partition zoom preference. It keeps emulated device scale at
+one and verifies **360x740 CSS pixels, DPR 2, visual-viewport/pinch scale 1**
+before app interaction. The resulting physical viewport is 720x1480; this is
+desktop browser page zoom at a narrow CSS width, not a native phone or a
+Flutter text-scaler test.
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_CATEGORIES=1 WEB_CATEGORY_LIST=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_KEYBOARD_ENTRY=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+Both commands pass, exit 0. The first verifies twelve actual icon names/checked
+states, byte-unchanged creation/edit cancellation, 25 normal UI additions to
+the five defaults, real wheel progress/stable bottom, no Edit/New overlap,
+physical pointer editing, saved name/icon after reload and unchanged exact
+`USD -512.34`. The second verifies real Tab/Shift+Tab traversal, Escape and
+byte-unchanged SQLite cancellation, with zoom/viewport checked again at the
+end after reloads. No product source, app state or money representation changed.
+Logs: `/tmp/personal-browser-zoom-200-pointer.log` and
+`/tmp/personal-browser-zoom-200-keyboard.log`.
+
+The initial preflight refused to proceed because the proposed scalar preference
+was ignored and Chromium remained at DPR 1. Chromium's upstream
+`chrome/browser/ui/zoom/chrome_zoom_level_prefs.cc` documents the required
+default-partition dictionary key `x`; the corrected preference passes the
+runtime checks. A subsequent run reached real zoom but missed New category
+while its page route was animating. Settled physical pointer activation fixes
+the driver, and dialog controls wait for their entrance before selection.
+These failed attempts are not acceptance passes. A preliminary dump-DOM probe
+also did not finish and its exact owned processes were stopped; it supplies no
+runtime evidence.
+
+This closes scoped enlarged-browser category/action and keyboard-cancellation
+coverage. Complete contrast/focus/screen-reader review, other personal flows at
+enlarged text, updated native thirty-row/enlarged-text and final iOS remain open.
