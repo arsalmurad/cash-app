@@ -10,6 +10,8 @@ long local conversation; it does not declare the product finished.
   `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
   `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
   `git log` and preserve task work.
+- Latest accepted runtime/test-driver checkpoint: `18ab351`, pushed to that
+  branch. Later documentation-only commits do not require rebuilding artifacts.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
   and `codex/browser-summary-lifecycle`, independently checked on 2026-10-18.
 - Original preserved draft client: commit `12f7a36`. Linux continuation commits
@@ -324,6 +326,23 @@ keyboard Tab/Shift+Tab/Escape cancellation run at actual Chromium **200% page
 zoom**, 360x740 CSS, DPR 2 and pinch scale 1. Driver flag: `WEB_BROWSER_ZOOM=2`.
 No app source changes or rebuild were needed. `PERSONAL-UX-REVIEW.md` records
 commands, initial failed preflight/missed animation click and remaining limits.
+
+The 200% keyboard run and default 100% smoke both exit 0, including the driver's
+final viewport/zoom check after reload. Setup and WASM preflights pass again;
+all three project lockfiles are byte-unchanged from `b867ad2`. Current source is
+checkpointed on the feature branch, with no main merge/PR/Actions/deployment.
+The environment draft pins the exact current checkout and has tested install
+and start instructions, 16 restricted hosts and no secret requirements.
+
+Resume with `source scripts/codex_cloud_env.sh`, `git status`, and this handoff.
+Do not restart notification implementation or rebuild unchanged cached bridges.
+Next safe gaps are production-browser background/offline notifications while
+enabled and save/quota faults, the remaining personal functional/contrast/focus
+and screen-reader review, and a clean-checkout release check. Actual updated
+Android/iOS/native enlarged-text/vault/biometric acceptance needs supported
+platform tools/runtimes (this machine has no adb/emulator/KVM or Xcode). Hosted
+runtime, deployment and Actions remain blocked by the documented owner spending
+authorization, not a reason to expose a public relay or use another route.
 
 Do not repeat old native/mobile results as current release acceptance. No PR,
 Actions dispatch, deployment, purchase or visibility change has been made.
