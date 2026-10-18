@@ -2,8 +2,8 @@
 
 Linux continuation, 2026-10-18. Implementation checkpoint `7aaae2d` on
 `codex/notification-lifecycle-20261018`, starting from handoff `b867ad2`.
-This is an owned-loopback client implementation, not public relay deployment
-or final iPhone/Android/production-web acceptance.
+This is an owned-loopback client implementation with scoped production-browser
+acceptance, not public relay deployment or final iPhone/Android acceptance.
 
 ## Behavior and invariants
 
@@ -108,13 +108,31 @@ isolated Linux runner used Chromium with `--no-sandbox --disable-dev-shm-usage`.
 Without the fixture define the transport cases are explicitly skipped. Those
 skips are not browser acceptance. Stop the owned fixture after testing.
 
-Production WASM verification is a separate pending gate. The existing driver
-has an opt-in `WEB_HOUSEHOLD_NOTIFICATIONS=1` scenario, requiring
-`WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1`, to check a real selected handshake,
-hint-triggered HTTP, rendered balance, no outgoing application frames and
-browser vault lock/reopen. Do not count it as passed until the release app has
-been rebuilt and the scenario completes. See the latest cloud handoff for the
-current build/tool status and exact full-suite result.
+The rebuilt release WASM app passes the complete production-browser driver
+(Chromium 154.0.8037.57, Linux x86_64, 1280x900, exit 0):
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1 WEB_HOUSEHOLD_NOTIFICATIONS=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+Actual public roster bootstrap and protected Rust signing authorize a selected
+101 socket handshake against workerd/SQLite. A received tail hint precedes an
+authenticated GET and successful response; the rendered `USD -40.00` balance
+appears within ten seconds of publication without manual sync. No application
+frames are sent. Browser vault lock closes the socket and phrase unlock opens a
+new signed connection. The same run passes sealed reload, offline conflicting
+edits, explicit unanimous pruning, same-origin identity lease refusal/transfer,
+stale-backup fresh-key recovery/removal, frozen EUR/JPY rates and private-ledger
+separation. Other stages use their existing explicit sync controls; they are not
+claims of notification-triggered recovery/removal or offline socket acceptance.
+
+The first attempt missed the animated menu click; its screenshot showed the
+menu still open. The next reached handshake/hint/rendering, then failed an
+overly narrow lock-button selector. Settled pointer selection and the existing
+text-or-ARIA label lookup fixed the driver, with no product change. The complete
+subsequent run passes; earlier partial runs are not counted as suite passes.
+See the cloud handoff for exact build/tool status and source hash.
 
 Public authorization, hosted eviction/revival/billing, final mobile runtimes,
 production browser lifecycle/quota/fault coverage and the wider completion

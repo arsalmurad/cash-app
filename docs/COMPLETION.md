@@ -60,9 +60,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    [RELAY-NOTIFICATIONS.md](RELAY-NOTIFICATIONS.md). The default-off app client
    now integrates bounded hint coalescing and open/reconnect HTTP backfill,
    foreground/lock/uncertain-save/removal/disposal guards, with actual native
-   Rust/workerd and separate Chromium transport evidence in
+   Rust/workerd, separate Chromium transport and rebuilt production WASM
+   handshake/hint/HTTP/rendered-balance/lock-reopen evidence in
    [NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md). Final app-platform
-   notification lifecycle, actual cloud hibernation and public deployment stay open.
+   notification lifecycle coverage, actual cloud hibernation and public deployment stay open.
 2. [ ] Crash-safe authenticated pruning or peer-snapshot recovery with confirmed
    offline-peer acknowledgements and recoverable availability. Every current MLS
    key must acknowledge the exact checkpoint; a computed cutoff/TTL is never
@@ -130,7 +131,11 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    process-restart pass; ARM packaging is not a phone runtime claim.
    ARM phone/16 KB OS/release household runtime, clean-checkout and final iOS remain
    unverified. Older runs are not a
-   final-source completion claim.
+   final-source completion claim. The Linux continuation's rebuilt production
+   WASM bundle passes the complete authenticated browser journey with live
+   notifications, explicit pruning, identity lease and fresh-key recovery
+   ([NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md)); this is current
+   scoped web evidence, not final mobile or clean-checkout acceptance.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to GitHub `main`. Local diagnostic
    logs/caches are ignored; repeatable tests and evidence summaries are tracked.
