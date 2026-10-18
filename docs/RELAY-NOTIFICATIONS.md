@@ -120,9 +120,10 @@ the reported interoperability pass.
 
 Follow [LOCAL-RELAY-SETUP.md](LOCAL-RELAY-SETUP.md), then add
 `$env:LOCAL_AUTH_SOCKETS = 'true'` before starting `node dev-server.mjs 8787`.
-The existing app still uses authenticated HTTP/manual sync; socket lifecycle,
-unlock/lock/close, foreground/background, reconnection/backfill, notifications
-during uncertain saves and final app-platform acceptance remain to be connected
-and verified. This server capability alone does not close the full notification
+The Linux continuation now connects an explicit default-off app client through
+bounded, serialized authenticated HTTP backfill, with scoped lifecycle and
+native/browser transport tests: [NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md).
+Final app-platform lifecycle acceptance remains open. This server capability
+alone does not close the full notification
 or Phase 2 gate. Trusted public registration, account-wide anonymous abuse/cost
 bounds, authorized free hosting and actual cloud hibernation remain open.

@@ -1,7 +1,7 @@
 # Paste into the Codex Cloud task
 
-Continue `arsalmurad/cash-app` from branch `codex/cloud-handoff-20261018`,
-including its unfinished notification client. This is a continuation, not a
+Continue `arsalmurad/cash-app` from branch `codex/notification-lifecycle-20261018`
+and the latest checkpoint in `docs/CLOUD-HANDOFF.md`. This is a continuation, not a
 new app or redesign. First confirm the checked-out branch/HEAD and read
 `AGENTS.md`, `docs/CLOUD-HANDOFF.md`, `docs/PHASE0-RESULT.md`,
 `docs/COMPLETION.md`, and only the relevant build-brief phase/evidence.
@@ -12,12 +12,12 @@ no shared login, no readable financial data at the relay. Preserve all money,
 event ordering, canonical convergence, MLS, protected-key and save-before-ACK
 invariants. Preserve the known-working pinned toolchains/lockfiles.
 
-Set up/reuse the Linux environment as documented, then finish and test the
-draft receive-only signed notification transport. It is not integrated into
-the controller and must not be assumed production-ready. Integrate bounded,
-coalesced hints with the serialized HTTP sync path; backfill on every connection
-and reconnect. Verify locking/disposal/background/identity changes, stale
-callbacks, uncertain saves, offline recovery and current-member revocation.
+Set up/reuse the Linux environment as documented. The receive-only notification
+transport and bounded controller lifecycle are integrated with scoped native
+and browser transport evidence; read `docs/NOTIFICATION-LIFECYCLE.md` and the
+current handoff before repeating work. Continue production-browser and remaining
+platform acceptance, especially locking/disposal/background/identity changes,
+stale callbacks, uncertain saves, offline recovery and current-member revocation.
 Never treat a tail hint as ledger state, delivery ACK or retention consent.
 
 Continue meaningful safe implementation toward the remaining completion gates

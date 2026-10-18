@@ -1,12 +1,14 @@
 # Codex Cloud handoff
 
-Prepared 2026-10-18 at the owner's request. This file replaces reliance on the
+Updated 2026-10-18 during the Linux continuation. This file replaces reliance on the
 long local conversation; it does not declare the product finished.
 
 ## Start here
 
 - Repository: <https://github.com/arsalmurad/cash-app>.
-- Resume branch: `codex/cloud-handoff-20261018` (includes the unfinished client).
+- Resume branch: `codex/notification-lifecycle-20261018`; implementation checkpoint
+  `7aaae2d`, descended from the requested handoff `b867ad2`. Later commits record
+  acceptance-driver/evidence updates. Read `git log` and preserve task work.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
   and `codex/browser-summary-lifecycle`, independently checked on 2026-10-18.
 - Preserved draft client: commit `12f7a36` on the resume branch. Later commits
@@ -38,9 +40,9 @@ Phase 0 passed runtime on all three platforms; extensive personal/shared-core
 and scoped native/web/Android evidence exists. `docs/COMPLETION.md` is the
 completion checklist, not a statement that every remaining gate passed.
 
-## Exact unfinished work
+## Notification continuation
 
-Five previously local-only files are preserved as a separate draft commit:
+Five previously local-only files were preserved as a separate draft commit:
 
 - `app/lib/features/household/relay_notifications.dart`
 - `app/lib/features/household/relay_socket.dart`
@@ -48,21 +50,14 @@ Five previously local-only files are preserved as a separate draft commit:
 - `app/lib/features/household/relay_socket_web.dart`
 - `app/test/relay_notifications_test.dart`
 
-They attempt a receive-only signed WebSocket transport and small canonical tail
-hints, using existing pinned dependencies. **They are not wired into
-`HouseholdController` or the UI and are not a completed notification feature.**
-Their first interrupted test run printed nine passes and then hung in the
-wrong-protocol fixture while awaiting closure of an unlistened fake stream.
-That fixture now requests close without awaiting that future. Do not count the
-interrupted run as a pass; see the final handoff verification section below.
-
-Review before integration: native connection cancellation/timeout resource
-cleanup (a late `WebSocket.connect` can outlive the attempt), stream buffering
-and backpressure, cancel-before-open/late callbacks, browser JS event typing,
-proof size and selected-protocol checks, malformed/binary frames and orderly
-closure. The 64-character parser guard is after platform frame reception, not
-a claim of a pre-allocation network frame-size bound. No reconnect scheduler,
-foreground/background integration or controller lifecycle is implemented yet.
+They now have a bounded receive-only transport and are wired into the serialized
+controller HTTP path through an explicit **Live updates while open** menu option.
+Open/reconnect backfills without needing a hint; hints coalesce and never advance
+state/ACK/retention consent. Foreground, lock, session-generation, uncertain-save,
+removal, disposal and native-handle lifetime checks have scoped tests. Read
+[the implementation and evidence](NOTIFICATION-LIFECYCLE.md) before continuing.
+The original interrupted Windows draft run is not counted as a pass. The
+64-character parser bound remains after platform frame reception.
 
 ### Server contract already verified at the baseline
 
@@ -82,20 +77,16 @@ Recorded baseline: 16-file relay suite 91 tests, 88 pass + three optional Rust
 fixture skips; separate Rust interop run 21 pass, zero skips. These are previous
 Windows-source-specific results, not a fresh Linux or final-app-platform pass.
 
-### Next implementation sequence
+### Next safe work
 
-1. Analyze and finish the draft transport; get bounded focused tests to
-   terminate naturally. Exercise native and browser implementations separately.
-2. Integrate opt-in notifications with the serialized controller queue. On
-   every open/reconnect, backfill authenticated HTTP even if no hint arrives.
-   Coalesce hints; never advance cursor/ACK from a hint. Preserve existing
-   immutable ciphertext retry, saved-before-ACK, protected key and journal rules.
-3. Stop/revoke listeners and retries on lock, dispose, identity/relay change,
-   membership loss, uncertain save and background as appropriate. Check session
-   generation on queued callbacks. Do not use a disposed Rust handle or unlock
-   a second browser copy of the same identity. Test reconnect/offline backfill,
-   duplicate/out-of-order hints, slow sync, refusal and stale callbacks.
-4. Continue safe remaining gates in `docs/COMPLETION.md`: lifecycle/recovery
+1. Finish current-source production WASM notification acceptance. The driver
+   supports `WEB_HOUSEHOLD_NOTIFICATIONS=1 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1`.
+   Check the Linux continuation status below before rebuilding. Browser transport
+   and native controller passes do not prove production app lifecycle behavior.
+2. Expand final-platform background/offline/lock, quota/recovery and removal
+   acceptance, preserving saved-before-ACK and single-owner browser identity
+   leases. OS-protected native saves/biometric enrollment need actual platforms.
+3. Continue safe remaining gates in `docs/COMPLETION.md`: lifecycle/recovery
    faults; complete personal/adaptive/accessibility review; final-source runtime
    and clean-checkout release verification; concise final handoff. No new brand,
    telemetry, bank sync, paid service or app-store publication is implied.
@@ -103,8 +94,8 @@ Windows-source-specific results, not a fresh Linux or final-app-platform pass.
 ## Linux cloud preparation
 
 Use the platform's Linux environment. Check installed tools, free disk and
-caches before downloading. The new bootstrap is **a handoff helper, not a
-claim of completed Linux provisioning**. It installs only host SDKs and locked
+caches before downloading. The bootstrap and version preflight now pass on the
+Linux host, including repeat execution with a read-only home. It installs host SDKs and locked
 packages, not Android emulators, WASM compilers or iOS tools.
 
 Install-script / legacy setup-script command, from the repository root:
@@ -130,6 +121,11 @@ In every new shell, including the task phase:
 ```bash
 source scripts/codex_cloud_env.sh
 ```
+
+The helper now activates workspace-installed Rust when needed and sets writable
+Flutter/analyzer state and package caches without changing HOME or global Rust
+defaults. Explicit cache bindings win. The temporary onboarding activation
+wrapper is no longer required. Keep generated caches ignored.
 
 Pins: Flutter 3.47.5, revision
 `6a19cca56475dbfba1478ee68d7bd0c2ef891da1`, Dart 3.13.4; Rust 1.98.1;
@@ -219,7 +215,7 @@ Cloud setup/saved state is not a replacement for committed source.
 - [Legacy setup-script environment](https://learn.chatgpt.com/docs/environments/cloud-environment)
 - [Legacy agent internet access](https://learn.chatgpt.com/docs/cloud/internet-access)
 
-## Final handoff verification
+## Original Windows handoff verification
 
 Independently checked on Windows 2026-10-18 using the existing pinned cache:
 
@@ -244,5 +240,30 @@ Independently checked on Windows 2026-10-18 using the existing pinned cache:
   release/download rather than silently substituting versions.
 
 No broad app suite, native Rust rebuild, WASM/mobile build, Actions job or public
-deployment was run for this handoff. Keep these results separate from the
+deployment was run for that original Windows handoff. Keep those results separate from the
 already-reviewed `cfee91a` relay evidence.
+
+## Linux continuation status
+
+At `7aaae2d`, notification transport, controller/UI lifecycle, default-off menu,
+bounded reconnect/coalescing, queued-work bounds and deferred native read-borrow
+retirement are implemented in focused commits. The pinned Linux native bridge
+is retained at `rust/target/debug/librust_lib_cash_app.so` (ABI unchanged).
+Full host validation at this implementation checkpoint passed **477 tests,
+exit 0, no skips** (5m 06s while pinned WASM tools compiled). Focused native HTTP/churn plus menu checks
+passed 29 cases, and the final handle-lifetime file passed all four cases.
+Full analysis passes. Six actual Chromium transport cases and three browser
+storage/identity-lease cases pass. See `NOTIFICATION-LIFECYCLE.md` for scope.
+
+Production WASM prerequisites are being prepared using the exact CI pins:
+nightly `nightly-2026-09-24` is installed and reports `6eeff9a52`; rust-src and
+the wasm target are present. Optional build tools install into the existing
+workspace Cargo home, using a shared cache `/workspace/.cache/cash-cargo-tools`.
+LLVM 19.1.7 was extracted locally from hash-checked packages selected from the
+host's signed Debian snapshot indexes; no system packages were changed. Its
+Clang/archive tools are under `/workspace/toolchains/llvm/usr/lib/llvm-19/bin`.
+Check `wasm-pack --version`, `wasm-bindgen --version`, and
+`flutter_rust_bridge_codegen --version` before using the pending build.
+
+Do not repeat old native/mobile results as current release acceptance. No PR,
+Actions dispatch, deployment, purchase or visibility change has been made.

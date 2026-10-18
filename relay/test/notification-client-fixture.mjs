@@ -32,7 +32,10 @@ server.on('upgrade', (request, socket, head) => {
   if (request.url.includes('/4444')) setTimeout(upgrade, 500);
   else upgrade();
 });
-server.listen(Number(process.argv[2] ?? 8799), '127.0.0.1', () => console.log('browser fixture ready'));
+server.listen(Number(process.argv[2] ?? 8799), '127.0.0.1', () => {
+  console.log('browser fixture ready');
+  console.log(`PORT:${server.address().port}`);
+});
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
     for (const ws of sockets.clients) ws.terminate();
