@@ -1,6 +1,6 @@
 # Completion tracker
 
-Updated 2026-10-05. Complete the private prototype against
+Updated 2026-10-18. Complete the private prototype against
 `expense-app-build-brief.md`, not just individual milestones. This is a
 current-status index; detailed history, failures and exact commands remain in
 the linked evidence documents and Git. Unchecked gates are not achieved.
@@ -57,8 +57,12 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    An explicit local authenticated notification path now passes actual workerd
    native/browser-compatible signatures, current-roster removal/read revocation,
    128-socket caps/quota rollback and host Rust interoperability:
-   [RELAY-NOTIFICATIONS.md](RELAY-NOTIFICATIONS.md). App notification lifecycle,
-   actual cloud hibernation and public registration/deployment stay open.
+   [RELAY-NOTIFICATIONS.md](RELAY-NOTIFICATIONS.md). The default-off app client
+   now integrates bounded hint coalescing and open/reconnect HTTP backfill,
+   foreground/lock/uncertain-save/removal/disposal guards, with actual native
+   Rust/workerd and separate Chromium transport evidence in
+   [NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md). Final app-platform
+   notification lifecycle, actual cloud hibernation and public deployment stay open.
 2. [ ] Crash-safe authenticated pruning or peer-snapshot recovery with confirmed
    offline-peer acknowledgements and recoverable availability. Every current MLS
    key must acknowledge the exact checkpoint; a computed cutoff/TTL is never
@@ -79,6 +83,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    Actual authenticated browser quota refusal/restart and observed asynchronous
    lock release also pass in the complete production consent/recovery journey.
    Remaining lifecycle faults and final-platform coordination remain open.
+   The Linux continuation also defers native handle retirement across pending
+   read borrows, refuses disposed-controller key restoration, and passes actual
+   Chromium RAM-only/second-tab lease checks. These scoped checks do not close
+   the broader final-platform gate.
 3. [x] Implement and verify the brief's explicit MLS key-rotation operation,
    including immutable/durable commit retry and authenticated epoch coordination.
    Standalone self-update now has native core/bridge/controller, actual
@@ -104,6 +112,8 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    also passes actual native picker names/selected states/cancellation and
    exact-balance process restart; both rebuilt splits pass packaging checks.
    Thirty-row mobile, screen-reader and complete accessibility gates stay open.
+   The new live-update menu passes six 200%-text phone/tablet/desktop light/dark
+   pointer/escape cases; this is additional scoped reachability evidence.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android
