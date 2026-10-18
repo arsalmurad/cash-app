@@ -121,11 +121,15 @@ Actual public roster bootstrap and protected Rust signing authorize a selected
 authenticated GET and successful response; the rendered `USD -40.00` balance
 appears within ten seconds of publication without manual sync. No application
 frames are sent. Browser vault lock closes the socket and phrase unlock opens a
-new signed connection. The same run passes sealed reload, offline conflicting
+new signed connection. An expanded complete repeat also verifies opt-out closes
+the socket without retry, re-enable opens it, and reload/unlock retains the
+default-off choice. Before member removal, Bob explicitly subscribes again;
+revocation closes his real socket, automatic HTTP backfill renders his removal
+within ten seconds without manual sync, and no reconnect is observed. The same run passes sealed reload, offline conflicting
 edits, explicit unanimous pruning, same-origin identity lease refusal/transfer,
 stale-backup fresh-key recovery/removal, frozen EUR/JPY rates and private-ledger
 separation. Other stages use their existing explicit sync controls; they are not
-claims of notification-triggered recovery/removal or offline socket acceptance.
+claims of notification-triggered offline socket recovery.
 
 The first attempt missed the animated menu click; its screenshot showed the
 menu still open. The next reached handshake/hint/rendering, then failed an
@@ -133,6 +137,24 @@ overly narrow lock-button selector. Settled pointer selection and the existing
 text-or-ARIA label lookup fixed the driver, with no product change. The complete
 subsequent run passes; earlier partial runs are not counted as suite passes.
 See the cloud handoff for exact build/tool status and source hash.
+
+The expanded repeat exposed a real relay close-handshake defect: a browser
+`close()` without a status reports reserved observation code `1005`; echoing
+that forbidden wire status left the client in `CLOSING`. A real TCP test fails
+before the fix and passes after mapping local-only `1005`/`1006`/`1015` to `1000`
+(`50c3e02`). A separate missed DOM lock click during background sync was fixed
+in the driver by waiting for bounded network silence and using physical pointer
+input. The final complete run passes at the changed relay source; the earlier
+single green journey did not establish repeatability of close handshakes.
+
+After the relay fix, the manifest's 16-file suite passes **88/92 tests, four
+explicit optional Rust skips, exit 0** (128.36s, concurrency one). Dedicated
+`npm run test:request-proof-rust` passes **22, no skips**; separate
+`npm run test:prefix-consent-rust` passes **one, no skips**. The actual native
+controller scenario passes again (one case, 22s). An intervening wildcard
+invocation wrongly included the fixture-only consent test without generating
+its input: 88 pass, one fixture-input failure, four skips. Use the package test
+list and dedicated generators rather than `test/*.test.js`.
 
 Public authorization, hosted eviction/revival/billing, final mobile runtimes,
 production browser lifecycle/quota/fault coverage and the wider completion

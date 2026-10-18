@@ -118,6 +118,18 @@ the reported interoperability pass.
 
 ## Optional local use and remaining gates
 
+Linux continuation `50c3e02` fixes a close-handshake defect found by repeating
+production browser lock acceptance: peer `close()` without a status reports
+reserved `1005`, and echoing it is forbidden on the wire. The inherited handler
+now maps local-only `1005`/`1006`/`1015` to `1000`, preserving other peer codes.
+An actual TCP regression fails with the client stuck in `CLOSING` before the
+fix and passes afterward. Post-fix manifest suite passes **88 tests, four
+optional skips, no failures** (92 total, concurrency one); dedicated Rust
+proof/socket interoperability passes **22, no skips**, and consent interoperability
+passes **one, no skips**. The rebuilt production WASM app's expanded complete
+journey passes lock/reopen, opt-out, session-off reload and automatic member
+removal; [client evidence](NOTIFICATION-LIFECYCLE.md) records limits and failures.
+
 Follow [LOCAL-RELAY-SETUP.md](LOCAL-RELAY-SETUP.md), then add
 `$env:LOCAL_AUTH_SOCKETS = 'true'` before starting `node dev-server.mjs 8787`.
 The Linux continuation now connects an explicit default-off app client through
