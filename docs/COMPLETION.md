@@ -107,7 +107,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    The latest category-list bottom-action repair passes a six-case 200%-text
    pointer/cancel matrix and 28 adjacent host tests; updated production
    narrow thirty-row production Chrome pointer/edit/reload now also passes;
-   updated mobile and 200% browser-zoom verification remain open. The icon
+   updated mobile verification remains open. The Linux continuation additionally
+   passes the thirty-row pointer/edit/reload and keyboard-cancellation checks
+   at verified actual 200% Chromium page zoom (360x740 CSS, DPR 2, pinch scale 1),
+   recorded in the same UX review. This is scoped enlarged-browser coverage. The icon
    picker now exposes twelve human-readable names and selected states, with
    36 adjacent host tests and rebuilt narrow production Chrome personal/CSV/
    keyboard/offline-font acceptance passing. Updated Android x86_64 release

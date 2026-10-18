@@ -17,6 +17,7 @@ export async function runCategoryPickerWebScenario(page, api) {
     .filter(e => ${JSON.stringify(expected)}.includes(e.label))`);
   async function inspect() {
     await waitForLabel(page, 'Shopping cart icon');
+    await api.delay(300); // Finish the dialog entrance before selecting a row.
     const current = await choices();
     assert.deepEqual(current.map(e => e.label).sort(), [...expected].sort(), 'Every icon needs a distinct real browser name');
     for (const choice of current) {
@@ -27,7 +28,7 @@ export async function runCategoryPickerWebScenario(page, api) {
   await clickLabel(page, 'Import or export', 'button');
   await clickLabel(page, 'Manage categories');
   await waitForLabel(page, 'Categories');
-  await clickLabel(page, 'New category', 'button');
+  await categoryPointer(page, api, 'New category');
   await inspect();
   await clickLabel(page, 'Travel icon', 'checkbox');
   await waitFor(page, `[...document.querySelectorAll('flt-semantics-host [role="checkbox"]')]
@@ -36,7 +37,7 @@ export async function runCategoryPickerWebScenario(page, api) {
   await clickLabel(page, 'Cancel', 'button');
   await waitForLabel(page, 'Categories');
   assert.equal(await saved(), before, 'Cancelling a new category/icon choice must not write SQLite');
-  await clickLabel(page, 'Edit category', 'button');
+  await categoryPointer(page, api, 'Edit category');
   await inspect();
   await clickLabel(page, 'Cancel', 'button');
   await waitForLabel(page, 'Categories');
@@ -124,7 +125,7 @@ async function runLongCategoryList(page, api) {
   // actual production create/save path; every addition must change saved bytes.
   for (let i = 0; i < 25; i++) {
     const beforeCreate = await saved();
-    await clickLabel(page, 'New category', 'button');
+    await categoryPointer(page, api, 'New category');
     await name(`Browser category ${String(i).padStart(2, '0')}`);
     await clickLabel(page, 'Travel icon', 'checkbox');
     await clickLabel(page, 'Create', 'button');
@@ -158,4 +159,21 @@ async function runLongCategoryList(page, api) {
   await clickLabel(page, 'Back', 'button');
   await waitForLabel(page, 'USD -512.34');
   console.log('Verified production thirty-category list: physical bottom scrolling/edit without FAB overlap, byte-unchanged cancellation, durable name/icon and unchanged balance.');
+}
+
+async function categoryPointer(page, { waitForLabel, evaluate, delay }, label) {
+  await waitForLabel(page, label);
+  // Route semantics can precede its entrance/pop animation. Tap only after
+  // the real category page settles, rather than activating an obscured node.
+  await delay(350);
+  const point = await evaluate(page, `(() => {
+    const button = [...document.querySelectorAll('flt-semantics-host [role="button"]')].find(e =>
+      (e.getAttribute('aria-label') ?? e.textContent?.trim()) === ${JSON.stringify(label)} &&
+      e.getAttribute('aria-disabled') !== 'true');
+    if (!button) throw new Error('Category action is unavailable');
+    const r = button.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  })()`);
+  await page.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+  await page.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
 }

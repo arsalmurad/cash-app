@@ -318,5 +318,12 @@ draft, using `source scripts/codex_cloud_env.sh` directly and the pinned helpers
 Only this repository is configured, no production secrets are needed, and live
 servers must restart in each task. Saving is not publication or restore proof.
 
+The next safe UX gate also has new scoped evidence: the rebuilt production app
+passes a thirty-category bottom pointer/edit/cancel/reload journey and a separate
+keyboard Tab/Shift+Tab/Escape cancellation run at actual Chromium **200% page
+zoom**, 360x740 CSS, DPR 2 and pinch scale 1. Driver flag: `WEB_BROWSER_ZOOM=2`.
+No app source changes or rebuild were needed. `PERSONAL-UX-REVIEW.md` records
+commands, initial failed preflight/missed animation click and remaining limits.
+
 Do not repeat old native/mobile results as current release acceptance. No PR,
 Actions dispatch, deployment, purchase or visibility change has been made.

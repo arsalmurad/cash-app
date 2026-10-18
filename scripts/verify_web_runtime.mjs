@@ -3,8 +3,10 @@ import {
   createReadStream,
   existsSync,
   mkdtempSync,
+  mkdirSync,
   readdirSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, sep } from 'node:path';
@@ -19,6 +21,8 @@ if (process.env.WEB_CSV === '1' && process.env.WEB_OFFLINE_FONTS === '1' &&
 const viewportMatch = /^(\d{3,4})x(\d{3,4})$/.exec(process.env.WEB_VIEWPORT ?? '1280x900');
 if (!viewportMatch) throw new Error('WEB_VIEWPORT must be WIDTHxHEIGHT');
 const [viewportWidth, viewportHeight] = viewportMatch.slice(1).map(Number);
+const browserZoom = Number(process.env.WEB_BROWSER_ZOOM ?? '1');
+if (![1, 2].includes(browserZoom)) throw new Error('WEB_BROWSER_ZOOM must be 1 or 2');
 if (viewportWidth < 240 || viewportWidth > 3840 || viewportHeight < 240 || viewportHeight > 2160) {
   throw new Error('WEB_VIEWPORT is outside the supported verification dimensions');
 }
@@ -65,6 +69,15 @@ for (const entry of readdirSync(profileRoot)) {
   }
 }
 const profile = mkdtempSync(join(profileRoot, 'private-ledger-chrome-'));
+if (browserZoom !== 1) {
+  // Chromium's ordinary page zoom preference, not pinch zoom or emulated DPR.
+  // Only this fresh owned profile is changed; the production app is untouched.
+  mkdirSync(join(profile, 'Default'));
+  writeFileSync(join(profile, 'Default', 'Preferences'), JSON.stringify({
+    // "x" is Chromium's key for the profile's default storage partition.
+    partition: { default_zoom_level: { x: Math.log(browserZoom) / Math.log(1.2) } },
+  }));
+}
 const chrome = spawn(
   chromeBinary,
   [
@@ -95,10 +108,12 @@ try {
   await cdp.send('Runtime.enable');
   await cdp.send('Page.enable');
   await cdp.send('Emulation.setDeviceMetricsOverride', {
-    width: viewportWidth, height: viewportHeight, deviceScaleFactor: 1, mobile: false,
+    width: viewportWidth * browserZoom, height: viewportHeight * browserZoom,
+    deviceScaleFactor: 1, mobile: false,
   });
-  await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight}`);
-  console.log(`Verification viewport: ${viewportWidth}x${viewportHeight}`);
+  await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight} &&
+    devicePixelRatio === ${browserZoom} && visualViewport.scale === 1`);
+  console.log(`Verification viewport: ${viewportWidth}x${viewportHeight}, browser zoom ${browserZoom * 100}%, DPR ${browserZoom}, visual viewport scale 1`);
   if (process.env.WEB_OFFLINE_FONTS === '1') {
     await cdp.send('Network.enable');
     await cdp.send('Network.setBlockedURLs', { urls: ['*://fonts.gstatic.com/*', '*://fonts.googleapis.com/*'] });
@@ -174,6 +189,8 @@ try {
       evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay,
     });
   }
+  await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight} &&
+    devicePixelRatio === ${browserZoom} && visualViewport.scale === 1`);
   console.log('Web runtime verification passed.');
 } catch (error) {
   if (cdp) {
@@ -183,6 +200,8 @@ try {
         url: location.href,
         isolated: crossOriginIsolated,
         title: document.title,
+        viewport: { width: innerWidth, height: innerHeight,
+          dpr: devicePixelRatio, pinchScale: visualViewport.scale },
         editors: [...document.querySelectorAll('input, textarea, [role="textbox"]')].map(e => ({
           tag: e.tagName, role: e.getAttribute('role'),
           label: e.getAttribute('aria-label'), description: e.getAttribute('aria-description'),
@@ -194,6 +213,8 @@ try {
       })`,
     ).catch((diagnosticError) => ({ diagnosticError: diagnosticError.message }));
     console.error('Page diagnostics:', diagnostics);
+    const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' }).catch(() => null);
+    if (screenshot) writeFileSync(join(profileRoot, 'web-runtime-failure.png'), Buffer.from(screenshot.data, 'base64'));
     const relevantEvents = cdp.events
       .filter((event) =>
         ['Runtime.exceptionThrown', 'Runtime.consoleAPICalled', 'Log.entryAdded'].includes(
