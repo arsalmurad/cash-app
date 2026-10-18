@@ -268,7 +268,14 @@ class _ExpenseTile extends StatelessWidget {
               : Icons.arrow_downward_rounded,
         ),
       ),
-      title: Text(transaction.title, style: style),
+      // Preserve the full title in state/semantics without letting a long
+      // pasted title separate the exact amount and actions by many screens.
+      title: Text(
+        transaction.title,
+        style: style,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+      ),
       // Full exact amounts need the tile's text column so large minor-unit
       // values can wrap at narrow widths and enlarged text without hiding
       // either digits or the expense actions.
