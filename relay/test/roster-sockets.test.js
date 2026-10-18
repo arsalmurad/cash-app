@@ -192,6 +192,30 @@ test('sockets remain closed without explicit opt-in', async () => {
   } finally { await f.mf.dispose(); }
 });
 
+test('actual client close without a status completes and releases socket capacity', async () => {
+  const f = await fixture();
+  let socket;
+  try {
+    const proof = await f.signed();
+    socket = new WebSocket(f.origin.replace('http:', 'ws:') + wsPath, protocol(proof));
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Owned TCP socket did not open')), 5000);
+      socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, {once:true});
+      socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('Owned TCP socket failed')); }, {once:true});
+    });
+    assert.equal((await f.inspect()).connections, 1);
+    // Browser WebSocket.close() sends no status by default. The server receives
+    // synthetic 1005, which is forbidden as an outgoing wire close status.
+    socket.close();
+    await eventually(async () => socket.readyState === WebSocket.CLOSED &&
+      (await f.inspect()).connections === 0,
+    async () => ({state:socket.readyState, connections:(await f.inspect()).connections}));
+  } finally {
+    if (socket?.readyState === WebSocket.OPEN) socket.close(1000);
+    await f.mf.dispose();
+  }
+});
+
 test('socket budget and read-grant refusals roll back and preserve existing listeners', async () => {
   const f = await fixture();
   let socket;
