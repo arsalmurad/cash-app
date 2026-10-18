@@ -400,8 +400,24 @@ export async function runHouseholdWebScenario(alice, api) {
     let notificationStart = bob.events.length;
     if (notifications) {
       scenarioStage = 'Bob opts into signed live updates';
+      await bob.send('Page.bringToFront');
+      await waitFor(bob, `document.visibilityState === 'visible' && document.hasFocus()`);
       await clickLabel(bob, 'Household options', 'button');
-      await clickLabel(bob, 'Live updates while open');
+      await waitForLabel(bob, 'Live updates while open');
+      // CheckedPopupMenuItem exposes semantics before the route finishes its
+      // entrance animation. Use a settled, real pointer tap on its rendered row.
+      await delay(250);
+      const toggle = await evaluate(bob, `(() => {
+        const row = [...document.querySelectorAll('flt-semantics-host *')].find(e =>
+          e.getAttribute('aria-label') === 'Live updates while open');
+        if (!row) throw new Error('Missing rendered live-update option');
+        const r = row.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      })()`);
+      await bob.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...toggle, button: 'left', clickCount: 1 });
+      await bob.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...toggle, button: 'left', clickCount: 1 });
+      await waitFor(bob, `![...document.querySelectorAll('flt-semantics-host *')]
+        .some(e => e.getAttribute('aria-label') === 'Live updates while open')`);
       await notificationEvent(bob, notificationStart, event =>
         event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
       // Finish the unconditional open backfill before testing a later hint.
@@ -431,8 +447,6 @@ export async function runHouseholdWebScenario(alice, api) {
         [1, 2].includes(event.params.response.opcode)), 'Receive-only notifications must send no application frames');
       scenarioStage = 'Bob locks and reopens live notifications';
       const lockStart = bob.events.length;
-      await waitFor(bob, `[...document.querySelectorAll('flt-semantics-host [role="button"]')]
-        .some(e => e.getAttribute('aria-label') === 'Lock household in this browser' && e.getAttribute('aria-disabled') !== 'true')`);
       await clickLabel(bob, 'Lock household in this browser', 'button');
       await waitForLabel(bob, 'Unlock this browser');
       await notificationEvent(bob, lockStart, event => event.method === 'Network.webSocketClosed');
@@ -673,6 +687,11 @@ export async function runHouseholdWebScenario(alice, api) {
       .slice(-12).map(event=>({path:new URL(event.params.response.url).pathname,status:event.params.response.status}));
     console.error('Owned relay refusal diagnostics (paths/status only):',JSON.stringify(responses));
     for (const [index, peer] of [alice, ...peers].entries()) {
+      const visibility = await evaluate(peer, `({ visibility: document.visibilityState, focused: document.hasFocus() })`).catch(() => null);
+      const sockets = peer.events.filter(event => event.method.startsWith('Network.webSocket'))
+        .map(event => ({ method: event.method, status: event.params.response?.status,
+          error: event.params.errorMessage })).slice(-12);
+      console.error('Owned peer notification diagnostics:', JSON.stringify({ stage: scenarioStage, index, visibility, sockets }));
       const screenshot = await peer.send('Page.captureScreenshot', { format: 'png' }).catch(() => null);
       if (screenshot) writeFileSync(join(repoRoot, `app/.dart_tool/household-web-failure-${index}.png`), Buffer.from(screenshot.data, 'base64'));
     }

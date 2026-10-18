@@ -257,15 +257,46 @@ their actual HTTP traffic draining to silence (one case, 20 s).
 Full analysis passes. Six actual Chromium transport cases and three browser
 storage/identity-lease cases pass. See `NOTIFICATION-LIFECYCLE.md` for scope.
 
-Production WASM prerequisites are being prepared using the exact CI pins:
+Production WASM prerequisites and release builds now pass using the exact CI pins:
 nightly `nightly-2026-09-24` is installed and reports `6eeff9a52`; rust-src and
 the wasm target are present. Optional build tools install into the existing
 workspace Cargo home, using a shared cache `/workspace/.cache/cash-cargo-tools`.
 LLVM 19.1.7 was extracted locally from hash-checked packages selected from the
 host's signed Debian snapshot indexes; no system packages were changed. Its
 Clang/archive tools are under `/workspace/toolchains/llvm/usr/lib/llvm-19/bin`.
-Check `wasm-pack --version`, `wasm-bindgen --version`, and
-`flutter_rust_bridge_codegen --version` before using the pending build.
+`wasm-pack 0.15.0`, `wasm-bindgen 0.2.129` and FRB codegen 2.13.0 are installed.
+`bash scripts/build_web_bridge.sh --check` verifies pins, components, target and
+an actual Clang WASM compilation without installing anything. The helper selects
+the local Clang/archive tools, uses locked Cargo resolution and confines FRB's
+`RUST_LOG=info` workaround to its child process. The host's module-filter logging
+syntax otherwise makes FRB 2.13 panic. Writable `WASM_PACK_CACHE` avoids the
+read-only home; existing explicit cache bindings win.
+
+```bash
+source scripts/codex_cloud_env.sh
+bash scripts/build_web_bridge.sh
+cd app
+flutter --no-version-check build web --wasm --no-web-resources-cdn --no-pub
+```
+
+The initial Rust release bridge compiled in 8m 15s; the locked repeat reused the
+cache (Rust 1.22s, wasm-pack 3.39s). The Flutter release build passed in 165.1s.
+The generated and packaged `rust_lib_cash_app_bg.wasm` match SHA-256
+`af90b53d8e05975e24dcd7a03a6188260550f4f3528c7e382068d8643de5c74e`
+(6.2 MiB), with ABI `1237803201` unchanged. Atomics compatibility warnings remain
+visible. Builds alone are not production browser acceptance.
+
+The rebuilt production app now passes the complete authenticated household
+browser journey with `WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1
+WEB_HOUSEHOLD_NOTIFICATIONS=1 CHROME_BINARY=/usr/bin/chromium
+CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs` (exit 0). Actual signed
+101 handshake, hint-before-HTTP and rendered balance within ten seconds,
+receive-only frames and browser vault lock/reopen pass. The existing sealed
+reload, offline conflict, explicit pruning/lease/recovery and EUR/JPY/privacy
+checks also pass in that journey. Details and earlier driver failures are in
+`NOTIFICATION-LIFECYCLE.md`; the local log is
+`/tmp/notification-production-runtime-full.log`. Mobile, hosted behavior and
+wider lifecycle/fault gates remain open.
 
 Do not repeat old native/mobile results as current release acceptance. No PR,
 Actions dispatch, deployment, purchase or visibility change has been made.
