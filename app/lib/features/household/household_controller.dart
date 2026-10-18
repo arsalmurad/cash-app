@@ -67,6 +67,8 @@ class HouseholdController extends ChangeNotifier {
   bool _notificationForeground = false;
   bool _notificationUnlocked = true;
   bool _vaultClosing = false;
+  bool _notificationSigning = false;
+  bool _notificationSyncQueued = false;
   final _readBorrows = Map<Household, int>.identity();
   final _retiredHandles = Set<Household>.identity();
 
@@ -165,15 +167,30 @@ class HouseholdController extends ChangeNotifier {
         // Unlike HTTP's signer, notification signing is not nested inside a
         // queued sync. Queue it to finish the borrow before lock/forget frees
         // the handle, and recheck generation before releasing the proof.
-        signer: (method, uri, body) => _enqueue(() async {
-          if (!current()) throw const FormatException('Session ended.');
-          final proof = await _signRelayRequest(method, uri, body);
-          if (!current()) throw const FormatException('Session ended.');
-          return proof;
-        }),
+        signer: (method, uri, body) {
+          // A timed-out attempt may still be queued behind a slow durable save.
+          // Session churn must not accumulate more queued native calls.
+          if (_notificationSigning) {
+            return Future.error(const FormatException('Signer is busy.'));
+          }
+          _notificationSigning = true;
+          return _enqueue(() async {
+            if (!current()) throw const FormatException('Session ended.');
+            final proof = await _signRelayRequest(method, uri, body);
+            if (!current()) throw const FormatException('Session ended.');
+            return proof;
+          }).whenComplete(() => _notificationSigning = false);
+        },
         socketFactory: _notificationSocketFactory,
       ),
-      sync: () => _run(_sync, isCurrent: current),
+      sync: () {
+        if (_notificationSyncQueued) return Future.value(false);
+        _notificationSyncQueued = true;
+        return _run(
+          _sync,
+          isCurrent: current,
+        ).whenComplete(() => _notificationSyncQueued = false);
+      },
     );
   }
 
@@ -392,7 +409,9 @@ class HouseholdController extends ChangeNotifier {
     ).join();
   }
 
-  Future<void> initialize() => _enqueue(_initialize);
+  Future<void> initialize() => _enqueue(() async {
+    if (!_relaySigningClosed) await _initialize();
+  });
 
   Future<void> _initialize() async {
     try {
@@ -419,6 +438,7 @@ class HouseholdController extends ChangeNotifier {
     } on VaultLocked catch (error) {
       needsVaultUnlock = true;
       vaultHasCiphertext = error.hasCiphertext;
+      _retireHandle(_household);
       _household = null;
       overview = null;
       summaries = [];
@@ -429,6 +449,7 @@ class HouseholdController extends ChangeNotifier {
         store.keys.lock();
         needsVaultUnlock = true;
         vaultHasCiphertext = true;
+        _retireHandle(_household);
         _household = null;
         overview = null;
         summaries = [];
@@ -532,7 +553,7 @@ class HouseholdController extends ChangeNotifier {
     _authenticatedRelay = enabled;
     _relay = _makeRelay(trimmed);
     errorMessage = null;
-    notifyListeners();
+    if (!_relaySigningClosed) notifyListeners();
   });
 
   Future<T> _enqueue<T>(Future<T> Function() action) {
@@ -1732,14 +1753,16 @@ class HouseholdController extends ChangeNotifier {
   });
 
   Future<String?> safetyNumberWith(String memberId) => _enqueue(() async {
+    if (_relaySigningClosed) return null;
     try {
-      return await householdSafetyNumber(
+      final result = await householdSafetyNumber(
         household: _requireHousehold(),
         memberId: memberId,
       );
+      return _relaySigningClosed ? null : result;
     } catch (error) {
       errorMessage = error.toString();
-      notifyListeners();
+      if (!_relaySigningClosed) notifyListeners();
       return null;
     }
   });

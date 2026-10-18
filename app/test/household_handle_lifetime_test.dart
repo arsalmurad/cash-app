@@ -60,9 +60,13 @@ class _Store implements BlobStore {
   final entered = Completer<void>();
   final release = Completer<void>();
   Uint8List? value;
+  int reads = 0;
 
   @override
-  Future<Uint8List?> read() async => value;
+  Future<Uint8List?> read() async {
+    reads++;
+    return value;
+  }
 
   @override
   Future<void> write(Uint8List bytes) async {
@@ -88,8 +92,9 @@ void main() {
         final api = _Api();
         RustLib.initMock(api: api);
         addTearDown(RustLib.dispose);
+        final state = _Store();
         final controller = HouseholdController(
-          stateStore: _Store(),
+          stateStore: state,
           configStore: _Store(),
         );
         await controller.initialize();
@@ -113,6 +118,16 @@ void main() {
         api.roster.complete([Uint8List(32)]);
         await discarded;
         expect(api.handle.releases, 1);
+        if (!forget) {
+          final before = state.reads;
+          await controller.initialize();
+          expect(await controller.safetyNumberWith('other'), isNull);
+          expect(
+            state.reads,
+            before,
+            reason: 'Disposed controllers must not restore keys',
+          );
+        }
         if (forget) controller.dispose();
       },
     );
