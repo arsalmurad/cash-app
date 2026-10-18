@@ -331,7 +331,10 @@ export class GroupLog {
 
   async webSocketClose(socket, code) {
     try {
-      socket.close(code || 1000);
+      // 1005 (no peer status), 1006 and 1015 describe local observations;
+      // RFC 6455 forbids sending them on the wire. Echoing 1005 leaves an
+      // ordinary browser close() waiting for its handshake timeout.
+      socket.close(!code || [1005, 1006, 1015].includes(code) ? 1000 : code);
     } catch {
       // Already closed.
     }
