@@ -156,7 +156,49 @@ invocation wrongly included the fixture-only consent test without generating
 its input: 88 pass, one fixture-input failure, four skips. Use the package test
 list and dedicated generators rather than `test/*.test.js`.
 
+### Production fault acceptance, 2026-10-18
+
+Source `aad0f8f` was built from a separate clean local clone with pinned
+toolchains/offline locked packages. The complete wide production journey passes
+(Linux Chromium 154.0.8037.57, 1280x900, exit 0):
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1 WEB_HOUSEHOLD_NOTIFICATIONS=1 WEB_HOUSEHOLD_NOTIFICATION_FAULTS=1 WEB_HOUSEHOLD_LARGE_AMOUNTS=1 WEB_HOUSEHOLD_QUOTA=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+The browser actually minimizes to `visibilityState=hidden`: its socket closes
+and stays closed, then foreground opens a fresh signed connection/HTTP backfill
+and renders missed history. Real offline network failures produce bounded
+reconnect attempts and preserve the previous balance; restoring networking
+automatically reconnects and converges. No tail hint becomes ledger state.
+
+An unrelated localStorage filler produces actual quota refusal while incoming
+history requires a larger sealed database. The app closes notifications,
+requires restart, and sends no receipt/other relay POST before a confirmed
+save. Clearing pressure does not revive the failed session. Reload preserves
+the last confirmed sealed SQLite image; explicit phrase unlock and re-enabling
+the default-off session setting recover history. A normal UI void removes
+only the synthetic quota expense. Local mutation quota refusal is also covered.
+Catch-up can save smaller control prefixes before a later financial frame fails:
+this is save-before-ACK evidence, not a promise of whole-page rollback.
+
+Normal expense actions edit to `92233720368547758.07` and back to `40.00`;
+the peer automatically renders exact balances with all digits preserved.
+The same complete run passes the existing summary/privacy, key rotation,
+conflict, explicit pruning, identity lease, removal/rejoin and frozen EUR/JPY
+journeys. Log: `/tmp/notification-browser-final-bounded-quota.log` (ignored).
+Earlier partial runs exposed fixture assumptions about SQLite free pages,
+valid earlier saves and default-off restart settings; they are not suite passes.
+Lazy rows are now verified by physical scrolling, not controller inspection.
+
+The complete native-bridge host suite passes **484 tests**, no reported skips,
+serial execution in 7m28s; full analyzer passes after adding braces to an
+existing fixture assertion. One earlier contended run hit the existing 15s
+HTTP fixture startup deadline (477/478); its isolated rerun and the later full
+suite pass without deadline changes. Logs are listed in the cloud handoff.
+
 Public authorization, hosted eviction/revival/billing, final mobile runtimes,
-production browser lifecycle/quota/fault coverage and the wider completion
-gates remain open. No Actions job, PR, deployment, purchase, production secret
-or repository visibility change is part of this work.
+other platform lifecycle faults and the wider completion gates remain open.
+No Actions job, PR, deployment, purchase, production secret or repository
+visibility change is part of this work.

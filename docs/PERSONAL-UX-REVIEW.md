@@ -292,6 +292,24 @@ TalkBack/VoiceOver and ARM phone execution are not inferred from this pass.
 
 ### Actual 200% production-browser zoom (Linux continuation, 2026-10-18)
 
+The clean-clone release at `aad0f8f` also passes the complete personal journey
+with real 200% page zoom, 360x740 CSS pixels/DPR 2/pinch scale 1 (exit 0):
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_KEYBOARD_ENTRY=1 WEB_PERSONAL_LIFECYCLE=1 WEB_CSV=1 WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+This verifies real keyboard traversal/cancellation, selected UTF-8 CSV review/
+import and downloaded bytes, goal currency/category/deadline, recurring entries,
+large exact money/bounded percentages, corrections/history/removal, ordered
+recent activity/reload and search/filter. Log:
+`/tmp/cash-personal-final-200-routes.log`. Earlier attempts missed animated menu
+or editor activation; the driver now waits for settled routes and retains the
+real Flutter input-listener readiness check. No app hooks/state injection or
+DOM-value-only acceptance. Native enlarged text and assistive technology remain
+unverified.
+
 The rebuilt release WASM app now passes the thirty-category pointer journey
 at real Chromium 154.0.8037.57 page zoom. The driver writes only its fresh owned
 profile's default-partition zoom preference. It keeps emulated device scale at

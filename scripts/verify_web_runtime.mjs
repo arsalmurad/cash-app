@@ -4,12 +4,11 @@ import {
   existsSync,
   mkdtempSync,
   mkdirSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
+import { basename, dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -62,16 +61,8 @@ await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const appPort = server.address().port;
 const debugPort = await reservePort();
 const profileRoot = join(repoRoot, 'app', '.dart_tool');
-for (const entry of readdirSync(profileRoot)) {
-  if (!entry.startsWith('private-ledger-chrome-')) continue;
-  const ownedProfile = normalize(join(profileRoot, entry));
-  if (!ownedProfile.startsWith(normalize(profileRoot) + sep)) throw new Error('Unsafe profile path');
-  try {
-    rmSync(ownedProfile, { recursive: true, force: true });
-  } catch (_) {
-    // A just-exited Chrome process can briefly retain a Windows file lock.
-  }
-}
+// Every invocation owns only its unique directory. Never remove profiles
+// belonging to another live verifier when independent scenarios run together.
 const profile = mkdtempSync(join(profileRoot, 'private-ledger-chrome-'));
 if (browserZoom !== 1) {
   // Chromium's ordinary page zoom preference, not pinch zoom or emulated DPR.
@@ -216,7 +207,11 @@ try {
     ).catch((diagnosticError) => ({ diagnosticError: diagnosticError.message }));
     console.error('Page diagnostics:', diagnostics);
     const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' }).catch(() => null);
-    if (screenshot) writeFileSync(join(profileRoot, 'web-runtime-failure.png'), Buffer.from(screenshot.data, 'base64'));
+    if (screenshot) {
+      const screenshotPath = join(profileRoot, `web-runtime-failure-${basename(profile)}.png`);
+      writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+      console.error('Owned failure screenshot:', screenshotPath);
+    }
     const relevantEvents = cdp.events
       .filter((event) =>
         ['Runtime.exceptionThrown', 'Runtime.consoleAPICalled', 'Log.entryAdded'].includes(
@@ -258,7 +253,7 @@ try {
       retryDelay: 100,
     });
   } catch (error) {
-    // The next run removes a profile if Windows retained a short-lived lock.
+    // Preserve a briefly locked Windows profile; later runs use fresh paths.
   }
 }
 
@@ -433,6 +428,8 @@ async function waitForLabel(cdp, label) {
 
 async function clickLabel(cdp, label, role) {
   await waitForLabel(cdp, label);
+  // Route/menu semantics can precede the end of their entrance animation.
+  await delay(250);
   if (role === 'button') {
     await waitFor(cdp, `[...document.querySelectorAll('flt-semantics-host [role="button"]')].some(e =>
       (e.getAttribute('aria-label') ?? e.textContent?.trim()) === ${JSON.stringify(label)} &&
@@ -456,7 +453,12 @@ async function clickLabel(cdp, label, role) {
 
 async function focusLabel(cdp, label) {
   await waitForLabel(cdp, label);
-  const target = await evaluate(
+  // A sheet or entry-kind change can expose a semantic input before its
+  // geometry/engine binding settles. Keep the actual input-listener check.
+  await delay(300);
+  let target;
+  for (let attempt = 0; attempt < 48; attempt++) {
+    target = await evaluate(
     cdp,
     `(() => {
       const element = [...document.querySelectorAll('flt-semantics-host *')].find(
@@ -467,16 +469,40 @@ async function focusLabel(cdp, label) {
       if (!element) return false;
       const rect = element.getBoundingClientRect();
       if (element.disabled || rect.width <= 0 || rect.height <= 0) return null;
-      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      // A dialog's content viewport can clip an editor even when its center
+      // is inside the browser window. Scroll the actual Flutter viewport.
+      let visibleTop = 64, visibleBottom = innerHeight - 32;
+      for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        if (!/(hidden|clip|scroll|auto)/.test(style.overflowY)) continue;
+        const clip = parent.getBoundingClientRect();
+        if (clip.height <= 0) continue;
+        visibleTop = Math.max(visibleTop, clip.top);
+        visibleBottom = Math.min(visibleBottom, clip.bottom);
+      }
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2,
+        top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight,
+        viewportWidth: innerWidth, visibleTop, visibleBottom };
     })()`,
-  );
-  if (!target) throw new Error(`Could not focus ${label}`);
+    );
+    if (!target) throw new Error(`Could not focus ${label}`);
+    if (target.y >= target.visibleTop + 8 && target.y <= target.visibleBottom - 8) break;
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
+      x: target.viewportWidth / 2,
+      y: (target.visibleTop + target.visibleBottom) / 2,
+      deltaX: 0, deltaY: target.y < target.visibleTop + 8 ? -200 : 200 });
+    await delay(100);
+  }
+  if (target.y < target.visibleTop + 8 || target.y > target.visibleBottom - 8) {
+    throw new Error(`Could not scroll to editable ${label}: ${JSON.stringify(target)}`);
+  }
+  const point = { x: target.x, y: target.y };
   // Use browser pointer input, not DOM-only focus, so Flutter receives the
   // ordinary field activation path even if its editor is already DOM-focused.
   await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed',
-    button: 'left', clickCount: 1, ...target });
+    button: 'left', clickCount: 1, ...point });
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased',
-    button: 'left', clickCount: 1, ...target });
+    button: 'left', clickCount: 1, ...point });
   // Flutter's semantics editor can be DOM-focused before its engine activates
   // the input listener. Do not mistake an editable DOM value for an app edit.
   // Inspect readiness through DevTools; never install or call an app hook.
@@ -502,7 +528,8 @@ async function waitFor(cdp, expression, options = {}) {
     await delay(200);
   }
   const labels = await semanticLabels(cdp);
-  throw new Error(`Timed out waiting for ${expression}. Labels: ${labels.join(' | ')}`);
+  const excerpt = labels.slice(-60).map(label => label.slice(0, 180)).join(' | ').slice(0, 6000);
+  throw new Error(`Timed out waiting for ${expression.slice(0, 1200)}. Labels: ${excerpt}`);
 }
 
 function delay(milliseconds) {

@@ -64,6 +64,15 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
   // that work before recording the database whose bytes pressure must preserve.
   await api.notificationIdle?.(peer);
   before = await saved();
+  const image = Uint8Array.from(atob(before), char => char.charCodeAt(0));
+  const header = new DataView(image.buffer);
+  const encodedPageSize = header.getUint16(16);
+  const pageSize = encodedPageSize === 1 ? 65536 : encodedPageSize;
+  const freeBytes = header.getUint32(36) * pageSize;
+  // Remain below the existing 64 KiB signed-event limit, while exceeding
+  // the actual image's unused-page capacity by a substantial margin.
+  const growthTitleChars = 60000;
+  assert(freeBytes < 48000, 'Use a fresh fixture without a large unused SQLite prefix for the quota scenario');
   const beforeEvents = peer.events.length;
   const assertNoWrites = () => assert(!peer.events.slice(beforeEvents).some(event =>
     event.method === 'Network.requestWillBeSent' && event.params.request.method === 'POST' &&
@@ -78,10 +87,14 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
     await waitForLabel(peer, 'Restart');
   }
   await withBrowserQuota(peer, evaluate, async () => {
-    // Enough new journal data to require more SQLite pages, even if its old
-    // image has reusable pages. This title is only a synthetic fixture.
-    await rejectedExpense(`Quota blocked entry ${'q'.repeat(16000)}`);
-    assert((await saved()) === before, 'Quota failure changed confirmed database bytes');
+    // Exceed its measured free pages without exceeding the signed-event
+    // bound. The first save requires growth. A periodic control
+    // sync can still have completed an earlier valid save while the form was
+    // open; retain that last checkpoint rather than promising batch rollback.
+    await rejectedExpense(`Quota blocked entry ${'q'.repeat(growthTitleChars)}`);
+    before = await saved();
+    assert(before && atob(before).startsWith('SQLite format 3\0') &&
+      atob(before).includes('cash-app sealed vault v1\0'), 'Quota failure lost the last sealed database');
     assert.equal(await tail(), beforeTail, 'Unconfirmed save published relay ciphertext');
     assertNoWrites();
   });
@@ -109,5 +122,5 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
     `document.body.textContent.includes('Quota blocked entry') || document.body.textContent.includes('After quota clears')`);
   assert.equal(leaked, false, 'Restart resurrected an unconfirmed quota-failed entry');
   assert.equal(await tail(), beforeTail);
-  console.log('Verified actual browser quota: confirmed SQLite bytes unchanged, no relay append, later writes refused, restart unlock restores confirmed state.');
+  console.log('Verified actual browser quota: last confirmed sealed image retained, no relay append, restart-only UI, unlock restores state without the rejected expense.');
 }

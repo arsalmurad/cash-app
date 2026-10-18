@@ -119,6 +119,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    Thirty-row mobile, screen-reader and complete accessibility gates stay open.
    The new live-update menu passes six 200%-text phone/tablet/desktop light/dark
    pointer/escape cases; this is additional scoped reachability evidence.
+   The clean-clone `aad0f8f` WASM release now passes the complete personal
+   production-browser journey at actual 200% zoom, including CSV, goals,
+   recurring entries, exact large money, corrections/history and search/filter.
+   Native enlarged text and actual assistive technology remain open.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android
@@ -139,7 +143,13 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    WASM bundle passes the complete authenticated browser journey with live
    notifications, explicit pruning, identity lease and fresh-key recovery
    ([NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md)); this is current
-   scoped web evidence, not final mobile or clean-checkout acceptance.
+   scoped web evidence, not final mobile acceptance. A separate clean local
+   clone builds `aad0f8f` with pinned/offline locked packages; that exact release
+   passes the full wide production notification fault journey, including real
+   background/offline/quota/restart and i64-range edits. The full host suite
+   passes 484 tests with no reported skips. Narrow household acceptance is
+   still being investigated; Android Linux tooling preparation is not yet
+   updated Android runtime evidence. See the cloud handoff for exact limits.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to GitHub `main`. Local diagnostic
    logs/caches are ignored; repeatable tests and evidence summaries are tracked.

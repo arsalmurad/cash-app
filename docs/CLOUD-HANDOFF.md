@@ -25,21 +25,52 @@ Builds are not runtime acceptance. The prior c93 release is retained separately
 as `app/build/web-c93f238`; the new driver accepts `WEB_BUILD_DIR` for artifact
 verification without overlaying application sources.
 
-Current-source production browser faults and a serial full host suite are
-running; do not call them passed from this interim checkpoint. Logs:
-`/tmp/notification-browser-final-wide.log`, `/tmp/cash-final-host-acceptance.log`.
-The browser acceptance draft exercises actual minimized/hidden windows,
-offline network emulation, bounded reconnect, incoming-save quota, no premature
-receipt, restart/re-enable/backfill and i64-range amounts. Earlier iterations
-passed background/offline and failed incorrect fixture assumptions: tiny edits
-can fit allocated SQLite pages; earlier confirmed control prefixes need not
-roll back when a later frame fails; restart resets notifications to off. Keep
-those partial runs separate from complete acceptance.
+The `aad0f8f` clean release passes the **complete wide production browser fault
+journey**, exit 0: actual minimized/hidden windows, real offline failures,
+bounded reconnect, incoming-save quota/no premature receipt, restart/unlock/
+explicit re-enable/backfill, i64 maximum amounts, summaries/privacy, key rotation,
+conflicts, explicit pruning, identity lease, removal/rejoin and frozen EUR/JPY.
+Command and limits: [NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md).
+Log: `/tmp/notification-browser-final-bounded-quota.log`.
+
+The same clean release passes the **full personal journey at actual 200% page
+zoom** (360x740 CSS, DPR 2, pinch scale 1), exit 0, including keyboard/CSV/goals/
+recurring/large money/corrections/history/recent activity/search/filter/offline
+fonts. Command: [PERSONAL-UX-REVIEW.md](PERSONAL-UX-REVIEW.md).
+Log: `/tmp/cash-personal-final-200-routes.log`. Native enlarged text and actual
+screen readers remain open.
+
+The narrow 200% household repeat exposed two driver limitations (a dialog's
+clipped editor and lazy rows), repaired with actual wheel/pointer input. It
+then passed background/offline/incoming quota but failed cleanup reachability:
+a valid 4,096-character title occupied many screens. A display-only three-line
+title bound is being tested; full stored title/semantics and exact amounts are
+preserved. Do not count this partial narrow journey as passed. Earlier quota
+fixtures also assumed tiny edits require database growth, whole-page rollback
+and notifications persist as enabled across restart; those assumptions were
+corrected without weakening save-before-ACK checks.
+
+The complete serial native-bridge host suite at `aad0f8f` passes **484 tests**,
+no reported skips (7m28s): `/tmp/cash-final-host-acceptance.log`. Full analyzer
+passes after bracing a fixture assertion: `/tmp/cash-final-analyze-fixed.log`.
 
 One broad c93 host invocation passed 477/478 and hit the existing 15s HTTP
 fixture startup deadline during heavy release compilation. Its isolated file
 subsequently passed both real HTTP/storage-audit cases (36s), with no timeout or
-assertion changes. A new serial full run is needed for a final suite claim.
+assertion changes; the later complete 484-test suite also passes.
+
+Optional Android setup is underway, outside tracked product files. Exact
+Temurin 17.0.20.1+1 and command-line tools 19.0 are installed under
+`/workspace/toolchains`; Google's official archived emulator **37.1.11** is
+SHA-256 verified (`95771e0ae431897b2a4bd2d97fa095f29a8b0624a7b216baf529f9306161c266`).
+Archives lack modern package.xml; truthful local revision metadata lets
+sdkmanager recognize the exact installed versions. An initial dependency
+proposal for a newer emulator was stopped/quarantined, never used. SDK manager
+requires explicit existing HTTP proxy flags and verified system Java truststore
+`/etc/ssl/certs/java/cacerts`; index fetch then passes. API36/build-tools36.0.0/
+NDK28.2.13676358/AOSP ATD x86_64 installation is running. Do not claim current
+Android runtime/build acceptance yet. No KVM is exposed; software-emulator
+feasibility and final iOS/ARM phone/AT gates remain unresolved.
 
 The resumed shell sandbox currently fails before command startup with a bwrap
 bad-file-descriptor error. Individually reviewed scoped `require_escalated`
@@ -55,8 +86,9 @@ and use the resume prompt when the session is continued.
   `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
   `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
   `git log` and preserve task work.
-- Latest accepted runtime/test-driver checkpoint: `18ab351`, pushed to that
-  branch. Later documentation-only commits do not require rebuilding artifacts.
+- Latest pushed checkpoint before this evidence update: `0d4735c`; accepted
+  product source `aad0f8f` as scoped above. Read newer commits before resuming.
+  Documentation/driver changes alone do not require rebuilding app artifacts.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
   and `codex/browser-summary-lifecycle`, independently checked on 2026-10-18.
 - Original preserved draft client: commit `12f7a36`. Linux continuation commits
