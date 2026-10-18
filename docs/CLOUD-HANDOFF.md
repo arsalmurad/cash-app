@@ -28,7 +28,7 @@ verification without overlaying application sources.
 Current-source production browser faults and a serial full host suite are
 running; do not call them passed from this interim checkpoint. Logs:
 `/tmp/notification-browser-final-wide.log`, `/tmp/cash-final-host-acceptance.log`.
-Browser additions in the working tree exercise actual minimized/hidden windows,
+The browser acceptance draft exercises actual minimized/hidden windows,
 offline network emulation, bounded reconnect, incoming-save quota, no premature
 receipt, restart/re-enable/backfill and i64-range amounts. Earlier iterations
 passed background/offline and failed incorrect fixture assumptions: tiny edits

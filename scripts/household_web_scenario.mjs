@@ -6,14 +6,19 @@ import { writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { runHouseholdQuotaScenario } from './browser_quota_scenario.mjs';
+import { runNotificationLifecycleWebScenario } from './notification_lifecycle_web_scenario.mjs';
 
 export async function runHouseholdWebScenario(alice, api) {
   const { appUrl, debugPort, repoRoot, connectCdp, waitForPage, openApp,
-    evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay } = api;
+    evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay, configureViewport } = api;
   const { Miniflare } = createRequire(import.meta.url)('../relay/node_modules/miniflare');
   const authenticated = process.env.WEB_HOUSEHOLD_AUTH === '1';
   const notifications = process.env.WEB_HOUSEHOLD_NOTIFICATIONS === '1';
+  const notificationFaults = process.env.WEB_HOUSEHOLD_NOTIFICATION_FAULTS === '1';
+  const largeAmounts = process.env.WEB_HOUSEHOLD_LARGE_AMOUNTS === '1';
   assert(!notifications || authenticated, 'Notification acceptance requires authenticated roster mode');
+  assert(!notificationFaults || notifications, 'Notification faults require live notification acceptance');
+  assert(!largeAmounts || notifications, 'Large-money automatic convergence requires live notifications');
   const relayOptions = {
     modules: true,
     modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
@@ -51,6 +56,7 @@ export async function runHouseholdWebScenario(alice, api) {
   await browser.send('Target.setAutoAttach', attach);
   const peers = [];
   const contexts = [];
+  const peerTargets = new WeakMap();
 
   async function newPeer() {
     const { browserContextId } = await browser.send('Target.createBrowserContext');
@@ -58,10 +64,12 @@ export async function runHouseholdWebScenario(alice, api) {
     const { targetId } = await browser.send('Target.createTarget', { url: appUrl, browserContextId });
     const page = await waitForPage(debugPort, appUrl, targetId);
     const peer = await connectCdp(page.webSocketDebuggerUrl);
+    peerTargets.set(peer, targetId);
     peers.push(peer);
     await peer.send('Runtime.enable');
     await peer.send('Page.enable');
     await peer.send('Network.enable');
+    await configureViewport(peer);
     await openApp(peer);
     await waitForLabel(peer, 'Private Ledger');
     return peer;
@@ -207,6 +215,45 @@ export async function runHouseholdWebScenario(alice, api) {
     await peer.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
       x: viewport.width / 2, y: viewport.height * 0.75, deltaX: 0, deltaY: -1800 });
     await delay(200);
+  }
+
+  async function voidFixtureExpense(peer, title) {
+    // Locate the rendered row containing this title and exactly one action
+    // button. Never select another expense merely because it appears first.
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const point = await evaluate(peer, `(() => {
+        const label = e => e.getAttribute('aria-label') ?? e.textContent?.trim() ?? '';
+        const nodes = [...document.querySelectorAll('flt-semantics-host *')];
+        const titleNode = nodes.find(e => label(e).startsWith(${JSON.stringify(title)}));
+        for (let row = titleNode; row && row.closest('flt-semantics-host'); row = row.parentElement) {
+          const actions = [...row.querySelectorAll('[role="button"]')]
+            .filter(e => label(e) === 'Expense actions');
+          if (actions.length !== 1) continue;
+          const r = actions[0].getBoundingClientRect();
+          if (r.width > 0 && r.top >= 0 && r.bottom <= innerHeight)
+            return {x:r.x+r.width/2, y:r.y+r.height/2};
+        }
+        return null;
+      })()`);
+      if (point) {
+        await peer.send('Input.dispatchMouseEvent', {type:'mousePressed', ...point, button:'left', clickCount:1});
+        await peer.send('Input.dispatchMouseEvent', {type:'mouseReleased', ...point, button:'left', clickCount:1});
+        await waitForLabel(peer, 'Void');
+        await delay(250);
+        await clickLabel(peer, 'Void');
+        await waitForLabel(peer, 'Voided');
+        const viewport = await evaluate(peer, `({width:innerWidth, height:innerHeight})`);
+        await peer.send('Input.dispatchMouseEvent', {type:'mouseWheel', x:viewport.width/2,
+          y:viewport.height*0.75, deltaX:0, deltaY:-20000});
+        await delay(200);
+        return;
+      }
+      const viewport = await evaluate(peer, `({width:innerWidth, height:innerHeight})`);
+      await peer.send('Input.dispatchMouseEvent', {type:'mouseWheel', x:viewport.width/2,
+        y:viewport.height*0.75, deltaX:0, deltaY:350});
+      await delay(100);
+    }
+    throw new Error('The quota fixture expense action could not be reached through scrolling');
   }
 
   async function sync(peer, { allowAlreadyRemoved = false } = {}) {
@@ -446,7 +493,7 @@ export async function runHouseholdWebScenario(alice, api) {
         return result.tail;
       } : undefined;
       await Promise.race([workerFailure, runHouseholdQuotaScenario(alice, alicePhrase, relayUrl,
-        { ...api, readRelayTail })]);
+        { ...api, readRelayTail, notificationIdle })]);
     }
 
     let notificationStart = bob.events.length;
@@ -482,6 +529,25 @@ export async function runHouseholdWebScenario(alice, api) {
       assert(Date.now() - publishStarted < 10000, 'Automatic rendered update exceeded the notification deadline');
       assert(!bob.events.slice(notificationStart).some(event => event.method === 'Network.webSocketFrameSent' &&
         [1, 2].includes(event.params.response.opcode)), 'Receive-only notifications must send no application frames');
+      if (largeAmounts) {
+        scenarioStage = 'exact i64-range shared amount and action reachability';
+        await edit(alice, '92233720368547758.07');
+        await Promise.race([waitForLabel(bob, 'USD -92233720368547758.07'), delay(10000).then(() => {
+          throw new Error('Exact large shared amount did not arrive automatically');
+        })]);
+        await edit(alice, '40.00');
+        await Promise.race([waitForLabel(bob, 'USD -40.00'), delay(10000).then(() => {
+          throw new Error('The large shared amount could not be corrected through the rendered action');
+        })]);
+        console.log('Verified production exact shared money: i64 maximum minor units and later correction through rendered expense actions, automatic peer convergence.');
+      }
+      if (notificationFaults) {
+        await runNotificationLifecycleWebScenario(bob, alice, bobPhrase, relayUrl, {
+          ...api, browser, targetId: peerTargets.get(bob), edit, expense, voidFixtureExpense, fill, openHousehold,
+          toggleLiveUpdates, notificationEvent, notificationIdle, workerFailure,
+          stage: value => { scenarioStage = value; },
+        });
+      }
       scenarioStage = 'Bob locks and reopens live notifications';
       await notificationIdle(bob);
       const lockStart = bob.events.length;
@@ -747,7 +813,7 @@ export async function runHouseholdWebScenario(alice, api) {
     }
     for (const event of requests) {
       const body = event.params.request.postData ?? '';
-      for (const title of ['Groceries', 'Rent', 'Private summary-only lunch', 'Quota blocked entry', 'After quota clears', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',
+      for (const title of ['Groceries', 'Rent', 'Private summary-only lunch', 'Quota blocked entry', 'Notification quota payload', 'After quota clears', 'Browser CSV, چائے 🍵', 'Browser shared dinner', 'Sent after browser backup',
         'Browser travel', 'Browser Japan', 'Browser EUR first', 'Browser EUR second', 'Browser JPY train']) {
         assert(!body.includes(title), 'Relay request leaked a readable financial title');
       }
