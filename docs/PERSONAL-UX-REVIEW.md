@@ -292,6 +292,17 @@ TalkBack/VoiceOver and ARM phone execution are not inferred from this pass.
 
 ### Actual 200% production-browser zoom (Linux continuation, 2026-10-18)
 
+An expanded household fault journey also exposed a long-title layout problem:
+a valid 4,096-character title occupied 33,072 pixels at native 200% text on the
+phone fixture (9,504 tablet / 5,856 desktop), separating its amount/actions by
+many screens. The visible shared title now uses at most three lines with an
+ellipsis. The complete stored title and accessibility semantics remain intact;
+exact money still wraps without truncation. Six light/dark phone/tablet/desktop
+regressions reproduce red before the change and pass afterward, including
+full-title semantics and actual edit actions. Adjacent household checks pass
+35 tests, analysis clean. Rebuilt production acceptance is tracked separately
+in the handoff; this widget evidence is not native runtime/AT acceptance.
+
 The clean-clone release at `aad0f8f` also passes the complete personal journey
 with real 200% page zoom, 360x740 CSS pixels/DPR 2/pinch scale 1 (exit 0):
 

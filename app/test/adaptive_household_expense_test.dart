@@ -17,9 +17,11 @@ void main() {
       testWidgets(
         'exact shared amount and actions at $size / $brightness / 200%',
         (tester) async {
+          final semantics = tester.ensureSemantics();
           await tester.binding.setSurfaceSize(size);
           addTearDown(() => tester.binding.setSurfaceSize(null));
           var edits = 0;
+          final longTitle = 'International household equipment ${'q' * 4096}';
           final overview = HouseholdOverview(
             memberId: 'me',
             groupId: '0123456789abcdef0123456789abcdef',
@@ -36,11 +38,11 @@ void main() {
                 balanceLabel: 'USD -92233720368547758.07',
               ),
             ],
-            transactions: const [
+            transactions: [
               SharedTransactionView(
                 id: 'expense',
                 accountId: 'household',
-                title: 'International household emergency equipment and travel',
+                title: longTitle,
                 amountLabel: 'USD 92233720368547758.07',
                 isExpense: true,
                 voided: false,
@@ -82,6 +84,16 @@ void main() {
           );
           await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
+          expect(
+            tester.getSize(find.text(longTitle)).height,
+            lessThan(180),
+            reason: 'A long title must leave money and actions reachable',
+          );
+          expect(
+            tester.getSemantics(find.text(longTitle)).getSemanticsData().label,
+            contains(longTitle),
+          );
+          semantics.dispose();
           expect(find.text('−USD 92233720368547758.07'), findsOneWidget);
           expect(find.text('Edited by two people at once'), findsOneWidget);
           final actions = find.byKey(const Key('actions-expense'));
