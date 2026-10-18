@@ -549,6 +549,7 @@ class _HouseholdScreenState extends State<HouseholdScreen>
       builder: (context, _) {
         final overview = controller.overview;
         final inHousehold =
+            !controller.requiresRestart &&
             overview != null &&
             overview.groupId != null &&
             !controller.needsRecoveryInvite;
@@ -556,7 +557,7 @@ class _HouseholdScreenState extends State<HouseholdScreen>
           appBar: AppBar(
             title: const Text('Household'),
             actions: [
-              if (controller.canLockVault)
+              if (controller.canLockVault && !controller.requiresRestart)
                 IconButton(
                   tooltip: 'Lock household in this browser',
                   icon: const Icon(Icons.lock_outline),
@@ -564,7 +565,8 @@ class _HouseholdScreenState extends State<HouseholdScreen>
                       ? null
                       : controller.lockBrowserVault,
                 ),
-              if (inHousehold || controller.needsRecoveryInvite)
+              if (!controller.requiresRestart &&
+                  (inHousehold || controller.needsRecoveryInvite))
                 PopupMenuButton<_MenuAction>(
                   tooltip: 'Household options',
                   onSelected: (action) => switch (action) {
@@ -637,6 +639,25 @@ class _HouseholdScreenState extends State<HouseholdScreen>
             children: [
               if (controller.isLoading)
                 const Center(child: CircularProgressIndicator())
+              else if (controller.requiresRestart)
+                ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    Text(
+                      'Household unavailable',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      controller.errorMessage ??
+                          'The household could not be loaded.',
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Restart the app before making changes. Do not create a new household to fix this.',
+                    ),
+                  ],
+                )
               else if (controller.needsVaultUnlock)
                 VaultPane(
                   hasCiphertext: controller.vaultHasCiphertext,
@@ -664,25 +685,6 @@ class _HouseholdScreenState extends State<HouseholdScreen>
                   onVerifyMember: _verify,
                   onEditAmount: _editAmount,
                   onVoid: _void,
-                )
-              else if (controller.requiresRestart)
-                ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    Text(
-                      'Household unavailable',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      controller.errorMessage ??
-                          'The household could not be loaded.',
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Restart the app before making changes. Do not create a new household to fix this.',
-                    ),
-                  ],
                 )
               else
                 HouseholdSetupPane(
