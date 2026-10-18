@@ -76,6 +76,9 @@ Observed results include:
   foreground transitions during a blocked save, uncertain-save-after-write
   refusal/restart, and current-member removal. Synthetic app journals are in
   memory; this is not an OS vault, biometric enrollment or mobile runtime test.
+  The enhanced scenario separately passes with **both** peers subscribed and
+  proves their actual HTTP traffic drains to two seconds of silence after
+  confirmed-save receipt hints (one case, 20 s). No HTTP responses are mocked.
 - Borrow/disposal regressions pass, including a delayed public-key query across
   forget/disposal, no restored keys after disposal and uncertain saved-state
   failures. The lock widget rejects authentication completed after backgrounding.

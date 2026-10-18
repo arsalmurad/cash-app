@@ -252,6 +252,8 @@ is retained at `rust/target/debug/librust_lib_cash_app.so` (ABI unchanged).
 Full host validation at this implementation checkpoint passed **477 tests,
 exit 0, no skips** (5m 06s while pinned WASM tools compiled). Focused native HTTP/churn plus menu checks
 passed 29 cases, and the final handle-lifetime file passed all four cases.
+The enhanced native HTTP scenario also passes with both peers subscribed and
+their actual HTTP traffic draining to silence (one case, 20 s).
 Full analysis passes. Six actual Chromium transport cases and three browser
 storage/identity-lease cases pass. See `NOTIFICATION-LIFECYCLE.md` for scope.
 

@@ -36,6 +36,20 @@ class _Store implements BlobStore {
   Future<void> delete() async => value = null;
 }
 
+class _CountingClient extends http.BaseClient {
+  _CountingClient(this.record);
+  final void Function() record;
+  final _delegate = http.Client();
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    record();
+    return _delegate.send(request);
+  }
+
+  @override
+  void close() => _delegate.close();
+}
+
 Future<void> _until(bool Function() condition) async {
   final elapsed = Stopwatch()..start();
   while (!condition()) {
@@ -112,8 +126,9 @@ void main() {
         process.exitCode.then((code) => throw StateError('Relay exited $code')),
       ]).timeout(const Duration(seconds: 15));
       final clients = <http.Client>[];
+      var requests = 0;
       http.Client client() {
-        final c = http.Client();
+        final c = _CountingClient(() => requests++);
         clients.add(c);
         return c;
       }
@@ -137,6 +152,7 @@ void main() {
       }
       initial.dispose();
       var opens = 0;
+      var connected = 0;
       final active = <HouseholdController>[];
       addTearDown(() {
         for (final controller in active) {
@@ -145,7 +161,13 @@ void main() {
       });
       RelaySocket socket(Uri uri, String protocol) {
         opens++;
-        return createRelaySocket(uri, protocol);
+        final result = createRelaySocket(uri, protocol);
+        unawaited(
+          result.ready.then<void>((_) {
+            connected++;
+          }, onError: (Object _) {}),
+        );
+        return result;
       }
 
       HouseholdController device(int index) {
@@ -182,13 +204,29 @@ void main() {
       );
       bob.setNotificationsEnabled(true);
       expect(opens, 0);
+      alice.setNotificationsEnabled(true);
+      alice.setNotificationForeground(true);
       bob.setNotificationForeground(true);
-      await _until(() => opens == 1 && !bob.isBusy);
+      await _until(() => connected >= 2 && !bob.isBusy);
       expect(
         await alice.addExpense(title: 'Synthetic online', amount: '1.00'),
         isTrue,
       );
       await _until(() => bob.overview?.balanceLabel == 'USD -1.00');
+      // Two subscribers also see their own confirmed-save receipts. They must
+      // drain to silence instead of turning hints/ACKs into an HTTP echo loop.
+      final settling = Stopwatch()..start();
+      final quiet = Stopwatch()..start();
+      var lastRequests = requests;
+      while (quiet.elapsed < const Duration(seconds: 2)) {
+        if (settling.elapsed > const Duration(seconds: 15))
+          fail('Two notification peers never drained their HTTP work');
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        if (requests != lastRequests) {
+          lastRequests = requests;
+          quiet.reset();
+        }
+      }
       bob.setNotificationForeground(false);
       await Future<void>.delayed(const Duration(milliseconds: 100));
       final paused = Uint8List.fromList(states[1].value!);
