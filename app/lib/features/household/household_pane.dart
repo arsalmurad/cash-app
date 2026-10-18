@@ -269,20 +269,26 @@ class _ExpenseTile extends StatelessWidget {
         ),
       ),
       title: Text(transaction.title, style: style),
-      subtitle: voided
-          ? const Text('Voided')
-          : transaction.conflicted
-          ? Text(
-              'Edited by two people at once',
-              style: TextStyle(color: theme.colorScheme.error),
-            )
-          : null,
-      trailing: Row(
+      // Full exact amounts need the tile's text column so large minor-unit
+      // values can wrap at narrow widths and enlarged text without hiding
+      // either digits or the expense actions.
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(amount, style: style ?? theme.textTheme.labelLarge),
-          if (!voided)
-            PopupMenuButton<_ExpenseAction>(
+          if (voided)
+            const Text('Voided')
+          else if (transaction.conflicted)
+            Text(
+              'Edited by two people at once',
+              style: TextStyle(color: theme.colorScheme.error),
+            ),
+        ],
+      ),
+      trailing: voided
+          ? null
+          : PopupMenuButton<_ExpenseAction>(
               key: Key('actions-${transaction.id}'),
               tooltip: 'Expense actions',
               onSelected: (action) => switch (action) {
@@ -300,8 +306,6 @@ class _ExpenseTile extends StatelessWidget {
                 ),
               ],
             ),
-        ],
-      ),
     );
   }
 }

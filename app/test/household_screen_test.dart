@@ -683,6 +683,8 @@ void main() {
     tester,
   ) async {
     final controller = await _pump(tester, member: true);
+    await tester.ensureVisible(find.byKey(const Key('actions-dinner')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('actions-dinner')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Change amount'));
@@ -692,6 +694,8 @@ void main() {
     await tester.tap(find.byKey(const Key('amountSubmit')));
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.byKey(const Key('actions-dinner')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('actions-dinner')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Void'));
