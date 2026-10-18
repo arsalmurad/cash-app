@@ -9,11 +9,15 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
-import { dirname, extname, join, normalize, sep } from 'node:path';
+import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const webRoot = join(repoRoot, 'app', 'build', 'web');
+// Verify an independently built clean-checkout artifact using the current
+// external driver; never overlay application sources into that checkout.
+const webRoot = process.env.WEB_BUILD_DIR
+  ? resolve(repoRoot, process.env.WEB_BUILD_DIR)
+  : join(repoRoot, 'app', 'build', 'web');
 if (process.env.WEB_CSV === '1' && process.env.WEB_OFFLINE_FONTS === '1' &&
     process.env.WEB_CSV_LINE_ENDINGS !== 'LF') {
   throw new Error('Strict offline CSV glyph checks require WEB_CSV_LINE_ENDINGS=LF. Run exact CRLF preservation separately without WEB_OFFLINE_FONTS=1; the pinned renderer has a documented CRLF font warning.');
@@ -95,7 +99,10 @@ const chrome = spawn(
     `--user-data-dir=${profile}`,
     `http://127.0.0.1:${appPort}`,
   ],
-  { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true },
+  { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true,
+    // Own the whole Linux browser process group, including WASM workers, so
+    // failed/time-limited runs do not leave synthetic app renderers behind.
+    detached: process.platform !== 'win32' },
 );
 let chromeErrors = '';
 chrome.stderr.on('data', (chunk) => (chromeErrors += chunk.toString()));
@@ -107,12 +114,7 @@ try {
   cdp = await connectCdp(page.webSocketDebuggerUrl);
   await cdp.send('Runtime.enable');
   await cdp.send('Page.enable');
-  await cdp.send('Emulation.setDeviceMetricsOverride', {
-    width: viewportWidth * browserZoom, height: viewportHeight * browserZoom,
-    deviceScaleFactor: 1, mobile: false,
-  });
-  await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight} &&
-    devicePixelRatio === ${browserZoom} && visualViewport.scale === 1`);
+  await configureViewport(cdp);
   console.log(`Verification viewport: ${viewportWidth}x${viewportHeight}, browser zoom ${browserZoom * 100}%, DPR ${browserZoom}, visual viewport scale 1`);
   if (process.env.WEB_OFFLINE_FONTS === '1') {
     await cdp.send('Network.enable');
@@ -186,7 +188,7 @@ try {
     const { runHouseholdWebScenario } = await import('./household_web_scenario.mjs');
     await runHouseholdWebScenario(cdp, {
       appUrl, debugPort, repoRoot, connectCdp, waitForPage, openApp,
-      evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay,
+      evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay, configureViewport,
     });
   }
   await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight} &&
@@ -273,6 +275,15 @@ async function openApp(cdp) {
   );
 }
 
+async function configureViewport(cdp) {
+  await cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: viewportWidth * browserZoom, height: viewportHeight * browserZoom,
+    deviceScaleFactor: 1, mobile: false,
+  });
+  await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight} &&
+    devicePixelRatio === ${browserZoom} && visualViewport.scale === 1`);
+}
+
 function contentType(extension) {
   return (
     {
@@ -318,10 +329,12 @@ async function stopChrome(processId) {
   if (!processId) return;
   if (process.platform !== 'win32') {
     try {
-      process.kill(processId, 'SIGKILL');
+      process.kill(-processId, 'SIGTERM');
     } catch (_) {
       // Already exited.
     }
+    await delay(250);
+    try { process.kill(-processId, 'SIGKILL'); } catch (_) { /* Already exited. */ }
     return;
   }
   await new Promise((resolve) => {

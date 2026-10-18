@@ -1,44 +1,8 @@
 import assert from 'node:assert/strict';
 
-// Exhaust real origin-local storage using an unrelated, owned fixture key.
-// Never replace the app's database, patch its APIs, or inject financial state.
-export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
-  const { evaluate, waitFor, waitForLabel, clickLabel, focusLabel, openApp, readRelayTail } = api;
-  const databaseKey = 'private_ledger.sqlite.v1';
+export async function withBrowserQuota(peer, evaluate, action) {
   const fillerKey = 'cash-app.test.quota-filler';
   const proofKey = 'cash-app.test.quota-proof';
-  const saved = () => evaluate(peer, `localStorage.getItem(${JSON.stringify(databaseKey)})`);
-  const before = await saved();
-  assert(before, 'A confirmed household database must exist before quota pressure');
-  const group = peer.events.filter(event => event.method === 'Network.requestWillBeSent')
-    .map(event => event.params.request.url).filter(url => url.startsWith(relayUrl))
-    .map(url => new URL(url).pathname.match(/^\/g\/([0-9a-f]{32})(?:\/|$)/)?.[1])
-    .find(Boolean);
-  assert(group, 'No actual group request was observed');
-  async function tail() {
-    // Protected history must be read through an independently unlocked peer's
-    // normal signed UI sync, never an anonymous inspection/bypass endpoint.
-    if (readRelayTail) return readRelayTail(group);
-    const response = await fetch(`${relayUrl}/g/${group}?after=0`);
-    assert.equal(response.status, 200);
-    return (await response.json()).tail;
-  }
-  const beforeTail = await tail();
-  const beforeEvents = peer.events.length;
-  const assertNoWrites = () => assert(!peer.events.slice(beforeEvents).some(event =>
-    event.method === 'Network.requestWillBeSent' && event.params.request.method === 'POST' &&
-    event.params.request.url.startsWith(relayUrl)), 'Unconfirmed saves must never send relay writes');
-  const labelsHaveRestart = `[...document.querySelectorAll('flt-semantics-host *')]
-    .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim())?.includes('Restart'))`;
-  async function rejectedExpense(title) {
-    await clickLabel(peer, 'Add shared expense', 'button');
-    await focusLabel(peer, 'Title');
-    await peer.send('Input.insertText', { text: title });
-    await focusLabel(peer, 'Amount');
-    await peer.send('Input.insertText', { text: '1.00' });
-    await clickLabel(peer, 'Add', 'button');
-    await waitForLabel(peer, 'Restart');
-  }
   try {
     const pressure = await evaluate(peer, `(() => {
       const key = ${JSON.stringify(fillerKey)};
@@ -65,22 +29,67 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
       return { chars: low, refused };
     })()`);
     assert(pressure.chars > 0 && pressure.refused, 'Actual browser quota was not exhausted');
-    // Enough new journal data to require more SQLite pages, even if its old
-    // image has reusable pages. This title is only a synthetic fixture.
-    await rejectedExpense(`Quota blocked entry ${'q'.repeat(16000)}`);
-    assert((await saved()) === before, 'Quota failure changed confirmed database bytes');
-    assert.equal(await tail(), beforeTail, 'Unconfirmed save published relay ciphertext');
-    assertNoWrites();
+    await action();
   } finally {
     await evaluate(peer, `(() => {
       localStorage.removeItem(${JSON.stringify(fillerKey)});
       localStorage.removeItem(${JSON.stringify(proofKey)});
     })()`);
   }
-  // Wait out the first real Snackbar so a new error proves the later request
-  // was also refused after pressure cleared, not just an old visible message.
-  await waitFor(peer, `!(${labelsHaveRestart})`);
-  await rejectedExpense('After quota clears');
+}
+
+// Exhaust real origin-local storage using an unrelated, owned fixture key.
+// Never replace the app's database, patch its APIs, or inject financial state.
+export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
+  const { evaluate, waitFor, waitForLabel, clickLabel, focusLabel, openApp, readRelayTail } = api;
+  const databaseKey = 'private_ledger.sqlite.v1';
+  const saved = () => evaluate(peer, `localStorage.getItem(${JSON.stringify(databaseKey)})`);
+  let before = await saved();
+  assert(before, 'A confirmed household database must exist before quota pressure');
+  const group = peer.events.filter(event => event.method === 'Network.requestWillBeSent')
+    .map(event => event.params.request.url).filter(url => url.startsWith(relayUrl))
+    .map(url => new URL(url).pathname.match(/^\/g\/([0-9a-f]{32})(?:\/|$)/)?.[1])
+    .find(Boolean);
+  assert(group, 'No actual group request was observed');
+  async function tail() {
+    // Protected history must be read through an independently unlocked peer's
+    // normal signed UI sync, never an anonymous inspection/bypass endpoint.
+    if (readRelayTail) return readRelayTail(group);
+    const response = await fetch(`${relayUrl}/g/${group}?after=0`);
+    assert.equal(response.status, 200);
+    return (await response.json()).tail;
+  }
+  const beforeTail = await tail();
+  // The independent signed read can publish its saved-state receipt. Drain
+  // that work before recording the database whose bytes pressure must preserve.
+  await api.notificationIdle?.(peer);
+  before = await saved();
+  const beforeEvents = peer.events.length;
+  const assertNoWrites = () => assert(!peer.events.slice(beforeEvents).some(event =>
+    event.method === 'Network.requestWillBeSent' && event.params.request.method === 'POST' &&
+    event.params.request.url.startsWith(relayUrl)), 'Unconfirmed saves must never send relay writes');
+  async function rejectedExpense(title) {
+    await clickLabel(peer, 'Add shared expense', 'button');
+    await focusLabel(peer, 'Title');
+    await peer.send('Input.insertText', { text: title });
+    await focusLabel(peer, 'Amount');
+    await peer.send('Input.insertText', { text: '1.00' });
+    await clickLabel(peer, 'Add', 'button');
+    await waitForLabel(peer, 'Restart');
+  }
+  await withBrowserQuota(peer, evaluate, async () => {
+    // Enough new journal data to require more SQLite pages, even if its old
+    // image has reusable pages. This title is only a synthetic fixture.
+    await rejectedExpense(`Quota blocked entry ${'q'.repeat(16000)}`);
+    assert((await saved()) === before, 'Quota failure changed confirmed database bytes');
+    assert.equal(await tail(), beforeTail, 'Unconfirmed save published relay ciphertext');
+    assertNoWrites();
+  });
+  // A failed save now replaces the stale household pane with a persistent
+  // restart state. Clearing pressure must not restore write controls.
+  await waitForLabel(peer, 'Restart the app before making changes.');
+  await waitFor(peer, `![...document.querySelectorAll('flt-semantics-host [role="button"]')]
+    .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim()) === 'Add shared expense')`);
   assert((await saved()) === before, 'A failed household allowed later writes before restart');
   assert.equal(await tail(), beforeTail);
   assertNoWrites();
