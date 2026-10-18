@@ -159,7 +159,8 @@ export async function runHouseholdWebScenario(alice, api) {
       await fill(peer, 'Exchange rate', rate);
       await clickLabel(peer, 'Use rate', 'button');
     }
-    await waitForLabel(peer, title);
+    await scrollToLabel(peer, title);
+    await scrollTop(peer);
   }
 
   async function createSharedAccount(name, currency) {
@@ -169,22 +170,41 @@ export async function runHouseholdWebScenario(alice, api) {
     await clickDropdown(alice, 'Currency');
     await clickLabel(alice, currency);
     await clickLabel(alice, 'Create shared account', 'button');
-    // Populated household lists lazily expose below-fold account semantics.
-    // Verify the rendered card by scrolling, not by reading controller state.
     const accountLabel = `${name} (${currency})`;
-    const viewport = await evaluate(alice, `({ width: innerWidth, height: innerHeight })`);
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const present = await evaluate(alice, `[...document.querySelectorAll('flt-semantics-host *')]
-        .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim())?.includes(${JSON.stringify(accountLabel)}))`);
-      if (present) break;
-      await alice.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
-        x: viewport.width / 2, y: viewport.height * 0.75, deltaX: 0, deltaY: 300 });
-      await delay(200);
-    }
-    await waitForLabel(alice, accountLabel);
-    await alice.send('Input.dispatchMouseEvent', { type: 'mouseWheel',
-      x: viewport.width / 2, y: viewport.height * 0.75, deltaX: 0, deltaY: -2400 });
+    await scrollToLabel(alice, accountLabel);
+    await scrollTop(alice);
+  }
+
+  async function scrollTop(peer) {
+    const viewport = await evaluate(peer, `({width:innerWidth, height:innerHeight})`);
+    await peer.send('Input.dispatchMouseEvent', {type:'mouseWheel', x:viewport.width/2,
+      y:viewport.height*0.75, deltaX:0, deltaY:-20000});
     await delay(200);
+  }
+
+  async function scrollToLabel(peer, text) {
+    const deadline = Date.now() + 60000;
+    // Publication/save may finish after the first sweep passes a row's
+    // eventual position. Revisit the top while keeping the original UI wait
+    // deadline; never conclude that a lazy row is absent from one fast sweep.
+    while (Date.now() < deadline) {
+      await scrollTop(peer);
+      for (let attempt = 0; attempt < 32 && Date.now() < deadline; attempt++) {
+        const visible = await evaluate(peer, `(() => [...document.querySelectorAll('flt-semantics-host *')].some(e => {
+          const label = e.getAttribute('aria-label') ?? (e.childElementCount === 0 ? e.textContent?.trim() : '') ?? '';
+          if (!label.includes(${JSON.stringify(text)}) || label.length > ${text.length + 500}) return false;
+          const r = e.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 && (r.height > innerHeight && ${text.length > 500}
+            ? r.top < innerHeight && r.bottom > 0 : r.top >= 0 && r.bottom <= innerHeight);
+        }))()`);
+        if (visible) return;
+        const viewport = await evaluate(peer, `({width:innerWidth, height:innerHeight})`);
+        await peer.send('Input.dispatchMouseEvent', {type:'mouseWheel', x:viewport.width/2,
+          y:viewport.height*0.75, deltaX:0, deltaY:350});
+        await delay(100);
+      }
+    }
+    throw new Error(`Could not scroll to the rendered household label: ${text.slice(0, 100)}`);
   }
 
   async function clickDropdown(peer, label) {
@@ -616,8 +636,10 @@ export async function runHouseholdWebScenario(alice, api) {
     await bob.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
     await sync(bob);
     await sync(alice);
-    await waitForLabel(bob, 'Edited by two people at once');
-    await waitForLabel(alice, 'Edited by two people at once');
+    await scrollToLabel(bob, 'Edited by two people at once');
+    await scrollToLabel(alice, 'Edited by two people at once');
+    await scrollTop(bob);
+    await scrollTop(alice);
     await waitForLabel(bob, 'USD -45.00');
     await waitForLabel(alice, 'USD -45.00');
     console.log('Verified household: offline concurrent edits converge with a visible conflict.');
@@ -790,8 +812,9 @@ export async function runHouseholdWebScenario(alice, api) {
     await sync(replacement);
     await waitForLabel(alice, 'USD -74.67');
     await waitForLabel(replacement, 'USD -74.67');
-    await waitForLabel(replacement, 'Browser EUR first');
-    await waitForLabel(replacement, 'Browser EUR second');
+    await scrollToLabel(replacement, 'Browser EUR first');
+    await scrollToLabel(replacement, 'Browser EUR second');
+    await scrollTop(replacement);
     console.log('Verified household: explicit EUR/JPY accounts and frozen entry rates converge through the production WASM UI.');
 
     await clickLabel(replacement, 'Back', 'button');
@@ -800,7 +823,8 @@ export async function runHouseholdWebScenario(alice, api) {
     const privateLeak = await evaluate(replacement, `document.body.textContent.includes('Groceries') || document.body.textContent.includes('Rent')`);
     assert.equal(privateLeak, false);
     await openHousehold(replacement);
-    await waitForLabel(replacement, 'After old device retirement');
+    await scrollToLabel(replacement, 'After old device retirement');
+    await scrollTop(replacement);
     await waitForLabel(replacement, 'Expense total: USD 12.34');
     const requests = [alice, bob, replacement].flatMap(peer => peer.events)
       .filter(event => event.method === 'Network.requestWillBeSent' && event.params.request.url.startsWith(relayUrl));

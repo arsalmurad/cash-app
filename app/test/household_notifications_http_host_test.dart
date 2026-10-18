@@ -219,8 +219,9 @@ void main() {
       final quiet = Stopwatch()..start();
       var lastRequests = requests;
       while (quiet.elapsed < const Duration(seconds: 2)) {
-        if (settling.elapsed > const Duration(seconds: 15))
+        if (settling.elapsed > const Duration(seconds: 15)) {
           fail('Two notification peers never drained their HTTP work');
+        }
         await Future<void>.delayed(const Duration(milliseconds: 50));
         if (requests != lastRequests) {
           lastRequests = requests;
