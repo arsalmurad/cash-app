@@ -12,6 +12,8 @@ export async function runHouseholdWebScenario(alice, api) {
     evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay } = api;
   const { Miniflare } = createRequire(import.meta.url)('../relay/node_modules/miniflare');
   const authenticated = process.env.WEB_HOUSEHOLD_AUTH === '1';
+  const notifications = process.env.WEB_HOUSEHOLD_NOTIFICATIONS === '1';
+  assert(!notifications || authenticated, 'Notification acceptance requires authenticated roster mode');
   const relayOptions = {
     modules: true,
     modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
@@ -20,6 +22,7 @@ export async function runHouseholdWebScenario(alice, api) {
       { GROUP: 'GroupLog', MAILBOX: 'Mailbox' },
     bindings: { LOCAL_DEVELOPMENT: 'true', ...(authenticated ? {
       LOCAL_AUTH_MEMBERSHIP: 'true', LOCAL_AUTH_RETENTION: 'true',
+      ...(notifications ? { LOCAL_AUTH_SOCKETS: 'true' } : {}),
     } : {}) },
     compatibilityDate: '2026-07-01', host: '127.0.0.1', port: 0,
   };
@@ -225,6 +228,16 @@ export async function runHouseholdWebScenario(alice, api) {
           e.getAttribute('aria-disabled') !== 'true')`);
   }
 
+  async function notificationEvent(peer, start, predicate) {
+    const deadline = Date.now() + 10000;
+    while (Date.now() < deadline) {
+      const found = peer.events.slice(start).find(predicate);
+      if (found) return found;
+      await Promise.race([workerFailure, delay(50)]);
+    }
+    throw new Error('Timed out waiting for an actual notification network event');
+  }
+
   try {
     await alice.send('Network.enable');
     const alicePhrase = await protect(alice);
@@ -384,10 +397,54 @@ export async function runHouseholdWebScenario(alice, api) {
         { ...api, readRelayTail })]);
     }
 
+    let notificationStart = bob.events.length;
+    if (notifications) {
+      scenarioStage = 'Bob opts into signed live updates';
+      await clickLabel(bob, 'Household options', 'button');
+      await clickLabel(bob, 'Live updates while open');
+      await notificationEvent(bob, notificationStart, event =>
+        event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
+      // Finish the unconditional open backfill before testing a later hint.
+      await delay(1000);
+      notificationStart = bob.events.length;
+    }
     scenarioStage = 'Alice publishes after Bob unlock';
+    const publishStarted = Date.now();
     await expense(alice, 'Browser shared dinner', '40.00');
     scenarioStage = 'Bob syncs after unlock';
-    await sync(bob);
+    if (notifications) {
+      const hint = await notificationEvent(bob, notificationStart, event =>
+        event.method === 'Network.webSocketFrameReceived' && event.params.response.opcode === 1 &&
+        /^\{"tail":[0-9]+\}$/.test(event.params.response.payloadData));
+      const read = await notificationEvent(bob, notificationStart, event =>
+        event.method === 'Network.requestWillBeSent' && event.params.request.method === 'GET' &&
+        event.params.request.url.startsWith(`${relayUrl}/g/`) &&
+        event.params.request.url.includes('?after=') && event.params.timestamp > hint.params.timestamp);
+      await notificationEvent(bob, notificationStart, event =>
+        event.method === 'Network.responseReceived' && event.params.requestId === read.params.requestId &&
+        event.params.response.status === 200);
+      await Promise.race([waitForLabel(bob, 'USD -40.00'), delay(10000).then(() => {
+        throw new Error('Hint did not update the rendered ledger before the polling interval');
+      })]);
+      assert(Date.now() - publishStarted < 10000, 'Automatic rendered update exceeded the notification deadline');
+      assert(!bob.events.slice(notificationStart).some(event => event.method === 'Network.webSocketFrameSent' &&
+        [1, 2].includes(event.params.response.opcode)), 'Receive-only notifications must send no application frames');
+      scenarioStage = 'Bob locks and reopens live notifications';
+      const lockStart = bob.events.length;
+      await waitFor(bob, `[...document.querySelectorAll('flt-semantics-host [role="button"]')]
+        .some(e => e.getAttribute('aria-label') === 'Lock household in this browser' && e.getAttribute('aria-disabled') !== 'true')`);
+      await clickLabel(bob, 'Lock household in this browser', 'button');
+      await waitForLabel(bob, 'Unlock this browser');
+      await notificationEvent(bob, lockStart, event => event.method === 'Network.webSocketClosed');
+      await fill(bob, '24-word unlock phrase', bobPhrase);
+      await clickLabel(bob, 'Unlock household', 'button');
+      await notificationEvent(bob, lockStart, event =>
+        event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
+      await delay(1000);
+      console.log('Verified production notifications: explicit opt-in, signed workerd socket, hint-triggered authenticated HTTP, rendered balance, receive-only frames and browser lock/reopen.');
+    } else {
+      await sync(bob);
+    }
     await waitForLabel(bob, 'USD -40.00');
     await waitForLabel(bob, 'Expense total: USD 12.34');
     const beforeBobReload = await evaluate(bob, `localStorage.getItem('private_ledger.sqlite.v1')`);
