@@ -476,6 +476,38 @@ void main() {
     expect(find.text('Join a household'), findsNothing);
   });
   testWidgets(
+    'background save failure overrides a retained household overview',
+    (tester) async {
+      final controller = await _pump(tester, member: true);
+      expect(find.text('Dinner'), findsOneWidget);
+      controller
+        ..restartRequired = true
+        ..errorMessage = 'The household save could not be confirmed.';
+      controller.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(find.text('Household unavailable'), findsOneWidget);
+      expect(
+        find.text('The household save could not be confirmed.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Restart the app before making changes.'),
+        findsOneWidget,
+      );
+      expect(find.text('Dinner'), findsNothing);
+      expect(find.text('Add shared expense'), findsNothing);
+      expect(find.text('Sync'), findsNothing);
+      expect(find.byTooltip('Household options'), findsNothing);
+      expect(find.text('Create a household'), findsNothing);
+      // A lock/unlock flag must not conceal an unrecoverable session failure.
+      controller.needsVaultUnlock = true;
+      controller.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(find.text('Household unavailable'), findsOneWidget);
+      expect(find.textContaining('24-word unlock phrase'), findsNothing);
+    },
+  );
+  testWidgets(
     'foreign shared expense requires explicit rate; cancelling sends nothing',
     (tester) async {
       final controller = await _pump(tester, member: true);
