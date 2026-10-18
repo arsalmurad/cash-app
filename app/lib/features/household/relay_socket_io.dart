@@ -14,7 +14,7 @@ class _NativeSocket implements RelaySocket {
   // Drop early hints: every open must backfill over HTTP. Never build a
   // pre-listener queue while the signed handshake is being checked.
   final _messages = StreamController<Object?>.broadcast(sync: true);
-  final _client = HttpClient();
+  final _client = _UpgradeClient();
   WebSocket? _socket;
   StreamSubscription<Object?>? _subscription;
   bool _closed = false;
@@ -66,4 +66,24 @@ class _NativeSocket implements RelaySocket {
     if (socket != null) unawaited(socket.close());
     scheduleMicrotask(() => unawaited(_messages.close()));
   }
+}
+
+/// WebSocket.connect accepts a custom HttpClient but does not disable its
+/// default redirects. Never forward an exact-origin request proof elsewhere.
+class _UpgradeClient implements HttpClient {
+  final _client = HttpClient();
+
+  @override
+  Future<HttpClientRequest> openUrl(String method, Uri url) async {
+    final request = await _client.openUrl(method, url);
+    request.followRedirects = false;
+    return request;
+  }
+
+  @override
+  void close({bool force = false}) => _client.close(force: force);
+
+  // The pinned SDK's WebSocket.connect uses only openUrl and close.
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

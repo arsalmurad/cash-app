@@ -201,6 +201,38 @@ void main() {
     }
   });
 
+  test(
+    'native handshake never forwards its proof through a redirect',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      var forwarded = 0;
+      final listening = server.listen((request) async {
+        if (request.uri.path == '/other') forwarded++;
+        request.response.statusCode = 302;
+        request.response.headers.set(
+          'location',
+          'http://127.0.0.1:${server.port}/other',
+        );
+        await request.response.close();
+      });
+      final notifications = RelayNotifications(
+        requestUri: Uri.parse('http://127.0.0.1:${server.port}/g/$group/ws'),
+        signer: signer,
+      );
+      try {
+        await expectLater(
+          notifications.ready,
+          throwsA(isA<RelayUnavailable>()),
+        );
+        expect(forwarded, 0);
+      } finally {
+        notifications.close();
+        await listening.cancel();
+        await server.close(force: true);
+      }
+    },
+  );
+
   test('wrong negotiated protocol closes without reading hints', () async {
     final socket = FakeSocket('wrong');
     final notifications = RelayNotifications(
