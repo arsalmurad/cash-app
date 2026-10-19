@@ -215,3 +215,32 @@ Public authorization, hosted eviction/revival/billing, final mobile runtimes,
 other platform lifecycle faults and the wider completion gates remain open.
 No Actions job, PR, deployment, purchase, production secret or repository
 visibility change is part of this work.
+
+### Final strict-document repeat, 2026-10-19
+
+The complete narrow production journey passes again, exit0, with driver
+`0f14629` and the same clean-built `d98c8a2` release. Command: the full household
+command in the cloud handoff's latest continuation section (actual 200% page
+zoom, 360x740 CSS, DPR2, pinch1, all notification/auth/fault/large-amount/quota
+flags enabled). Log: `/tmp/cash-final-household-busy-menu.log`.
+
+This run requires each reload to navigate the main frame to a different loader,
+observe its load event and verify that loader remains current. It completes
+all background/offline/quota/no-premature-receipt/restart/i64 stages and the
+existing summaries, rotation, conflicts, pruning, identity lease, removal/rejoin,
+EUR/JPY and privacy stages. An online observation window now starts before
+restoring network access so a fast successful reconnect cannot precede it.
+Normal account menus wait for public sync readiness; if their busy-state
+snapshot omits Create account, the driver dismisses/reopens through real input
+(at most three times). Browser fixtures explicitly enable software WebGL on
+this software-only host. Existing financial assertions, handshake deadlines
+and 30s DevTools command deadline were not relaxed.
+
+The earlier strict runs are failures, not acceptance: the first missed an
+already-successful reconnect, the second had a separate 30s DevTools evaluation
+timeout, and a later run completed notification/recovery but failed at the late
+JPY menu while busy. The final complete repeat passes after the observation
+and public-menu readiness fixes. Bounded diagnostics contain call-site stacks
+and request status/path only, without proofs, request bodies or sealed images.
+These are real Linux Chromium results; final mobile lifecycle, hosted
+hibernation and actual assistive-technology acceptance remain open.

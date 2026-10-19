@@ -1,6 +1,6 @@
 # Completion tracker
 
-Updated 2026-10-18. Complete the private prototype against
+Updated 2026-10-19. Complete the private prototype against
 `expense-app-build-brief.md`, not just individual milestones. This is a
 current-status index; detailed history, failures and exact commands remain in
 the linked evidence documents and Git. Unchecked gates are not achieved.
@@ -65,6 +65,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    and automatic removal evidence in
    [NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md). Final app-platform
    notification lifecycle coverage, actual cloud hibernation and public deployment stay open.
+   The final strict-driver production run at `0f14629` additionally passes all
+   narrow 200% background/offline/quota/restart faults, bounded reconnect and
+   authenticated removal/recovery. Every reload proves a replacement document;
+   the exact command and failed intermediate attempts are in the cloud handoff.
 2. [ ] Crash-safe authenticated pruning or peer-snapshot recovery with confirmed
    offline-peer acknowledgements and recoverable availability. Every current MLS
    key must acknowledge the exact checkpoint; a computed cutoff/TTL is never
@@ -122,6 +126,9 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    The clean-clone `d98c8a2` WASM release now passes the complete personal
    production-browser journey at actual 200% zoom, including CSV, goals,
    recurring entries, exact large money, corrections/history and search/filter.
+   Final strict-driver dark-theme repeats also pass that full personal journey
+   and the thirty-category physical pointer/edit/cancel/reload journey at actual
+   200% page zoom, with browser color preference and new documents verified.
    Native enlarged text and actual assistive technology remain open.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
