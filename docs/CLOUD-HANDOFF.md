@@ -101,14 +101,23 @@ NDK28.2.13676358/AOSP ATD x86_64 installation succeeds. Activate with the normal
 repository env helper then `source /workspace/toolchains/cash_android_env.sh`.
 Initial ARM64/x86_64 APKs build and pass packaging, but inspection catches
 Cargokit overriding the shell pin with moving stable **Rust1.99.1**. Those
-artifacts are unaccepted diagnostics, not pinned release evidence. At `2c01a4b`,
+artifacts are unaccepted diagnostics, not pinned release evidence. That unintended
+1.99.1 toolchain has since been uninstalled; 1.98.1 and the documented WASM
+nightly remain. At `2c01a4b`,
 the bundled integration/config enforces exact **1.98.1** and `--locked`; six
-compiler-selection cases pass. Corrected real compilation is running, with
-actual command and compiler-cache evidence of 1.98.1. Read
+compiler-selection cases pass. Corrected real compilation **passes**, 1457.4s,
+exit0. Both splits pass exact-ABI/ELF/16KB packaging checks, and the actual
+packaged Rust libraries independently report 1.98.1 in ELF metadata. Read
 [ANDROID-RELEASE.md](ANDROID-RELEASE.md) before claiming artifact acceptance.
-No KVM/VMX is exposed. The first bounded software boot becomes ADB-visible but
-shell/logcat time out; a smaller-display retry with kernel diagnostics is in
-progress. No app runtime pass yet. Final iOS/ARM phone/AT gates remain open.
+A separate clean clone is building fresh app/APK output with only validated
+native Cargo caches shared; `/tmp/cash-android-clean-pinned-release.log` remains
+pending. No old Flutter/app/APK output is copied into that clone.
+No KVM/VMX is exposed. The first software boot becomes ADB-visible but shell/
+logcat time out. A smaller-display/kernel retry still lacks `boot_completed=1`
+and Android's activity service after **886s**. Refreshing only the owned ADB
+server does not establish readiness. The owned AVD is stopped without a data
+reset; no app was installed or runtime check passed. Final iOS/ARM phone/AT
+gates remain open. Continue packaging/clean-checkout checks independently.
 
 The earlier shell sandbox failed before command startup with a bwrap
 bad-file-descriptor error. On the next continuation it starts normally, but
@@ -127,9 +136,10 @@ and use the resume prompt when the session is continued.
   `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
   `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
   `git log` and preserve task work.
-- Latest pushed checkpoint before this evidence update: `2c01a4b`; product
+- Latest pushed checkpoint before this evidence update: `64b4d1c`; product
   source `d98c8a2` now passes the complete clean-built narrow production journey
-  as scoped above. Native compiler pin rebuild remains pending. Read newer
+  as scoped above, plus the full personal journey. Native packaging now passes;
+  clean Android rebuild/runtime have the separate limits above. Read newer
   commits before resuming.
   Documentation/driver changes alone do not require rebuilding app artifacts.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
