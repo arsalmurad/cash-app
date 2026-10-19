@@ -1,6 +1,6 @@
 # Codex Cloud handoff
 
-Updated 2026-10-18 during the Linux continuation. This file replaces reliance on the
+Updated 2026-10-19 during the Linux continuation. This file replaces reliance on the
 long local conversation; it does not declare the product finished.
 
 ## Active continuation after 81bb306
@@ -43,9 +43,26 @@ screen readers remain open.
 The narrow 200% household repeat exposed two driver limitations (a dialog's
 clipped editor and lazy rows), repaired with actual wheel/pointer input. It
 then passed background/offline/incoming quota but failed cleanup reachability:
-a valid 4,096-character title occupied many screens. A display-only three-line
-title bound is being tested; full stored title/semantics and exact amounts are
-preserved. Do not count this partial narrow journey as passed. Earlier quota
+a valid 4,096-character title occupied many screens. Source `d98c8a2` limits
+only its visible title to three lines; full stored title/semantics and exact
+amounts are preserved. Six enlarged-text layout/semantics cases and 35 adjacent
+household cases pass; analysis clean. Its separate clean-clone WASM release
+passes compilation (257.4s), Dart SHA-256
+`243bc2e8af6b025e14055edf5089b95bb024e71d877b783ce3b68415f93a6895`.
+The expanded narrow runtime now **passes completely, exit 0**, at actual 200%
+Chromium page zoom (360x740 CSS, DPR2, pinch1):
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_BUILD_DIR=/tmp/cash-app-clean-release-wE6l7a/repo/app/build/web WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1 WEB_HOUSEHOLD_NOTIFICATIONS=1 WEB_HOUSEHOLD_NOTIFICATION_FAULTS=1 WEB_HOUSEHOLD_LARGE_AMOUNTS=1 WEB_HOUSEHOLD_QUOTA=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+Log: `/tmp/cash-title-narrow-production-drained.log`. This includes all faults,
+reload, pruning, lease, removal/rejoin, FX and privacy stages. Earlier partial repeats
+also hit a FAB-covered action and recorded a reload image before open-backfill
+finished. The driver now requires actual non-overlap and drains HTTP plus saved
+images, retaining exact reload equality. Do not count partial journeys as passed.
+Earlier quota
 fixtures also assumed tiny edits require database growth, whole-page rollback
 and notifications persist as enabled across restart; those assumptions were
 corrected without weakening save-before-ACK checks.
@@ -59,7 +76,7 @@ fixture startup deadline during heavy release compilation. Its isolated file
 subsequently passed both real HTTP/storage-audit cases (36s), with no timeout or
 assertion changes; the later complete 484-test suite also passes.
 
-Optional Android setup is underway, outside tracked product files. Exact
+Optional Android tools are installed outside tracked product files. Exact
 Temurin 17.0.20.1+1 and command-line tools 19.0 are installed under
 `/workspace/toolchains`; Google's official archived emulator **37.1.11** is
 SHA-256 verified (`95771e0ae431897b2a4bd2d97fa095f29a8b0624a7b216baf529f9306161c266`).
@@ -68,14 +85,26 @@ sdkmanager recognize the exact installed versions. An initial dependency
 proposal for a newer emulator was stopped/quarantined, never used. SDK manager
 requires explicit existing HTTP proxy flags and verified system Java truststore
 `/etc/ssl/certs/java/cacerts`; index fetch then passes. API36/build-tools36.0.0/
-NDK28.2.13676358/AOSP ATD x86_64 installation is running. Do not claim current
-Android runtime/build acceptance yet. No KVM is exposed; software-emulator
-feasibility and final iOS/ARM phone/AT gates remain unresolved.
+NDK28.2.13676358/AOSP ATD x86_64 installation succeeds. Activate with the normal
+repository env helper then `source /workspace/toolchains/cash_android_env.sh`.
+Initial ARM64/x86_64 APKs build and pass packaging, but inspection catches
+Cargokit overriding the shell pin with moving stable **Rust1.99.1**. Those
+artifacts are unaccepted diagnostics, not pinned release evidence. At `2c01a4b`,
+the bundled integration/config enforces exact **1.98.1** and `--locked`; six
+compiler-selection cases pass. Corrected real compilation is running, with
+actual command and compiler-cache evidence of 1.98.1. Read
+[ANDROID-RELEASE.md](ANDROID-RELEASE.md) before claiming artifact acceptance.
+No KVM/VMX is exposed. The first bounded software boot becomes ADB-visible but
+shell/logcat time out; a smaller-display retry with kernel diagnostics is in
+progress. No app runtime pass yet. Final iOS/ARM phone/AT gates remain open.
 
-The resumed shell sandbox currently fails before command startup with a bwrap
-bad-file-descriptor error. Individually reviewed scoped `require_escalated`
-commands run successfully; no automatic approval rejection occurred. Do not
-disable networking restrictions or broaden project scope to work around it.
+The earlier shell sandbox failed before command startup with a bwrap
+bad-file-descriptor error. On the next continuation it starts normally, but
+loopback listeners are denied (`EPERM`), requiring individually reviewed local
+socket commands. Automatic approval review once failed because its usage limit
+was reached, **not an unsafe-action determination**; that action was not run.
+The later user continuation allowed scoped commands again. Do not disable
+networking restrictions or broaden project scope to work around either issue.
 Automatic restart after a session/usage limit reset is unavailable; checkpoint
 and use the resume prompt when the session is continued.
 
@@ -86,8 +115,10 @@ and use the resume prompt when the session is continued.
   `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
   `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
   `git log` and preserve task work.
-- Latest pushed checkpoint before this evidence update: `0d4735c`; accepted
-  product source `aad0f8f` as scoped above. Read newer commits before resuming.
+- Latest pushed checkpoint before this evidence update: `2c01a4b`; product
+  source `d98c8a2` now passes the complete clean-built narrow production journey
+  as scoped above. Native compiler pin rebuild remains pending. Read newer
+  commits before resuming.
   Documentation/driver changes alone do not require rebuilding app artifacts.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
   and `codex/browser-summary-lifecycle`, independently checked on 2026-10-18.

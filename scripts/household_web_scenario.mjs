@@ -250,8 +250,14 @@ export async function runHouseholdWebScenario(alice, api) {
             .filter(e => label(e) === 'Expense actions');
           if (actions.length !== 1) continue;
           const r = actions[0].getBoundingClientRect();
-          if (r.width > 0 && r.top >= 0 && r.bottom <= innerHeight)
-            return {x:r.x+r.width/2, y:r.y+r.height/2};
+          const point = {x:r.x+r.width/2, y:r.y+r.height/2};
+          const fab = nodes.find(e => e.getAttribute('role') === 'button' &&
+            label(e) === 'Add shared expense');
+          const f = fab?.getBoundingClientRect();
+          const covered = f && point.x >= f.left && point.x <= f.right &&
+            point.y >= f.top && point.y <= f.bottom;
+          if (r.width > 0 && r.top >= 64 && r.bottom <= innerHeight && !covered)
+            return point;
         }
         return null;
       })()`);
@@ -331,13 +337,26 @@ export async function runHouseholdWebScenario(alice, api) {
     const deadline = Date.now() + 10000;
     let observed = peer.events.length;
     let quietSince = Date.now();
+    let image = await evaluate(peer, `localStorage.getItem('private_ledger.sqlite.v1')`);
     while (Date.now() < deadline) {
       if (peer.events.slice(observed).some(event =>
         ['Network.requestWillBeSent', 'Network.responseReceived', 'Network.webSocketFrameReceived'].includes(event.method))) {
         quietSince = Date.now();
       }
       observed = peer.events.length;
-      if (Date.now() - quietSince >= 750) return;
+      const pending = new Set();
+      for (const event of peer.events) {
+        if (event.method === 'Network.requestWillBeSent' &&
+            event.params.request.url.startsWith(relayUrl)) pending.add(event.params.requestId);
+        if (['Network.loadingFinished', 'Network.loadingFailed'].includes(event.method))
+          pending.delete(event.params.requestId);
+      }
+      const saved = await evaluate(peer, `localStorage.getItem('private_ledger.sqlite.v1')`);
+      if (saved !== image) {
+        image = saved;
+        quietSince = Date.now();
+      }
+      if (pending.size === 0 && Date.now() - quietSince >= 750) return;
       await Promise.race([workerFailure, delay(50)]);
     }
     throw new Error('Notification traffic did not become idle before the next UI action');
@@ -596,6 +615,10 @@ export async function runHouseholdWebScenario(alice, api) {
     }
     await waitForLabel(bob, 'USD -40.00');
     await waitForLabel(bob, 'Expense total: USD 12.34');
+    // A socket handshake precedes its open-backfill and saved-state receipt.
+    // Drain both peers before recording the exact reload checkpoint.
+    await notificationIdle(alice);
+    await notificationIdle(bob);
     const beforeBobReload = await evaluate(bob, `localStorage.getItem('private_ledger.sqlite.v1')`);
     assert(beforeBobReload && atob(beforeBobReload).includes('cash-app sealed vault v1\0'),
       'Household must have a sealed document before reload');
@@ -605,7 +628,7 @@ export async function runHouseholdWebScenario(alice, api) {
     await openApp(bob);
     await waitForLabel(bob, 'Private Ledger');
     const afterBobReload = await evaluate(bob, `localStorage.getItem('private_ledger.sqlite.v1')`);
-    assert.equal(afterBobReload, beforeBobReload, 'Reload must preserve the confirmed SQLite image');
+    assert(afterBobReload === beforeBobReload, 'Reload must preserve the confirmed SQLite image');
     await openHousehold(bob);
     await waitForLabel(bob, 'Unlock this browser');
     scenarioStage = 'unlocking Bob after reload';

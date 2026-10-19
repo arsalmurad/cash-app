@@ -109,7 +109,7 @@ export async function runHouseholdQuotaScenario(peer, phrase, relayUrl, api) {
 
   await peer.send('Page.reload');
   await openApp(peer);
-  assert.equal(await saved(), before, 'Quota restart must preserve the confirmed SQLite image');
+  assert((await saved()) === before, 'Quota restart must preserve the confirmed SQLite image');
   await clickLabel(peer, 'Import or export', 'button');
   await clickLabel(peer, 'Household');
   await waitForLabel(peer, 'Unlock this browser');
