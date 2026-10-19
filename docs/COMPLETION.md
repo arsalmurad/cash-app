@@ -151,7 +151,8 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    also passes the complete clean-built narrow household/fault journey at
    actual 200% page zoom. Corrected Linux ARM64/x86_64 release builds pass
    exact-ABI/ELF/16KB checks with Rust1.98.1 verified in packaged libraries.
-   Clean Android rebuilding is pending; software-emulator boot fails readiness
+   A separate clean Android clone also passes build/packaging/compiler checks;
+   APK byte-identical reproducibility is not claimed. Software boot fails readiness
    after 886s, so app runtime checks remain unrun. See the handoff for limits.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to GitHub `main`. Local diagnostic

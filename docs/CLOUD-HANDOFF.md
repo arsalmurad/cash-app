@@ -111,9 +111,12 @@ compiler-selection cases pass. Corrected real compilation **passes**, 1457.4s,
 exit0. Both splits pass exact-ABI/ELF/16KB packaging checks, and the actual
 packaged Rust libraries independently report 1.98.1 in ELF metadata. Read
 [ANDROID-RELEASE.md](ANDROID-RELEASE.md) before claiming artifact acceptance.
-A separate clean clone is building fresh app/APK output with only validated
-native Cargo caches shared; `/tmp/cash-android-clean-pinned-release.log` remains
-pending. No old Flutter/app/APK output is copied into that clone.
+A separate clean clone at `64b4d1c` also **passes** fresh app/APK compilation,
+1189.9s, exit0, with only validated native Cargo caches shared. Both fresh splits
+pass exact-ABI/ELF/16KB and packaged Rust1.98.1 checks; tracked source is clean.
+No old Flutter/app/APK output was copied into the clone. APK hashes differ from
+the main checkout only through Dart AOT/JNI entry contents; see the artifact
+table/limits in the Android evidence, not a claim of byte-identical APKs.
 No KVM/VMX is exposed. The first software boot becomes ADB-visible but shell/
 logcat time out. A smaller-display/kernel retry still lacks `boot_completed=1`
 and Android's activity service after **886s**. Refreshing only the owned ADB
@@ -138,10 +141,11 @@ and use the resume prompt when the session is continued.
   `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
   `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
   `git log` and preserve task work.
-- Latest pushed checkpoint before this evidence update: `64b4d1c`; product
+- Latest pushed checkpoint before this evidence update: `7b5a195`; product
   source `d98c8a2` now passes the complete clean-built narrow production journey
   as scoped above, plus the full personal journey. Native packaging now passes;
-  clean Android rebuild/runtime have the separate limits above. Read newer
+  clean Android rebuilding/packaging passes; runtime has the separate limits
+  above. Read newer
   commits before resuming.
   Documentation/driver changes alone do not require rebuilding app artifacts.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`
