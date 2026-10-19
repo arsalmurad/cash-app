@@ -30,14 +30,29 @@ export async function runNotificationLifecycleWebScenario(bob, alice, phrase, re
     })]);
   }
   async function openedAndRead(start) {
-    const opened = await notificationEvent(bob, start, event =>
-      event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
-    const read = await notificationEvent(bob, start, event =>
-      event.method === 'Network.requestWillBeSent' && event.params.request.method === 'GET' &&
-      event.params.request.url.startsWith(`${relayUrl}/g/`) && event.params.request.url.includes('?after=') &&
-      event.params.timestamp >= opened.params.timestamp);
-    await notificationEvent(bob, start, event => event.method === 'Network.responseReceived' &&
-      event.params.requestId === read.params.requestId && event.params.response.status === 200);
+    try {
+      const opened = await notificationEvent(bob, start, event =>
+        event.method === 'Network.webSocketHandshakeResponseReceived' && event.params.response.status === 101);
+      const read = await notificationEvent(bob, start, event =>
+        event.method === 'Network.requestWillBeSent' && event.params.request.method === 'GET' &&
+        event.params.request.url.startsWith(`${relayUrl}/g/`) && event.params.request.url.includes('?after=') &&
+        event.params.timestamp >= opened.params.timestamp);
+      await notificationEvent(bob, start, event => event.method === 'Network.responseReceived' &&
+        event.params.requestId === read.params.requestId && event.params.response.status === 200);
+    } catch (error) {
+      // Ordering diagnostics only; never print request proofs, bodies or keys.
+      const from = Math.max(0, start - 12);
+      const observed = bob.events.slice(from).flatMap((event, offset) => {
+        const url = event.params.request?.url ?? event.params.response?.url ?? event.params.url;
+        if (!event.method.startsWith('Network.webSocket') &&
+            !(url?.startsWith(relayUrl) && event.params.request?.method === 'GET')) return [];
+        return [{ index: from + offset, method: event.method,
+          timestamp: event.params.timestamp, status: event.params.response?.status,
+          path: url ? new URL(url).pathname : undefined }];
+      }).slice(-16);
+      console.error('Owned reconnect observation window:', JSON.stringify({start, observed}));
+      throw error;
+    }
   }
 
   stage('real browser background notification suspension');
@@ -56,6 +71,7 @@ export async function runNotificationLifecycleWebScenario(bob, alice, phrase, re
   stage('browser offline notification retry and reconnect');
   await notificationIdle(bob);
   await bob.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  let onlineStart;
   try {
     await hidden();
     const offlineStart = bob.events.length;
@@ -68,9 +84,11 @@ export async function runNotificationLifecycleWebScenario(bob, alice, phrase, re
     assert(attempts > 0 && attempts <= 3, 'Offline retries must remain bounded by exponential backoff');
     await waitForLabel(bob, 'USD -41.00');
   } finally {
+    // Restoring connectivity can immediately complete a pending retry. Observe
+    // before the action, as with foregrounding, rather than losing that 101.
+    onlineStart = bob.events.length;
     await bob.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   }
-  const onlineStart = bob.events.length;
   await openedAndRead(onlineStart);
   await balance('USD -42.00');
   await edit(alice, '40.00');

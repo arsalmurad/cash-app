@@ -26,6 +26,10 @@ if (!viewportMatch) throw new Error('WEB_VIEWPORT must be WIDTHxHEIGHT');
 const [viewportWidth, viewportHeight] = viewportMatch.slice(1).map(Number);
 const browserZoom = Number(process.env.WEB_BROWSER_ZOOM ?? '1');
 if (![1, 2].includes(browserZoom)) throw new Error('WEB_BROWSER_ZOOM must be 1 or 2');
+const colorScheme = process.env.WEB_COLOR_SCHEME;
+if (colorScheme && !['light', 'dark'].includes(colorScheme)) {
+  throw new Error('WEB_COLOR_SCHEME must be light or dark');
+}
 if (viewportWidth < 240 || viewportWidth > 3840 || viewportHeight < 240 || viewportHeight > 2160) {
   throw new Error('WEB_VIEWPORT is outside the supported verification dimensions');
 }
@@ -78,6 +82,9 @@ const chrome = spawn(
   [
     '--headless=new',
     '--disable-gpu',
+    // Explicit software WebGL fallback for Chromium154's trusted localhost
+    // fixture; this browser owns only synthetic profiles and app content.
+    '--enable-unsafe-swiftshader',
     '--disable-extensions',
     '--disable-background-networking',
     '--no-first-run',
@@ -184,6 +191,17 @@ try {
   }
   await waitFor(cdp, `innerWidth === ${viewportWidth} && innerHeight === ${viewportHeight} &&
     devicePixelRatio === ${browserZoom} && visualViewport.scale === 1`);
+  if (colorScheme) {
+    await waitFor(cdp, `matchMedia('(prefers-color-scheme: ${colorScheme})').matches`);
+    // Accessibility updates can precede the canvas's presented frame.
+    await evaluate(cdp, `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+    await delay(500);
+    const screenshot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+    const path = join(profileRoot,
+      `web-runtime-${basename(profile)}-${colorScheme}-${viewportWidth}x${viewportHeight}-zoom${browserZoom}.png`);
+    writeFileSync(path, Buffer.from(screenshot.data, 'base64'));
+    console.log(`Verified browser color preference and saved rendered review: ${path}`);
+  }
   console.log('Web runtime verification passed.');
 } catch (error) {
   if (cdp) {
@@ -271,6 +289,13 @@ async function openApp(cdp) {
 }
 
 async function configureViewport(cdp) {
+  if (colorScheme) {
+    // Ordinary browser media preference; never patch the app's theme/state.
+    await cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-color-scheme', value: colorScheme }],
+    });
+    await waitFor(cdp, `matchMedia('(prefers-color-scheme: ${colorScheme})').matches`);
+  }
   await cdp.send('Emulation.setDeviceMetricsOverride', {
     width: viewportWidth * browserZoom, height: viewportHeight * browserZoom,
     deviceScaleFactor: 1, mobile: false,
@@ -369,15 +394,22 @@ async function connectCdp(url, onEvent = () => {}) {
     for (const { reject } of pending.values()) reject(new Error('Chrome connection closed'));
     pending.clear();
   });
-  return {
+  const connection = {
     events,
     async send(method, params = {}, sessionId) {
+      const previousFrame = method === 'Page.reload'
+        ? (await connection.send('Page.getFrameTree')).frameTree.frame : null;
       const id = ++nextId;
       const navigationStart = events.length;
+      const requestedAt = new Error('CDP request call site').stack;
       const result = await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           pending.delete(id);
-          reject(new Error(`Chrome command timed out: ${method}`));
+          const error = new Error(`Chrome command timed out: ${method}`);
+          // A timer-created error otherwise loses the original UI operation.
+          // Source locations are sufficient; never print evaluated literals.
+          error.stack += `\n${requestedAt}`;
+          reject(error);
         }, 30_000);
         pending.set(id, {
           resolve: (value) => { clearTimeout(timeout); resolve(value); },
@@ -386,14 +418,25 @@ async function connectCdp(url, onEvent = () => {}) {
         socket.send(JSON.stringify({ id, method, params, sessionId }));
       });
       if (method === 'Page.reload') {
-        // The reload response precedes replacement of the document/context.
-        // Wait for the browser's actual load event before issuing evaluations;
-        // a command sent into the departing context can otherwise be lost.
+        // Require a new main-document loader, then its load event. An old
+        // document's delayed load event must never count as a restart.
         const deadline = Date.now() + 60_000;
-        while (!events.slice(navigationStart).some(event =>
-          event.method === 'Page.loadEventFired')) {
-          if (Date.now() >= deadline) throw new Error('Chrome reload did not finish document load');
+        let navigation;
+        while (true) {
+          const index = events.findIndex((event, index) => index >= navigationStart &&
+            event.method === 'Page.frameNavigated' && event.params.frame.id === previousFrame.id &&
+            event.params.frame.loaderId !== previousFrame.loaderId);
+          if (index >= 0 && events.slice(index + 1).some(event =>
+            event.method === 'Page.loadEventFired')) {
+            navigation = events[index].params.frame;
+            break;
+          }
+          if (Date.now() >= deadline) throw new Error('Chrome reload did not finish loading a new document');
           await delay(50);
+        }
+        const current = (await connection.send('Page.getFrameTree')).frameTree.frame;
+        if (current.loaderId !== navigation.loaderId || current.loaderId === previousFrame.loaderId) {
+          throw new Error('Chrome reload did not retain the verified replacement document');
         }
       }
       return result;
@@ -402,6 +445,7 @@ async function connectCdp(url, onEvent = () => {}) {
       socket.close();
     },
   };
+  return connection;
 }
 
 async function evaluate(cdp, expression, options = {}) {
