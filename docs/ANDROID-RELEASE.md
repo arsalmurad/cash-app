@@ -57,10 +57,27 @@ Logs: `/tmp/cash-android-linux-pinned-release.log`,
 `/tmp/cash-android-linux-{arm64,x64}-pinned-artifact.log`,
 `/tmp/cash-android-{arm64,x64}-packaged-compiler.log`.
 
-A separate clean clone at `64b4d1c` is now building fresh Flutter/app/APK output,
-with only existing Cargo target/host-cache directories shared by ignored links.
-No old Flutter release/APK output is copied into it. That build is still pending,
-not a clean-checkout pass: `/tmp/cash-android-clean-pinned-release.log`.
+A separate clean clone at `64b4d1c` now passes the same release build,
+**1189.9s, exit0**, with only existing Cargo target/host-cache directories shared
+by ignored links. No old Flutter release/APK output was copied into it. Both
+fresh APKs pass the existing packaging verifier and independently extracted
+Rust1.98.1 compiler metadata checks, exit0. The clone's tracked state is clean
+after restoring only Gradle's generated executable-bit change to the Cargokit
+launcher. Generated linker paths differ across checkouts, causing some cache
+misses; cached packages/SDKs still avoid fresh downloads.
+
+| Clean-clone split | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `app-arm64-v8a-release.apk` | 28,615,501 | `a9d8b1d5cbbf1c8fefa3406d177cff052e74b98e381e0c1e7b5c0d9aeafd4dcc` |
+| `app-x86_64-release.apk` | 30,718,721 | `56cef797a481dbdc126cdb7f1f398dd6b51e5c6147d247110598bdf48a33ebcb` |
+
+Entry inventories and sizes match the main-checkout artifacts. Entry-content
+hashes differ only in `libapp.so` and `libdartjni.so`; Rust and Flutter payloads
+match. These are separately identified artifacts, **not a byte-identical APK
+reproducibility claim**. No device runtime follows from either build.
+Logs: `/tmp/cash-android-clean-pinned-release.log`,
+`/tmp/cash-android-clean-{arm64-v8a,x86_64}-artifact.log`,
+`/tmp/cash-android-clean-{arm64-v8a,x86_64}-compiler.log`.
 
 Optional retained Linux SDK activation follows the normal repository helper:
 
