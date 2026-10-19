@@ -176,6 +176,12 @@ try {
       openApp, evaluate, waitFor, waitForLabel, clickLabel, focusLabel,
     });
   }
+  if (process.env.WEB_PLANNING_DIALOGS === '1') {
+    const { runPlanningDialogWebScenario } = await import('./planning_dialog_web_scenario.mjs');
+    await runPlanningDialogWebScenario(cdp, {
+      openApp, evaluate, waitFor, waitForLabel, clickLabel, focusLabel, delay, repoRoot,
+    });
+  }
   if (process.env.WEB_CATEGORIES === '1') {
     const { runCategoryPickerWebScenario } = await import('./category_picker_web_scenario.mjs');
     await runCategoryPickerWebScenario(cdp, {
