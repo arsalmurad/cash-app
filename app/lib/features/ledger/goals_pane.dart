@@ -294,6 +294,8 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
               const SizedBox(height: 12),
               DropdownButtonFormField<GoalKind>(
                 isExpanded: true,
+                isDense: false,
+                itemHeight: null,
                 key: const Key('goalKindDropdown'),
                 initialValue: _kind,
                 decoration: const InputDecoration(labelText: 'Kind'),
@@ -326,6 +328,8 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
+                  isDense: false,
+                  itemHeight: null,
                   key: const Key('goalAccountDropdown'),
                   initialValue: _linkedAccountId,
                   decoration: const InputDecoration(labelText: 'Account'),
@@ -355,6 +359,8 @@ class _NewGoalDialogState extends State<NewGoalDialog> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   isExpanded: true,
+                  isDense: false,
+                  itemHeight: null,
                   key: const Key('goalCategoryDropdown'),
                   initialValue: _categoryId,
                   decoration: const InputDecoration(labelText: 'Category'),

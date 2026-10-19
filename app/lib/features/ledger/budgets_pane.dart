@@ -275,6 +275,9 @@ class _NewBudgetDialogState extends State<NewBudgetDialog> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String?>(
                 key: const Key('budgetCategoryDropdown'),
+                isExpanded: true,
+                isDense: false,
+                itemHeight: null,
                 initialValue: _categoryId,
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: [
@@ -305,6 +308,9 @@ class _NewBudgetDialogState extends State<NewBudgetDialog> {
               const SizedBox(height: 12),
               DropdownButtonFormField<BudgetPeriodKind>(
                 key: const Key('budgetPeriodDropdown'),
+                isExpanded: true,
+                isDense: false,
+                itemHeight: null,
                 initialValue: _period,
                 decoration: const InputDecoration(labelText: 'Period'),
                 items: const [
