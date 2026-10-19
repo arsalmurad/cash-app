@@ -119,7 +119,7 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    Thirty-row mobile, screen-reader and complete accessibility gates stay open.
    The new live-update menu passes six 200%-text phone/tablet/desktop light/dark
    pointer/escape cases; this is additional scoped reachability evidence.
-   The clean-clone `aad0f8f` WASM release now passes the complete personal
+   The clean-clone `d98c8a2` WASM release now passes the complete personal
    production-browser journey at actual 200% zoom, including CSV, goals,
    recurring entries, exact large money, corrections/history and search/filter.
    Native enlarged text and actual assistive technology remain open.

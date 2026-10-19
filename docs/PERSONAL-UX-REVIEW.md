@@ -306,7 +306,7 @@ including real fixture action/void, exact i64-range amounts, quota recovery,
 reload, consent/pruning, removal/rejoin and FX. Exact command/hash and partial
 driver failures are in the handoff. Native runtime/AT acceptance remains open.
 
-The clean-clone release at `aad0f8f` also passes the complete personal journey
+The newer clean-clone release at `d98c8a2` also passes the complete personal journey
 with real 200% page zoom, 360x740 CSS pixels/DPR 2/pinch scale 1 (exit 0):
 
 ```bash
@@ -318,7 +318,12 @@ This verifies real keyboard traversal/cancellation, selected UTF-8 CSV review/
 import and downloaded bytes, goal currency/category/deadline, recurring entries,
 large exact money/bounded percentages, corrections/history/removal, ordered
 recent activity/reload and search/filter. Log:
-`/tmp/cash-personal-final-200-routes.log`. Earlier attempts missed animated menu
+`/tmp/cash-title-personal-production-loaded.log`. The older `aad0f8f` pass is
+separate in `/tmp/cash-personal-final-200-routes.log`. The first new-bundle repeat
+timed out in DevTools immediately after reload; waiting for the actual browser
+document-load event before evaluation fixes that driver race, with command
+deadlines and financial assertions unchanged. The next complete run passes.
+Earlier attempts missed animated menu
 or editor activation; the driver now waits for settled routes and retains the
 real Flutter input-listener readiness check. No app hooks/state injection or
 DOM-value-only acceptance. Native enlarged text and assistive technology remain
