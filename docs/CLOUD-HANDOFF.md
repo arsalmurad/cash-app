@@ -98,7 +98,9 @@ proposal for a newer emulator was stopped/quarantined, never used. SDK manager
 requires explicit existing HTTP proxy flags and verified system Java truststore
 `/etc/ssl/certs/java/cacerts`; index fetch then passes. API36/build-tools36.0.0/
 NDK28.2.13676358/AOSP ATD x86_64 installation succeeds. Activate with the normal
-repository env helper then `source /workspace/toolchains/cash_android_env.sh`.
+repository env helper then `source scripts/codex_cloud_android_env.sh`. The
+optional SDK files are retained workspace tooling; the base Linux bootstrap
+remains lean and does not install Android or claim fresh-task restoration.
 Initial ARM64/x86_64 APKs build and pass packaging, but inspection catches
 Cargokit overriding the shell pin with moving stable **Rust1.99.1**. Those
 artifacts are unaccepted diagnostics, not pinned release evidence. That unintended
