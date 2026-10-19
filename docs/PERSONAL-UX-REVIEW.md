@@ -396,3 +396,124 @@ frames despite available semantics; that prompted strict loader checks and
 settled screenshot capture. Later screenshots use unique owned-profile names.
 This is scoped rendered-theme review, not measured complete contrast, WCAG,
 native enlarged-text, TalkBack or VoiceOver acceptance. Those gates remain open.
+
+### Budget and goal dialog labels, 2026-10-19
+
+Source `8cd2e19` repairs selected/dropdown labels at enlarged text. The budget
+category and custom-period fields overflowed horizontally by 1,528 and 467
+pixels in a 360x740/200%-text real-theme regression. Goal dialogs reported no
+layout exception, but rendered glyph bounds proved selected long account/category
+labels painted outside their fields. Both are actual readability defects.
+
+The five planning dropdowns now expand within the available width and use
+non-dense, variable-height selected/menu rows, following the existing transaction
+entry pattern. No label is shortened; category/account IDs, targets, periods,
+deadlines, currency rules and financial core are unchanged.
+
+`planning_dialog_accessibility_test.dart` passes **18 cases**: budget, saving
+goal and spending goal at 360x740/840x600/1280x900, light/dark, 200% text. It opens
+dialogs with keyboard input, selects full long labels, checks every selected
+glyph box fits inside its field, saves exact i64-range USD/JPY targets/custom 365
+days and preserves deadlines. Goal Escape cancellation returns no draft and
+restores opener focus. These are widget checks, not actual AT or phone runtime.
+The **37 adjacent tests** for budget/goal controls, populated cards and adaptive
+navigation also pass; full app analysis reports no issues. Logs:
+`/tmp/cash-planning-dialog-red.log`, `/tmp/cash-planning-dialog-red-goal.log`,
+`/tmp/cash-planning-dialog-green.log`, `/tmp/cash-planning-adjacent.log`,
+`/tmp/cash-planning-analyze.log`. An initial invocation used the wrong working
+directory, and a later sandboxed invocation could not create the runner's socket;
+neither executed these tests. The scoped reviewed runner supplies the actual
+red/green evidence. The earlier 484-test suite predates this UI-only repair.
+
+The `8cd2e19` release rebuild passes (108.0s) against the unchanged Rust bridge.
+Its initial complete light-theme production planning journey passes at actual
+200% browser zoom, 360x740 CSS/DPR2/pinch1, exit0:
+`/tmp/cash-planning-browser-ready-light.log`. Normal UI creates a long category
+and JPY account, selects them in budget/goal dialogs, saves custom 365 days and
+exact maximum i64 USD/JPY targets, verifies them after new-document reloads,
+then checks Escape/Cancel leave confirmed SQLite bytes and net balance unchanged.
+Two preceding driver attempts failed: a DOM click did not activate the wrapped
+menu option, and navigation was queried before post-reload semantics were ready.
+Actual pointer activation with observed selection, physical scrolling and the
+existing destination-readiness guard fix those driver issues. Partial attempts
+are not suite passes. Its Dart WASM SHA256 is
+`1b4cc4c4c6eb2e5fc5769ea6b199cd2e9746479a7dc919906bd8b1656fa4c62b`.
+The scoped bundle is retained as `app/build/web-planning-8cd2e19`.
+
+The same rendered-glyph regression then reproduced recurring account-label
+clipping. Source `727b84c` changes only recurring account/category rows to the
+same variable-height treatment. The expanded matrix passes **24 cases**, plus
+**7 recurring tests** (31 total, exit0, 11s), preserving exact i64 JPY amount,
+kind, frequency and the original start timestamp. Full analysis remains clean.
+Log: `/tmp/cash-planning-recurring-centered-green.log`; red proof:
+`/tmp/cash-recurring-dialog-red.log`. An intermediate matrix passed 29/31 but
+missed two taps because its old scroll alignment left the taller control center
+behind the dialog actions. Centered framework scrolling plus explicit
+hit-testability repairs the fixture; glyph and exact-value assertions remain.
+The earlier 18-case and 37-adjacent results remain separately scoped above.
+The final current-source browser repeats below validate the clean-built
+`727b84c` app with driver `cd50efb`; older native results retain their scopes.
+
+The main checkout release rebuild passes (91.2s). A separate local clone at
+`/tmp/cash-planning-clean-K87oVA/repo` checks out exact source `727b84c`, resolves
+pub packages offline with lock enforcement, rebuilds the pinned Rust bridge
+(37.5s) using validated Cargo/SDK caches, and generates fresh app release output
+(150.1s). No pre-existing Flutter app/release output was copied into it; tracked
+source remains clean. Pinned compiler compatibility/update-check warnings are
+retained in `/tmp/cash-planning-clean-bridge.log`; no tools were upgraded.
+Setup/build logs: `/tmp/cash-planning-clean-setup.log` and
+`/tmp/cash-planning-clean-web.log`.
+
+Both builds produce identical Dart WASM SHA256
+`1384228dd42e4ccb6ab42a1d04be2eede2415f1a5bf33575c9fc8178a1f37bb9`
+and Rust WASM SHA256
+`af90b53d8e05975e24dcd7a03a6188260550f4f3528c7e382068d8643de5c74e`.
+46/48 release files match directly. `.last_build_id` and `flutter_bootstrap.js`
+differ: the incremental bootstrap retains previous bundle hash entries and a
+different service-worker version. An attempted build-ID-only normalization does
+not explain all differences; whole-bundle bit-identical reproducibility is not
+claimed. The two incremental metadata files are retained diagnostically, then
+all 48 clean-built release files are copied **out** to default `app/build/web`
+and every file SHA256 compared. The default now exactly matches the clean
+artifact served in the following runtime checks.
+
+Both complete planning commands pass, exit0, in actual Linux Chromium154 at
+200% page zoom/360x740 CSS/DPR2/pinch1:
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_COLOR_SCHEME=light WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_PLANNING_DIALOGS=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+WEB_COLOR_SCHEME=dark WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_PLANNING_DIALOGS=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+Actual runs set `WEB_BUILD_DIR` to the clean clone's `app/build/web`; the default
+above is byte-verified against it. Logs: `/tmp/cash-planning-final-clean-light.log`
+and `/tmp/cash-planning-final-clean-dark.log`. The normal UI creates the long
+category/account definitions, selects them with real pointer input, saves/reopens
+custom 365-day maximum-i64 USD budget, maximum-i64 JPY saving target and recurring
+rule, and USD spending target. Every reload proves a replacement document.
+Escape/Cancel preserve the exact confirmed SQLite image and original net balance;
+the recurring rule is not recorded as a financial transaction. Both browser color
+preferences are verified. Settled light budget/recurring and dark budget/saving
+screenshots are visually reviewed: selected labels wrap completely and exact
+amounts remain readable, without obscuring Save/Cancel. This is not measured
+full contrast, screen-reader or native text-scaler acceptance.
+
+The full existing personal production journey also passes on this exact clean
+release, exit0, with dark preference and the same actual 200% viewport:
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_COLOR_SCHEME=dark WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_KEYBOARD_ENTRY=1 WEB_PERSONAL_LIFECYCLE=1 WEB_CSV=1 WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+Log: `/tmp/cash-planning-final-personal-dark.log` (actual run again serves the
+clean clone through `WEB_BUILD_DIR`). This repeats keyboard Tab/Shift+Tab/Escape,
+actual UTF-8 CSV selection/review/import/download, goal currency/category/deadline,
+categorized recurring posting and explicit removal, exact large money/bounded
+progress, immutable corrections/history, recent ordering and search/filter,
+with new-document reloads and unchanged balances where required. Final full
+analysis is clean (3.9s): `/tmp/cash-planning-final-analyze.log`.
+No final-source Android/iOS, native biometrics/text scaling, hosted deployment,
+measured full contrast or actual assistive-technology claim follows. No app
+core/bridge ABI, tool pins or any of the four tracked lockfiles changed.
