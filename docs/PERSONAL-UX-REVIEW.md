@@ -300,8 +300,11 @@ ellipsis. The complete stored title and accessibility semantics remain intact;
 exact money still wraps without truncation. Six light/dark phone/tablet/desktop
 regressions reproduce red before the change and pass afterward, including
 full-title semantics and actual edit actions. Adjacent household checks pass
-35 tests, analysis clean. Rebuilt production acceptance is tracked separately
-in the handoff; this widget evidence is not native runtime/AT acceptance.
+35 tests, analysis clean. Its rebuilt clean-clone production WASM bundle also
+passes the complete narrow household/fault journey at actual 200% page zoom,
+including real fixture action/void, exact i64-range amounts, quota recovery,
+reload, consent/pruning, removal/rejoin and FX. Exact command/hash and partial
+driver failures are in the handoff. Native runtime/AT acceptance remains open.
 
 The clean-clone release at `aad0f8f` also passes the complete personal journey
 with real 200% page zoom, 360x740 CSS pixels/DPR 2/pinch scale 1 (exit 0):

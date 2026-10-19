@@ -147,9 +147,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    clone builds `aad0f8f` with pinned/offline locked packages; that exact release
    passes the full wide production notification fault journey, including real
    background/offline/quota/restart and i64-range edits. The full host suite
-   passes 484 tests with no reported skips. Narrow household acceptance is
-   still being investigated; Android Linux tooling preparation is not yet
-   updated Android runtime evidence. See the cloud handoff for exact limits.
+   passes 484 tests with no reported skips. The later `d98c8a2` title repair
+   also passes the complete clean-built narrow household/fault journey at
+   actual 200% page zoom. Android Linux tooling preparation/pinned rebuilding
+   is not yet updated Android runtime evidence. See the handoff for exact limits.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to GitHub `main`. Local diagnostic
    logs/caches are ignored; repeatable tests and evidence summaries are tracked.

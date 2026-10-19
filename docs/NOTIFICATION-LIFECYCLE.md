@@ -198,6 +198,19 @@ existing fixture assertion. One earlier contended run hit the existing 15s
 HTTP fixture startup deadline (477/478); its isolated rerun and the later full
 suite pass without deadline changes. Logs are listed in the cloud handoff.
 
+The later title repair `d98c8a2` also passes the **complete** fault journey at
+actual 200% page zoom (360x740 CSS, DPR2, pinch1), exit0, using its new clean-clone
+release. Add `WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740` and set `WEB_BUILD_DIR` to
+that exact release directory; the full command and artifact hash are in the
+cloud handoff. Log: `/tmp/cash-title-narrow-production-drained.log`.
+This includes the complete existing consent/recovery/FX/privacy journey.
+Full title semantics are preserved while visible titles use three lines.
+Earlier attempts exposed a floating-button overlap in the test pointer and
+recorded the reload image before open-backfill finished. The driver now scrolls
+the observed action clear, tracks actual unfinished HTTP requests and waits for
+saved images to settle; byte-for-byte reload equality remains mandatory.
+Failure messages avoid dumping whole sealed database images.
+
 Public authorization, hosted eviction/revival/billing, final mobile runtimes,
 other platform lifecycle faults and the wider completion gates remain open.
 No Actions job, PR, deployment, purchase, production secret or repository
