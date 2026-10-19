@@ -1,5 +1,50 @@
 # Current Android production release evidence
 
+## Linux continuation, 2026-10-19: pinned rebuild in progress
+
+Source `d98c8a2` builds ARM64/x86_64 private-prototype release splits on Linux
+with Flutter 3.47.5, Temurin 17.0.20.1, API36, Build Tools36.0.0 and
+NDK28.2.13676358. Initial packaging checks pass exact ABI/ELF/16 KB ZIP/segment
+verification, **but those APKs are not accepted pinned artifacts**: inspection
+found that bundled Cargokit explicitly used moving `stable` (Rust1.99.1),
+overriding the shell/CI's `RUSTUP_TOOLCHAIN=1.98.1`. They remain separately under
+ignored `app/build/app/outputs/flutter-apk/diagnostic-rust-1.99.1`.
+
+The bundled integration now accepts exact compiler versions in its existing
+crate configuration and recognizes already installed official numeric Rustup
+toolchains. `rust/api/cargokit.yaml` pins **1.98.1** and `--locked` for debug,
+profile and release. This preserves dependency versions and bridge ABI; no
+lockfile or Rust library code changed. Six command-selection regressions cover
+all build modes with present/missing pinned compilers; red fails at the old
+channel-only parser, green passes. Run using the existing generated runner:
+
+```bash
+source scripts/codex_cloud_env.sh
+dart --packages=app/build/rust_lib_cash_app/build/build_tool/.dart_tool/package_config.json scripts/check_cargokit_toolchain.dart
+```
+
+That is build-integration evidence, not actual native compilation/runtime.
+The corrected real release rebuild is running; do not substitute initial
+packaging for a pinned build pass. Log:
+`/tmp/cash-android-linux-pinned-release.log`.
+
+Optional retained Linux SDK activation follows the normal repository helper:
+
+```bash
+source scripts/codex_cloud_env.sh
+source /workspace/toolchains/cash_android_env.sh
+```
+
+This sets only supported workspace Java/Android/Gradle/cache paths and uses the
+system's verified Java trust store. SDK manager needs explicit proxy flags from
+the existing HTTPS proxy. The official archived emulator37.1.11 is SHA-256
+verified against Google's archive. No newer emulator is substituted. The new
+owned `Phase0Api36` AOSP ATD/API36 x86_64 AVD has no KVM; a software-mode boot is
+still offline, **not runtime acceptance**. No production relay/security
+relaxation, provider purchase, Actions dispatch, PR or deployment occurred.
+
+Historical Windows evidence below remains scoped to its own source/artifacts.
+
 Initial verification 2026-10-04. Production app through `1edf8a5`, evidence head `f855f34`,
 Rust/Dart bridge ABI `1237803201`; the new tracked production-UI driver does not
 change app code. This is scoped x86_64 emulator evidence, not a full-platform
