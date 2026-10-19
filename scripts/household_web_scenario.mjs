@@ -164,7 +164,25 @@ export async function runHouseholdWebScenario(alice, api) {
   }
 
   async function createSharedAccount(name, currency) {
-    await clickLabel(alice, 'Household options', 'button');
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await notificationIdle(alice);
+      await waitFor(alice, `[...document.querySelectorAll('flt-semantics-host [role="button"]')]
+        .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim()) === 'Sync' &&
+          e.getAttribute('aria-disabled') !== 'true')`);
+      await clickLabel(alice, 'Household options', 'button');
+      await waitForLabel(alice, 'Popup menu');
+      const available = await evaluate(alice, `[...document.querySelectorAll('flt-semantics-host *')]
+        .some(e => (e.getAttribute('aria-label') ?? e.textContent?.trim()) === 'Create shared account')`);
+      if (available) break;
+      // A periodic sync can start between readiness and opening. Popup items
+      // snapshot isBusy and omit mutations until the menu is reopened.
+      await alice.send('Input.dispatchMouseEvent', {type:'mousePressed', x:16, y:160,
+        button:'left', clickCount:1});
+      await alice.send('Input.dispatchMouseEvent', {type:'mouseReleased', x:16, y:160,
+        button:'left', clickCount:1});
+      await waitFor(alice, `![...document.querySelectorAll('flt-semantics-host *')]
+        .some(e => e.getAttribute('aria-label') === 'Popup menu')`);
+    }
     await clickLabel(alice, 'Create shared account');
     await fill(alice, 'Shared account name', name);
     await clickDropdown(alice, 'Currency');
