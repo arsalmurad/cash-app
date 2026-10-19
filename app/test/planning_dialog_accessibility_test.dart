@@ -7,8 +7,10 @@ import 'package:private_ledger/data/rust/api/budgets.dart';
 import 'package:private_ledger/data/rust/api/categories.dart';
 import 'package:private_ledger/data/rust/api/goals.dart';
 import 'package:private_ledger/data/rust/api/ledger.dart';
+import 'package:private_ledger/data/rust/api/recurring.dart';
 import 'package:private_ledger/features/ledger/budgets_pane.dart';
 import 'package:private_ledger/features/ledger/goals_pane.dart';
+import 'package:private_ledger/features/ledger/recurring_pane.dart';
 import 'package:private_ledger/theme.dart';
 
 const _categoryName = 'Groceries and household supplies for the entire family';
@@ -76,8 +78,9 @@ Future<void> _open<T>(
 
 Future<void> _select(WidgetTester tester, String key, String label) async {
   final field = find.byKey(Key(key));
-  await tester.ensureVisible(field);
+  await Scrollable.ensureVisible(tester.element(field), alignment: 0.5);
   await tester.pumpAndSettle();
+  expect(field.hitTestable(), findsOneWidget);
   await tester.tap(field);
   await tester.pumpAndSettle();
   expect(
@@ -158,6 +161,56 @@ void main() {
         expect(result!.customPeriodDays, 365);
         expect(result!.period, BudgetPeriodKind.custom);
         expect(existing.categoryId, 'food');
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+
+      testWidgets('recurring dialog at $size, $brightness, 200% text', (
+        tester,
+      ) async {
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final start = PlatformInt64Util.from(
+          DateTime(2030, 1, 20, 12).millisecondsSinceEpoch,
+        );
+        final existing = UpcomingView(
+          recurringId: 'bill',
+          title: 'Annual household insurance',
+          isExpense: true,
+          amountLabel: 'JPY 9223372036854775807',
+          accountId: 'daily',
+          categoryId: 'food',
+          frequency: RecurringFrequency.monthly,
+          occurrenceMillis: start,
+          isOverdue: false,
+        );
+        RecurringDraft? result;
+        var returns = 0;
+        await _open<RecurringDraft>(
+          tester,
+          dialog: NewRecurringDialog(
+            accounts: _accounts,
+            categories: _categories,
+            existing: existing,
+          ),
+          brightness: brightness,
+          onResult: (draft) {
+            result = draft;
+            returns++;
+          },
+        );
+        await _select(tester, 'recurringKindDropdown', 'Income');
+        await _select(tester, 'recurringAccountDropdown', _otherAccountName);
+        await _select(tester, 'recurringCategoryDropdown', _otherCategoryName);
+        await _select(tester, 'recurringFrequencyDropdown', 'Yearly');
+        await _save(tester);
+        expect(returns, 1);
+        expect(result!.amount, '9223372036854775807');
+        expect(result!.accountId, 'savings');
+        expect(result!.categoryId, 'travel');
+        expect(result!.frequency, RecurringFrequency.yearly);
+        expect(result!.kind, RecurringKind.income);
+        expect(result!.startMillis, start);
+        expect(existing.accountId, 'daily');
         await tester.pumpWidget(const SizedBox.shrink());
       });
 

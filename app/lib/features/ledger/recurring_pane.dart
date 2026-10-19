@@ -303,6 +303,8 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
               DropdownButtonFormField<String>(
                 isExpanded: true,
                 key: const Key('recurringAccountDropdown'),
+                isDense: false,
+                itemHeight: null,
                 initialValue: _accountId,
                 decoration: const InputDecoration(labelText: 'Account'),
                 items: [
@@ -327,6 +329,8 @@ class _NewRecurringDialogState extends State<NewRecurringDialog> {
               DropdownButtonFormField<String>(
                 key: const Key('recurringCategoryDropdown'),
                 isExpanded: true,
+                isDense: false,
+                itemHeight: null,
                 initialValue: _categoryId,
                 decoration: const InputDecoration(labelText: 'Category'),
                 items: [
