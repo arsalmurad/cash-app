@@ -44,7 +44,7 @@ and WASM compilers remain. This is actual pinned compilation/packaging evidence,
 
 ```bash
 source scripts/codex_cloud_env.sh
-source /workspace/toolchains/cash_android_env.sh
+source scripts/codex_cloud_android_env.sh
 cd app
 flutter --no-version-check build apk --release --target-platform android-arm64,android-x64 --split-per-abi
 ```
@@ -66,7 +66,7 @@ Optional retained Linux SDK activation follows the normal repository helper:
 
 ```bash
 source scripts/codex_cloud_env.sh
-source /workspace/toolchains/cash_android_env.sh
+source scripts/codex_cloud_android_env.sh
 ```
 
 This sets only supported workspace Java/Android/Gradle/cache paths and uses the
