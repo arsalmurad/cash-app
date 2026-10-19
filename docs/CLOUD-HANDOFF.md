@@ -33,12 +33,19 @@ conflicts, explicit pruning, identity lease, removal/rejoin and frozen EUR/JPY.
 Command and limits: [NOTIFICATION-LIFECYCLE.md](NOTIFICATION-LIFECYCLE.md).
 Log: `/tmp/notification-browser-final-bounded-quota.log`.
 
-The same clean release passes the **full personal journey at actual 200% page
+The newer `d98c8a2` clean release also passes the **full personal journey at actual 200% page
 zoom** (360x740 CSS, DPR 2, pinch scale 1), exit 0, including keyboard/CSV/goals/
 recurring/large money/corrections/history/recent activity/search/filter/offline
 fonts. Command: [PERSONAL-UX-REVIEW.md](PERSONAL-UX-REVIEW.md).
-Log: `/tmp/cash-personal-final-200-routes.log`. Native enlarged text and actual
-screen readers remain open.
+Log: `/tmp/cash-title-personal-production-loaded.log`; retain the older
+`/tmp/cash-personal-final-200-routes.log` as separate `aad0f8f` evidence.
+Use the same current clean `WEB_BUILD_DIR` as below, plus
+`WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_KEYBOARD_ENTRY=1 WEB_PERSONAL_LIFECYCLE=1 WEB_CSV=1 WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1`.
+The first new-bundle personal attempt hit a 30s DevTools command timeout at
+reload, with a blank new document. The driver now waits for the browser's
+actual document-load event before evaluation; its existing 30s command deadline
+and financial assertions are unchanged. The complete subsequent run passes.
+Native enlarged text and actual screen readers remain open.
 
 The narrow 200% household repeat exposed two driver limitations (a dialog's
 clipped editor and lazy rows), repaired with actual wheel/pointer input. It
@@ -62,6 +69,11 @@ reload, pruning, lease, removal/rejoin, FX and privacy stages. Earlier partial r
 also hit a FAB-covered action and recorded a reload image before open-backfill
 finished. The driver now requires actual non-overlap and drains HTTP plus saved
 images, retaining exact reload equality. Do not count partial journeys as passed.
+All 48 generated release files were copied out of the clean clone to the
+main checkout's default `app/build/web` and individually SHA-256 compared;
+the old `aad0f8f` bundle is retained as `app/build/web-aad0f8f`. No old app
+output was copied into the clean clone. Future sessions must rebuild stale
+artifacts rather than assuming a Git checkout updates ignored outputs.
 Earlier quota
 fixtures also assumed tiny edits require database growth, whole-page rollback
 and notifications persist as enabled across restart; those assumptions were

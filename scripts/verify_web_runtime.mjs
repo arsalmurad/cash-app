@@ -371,9 +371,10 @@ async function connectCdp(url, onEvent = () => {}) {
   });
   return {
     events,
-    send(method, params = {}, sessionId) {
+    async send(method, params = {}, sessionId) {
       const id = ++nextId;
-      return new Promise((resolve, reject) => {
+      const navigationStart = events.length;
+      const result = await new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           pending.delete(id);
           reject(new Error(`Chrome command timed out: ${method}`));
@@ -384,6 +385,18 @@ async function connectCdp(url, onEvent = () => {}) {
         });
         socket.send(JSON.stringify({ id, method, params, sessionId }));
       });
+      if (method === 'Page.reload') {
+        // The reload response precedes replacement of the document/context.
+        // Wait for the browser's actual load event before issuing evaluations;
+        // a command sent into the departing context can otherwise be lost.
+        const deadline = Date.now() + 60_000;
+        while (!events.slice(navigationStart).some(event =>
+          event.method === 'Page.loadEventFired')) {
+          if (Date.now() >= deadline) throw new Error('Chrome reload did not finish document load');
+          await delay(50);
+        }
+      }
+      return result;
     },
     close() {
       socket.close();
