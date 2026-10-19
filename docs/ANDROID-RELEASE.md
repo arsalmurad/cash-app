@@ -1,6 +1,6 @@
 # Current Android production release evidence
 
-## Linux continuation, 2026-10-19: pinned rebuild in progress
+## Linux continuation, 2026-10-19: pinned packaging passes; runtime blocked
 
 Source `d98c8a2` builds ARM64/x86_64 private-prototype release splits on Linux
 with Flutter 3.47.5, Temurin 17.0.20.1, API36, Build Tools36.0.0 and
@@ -23,10 +23,44 @@ source scripts/codex_cloud_env.sh
 dart --packages=app/build/rust_lib_cash_app/build/build_tool/.dart_tool/package_config.json scripts/check_cargokit_toolchain.dart
 ```
 
-That is build-integration evidence, not actual native compilation/runtime.
-The corrected real release rebuild is running; do not substitute initial
-packaging for a pinned build pass. Log:
-`/tmp/cash-android-linux-pinned-release.log`.
+The corrected real build now passes, **1457.4s, exit0**, at unchanged app source
+`d98c8a2` plus native build configuration `2c01a4b`; later driver/docs checkpoint
+`64b4d1c` changes no app/bridge code. ABI `1237803201` is unchanged.
+
+| Pinned Linux split | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `app-arm64-v8a-release.apk` | 28,615,501 | `3d2650ccd9f8a647029c943f23c83ffce44663964b1104d59fea4f53e2666940` |
+| `app-x86_64-release.apk` | 30,718,721 | `c3fb675cd5fbad06d676525b1f4f11e4cd3a1d5d26e3770ce5acd0e7ac9f193e` |
+
+Both pass the existing exact-ABI/real Dart AOT+Rust libraries/ELF machine/16KB
+ZIP and segment verifier, exit0. Independently extracted **packaged** Rust
+libraries' ELF `.comment` sections both report
+`rustc version 1.98.1 (48a229cea 2026-09-01)` and the pinned NDK's Clang/LLD
+19.0.1; no Rust1.99.1 marker. Actual build logs also show
+`rustup run 1.98.1-x86_64-unknown-linux-gnu cargo build --locked` for both targets.
+The unwanted moving-stable1.99.1 installation was removed; documented native
+and WASM compilers remain. This is actual pinned compilation/packaging evidence,
+**not app runtime**. Prototype debug-key release signing is unchanged.
+
+```bash
+source scripts/codex_cloud_env.sh
+source /workspace/toolchains/cash_android_env.sh
+cd app
+flutter --no-version-check build apk --release --target-platform android-arm64,android-x64 --split-per-abi
+```
+
+From the repository root, set `AAPT_BINARY=$ANDROID_HOME/build-tools/36.0.0/aapt2`,
+`JAR_BINARY=$JAVA_HOME/bin/jar`, `ZIPALIGN_BINARY=$ANDROID_HOME/build-tools/36.0.0/zipalign`,
+then run `node scripts/verify_android_release_artifact.mjs arm64-v8a` and
+`node scripts/verify_android_release_artifact.mjs x86_64`.
+Logs: `/tmp/cash-android-linux-pinned-release.log`,
+`/tmp/cash-android-linux-{arm64,x64}-pinned-artifact.log`,
+`/tmp/cash-android-{arm64,x64}-packaged-compiler.log`.
+
+A separate clean clone at `64b4d1c` is now building fresh Flutter/app/APK output,
+with only existing Cargo target/host-cache directories shared by ignored links.
+No old Flutter release/APK output is copied into it. That build is still pending,
+not a clean-checkout pass: `/tmp/cash-android-clean-pinned-release.log`.
 
 Optional retained Linux SDK activation follows the normal repository helper:
 
@@ -39,8 +73,18 @@ This sets only supported workspace Java/Android/Gradle/cache paths and uses the
 system's verified Java trust store. SDK manager needs explicit proxy flags from
 the existing HTTPS proxy. The official archived emulator37.1.11 is SHA-256
 verified against Google's archive. No newer emulator is substituted. The new
-owned `Phase0Api36` AOSP ATD/API36 x86_64 AVD has no KVM; a software-mode boot is
-still offline, **not runtime acceptance**. No production relay/security
+owned `Phase0Api36` AOSP ATD/API36 x86_64 AVD has no KVM/VMX. Its first software
+boot exposed ADB but bounded shell/logcat requests timed out. A smaller-display
+retry with kernel diagnostics still did not reach `sys.boot_completed=1` after
+**886 seconds**; Android's activity service remained unavailable. A scoped ADB
+server refresh restored a responding (empty) boot-property query, not a booted
+system. The owned emulator was stopped without resetting its data. No app was
+installed; production UI checks are **unrun, not passed**. The vendor warns
+that x86_64 emulation may not work without hardware acceleration. Runtime
+acceptance needs a usable accelerated host/device. The obsolete `-dpi-device`
+flag was ignored; it is not a verified density recipe.
+Logs: `/tmp/cash-android-software-kernel.log` and
+`/tmp/cash-android-runtime-blocker.txt`. No production relay/security
 relaxation, provider purchase, Actions dispatch, PR or deployment occurred.
 
 Historical Windows evidence below remains scoped to its own source/artifacts.

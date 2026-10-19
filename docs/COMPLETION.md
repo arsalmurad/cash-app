@@ -149,8 +149,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    background/offline/quota/restart and i64-range edits. The full host suite
    passes 484 tests with no reported skips. The later `d98c8a2` title repair
    also passes the complete clean-built narrow household/fault journey at
-   actual 200% page zoom. Android Linux tooling preparation/pinned rebuilding
-   is not yet updated Android runtime evidence. See the handoff for exact limits.
+   actual 200% page zoom. Corrected Linux ARM64/x86_64 release builds pass
+   exact-ABI/ELF/16KB checks with Rust1.98.1 verified in packaged libraries.
+   Clean Android rebuilding is pending; software-emulator boot fails readiness
+   after 886s, so app runtime checks remain unrun. See the handoff for limits.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to GitHub `main`. Local diagnostic
    logs/caches are ignored; repeatable tests and evidence summaries are tracked.
