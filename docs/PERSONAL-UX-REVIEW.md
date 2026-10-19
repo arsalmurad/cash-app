@@ -367,3 +367,32 @@ runtime evidence.
 This closes scoped enlarged-browser category/action and keyboard-cancellation
 coverage. Complete contrast/focus/screen-reader review, other personal flows at
 enlarged text, updated native thirty-row/enlarged-text and final iOS remain open.
+
+### Final dark-theme production repeats, 2026-10-19
+
+Both the complete personal journey and the thirty-category pointer journey pass
+again, exit0, on the clean-built `d98c8a2` release with strict document checking
+introduced in the `0f14629` driver series. Use the commands above, adding
+`WEB_COLOR_SCHEME=dark` to each. Actual Chromium page zoom remains 200%, 360x740
+CSS/DPR2/pinch1. Logs: `/tmp/cash-final-personal-new-document.log` and
+`/tmp/cash-final-dark-categories-new-document.log`.
+
+The driver configures and verifies actual `prefers-color-scheme: dark` before
+and after reload. Reloads now require a replacement main-frame loader, its load
+event and confirmation that loader is still current; old-document semantics
+cannot count as durable reload evidence. Personal assertions cover keyboard
+traversal/Escape/cancel, UTF-8 CSV selection/review/import/download, goals,
+recurring entries, exact large money, correction/removal/history, ordered recent
+activity, search/filter and offline fonts. Categories cover all twelve named
+icons/selected states, 25 additions to five defaults, real bottom scrolling and
+physical edit without FAB overlap, byte-unchanged cancellation and durable
+name/icon with unchanged balance. No controller hooks or app-state injection.
+
+A separate strict dark basic/two-reload run also passes
+(`/tmp/cash-title-dark-new-document.log`). Its settled rendered screenshot was
+visually reviewed: the dark Material3 Overview, account, transaction, navigation
+and exact `USD -512.34` are readable. Earlier captures showed loading/blank
+frames despite available semantics; that prompted strict loader checks and
+settled screenshot capture. Later screenshots use unique owned-profile names.
+This is scoped rendered-theme review, not measured complete contrast, WCAG,
+native enlarged-text, TalkBack or VoiceOver acceptance. Those gates remain open.

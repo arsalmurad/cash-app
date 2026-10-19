@@ -3,6 +3,59 @@
 Updated 2026-10-19 during the Linux continuation. This file replaces reliance on the
 long local conversation; it does not declare the product finished.
 
+## Latest verified continuation, 2026-10-19
+
+Driver checkpoint `0f1462982a654eec72860675581f12c5f1af090a` is pushed on
+`codex/notification-lifecycle-20261018`. The three final production-browser
+journeys below pass, exit 0, using the clean-built `d98c8a2` app bundle already
+described below and Linux Chromium 154.0.8037.57. All use actual 200% page zoom,
+360x740 CSS pixels, DPR2 and pinch scale1. These supersede the earlier driver
+results as the latest scoped web evidence; they are not mobile or AT acceptance.
+
+```bash
+source scripts/codex_cloud_env.sh
+WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1 WEB_HOUSEHOLD_NOTIFICATIONS=1 WEB_HOUSEHOLD_NOTIFICATION_FAULTS=1 WEB_HOUSEHOLD_LARGE_AMOUNTS=1 WEB_HOUSEHOLD_QUOTA=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+WEB_COLOR_SCHEME=dark WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_KEYBOARD_ENTRY=1 WEB_PERSONAL_LIFECYCLE=1 WEB_CSV=1 WEB_CSV_LINE_ENDINGS=LF WEB_OFFLINE_FONTS=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+WEB_COLOR_SCHEME=dark WEB_BROWSER_ZOOM=2 WEB_VIEWPORT=360x740 WEB_CATEGORIES=1 WEB_CATEGORY_LIST=1 CHROME_BINARY=/usr/bin/chromium CHROME_NO_SANDBOX=1 node scripts/verify_web_runtime.mjs
+```
+
+Logs, respectively: `/tmp/cash-final-household-busy-menu.log`,
+`/tmp/cash-final-personal-new-document.log`, and
+`/tmp/cash-final-dark-categories-new-document.log`. The full household run includes
+real hidden/foreground and offline recovery, bounded reconnect, incoming/local
+quota refusal, no premature receipt, restart/unlock/explicit re-enable, exact
+i64-range edits, summaries/privacy, key rotation, conflicts, unanimous pruning,
+identity leases, removal/rejoin and frozen EUR/JPY. Dark personal coverage includes
+keyboard cancellation, CSV file selection/download, goals/recurring entries,
+money/history/recent activity/search/filter and offline fonts. The dark category
+run includes twelve icon names/selected states and thirty-row physical scrolling,
+edit/cancel, durable reload and unchanged exact balance.
+
+Reload acceptance now requires a different main-frame document loader, its load
+event and a matching current frame-tree loader before evaluating the replacement
+document. Both dark runs verify the actual browser color preference across
+reloads; a separate settled dark Overview screenshot was visually reviewed.
+Driver fixes observe reconnects before restoring networking and wait for public
+sync readiness before opening menus that snapshot busy state. Explicit software
+WebGL fallback is confined to owned synthetic localhost browser fixtures.
+Financial assertions and existing command/handshake deadlines remain unchanged.
+Failed strict attempts are retained separately: `cash-final-household-new-document`
+missed an already-completed reconnect in its observation window;
+`cash-final-household-online-window` hit a 30s DevTools command timeout; and
+`cash-final-household-callsite` passed the notification/recovery stages but missed
+a late JPY menu action while busy. Their `/tmp/*.log` files are not suite passes.
+
+Pinned Android root and clean-clone builds/packaging are complete, including
+Rust1.98.1 metadata checks. **Android app runtime remains unrun**: the owned
+software emulator did not reach boot readiness after 886s, no app was installed,
+and the AVD is stopped. Do not repeat unchanged software boots without a new
+host capability. Next meaningful gates require a usable Android runtime, final
+iOS and actual assistive technology; hosted acceptance also requires the still
+missing owner's verified $0 spending cap. Keep the completion boxes open.
+The resume prompt and saved environment draft must point to this continuation,
+not the old pending browser/native packaging tasks. Documentation-only updates
+after this checkpoint do not require rebuilding unchanged application artifacts.
+
 ## Active continuation after 81bb306
 
 Source checkpoints `c93f238` and `aad0f8f` fix a restart-required household
@@ -122,7 +175,8 @@ logcat time out. A smaller-display/kernel retry still lacks `boot_completed=1`
 and Android's activity service after **886s**. Refreshing only the owned ADB
 server does not establish readiness. The owned AVD is stopped without a data
 reset; no app was installed or runtime check passed. Final iOS/ARM phone/AT
-gates remain open. Continue packaging/clean-checkout checks independently.
+gates remain open. Packaging/clean-checkout checks above are complete; continue
+the remaining runtime gates when their actual prerequisites are available.
 
 The earlier shell sandbox failed before command startup with a bwrap
 bad-file-descriptor error. On the next continuation it starts normally, but
@@ -141,7 +195,7 @@ and use the resume prompt when the session is continued.
   `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
   `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
   `git log` and preserve task work.
-- Latest pushed checkpoint before this evidence update: `7b5a195`; product
+- Latest pushed implementation checkpoint before this evidence update: `0f14629`; product
   source `d98c8a2` now passes the complete clean-built narrow production journey
   as scoped above, plus the full personal journey. Native packaging now passes;
   clean Android rebuilding/packaging passes; runtime has the separate limits
@@ -218,16 +272,17 @@ Windows-source-specific results, not a fresh Linux or final-app-platform pass.
 
 ### Next safe work
 
-1. Expand current-source production WASM notification lifecycle acceptance. The driver
-   supports `WEB_HOUSEHOLD_NOTIFICATIONS=1 WEB_HOUSEHOLD=1 WEB_HOUSEHOLD_AUTH=1`.
-   Check the Linux continuation status below before rebuilding. Browser transport
-   and native controller passes do not prove broader production app lifecycle behavior.
+1. Preserve the completed current-source production WASM notification fault
+   acceptance recorded at the top. Repeat only for changed source or an
+   unresolved concern; browser and native-host passes do not establish mobile
+   app lifecycle behavior.
 2. Expand final-platform background/offline/lock, quota/recovery and removal
    acceptance, preserving saved-before-ACK and single-owner browser identity
    leases. OS-protected native saves/biometric enrollment need actual platforms.
 3. Continue safe remaining gates in `docs/COMPLETION.md`: lifecycle/recovery
    faults; complete personal/adaptive/accessibility review; final-source runtime
-   and clean-checkout release verification; concise final handoff. No new brand,
+   and platform release verification; concise final handoff. Linux clean-clone
+   web and Android build/packaging checks are complete as scoped above. No new brand,
    telemetry, bank sync, paid service or app-store publication is implied.
 
 ## Linux cloud preparation
@@ -463,20 +518,23 @@ zoom**, 360x740 CSS, DPR 2 and pinch scale 1. Driver flag: `WEB_BROWSER_ZOOM=2`.
 No app source changes or rebuild were needed. `PERSONAL-UX-REVIEW.md` records
 commands, initial failed preflight/missed animation click and remaining limits.
 
-The 200% keyboard run and default 100% smoke both exit 0, including the driver's
+At the earlier checkpoint, the 200% keyboard run and default 100% smoke both exit 0, including the driver's
 final viewport/zoom check after reload. Setup and WASM preflights pass again;
-all three project lockfiles are byte-unchanged from `b867ad2`. Current source is
+all four tracked lockfiles are byte-unchanged from `b867ad2`. Current source is
 checkpointed on the feature branch, with no main merge/PR/Actions/deployment.
 The environment draft pins the exact current checkout and has tested install
-and start instructions, 16 restricted hosts and no secret requirements.
+and start instructions and no secret requirements. The latest draft preserves
+21 restricted official package/tool/GitHub hosts, including the five Android/
+Gradle/Maven destinations added during the documented setup.
 
 Resume with `source scripts/codex_cloud_env.sh`, `git status`, and this handoff.
 Do not restart notification implementation or rebuild unchanged cached bridges.
-Next safe gaps are production-browser background/offline notifications while
-enabled and save/quota faults, the remaining personal functional/contrast/focus
-and screen-reader review, and a clean-checkout release check. Actual updated
+The formerly pending browser background/offline/save/quota and Linux clean-clone
+release checks are now complete as recorded at the top. Remaining gaps include
+the wider personal functional/contrast/focus and screen-reader review. Actual updated
 Android/iOS/native enlarged-text/vault/biometric acceptance needs supported
-platform tools/runtimes (this machine has no adb/emulator/KVM or Xcode). Hosted
+platform tools/runtimes (ADB/emulator are now installed, but usable boot/KVM and
+Xcode remain unavailable). Hosted
 runtime, deployment and Actions remain blocked by the documented owner spending
 authorization, not a reason to expose a public relay or use another route.
 
