@@ -1,0 +1,11 @@
+# Native builds must use the Phase 0 compiler, not the moving stable channel.
+cargo:
+  debug:
+    toolchain: 1.98.1
+    extra_flags: [--locked]
+  profile:
+    toolchain: 1.98.1
+    extra_flags: [--locked]
+  release:
+    toolchain: 1.98.1
+    extra_flags: [--locked]
