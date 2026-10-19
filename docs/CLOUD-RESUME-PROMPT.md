@@ -12,6 +12,21 @@ no shared login, no readable financial data at the relay. Preserve all money,
 event ordering, canonical convergence, MLS, protected-key and save-before-ACK
 invariants. Preserve the known-working pinned toolchains/lockfiles.
 
+The published environment baseline is `ab0f467`; later personal UX work is on
+the same development branch. Preserve existing task files/commits and fetch the
+requested branch before assuming the snapshot contains its newest source.
+`8cd2e19` and `727b84c` repair budget/goal/recurring dropdown labels that overflowed
+or painted outside their fixed-height fields. The 24-case enlarged-text matrix
+and 7 recurring cases pass; 37 adjacent budget/goal/adaptive cases passed
+separately. The current-source production planning evidence/commands and exact
+artifact scopes are in `PERSONAL-UX-REVIEW.md`. Clean-built `727b84c` now passes
+both light/dark planning journeys and the complete dark personal/keyboard/CSV/
+offline-font journey at actual 200% browser zoom, with driver `cd50efb`.
+Default `app/build/web` is byte-verified against all 48 clean release files;
+consult the review for bootstrap metadata/reproducibility limits. Never substitute the snapshot's
+older web/APK output for verification of newer widgets. No mobile rebuild or
+actual native enlarged-text/AT pass is implied by these local UI repairs.
+
 Set up/reuse the Linux environment as documented. The receive-only notification
 transport and bounded controller lifecycle are integrated with scoped native
 and browser transport evidence. The rebuilt production WASM journey also passes

@@ -5,6 +5,39 @@ long local conversation; it does not declare the product finished.
 
 ## Latest verified continuation, 2026-10-19
 
+Publication subsequently succeeded for baseline `ab0f467`: the configuration
+read returns a new published base version with no pending draft. The previous
+UI error was "Your unsaved edits conflict with newer settings"; reloading the
+saved settings resolves that conflict. The published config preserves restricted
+networking, the checkpoint and tested setup/start instructions. Its attached
+workspace passes pinned preflight/JDK activation and a fresh production browser
+smoke with two durable reloads. This is not an independent new-task restoration
+claim. Do not mutate an unchanged draft merely to retry publication or recreate
+the stale-editor conflict. Later coding checkpoints below are newer than that
+published repository baseline; fetch the requested development branch when
+resuming from the baseline snapshot.
+
+The continued personal UX review commits `8cd2e19` (budget/goal) and `727b84c`
+(recurring) repair confirmed overflowing/clipped dropdown labels. The expanded
+24-case planning-dialog matrix and 7 recurring tests pass, with 37 adjacent
+budget/goal/adaptive tests separately passing and full analysis clean. Actual
+light/dark planning runtime at `727b84c` passes, with driver `cd50efb`, against
+a separate clean-clone release. Rust bridge rebuild 37.5s, Dart release 150.1s;
+tracked clone source is clean. The default `app/build/web` exactly matches all 48
+clean release files after copying out and verifying every hash. Dart WASM SHA256:
+`1384228dd42e4ccb6ab42a1d04be2eede2415f1a5bf33575c9fc8178a1f37bb9`;
+Rust WASM remains `af90b53d8e05975e24dcd7a03a6188260550f4f3528c7e382068d8643de5c74e`.
+Enable `WEB_PLANNING_DIALOGS=1` with the verified narrow/200% browser flags
+and `WEB_COLOR_SCHEME=light` or `dark` after the normal env helper. Full commands,
+bootstrap reproducibility limits, actual logs and screenshot review are in the
+personal review. The complete dark personal/keyboard/CSV/offline-font journey
+also passes on that exact clean release, exit0:
+`/tmp/cash-planning-final-personal-dark.log`. Full analysis is clean (3.9s).
+All four tracked lockfiles remain unchanged from `b867ad2`. No updated native
+APK/runtime pass is implied. Preserve prior bundle/source scopes:
+the earlier full household fault run below uses `d98c8a2`, not these new UI builds.
+See [PERSONAL-UX-REVIEW.md](PERSONAL-UX-REVIEW.md) before repeating evidence.
+
 Driver checkpoint `0f1462982a654eec72860675581f12c5f1af090a` is pushed on
 `codex/notification-lifecycle-20261018`. The three final production-browser
 journeys below pass, exit 0, using the clean-built `d98c8a2` app bundle already
@@ -195,11 +228,11 @@ and use the resume prompt when the session is continued.
   `7aaae2d`, relay close fix `50c3e02`, descended from the requested handoff
   `b867ad2`. Later commits record acceptance-driver/evidence updates. Read
   `git log` and preserve task work.
-- Latest pushed implementation checkpoint before this evidence update: `0f14629`; product
-  source `d98c8a2` now passes the complete clean-built narrow production journey
-  as scoped above, plus the full personal journey. Native packaging now passes;
-  clean Android rebuilding/packaging passes; runtime has the separate limits
-  above. Read newer
+- Latest implementation/driver checkpoint before this evidence update: `cd50efb`;
+  app source `727b84c` passes the clean-built planning journeys above. Earlier
+  household acceptance at `d98c8a2` and pinned native packaging retain their
+  separate scopes; the latest planning UI has no new native runtime acceptance.
+  Read newer
   commits before resuming.
   Documentation/driver changes alone do not require rebuilding app artifacts.
 - Last reviewed baseline: `cfee91ae7819cf8a87fc0904155ebbeca49c8d41` on `main`

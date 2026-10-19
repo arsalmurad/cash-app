@@ -130,6 +130,12 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    and the thirty-category physical pointer/edit/cancel/reload journey at actual
    200% page zoom, with browser color preference and new documents verified.
    Native enlarged text and actual assistive technology remain open.
+   The subsequent budget/goal/recurring dialog review repairs long selected
+   labels overflowing or painting outside fixed-height fields. A 24-case matrix
+   at 200% text and 7 recurring cases pass; 37 adjacent cases passed separately,
+   with scoped production browser
+   repeats and remaining limits in the same UX review. These are not actual
+   native enlarged-text or screen-reader results.
 5. [ ] Final-source acceptance on iOS, Android and production web/WASM, including
    reproducible release artifacts, exact runtime commands and platform limits.
    Previous ABI `970902974` passed production authenticated Chrome and Android
@@ -161,6 +167,10 @@ the linked evidence documents and Git. Unchecked gates are not achieved.
    A separate clean Android clone also passes build/packaging/compiler checks;
    APK byte-identical reproducibility is not claimed. Software boot fails readiness
    after 886s, so app runtime checks remain unrun. See the handoff for limits.
+   Subsequent planning UI source `727b84c` has a separate clean-clone pinned web
+   build and real light/dark planning-dialog runtime at 200% browser zoom;
+   bootstrap metadata prevents a whole-bundle bit-identical reproducibility
+   claim. Native APK/runtime results have not been repeated for these UI changes.
 6. [ ] Concise setup/recovery/security/verification handoff, complete deliverable
    source and evidence synchronized to GitHub `main`. Local diagnostic
    logs/caches are ignored; repeatable tests and evidence summaries are tracked.
